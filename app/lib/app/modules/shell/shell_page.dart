@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/theme.dart';
 import '../../data/services/session_service.dart';
 import '../../routes/routes.dart';
 import '../dashboard/dashboard_tab.dart';
@@ -73,6 +74,8 @@ class ShellPage extends GetView<ShellController> {
         NavigationDestination(
           icon: Badge(
             isLabelVisible: session.unread.value > 0,
+            backgroundColor: VfBadge.background(Theme.of(context).brightness),
+            textColor: VfBadge.foreground(Theme.of(context).brightness),
             label: Text('${session.unread.value}'),
             child: const Icon(Icons.notifications_none),
           ),

@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/theme.dart';
 import '../../data/models/models.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/session_service.dart';
@@ -247,12 +248,12 @@ class CreateVoucherPage extends GetView<CreateVoucherController> {
                             ? controller.next()
                             : controller.save(submit: true),
                   child: controller.busy.value
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: VfTheme.onPrimary(context),
                           ),
                         )
                       : Text(

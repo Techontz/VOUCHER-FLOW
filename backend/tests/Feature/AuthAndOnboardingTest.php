@@ -49,6 +49,52 @@ class AuthAndOnboardingTest extends TestCase
         });
     }
 
+    public function test_new_accounts_start_on_the_dark_theme(): void
+    {
+        $this->seed(PlanSeeder::class);
+
+        $this->postJson('/api/auth/register', [
+            'company_name' => 'Northwind Traders',
+            'business_email' => 'accounts@northwind.test',
+            'name' => 'Amina Said',
+            'email' => 'amina@northwind.test',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ])->assertCreated()->assertJsonPath('user.theme', 'dark');
+
+        $this->assertSame('dark', Company::where('name', 'Northwind Traders')->firstOrFail()->theme);
+
+        // An invited colleague starts dark too.
+        $admin = User::where('email', 'amina@northwind.test')->firstOrFail();
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/employees', [
+                'name' => 'Joseph Mbwana',
+                'email' => 'joseph@northwind.test',
+                'role' => 'employee',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.theme', 'dark');
+    }
+
+    public function test_light_remains_a_choice_that_is_remembered(): void
+    {
+        $t = $this->makeTenant('Acme Trading');
+
+        $this->actingAs($t['employee'], 'sanctum')
+            ->putJson('/api/profile', ['theme' => 'light'])
+            ->assertOk()
+            ->assertJsonPath('data.theme', 'light');
+
+        $this->assertSame('light', $t['employee']->fresh()->theme);
+
+        // The choice comes back on the next sign-in rather than reverting to dark.
+        $this->postJson('/api/auth/login', [
+            'email' => $t['employee']->email,
+            'password' => 'Password123!',
+        ])->assertOk()->assertJsonPath('user.theme', 'light');
+    }
+
     public function test_the_same_address_can_belong_to_two_companies(): void
     {
         $this->seed(PlanSeeder::class);

@@ -34,12 +34,17 @@ class ApiException implements Exception {
 class ApiService extends GetxService {
   static const _tokenKey = 'vouchflow.token';
   static const _localeKey = 'vouchflow.locale';
+  static const _themeKey = 'vouchflow.theme';
+
+  /// Dark is the product's default appearance; light is a stored preference.
+  static const defaultTheme = 'dark';
 
   late final SharedPreferences _prefs;
   final _client = http.Client();
 
   String? _token;
   String _locale = 'en';
+  String _theme = defaultTheme;
 
   /// Raised when the server rejects the stored token, so the app can sign out.
   final onUnauthorised = <void Function()>[];
@@ -48,12 +53,17 @@ class ApiService extends GetxService {
     _prefs = await SharedPreferences.getInstance();
     _token = _prefs.getString(_tokenKey);
     _locale = _prefs.getString(_localeKey) ?? 'en';
+    _theme = _prefs.getString(_themeKey) ?? defaultTheme;
     return this;
   }
 
   String? get token => _token;
   bool get hasToken => _token != null && _token!.isNotEmpty;
   String get locale => _locale;
+
+  /// The appearance chosen on this device. Kept locally as well as on the
+  /// account, so it applies before the first frame and survives signing out.
+  String get theme => _theme;
 
   Future<void> setToken(String? value) async {
     _token = value;
@@ -67,6 +77,11 @@ class ApiService extends GetxService {
   Future<void> setLocale(String value) async {
     _locale = value;
     await _prefs.setString(_localeKey, value);
+  }
+
+  Future<void> setTheme(String value) async {
+    _theme = value;
+    await _prefs.setString(_themeKey, value);
   }
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {

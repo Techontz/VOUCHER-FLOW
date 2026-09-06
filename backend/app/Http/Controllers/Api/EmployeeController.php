@@ -108,7 +108,7 @@ class EmployeeController extends Controller
 
         $this->audit->log('user.created', "Added {$user->name} as {$user->role}", $user);
 
-        return (new UserResource($user->load('department')))
+        return (new UserResource($user->refresh()->load('department')))
             ->additional(['temporary_password' => app()->environment('production') ? null : $password])
             ->response()->setStatusCode(201);
     }

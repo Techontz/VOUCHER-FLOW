@@ -2,11 +2,13 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, ApiError, getLocale, getToken, setLocale as persistLocale, setToken } from "./api";
+import {
+  api, ApiError, DEFAULT_THEME, getLocale, getTheme, getToken,
+  setLocale as persistLocale, setTheme as persistTheme, setToken,
+} from "./api";
 import { translate, type Locale, type MessageKey } from "./i18n";
+import type { Theme } from "./api";
 import type { Company, User } from "./types";
-
-type Theme = "light" | "dark";
 
 export interface Toast {
   id: number;
@@ -45,7 +47,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [company, setCompany] = useState<Company | null>(null);
   const [ready, setReady] = useState(false);
   const [locale, setLocaleState] = useState<Locale>("en");
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
   const [unread, setUnread] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
@@ -70,6 +72,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     toast(fallback, error instanceof Error ? error.message : undefined, "bad");
   }, [toast]);
+
+  /** Sets the appearance and remembers it on this device. */
+  const applyTheme = useCallback((next: Theme) => {
+    setTheme(next);
+    persistTheme(next);
+  }, []);
 
   const refreshUnread = useCallback(async () => {
     if (!getToken()) return;
@@ -96,7 +104,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setLocaleState(data.user.locale);
         persistLocale(data.user.locale);
       }
-      if (data.user.theme) setTheme(data.user.theme);
+      // The account's saved preference wins once we know who this is.
+      if (data.user.theme) applyTheme(data.user.theme);
       void refreshUnread();
     } catch {
       setToken(null);
@@ -105,10 +114,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setReady(true);
     }
-  }, [refreshUnread]);
+  }, [refreshUnread, applyTheme]);
 
+  // Read the device's stored preferences after mount, not during render: the
+  // server has no localStorage, so seeding state from it up front would render
+  // a different tree than it hydrates. The inline script in the root layout has
+  // already painted the right theme, so this only catches React up.
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setLocaleState(getLocale());
+    setTheme(getTheme());
+    /* eslint-enable react-hooks/set-state-in-effect */
     void refresh();
   }, [refresh]);
 
@@ -138,7 +154,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const toggleTheme = useCallback(() => {
     setTheme((current) => {
-      const next = current === "light" ? "dark" : "light";
+      const next: Theme = current === "light" ? "dark" : "light";
+      // Persist on the device first, so the choice survives a signed-out reload,
+      // then mirror it onto the account when there is one.
+      persistTheme(next);
       if (getToken()) void api.put("/profile", { theme: next }).catch(() => undefined);
       return next;
     });
@@ -153,9 +172,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLocaleState(nextUser.locale);
       persistLocale(nextUser.locale);
     }
-    if (nextUser.theme) setTheme(nextUser.theme);
+    if (nextUser.theme) applyTheme(nextUser.theme);
     void refreshUnread();
-  }, [refreshUnread]);
+  }, [refreshUnread, applyTheme]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const data = await api.post<{ token: string; user: User; company: Company | null }>("/auth/login", {

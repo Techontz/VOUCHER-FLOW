@@ -24,7 +24,7 @@ return new class extends Migration
             $table->enum('status', ['active', 'invited', 'suspended'])->default('active')->after('phone');
 
             $table->string('locale', 5)->default('en')->after('status');
-            $table->string('theme', 10)->default('light')->after('locale');
+            $table->string('theme', 10)->default('dark')->after('locale');
             $table->string('avatar_path')->nullable()->after('theme');
 
             // Saved signature, reused when the user signs a voucher.

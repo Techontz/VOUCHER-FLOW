@@ -238,7 +238,7 @@ export default function CreateVoucherPage() {
           <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: 10 }}>
             {t("livePreview")}
           </div>
-          <div style={{ background: "#fff", color: "#201e1d", border: "1px solid var(--color-neutral-300)", boxShadow: "var(--shadow-md)", padding: 28, fontSize: 13.5 }}>
+          <div style={{ background: "#fff", color: "#201e1d", border: "1px solid var(--color-neutral-400)", boxShadow: "var(--shadow-lg)", padding: 28, fontSize: 13.5 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #201e1d", paddingBottom: 12, gap: 12 }}>
               <div style={{ minWidth: 0 }}>
                 {company?.logo_url && <img src={company.logo_url} alt="" style={{ maxHeight: 34, marginBottom: 6 }} />}

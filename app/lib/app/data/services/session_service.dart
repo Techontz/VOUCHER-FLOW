@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -15,7 +17,7 @@ class SessionService extends GetxService {
   final company = Rxn<Company>();
   final unread = 0.obs;
   final locale = 'en'.obs;
-  final themeMode = ThemeMode.light.obs;
+  final themeMode = ThemeMode.dark.obs;
   final booting = true.obs;
 
   bool get isSignedIn => user.value != null;
@@ -23,6 +25,10 @@ class SessionService extends GetxService {
 
   Future<SessionService> init() async {
     locale.value = _api.locale;
+    // The device's stored appearance applies before anything is fetched, so the
+    // first frame is already correct — dark unless this device chose light.
+    themeMode.value = _modeFrom(_api.theme);
+    Get.changeThemeMode(themeMode.value);
     _api.onUnauthorised.add(() => _clear());
 
     if (_api.hasToken) {
@@ -97,15 +103,29 @@ class SessionService extends GetxService {
     final next = themeMode.value == ThemeMode.dark
         ? ThemeMode.light
         : ThemeMode.dark;
-    themeMode.value = next;
-    Get.changeThemeMode(next);
+
+    _applyTheme(next);
+
     if (isSignedIn) {
       try {
-        await _api.put('/profile', {
-          'theme': next == ThemeMode.dark ? 'dark' : 'light',
-        });
-      } catch (_) {}
+        await _api.put('/profile', {'theme': _nameFor(next)});
+      } catch (_) {
+        // The device keeps the choice even if the account could not be updated.
+      }
     }
+  }
+
+  static ThemeMode _modeFrom(String? value) =>
+      value == 'light' ? ThemeMode.light : ThemeMode.dark;
+
+  static String _nameFor(ThemeMode mode) =>
+      mode == ThemeMode.light ? 'light' : 'dark';
+
+  /// Applies the appearance and remembers it on this device.
+  void _applyTheme(ThemeMode mode) {
+    themeMode.value = mode;
+    Get.changeThemeMode(mode);
+    unawaited(_api.setTheme(_nameFor(mode)));
   }
 
   Future<void> signOut() async {

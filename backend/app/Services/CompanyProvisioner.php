@@ -131,7 +131,9 @@ class CompanyProvisioner
                 $company->id,
             );
 
-            return ['company' => $company->fresh(), 'admin' => $admin];
+            // refresh() so the caller sees the columns the database filled in —
+            // the theme default among them — rather than nulls.
+            return ['company' => $company->fresh(), 'admin' => $admin->refresh()];
         });
     }
 

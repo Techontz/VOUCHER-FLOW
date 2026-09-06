@@ -48,6 +48,14 @@ class VfTheme {
 
   static const fontFamily = 'Poppins';
 
+  /// The ink a filled button paints on its own background — near-white on the
+  /// light theme's cyan, near-black on the dark theme's lighter blue. Progress
+  /// indicators placed inside such a button must use this, not plain white.
+  static Color onPrimary(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.light
+      ? VfColors.bg
+      : VfColors.darkBg;
+
   static ThemeData light() => _base(
     brightness: Brightness.light,
     background: VfColors.bg,
@@ -251,6 +259,18 @@ class VfTheme {
       ),
     );
   }
+}
+
+/// Count badges. Small bold text on a saturated ground needs the pairing chosen
+/// per theme: white on #ff458e measures only about 2.6:1.
+class VfBadge {
+  const VfBadge._();
+
+  static Color background(Brightness brightness) =>
+      brightness == Brightness.dark ? VfColors.accent2500 : VfColors.accent2600;
+
+  static Color foreground(Brightness brightness) =>
+      brightness == Brightness.dark ? VfColors.neutral900 : Colors.white;
 }
 
 /// Status colours shared by chips, timelines and list rows.

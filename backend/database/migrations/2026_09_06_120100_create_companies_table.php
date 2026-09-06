@@ -26,7 +26,7 @@ return new class extends Migration
             $table->string('logo_path')->nullable();
             $table->string('primary_color', 9)->default('#0088b0');
             $table->string('accent_color', 9)->default('#d6006c');
-            $table->string('theme', 10)->default('light');
+            $table->string('theme', 10)->default('dark');
             $table->text('voucher_footer_text')->nullable();
 
             $table->enum('status', ['trial', 'active', 'past_due', 'suspended', 'cancelled'])->default('trial');

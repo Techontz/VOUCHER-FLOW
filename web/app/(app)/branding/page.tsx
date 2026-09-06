@@ -97,7 +97,7 @@ export default function BrandingPage() {
 
         <div className="vf-sticky">
           <SectionTitle>{t("liveVoucherPreview")}</SectionTitle>
-          <div style={{ background: "#fff", color: "#201e1d", border: "1px solid var(--color-neutral-300)", boxShadow: "var(--shadow-md)", padding: 26, fontSize: 13 }}>
+          <div style={{ background: "#fff", color: "#201e1d", border: "1px solid var(--color-neutral-400)", boxShadow: "var(--shadow-lg)", padding: 26, fontSize: 13 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: `3px solid ${primary}`, paddingBottom: 12, gap: 12 }}>
               <div style={{ minWidth: 0 }}>
                 {preview && <img src={preview} alt="" style={{ maxHeight: 32, marginBottom: 6 }} />}

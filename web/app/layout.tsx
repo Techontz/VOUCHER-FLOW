@@ -12,13 +12,21 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0088b0",
+  themeColor: "#191817",
 };
+
+/**
+ * Applied before the first paint, so a returning visitor who chose light never
+ * sees a dark frame flash first (and vice versa). Dark is the default when
+ * nothing has been stored.
+ */
+const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem("vouchflow.theme");document.documentElement.dataset.theme=(t==="light"||t==="dark")?t:"dark";}catch(e){document.documentElement.dataset.theme="dark";}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="light" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link

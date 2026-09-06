@@ -4,8 +4,21 @@
    Server-generated PDFs remain the canonical artefact. */
 @media print {
   .no-print { display: none !important; }
-  body { background: #fff; }
   a[href]::after { content: none !important; }
+
+  /* Paper is white whatever the screen was showing. Without this, printing from
+     dark mode puts light text on a white sheet. */
+  :root, :root[data-theme="dark"] {
+    --color-bg: #ffffff;
+    --color-surface: #eae9e9;
+    --color-text: #201e1d;
+    --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+    --color-neutral-100: #f8f4f4; --color-neutral-200: #eae7e7; --color-neutral-300: #d7d3d3;
+    --color-neutral-400: #bab6b6; --color-neutral-500: #9b9797; --color-neutral-600: #7d7979;
+    --color-neutral-700: #605d5d; --color-neutral-800: #444141; --color-neutral-900: #2d2b2b;
+    --color-accent: #0088b0; --color-accent-700: #006786; --color-accent-800: #004961;
+  }
+  body { background: #fff; color: #201e1d; }
 }
 
 /* App shell responsiveness — the sidebar collapses into a drawer on narrow
@@ -32,8 +45,9 @@
 .vf-navitem:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); text-decoration: none; color: var(--color-text); }
 .vf-navitem[aria-current="page"] { background: var(--color-accent-100); color: var(--color-accent-800); font-weight: 600; }
 .vf-navbadge {
-  font-size: 12px; font-variant-numeric: tabular-nums; background: var(--color-accent-2-500);
-  color: #fff; border-radius: 9px; padding: 1px 7px;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+  background: var(--color-badge-bg); color: var(--color-badge-fg);
+  border-radius: 9px; padding: 1px 7px; font-weight: 600;
 }
 .vf-tabbar { display: none; }
 .vf-scrim { display: none; }

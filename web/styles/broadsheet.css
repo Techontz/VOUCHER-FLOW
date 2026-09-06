@@ -6,6 +6,11 @@
    ========================================================================== */
 
 :root {
+  /* Lets the browser paint its own chrome — scrollbars, date pickers, select
+     menus, autofill — to match the theme. Without it those render light on a
+     dark page and become unreadable. */
+  color-scheme: light;
+
   --color-bg: #f3f2f2;
   --color-surface: #eae9e9;
   --color-text: #201e1d;
@@ -49,6 +54,11 @@
      Body copy and chrome never take it. */
   --color-process-yellow: #edbb00;
 
+  /* Count badges. Small bold text on a saturated ground needs the pairing
+     chosen per theme: white on #ff458e measures only 2.6:1. */
+  --color-badge-bg: #d82071;
+  --color-badge-fg: #ffffff;
+
   --font-heading: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-body: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-heading-weight: 600;
@@ -72,6 +82,8 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
+
   --color-bg: #191817;
   --color-surface: #232120;
   --color-text: #f3f2f2;
@@ -90,6 +102,10 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,.55);
   --shadow-md: 0 3px 12px rgba(0,0,0,.6);
   --shadow-lg: 0 14px 36px rgba(0,0,0,.66);
+
+  /* On a dark ground the badge keeps the bright pink and darkens its ink. */
+  --color-badge-bg: #ff458e;
+  --color-badge-fg: #2d2b2b;
 }
 
 *, *::before, *::after { box-sizing: border-box; }

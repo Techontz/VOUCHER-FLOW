@@ -175,7 +175,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span style={{ position: "relative" }}>
               <Icon name={item.icon} size={20} />
               {badgeFor(item) ? (
-                <span style={{ position: "absolute", top: -3, right: -8, background: "var(--color-accent-2-500)", color: "#fff", borderRadius: 8, fontSize: 9.5, padding: "0 4px" }}>
+                <span style={{ position: "absolute", top: -3, right: -8, background: "var(--color-badge-bg)", color: "var(--color-badge-fg)", borderRadius: 8, fontSize: 9.5, fontWeight: 600, padding: "0 4px" }}>
                   {badgeFor(item)}
                 </span>
               ) : null}

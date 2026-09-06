@@ -207,8 +207,10 @@ void showToast(String title, {String? body, ToastKind kind = ToastKind.ok}) {
             style: const TextStyle(fontSize: 13.5, color: Colors.white70),
           ),
     backgroundColor: VfColors.neutral900,
-    borderColor: colour,
-    borderWidth: 0,
+    // A hairline in the toast's own accent, so the panel separates from the
+    // dark ground it now usually sits on.
+    borderColor: colour.withValues(alpha: .55),
+    borderWidth: 1,
     margin: const EdgeInsets.all(12),
     borderRadius: 2,
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

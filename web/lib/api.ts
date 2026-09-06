@@ -1,8 +1,8 @@
 /**
  * Typed client for the VouchFlow API.
  *
- * Holds the Sanctum token and the active language, and turns Laravel's error
- * shapes into something the forms can render field by field.
+ * Holds the Sanctum token, the active language and the chosen appearance, and
+ * turns Laravel's error shapes into something the forms can render field by field.
  */
 
 export const API_URL =
@@ -10,8 +10,13 @@ export const API_URL =
 
 const TOKEN_KEY = "vouchflow.token";
 const LOCALE_KEY = "vouchflow.locale";
+const THEME_KEY = "vouchflow.theme";
 
 export type Locale = "en" | "sw";
+export type Theme = "light" | "dark";
+
+/** Dark is the product's default appearance; light is a stored preference. */
+export const DEFAULT_THEME: Theme = "dark";
 
 export class ApiError extends Error {
   status: number;
@@ -66,6 +71,30 @@ export function setLocale(locale: Locale) {
     window.localStorage.setItem(LOCALE_KEY, locale);
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * The appearance chosen on this device. Stored separately from the account so a
+ * visitor who has not signed in still gets — and keeps — their choice, and so
+ * the pre-paint script in the root layout can read it synchronously.
+ */
+export function getTheme(): Theme {
+  if (typeof window === "undefined") return DEFAULT_THEME;
+  try {
+    const stored = window.localStorage.getItem(THEME_KEY);
+    return stored === "light" || stored === "dark" ? stored : DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+}
+
+export function setTheme(theme: Theme) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    /* private browsing — the choice simply will not outlive the tab */
   }
 }
 
