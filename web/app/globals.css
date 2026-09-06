@@ -1,0 +1,83 @@
+@import "../styles/broadsheet.css";
+
+/* Print: the browser's own print path renders the on-screen document view.
+   Server-generated PDFs remain the canonical artefact. */
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+  a[href]::after { content: none !important; }
+}
+
+/* App shell responsiveness — the sidebar collapses into a drawer on narrow
+   screens, and the mobile tab bar takes over below the same breakpoint. */
+.vf-shell { display: flex; min-height: 100vh; }
+.vf-sidebar {
+  width: 246px; flex: 0 0 246px; border-right: 1px solid var(--color-divider);
+  padding: var(--space-4) var(--space-3); display: flex; flex-direction: column;
+  gap: var(--space-2); position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.vf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.vf-topbar {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-6); border-bottom: 1px solid var(--color-divider);
+  position: sticky; top: 0; background: var(--color-bg); z-index: 20;
+}
+.vf-content { flex: 1; padding: var(--space-6); min-width: 0; }
+.vf-navitem {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 0; border-radius: var(--radius-md); cursor: pointer;
+  font-family: var(--font-body); font-size: 15px; padding: 8px var(--space-2);
+  background: transparent; color: var(--color-text); text-decoration: none;
+}
+.vf-navitem:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); text-decoration: none; color: var(--color-text); }
+.vf-navitem[aria-current="page"] { background: var(--color-accent-100); color: var(--color-accent-800); font-weight: 600; }
+.vf-navbadge {
+  font-size: 12px; font-variant-numeric: tabular-nums; background: var(--color-accent-2-500);
+  color: #fff; border-radius: 9px; padding: 1px 7px;
+}
+.vf-tabbar { display: none; }
+.vf-scrim { display: none; }
+
+@media (max-width: 900px) {
+  .vf-sidebar {
+    position: fixed; inset: 0 auto 0 0; z-index: 60; background: var(--color-bg);
+    box-shadow: var(--shadow-lg); transform: translateX(-100%);
+    transition: transform .18s ease-out, visibility .18s;
+    /* visibility, not just the transform: an off-screen drawer must also leave
+       the tab order, or keyboard users land inside an invisible menu. */
+    visibility: hidden;
+  }
+  .vf-sidebar[data-open="true"] { transform: none; visibility: visible; }
+  .vf-scrim { display: block; position: fixed; inset: 0; z-index: 55; background: color-mix(in srgb, var(--color-neutral-900) 45%, transparent); border: 0; }
+  .vf-topbar { padding: var(--space-2) var(--space-3); }
+  .vf-content { padding: var(--space-4) var(--space-3) 84px; }
+  .vf-tabbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    background: var(--color-bg); border-top: 1px solid var(--color-divider);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .vf-tabbar a {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 10.5px; padding: 4px 2px; color: var(--color-neutral-600); text-decoration: none;
+  }
+  .vf-tabbar a[aria-current="page"] { color: var(--color-accent-700); }
+  .vf-tabbar a:hover { text-decoration: none; }
+}
+
+/* Two-column page bodies fold to one column on narrow screens. */
+.vf-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .82fr); gap: var(--space-8); align-items: start; }
+@media (max-width: 1040px) { .vf-split { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); } }
+
+.vf-sticky { position: sticky; top: 84px; }
+@media (max-width: 1040px) { .vf-sticky { position: static; } }
+
+/* The landing page uses the design's editorial measure. */
+.vf-page { max-width: 1180px; margin: 0 auto; padding: 0 var(--space-6); }
+@media (max-width: 700px) { .vf-page { padding: 0 var(--space-3); } }
+
+/* The drawer trigger and the wider top-bar controls swap at the shell breakpoint. */
+.vf-menu-btn { display: none; }
+@media (max-width: 900px) {
+  .vf-menu-btn { display: inline-flex; }
+  .vf-topbar-extras { display: none; }
+}
