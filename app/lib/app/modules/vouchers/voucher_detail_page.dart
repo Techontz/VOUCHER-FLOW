@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:printing/printing.dart';
@@ -101,9 +98,10 @@ class VoucherDetailController extends GetxController {
   }
 
   Future<void> sharePdf() async {
+    final v = voucher.value;
+    final number = v?.number ?? 'voucher';
     try {
       final bytes = await repo.pdf(voucherId, download: true);
-      final number = voucher.value?.number ?? 'voucher';
       await Share.shareXFiles(
         [
           XFile.fromData(
@@ -113,10 +111,23 @@ class VoucherDetailController extends GetxController {
           ),
         ],
         subject: number,
-        text: voucher.value?.purpose,
+        text: v?.purpose,
       );
-    } on ApiException catch (e) {
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
+    } on ApiException {
+      // The PDF is generated server-side. Until it exists, share the voucher's
+      // own particulars rather than nothing.
+      if (v == null) return;
+      await Share.share(
+        [
+          '${v.number} · ${v.statusLabel}',
+          '${v.purpose} — ${v.payee}',
+          v.amountText,
+          if (v.amountInWords != null) v.amountInWords!,
+          if (v.verificationCode != null)
+            '${'voucher.verification'.tr}: ${v.verificationCode}',
+        ].join('\n'),
+        subject: v.number,
+      );
     }
   }
 
@@ -227,6 +238,7 @@ class _Header extends StatelessWidget {
           runSpacing: 6,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            KindChip(kind: voucher.kind, dense: false),
             StatusChip(label: voucher.statusLabel, tag: voucher.statusTag),
             Text(
               [
@@ -274,6 +286,10 @@ class _Details extends StatelessWidget {
       ('voucher.category'.tr, voucher.category ?? '—'),
       ('voucher.reference'.tr, voucher.accountRef ?? '—'),
       ('voucher.costCentre'.tr, voucher.costCentre ?? '—'),
+      if (voucher.paymentReference != null)
+        ('pay.reference'.tr, voucher.paymentReference!),
+      if (voucher.paidAt != null) ('pay.on'.tr, Fmt.dateTime(voucher.paidAt)),
+      if (voucher.paidBy != null) ('pay.by'.tr, voucher.paidBy!),
     ];
 
     return Column(
@@ -366,10 +382,10 @@ class _Timeline extends StatelessWidget {
             final last = entry.key == voucher.timeline.length - 1;
 
             final colour = switch (row.state) {
-              'rejected' => VfColors.accent2500,
+              'rejected' => VfColors.bad,
               'done' => VfColors.accent500,
-              'current' => VfColors.processYellow,
-              _ => VfColors.neutral400,
+              'current' => VfColors.warn,
+              _ => VfColors.lineStrong,
             };
             final icon = switch (row.state) {
               'rejected' => Icons.cancel_outlined,
@@ -418,7 +434,7 @@ class _Timeline extends StatelessWidget {
                             '${'voucher.permitted'.tr}: ${row.capabilityText}',
                             style: theme.textTheme.bodySmall,
                           ),
-                          if (row.signature != null) ...[
+                          if (decodeSignature(row.signature) != null) ...[
                             const SizedBox(height: 6),
                             Container(
                               padding: const EdgeInsets.all(3),
@@ -427,7 +443,7 @@ class _Timeline extends StatelessWidget {
                                 border: Border.all(color: theme.dividerColor),
                               ),
                               child: Image.memory(
-                                _decodeDataUrl(row.signature!),
+                                decodeSignature(row.signature)!,
                                 height: 40,
                                 fit: BoxFit.contain,
                                 errorBuilder: (_, _, _) =>
@@ -498,13 +514,13 @@ class _Comments extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 15,
-                  backgroundColor: VfColors.accent200,
+                  backgroundColor: VfColors.accent700,
                   child: Text(
                     comment.authorInitials,
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: VfColors.accent800,
+                      color: VfColors.accentInk,
                     ),
                   ),
                 ),
@@ -594,8 +610,8 @@ class _ActionBar extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: VfColors.accent2700,
-                      side: const BorderSide(color: VfColors.accent2500),
+                      foregroundColor: VfColors.bad,
+                      side: const BorderSide(color: VfColors.bad),
                     ),
                     onPressed: () =>
                         _reason(context, controller, isReject: true),
@@ -647,16 +663,203 @@ class _ActionBar extends StatelessWidget {
                 label: Text('act.approve'.tr),
               ),
             ),
+          if (a.pay) ...[
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _recordPayment(context, controller, voucher),
+                icon: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  voucher.isCash ? 'pay.release'.tr : 'pay.record'.tr,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            VfNote('pay.note'.tr),
+          ],
         ],
       ),
     );
   }
 }
 
-/// Signatures arrive as data URLs; strip the prefix before decoding.
-Uint8List _decodeDataUrl(String value) {
-  final index = value.indexOf(',');
-  return base64Decode(index == -1 ? value : value.substring(index + 1));
+/// Owns the lifetime of the controllers a sheet builds.
+///
+/// `Get.bottomSheet`'s future completes the moment the sheet is popped, while
+/// its exit transition is still building — disposing controllers there throws
+/// "used after being disposed" mid-animation. A State disposes only once the
+/// route is genuinely gone.
+class _SheetScope extends StatefulWidget {
+  const _SheetScope({required this.onDispose, required this.child});
+
+  final List<VoidCallback> onDispose;
+  final Widget child;
+
+  @override
+  State<_SheetScope> createState() => _SheetScopeState();
+}
+
+class _SheetScopeState extends State<_SheetScope> {
+  @override
+  void dispose() {
+    for (final release in widget.onDispose) {
+      release();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Records a payment against an approved voucher.
+///
+/// This step never decides anything — the approval already happened. It
+/// captures how the money left and the reference it left under.
+Future<void> _recordPayment(
+  BuildContext context,
+  VoucherDetailController controller,
+  Voucher voucher,
+) async {
+  final reference = TextEditingController();
+  final comment = TextEditingController();
+  final method = (voucher.isCash ? 'Cash — office float' : 'Bank transfer').obs;
+  final ready = false.obs;
+
+  reference.addListener(() => ready.value = reference.text.trim().isNotEmpty);
+
+  final methods = voucher.isCash
+      ? const ['Cash — office float', 'Cash — branch float']
+      : const ['Bank transfer', 'Cheque', 'Mobile money'];
+
+  await Get.bottomSheet<void>(
+    isScrollControlled: true,
+    _SheetScope(
+      onDispose: [reference.dispose, comment.dispose],
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 18,
+            right: 18,
+            top: 4,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  voucher.isCash ? 'pay.release'.tr : 'pay.record'.tr,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 14),
+                VfPanel(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${voucher.number} · ${voucher.payee}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              voucher.amountText,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      KindChip(kind: voucher.kind, dense: false),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Obx(
+                  () => DropdownButtonFormField<String>(
+                    initialValue: method.value,
+                    decoration: InputDecoration(labelText: 'pay.from'.tr),
+                    items: methods
+                        .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                        .toList(),
+                    onChanged: (v) => method.value = v ?? method.value,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reference,
+                  decoration: InputDecoration(
+                    labelText: voucher.isCash
+                        ? 'pay.reference'.tr
+                        : 'pay.cheque'.tr,
+                    hintText: voucher.isCash ? 'PC-REL-4471' : 'TRF-2026-4471',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: comment,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'voucher.addComment'.tr,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                VfNote('pay.note'.tr),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: Get.back,
+                        child: Text('action.cancel'.tr),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Obx(
+                        () => FilledButton(
+                          onPressed: ready.value
+                              ? () {
+                                  Get.back();
+                                  controller.run(
+                                    () => controller.repo.pay(
+                                      voucher.id,
+                                      reference: reference.text.trim(),
+                                      method: method.value,
+                                      comment: comment.text.trim().isEmpty
+                                          ? null
+                                          : comment.text.trim(),
+                                    ),
+                                    'pay.record'.tr,
+                                    '${voucher.number} · ${voucher.amountText}',
+                                  );
+                                }
+                              : null,
+                          child: Text('pay.markPaid'.tr),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Sign (and optionally approve) — the statement must be ticked before the
@@ -676,153 +879,156 @@ Future<void> _sign(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => Padding(
-      padding: EdgeInsets.only(
-        left: 18,
-        right: 18,
-        top: 4,
-        bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 18,
-      ),
-      child: SingleChildScrollView(
-        child: Obx(() {
-          final canAct = statement.value && (useSaved.value || pad.isNotEmpty);
+    builder: (sheetContext) => _SheetScope(
+      onDispose: [pad.dispose, comment.dispose],
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 18,
+          right: 18,
+          top: 4,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 18,
+        ),
+        child: SingleChildScrollView(
+          child: Obx(() {
+            final canAct =
+                statement.value && (useSaved.value || pad.isNotEmpty);
 
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                approve ? 'act.approve'.tr : 'act.sign'.tr,
-                style: Theme.of(sheetContext).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${controller.voucher.value!.number} · ${controller.voucher.value!.amountText}',
-                style: Theme.of(sheetContext).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 16),
-
-              if (controller.savedSignature != null)
-                SegmentedButton<bool>(
-                  segments: [
-                    ButtonSegment(value: true, label: Text('sign.saved'.tr)),
-                    ButtonSegment(value: false, label: Text('sign.draw'.tr)),
-                  ],
-                  selected: {useSaved.value},
-                  onSelectionChanged: (s) => useSaved.value = s.first,
-                  showSelectedIcon: false,
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  approve ? 'act.approve'.tr : 'act.sign'.tr,
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
                 ),
-              const SizedBox(height: 12),
-
-              if (useSaved.value && controller.savedSignature != null)
-                Container(
-                  height: 110,
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: VfColors.neutral400),
-                  ),
-                  child: Image.memory(
-                    _decodeDataUrl(controller.savedSignature!),
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                  ),
-                )
-              else ...[
-                AnimatedBuilder(
-                  animation: pad,
-                  builder: (_, _) => SignaturePad(controller: pad),
+                const SizedBox(height: 4),
+                Text(
+                  '${controller.voucher.value!.number} · ${controller.voucher.value!.amountText}',
+                  style: Theme.of(sheetContext).textTheme.bodySmall,
                 ),
+                const SizedBox(height: 16),
+
+                if (decodeSignature(controller.savedSignature) != null)
+                  SegmentedButton<bool>(
+                    segments: [
+                      ButtonSegment(value: true, label: Text('sign.saved'.tr)),
+                      ButtonSegment(value: false, label: Text('sign.draw'.tr)),
+                    ],
+                    selected: {useSaved.value},
+                    onSelectionChanged: (s) => useSaved.value = s.first,
+                    showSelectedIcon: false,
+                  ),
+                const SizedBox(height: 12),
+
+                if (useSaved.value && controller.savedSignature != null)
+                  Container(
+                    height: 110,
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: VfColors.lineStrong),
+                    ),
+                    child: Image.memory(
+                      decodeSignature(controller.savedSignature)!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  )
+                else ...[
+                  AnimatedBuilder(
+                    animation: pad,
+                    builder: (_, _) => SignaturePad(controller: pad),
+                  ),
+                  CheckboxListTile(
+                    value: saveForNext.value,
+                    onChanged: (v) => saveForNext.value = v ?? true,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    dense: true,
+                    title: Text(
+                      'sign.saveForNext'.tr,
+                      style: const TextStyle(fontSize: 13.5),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 8),
+                TextField(
+                  controller: comment,
+                  maxLines: 2,
+                  decoration: InputDecoration(labelText: 'sign.comment'.tr),
+                ),
+                const SizedBox(height: 8),
                 CheckboxListTile(
-                  value: saveForNext.value,
-                  onChanged: (v) => saveForNext.value = v ?? true,
+                  value: statement.value,
+                  onChanged: (v) => statement.value = v ?? false,
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   dense: true,
                   title: Text(
-                    'sign.saveForNext'.tr,
-                    style: const TextStyle(fontSize: 13.5),
+                    approve ? 'sign.approveStatement'.tr : 'sign.statement'.tr,
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ),
-              ],
+                if (!approve) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'sign.noApprove'.tr,
+                    style: Theme.of(sheetContext).textTheme.bodySmall,
+                  ),
+                ],
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: !canAct
+                      ? null
+                      : () async {
+                          // Capture everything the sheet owns, then close it, so no
+                          // BuildContext is used after an await.
+                          final navigator = Navigator.of(sheetContext);
+                          final drawn = useSaved.value
+                              ? null
+                              : await pad.toPng();
+                          navigator.pop();
 
-              const SizedBox(height: 8),
-              TextField(
-                controller: comment,
-                maxLines: 2,
-                decoration: InputDecoration(labelText: 'sign.comment'.tr),
-              ),
-              const SizedBox(height: 8),
-              CheckboxListTile(
-                value: statement.value,
-                onChanged: (v) => statement.value = v ?? false,
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                dense: true,
-                title: Text(
-                  approve ? 'sign.approveStatement'.tr : 'sign.statement'.tr,
-                  style: const TextStyle(fontSize: 13),
+                          final signature = drawn == null
+                              ? null
+                              : VoucherRepository.encodeSignature(drawn);
+                          final id = controller.voucherId;
+                          final text = comment.text.trim().isEmpty
+                              ? null
+                              : comment.text.trim();
+
+                          if (approve) {
+                            await controller.run(
+                              () => controller.repo.approve(
+                                id,
+                                comment: text,
+                                signature: signature,
+                              ),
+                              'msg.approved'.tr,
+                            );
+                          } else {
+                            await controller.run(
+                              () => controller.repo.sign(
+                                id,
+                                signature: signature,
+                                comment: text,
+                                save: saveForNext.value,
+                              ),
+                              'msg.signed'.tr,
+                              'msg.signedBody'.tr,
+                            );
+                          }
+                        },
+                  child: Text(approve ? 'act.approve'.tr : 'act.sign'.tr),
                 ),
-              ),
-              if (!approve) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'sign.noApprove'.tr,
-                  style: Theme.of(sheetContext).textTheme.bodySmall,
-                ),
               ],
-              const SizedBox(height: 14),
-              FilledButton(
-                onPressed: !canAct
-                    ? null
-                    : () async {
-                        // Capture everything the sheet owns, then close it, so no
-                        // BuildContext is used after an await.
-                        final navigator = Navigator.of(sheetContext);
-                        final drawn = useSaved.value ? null : await pad.toPng();
-                        navigator.pop();
-
-                        final signature = drawn == null
-                            ? null
-                            : VoucherRepository.encodeSignature(drawn);
-                        final id = controller.voucherId;
-                        final text = comment.text.trim().isEmpty
-                            ? null
-                            : comment.text.trim();
-
-                        if (approve) {
-                          await controller.run(
-                            () => controller.repo.approve(
-                              id,
-                              comment: text,
-                              signature: signature,
-                            ),
-                            'msg.approved'.tr,
-                          );
-                        } else {
-                          await controller.run(
-                            () => controller.repo.sign(
-                              id,
-                              signature: signature,
-                              comment: text,
-                              save: saveForNext.value,
-                            ),
-                            'msg.signed'.tr,
-                            'msg.signedBody'.tr,
-                          );
-                        }
-                      },
-                child: Text(approve ? 'act.approve'.tr : 'act.sign'.tr),
-              ),
-            ],
-          );
-        }),
+            );
+          }),
+        ),
       ),
     ),
   );
-
-  pad.dispose();
-  comment.dispose();
 }
 
 /// Reject or request changes — both require a written reason for the record.
@@ -837,61 +1043,62 @@ Future<void> _reason(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => Padding(
-      padding: EdgeInsets.only(
-        left: 18,
-        right: 18,
-        top: 4,
-        bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 18,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            isReject ? 'act.reject'.tr : 'act.requestChanges'.tr,
-            style: Theme.of(sheetContext).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: reason,
-            maxLines: 4,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: isReject
-                  ? 'sign.rejectReason'.tr
-                  : 'sign.changesNeeded'.tr,
+    builder: (sheetContext) => _SheetScope(
+      onDispose: [reason.dispose],
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 18,
+          right: 18,
+          top: 4,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 18,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              isReject ? 'act.reject'.tr : 'act.requestChanges'.tr,
+              style: Theme.of(sheetContext).textTheme.titleLarge,
             ),
-          ),
-          const SizedBox(height: 14),
-          FilledButton(
-            style: isReject
-                ? FilledButton.styleFrom(backgroundColor: VfColors.accent2600)
-                : null,
-            onPressed: () {
-              final text = reason.text.trim();
-              if (text.length < 3) return;
-              Navigator.of(sheetContext).pop();
+            const SizedBox(height: 12),
+            TextField(
+              controller: reason,
+              maxLines: 4,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: isReject
+                    ? 'sign.rejectReason'.tr
+                    : 'sign.changesNeeded'.tr,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton(
+              style: isReject
+                  ? FilledButton.styleFrom(backgroundColor: VfColors.bad)
+                  : null,
+              onPressed: () {
+                final text = reason.text.trim();
+                if (text.length < 3) return;
+                Navigator.of(sheetContext).pop();
 
-              final id = controller.voucherId;
-              if (isReject) {
-                controller.run(
-                  () => controller.repo.reject(id, text),
-                  'msg.rejected'.tr,
-                );
-              } else {
-                controller.run(
-                  () => controller.repo.requestChanges(id, text),
-                  'msg.changes'.tr,
-                );
-              }
-            },
-            child: Text(isReject ? 'act.reject'.tr : 'act.requestChanges'.tr),
-          ),
-        ],
+                final id = controller.voucherId;
+                if (isReject) {
+                  controller.run(
+                    () => controller.repo.reject(id, text),
+                    'msg.rejected'.tr,
+                  );
+                } else {
+                  controller.run(
+                    () => controller.repo.requestChanges(id, text),
+                    'msg.changes'.tr,
+                  );
+                }
+              },
+              child: Text(isReject ? 'act.reject'.tr : 'act.requestChanges'.tr),
+            ),
+          ],
+        ),
       ),
     ),
   );
-
-  reason.dispose();
 }

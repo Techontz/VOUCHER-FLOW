@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -183,13 +180,13 @@ class ProfileTab extends GetView<ProfileController> {
             children: [
               CircleAvatar(
                 radius: 26,
-                backgroundColor: VfColors.accent200,
+                backgroundColor: VfColors.accent700,
                 child: Text(
                   user.initials,
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
-                    color: VfColors.accent800,
+                    color: VfColors.accentInk,
                   ),
                 ),
               ),
@@ -245,7 +242,7 @@ class ProfileTab extends GetView<ProfileController> {
             style: theme.textTheme.labelSmall,
           ),
           const SizedBox(height: 8),
-          if (controller.savedSignature.value != null)
+          if (decodeSignature(controller.savedSignature.value) != null)
             Container(
               height: 96,
               padding: const EdgeInsets.all(6),
@@ -254,7 +251,7 @@ class ProfileTab extends GetView<ProfileController> {
                 border: Border.all(color: theme.dividerColor),
               ),
               child: Image.memory(
-                _decode(controller.savedSignature.value!),
+                decodeSignature(controller.savedSignature.value)!,
                 fit: BoxFit.contain,
                 errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
@@ -320,8 +317,8 @@ class ProfileTab extends GetView<ProfileController> {
           const SizedBox(height: 26),
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              foregroundColor: VfColors.accent2700,
-              side: const BorderSide(color: VfColors.accent2500),
+              foregroundColor: VfColors.bad,
+              side: const BorderSide(color: VfColors.bad),
             ),
             onPressed: () async {
               await session.signOut();
@@ -334,9 +331,4 @@ class ProfileTab extends GetView<ProfileController> {
       );
     });
   }
-}
-
-Uint8List _decode(String dataUrl) {
-  final index = dataUrl.indexOf(',');
-  return base64Decode(index == -1 ? dataUrl : dataUrl.substring(index + 1));
 }

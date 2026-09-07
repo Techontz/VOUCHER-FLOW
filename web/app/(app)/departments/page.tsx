@@ -81,7 +81,7 @@ export default function DepartmentsPage() {
   return (
     <div style={{ maxWidth: 1100 }}>
       <PageHeader kicker={t("settings")} title={t("departments")}
-        sub="Each department names a head and a manager. Workflow steps resolve their actor from these."
+        sub="Each department names a head and an approving manager. Workflow steps resolve their actor from these."
         actions={<button className="btn btn-primary" onClick={openCreate}><Icon name="ph-plus-circle" size={15} /> {t("addDepartment")}</button>} />
 
       {error && <ErrorState message={error} onRetry={load} />}

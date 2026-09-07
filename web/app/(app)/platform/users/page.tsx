@@ -45,7 +45,7 @@ export default function PlatformUsersPage() {
         <select className="input" value={filters.role} onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, role: e.target.value })); }} aria-label={t("role")}>
           <option value="">All roles</option>
           <option value="super_admin">Super Admin</option><option value="company_admin">Administrator</option>
-          <option value="hod">HOD</option><option value="manager">Manager</option>
+          <option value="hod">HOD</option><option value="ceo">CEO</option><option value="cashier">Cashier</option>
           <option value="finance">Finance</option><option value="employee">Employee</option>
         </select>
         <select className="input" value={filters.status} onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, status: e.target.value })); }} aria-label={t("status")}>

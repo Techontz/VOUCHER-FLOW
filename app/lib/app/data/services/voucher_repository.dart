@@ -98,6 +98,18 @@ class VoucherRepository {
   Future<Voucher> requestChanges(int id, String comment) =>
       act(id, 'request-changes', body: {'comment': comment});
 
+  /// Releases the funds and records the reference against the voucher.
+  Future<Voucher> pay(
+    int id, {
+    required String reference,
+    required String method,
+    String? comment,
+  }) => act(
+    id,
+    'pay',
+    body: {'reference': reference, 'method': method, 'comment': comment},
+  );
+
   Future<void> comment(int id, String body) =>
       _api.post('/vouchers/$id/comments', {'body': body});
 

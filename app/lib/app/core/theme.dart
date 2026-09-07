@@ -1,46 +1,78 @@
 import 'package:flutter/material.dart';
 
-/// The broadsheet palette, carried over from the design system so the app and
-/// the web client read as one product.
+/// The VouchFlow v2 palette, taken from the design's token block so the app,
+/// the web client and the printed voucher read as one product.
+///
+/// Dark is the product's default appearance; light is a stored preference.
 class VfColors {
   const VfColors._();
 
-  // Light
-  static const bg = Color(0xFFF3F2F2);
-  static const surface = Color(0xFFEAE9E9);
-  static const text = Color(0xFF201E1D);
-  static const accent = Color(0xFF0088B0);
-  static const accent2 = Color(0xFFD6006C);
-  static const processYellow = Color(0xFFEDBB00);
+  // ── dark (default) ──
+  static const bg = Color(0xFF070A12);
+  static const elev1 = Color(0xFF0C111D);
+  static const elev2 = Color(0xFF111827);
+  static const elev3 = Color(0xFF161F31);
+  static const text = Color(0xFFEEF2FA);
+  static const line = Color(0x1F94AAD6); // rgba(148,170,214,.12)
+  static const lineStrong = Color(0x3D94AAD6); // rgba(148,170,214,.24)
 
-  static const neutral100 = Color(0xFFF8F4F4);
-  static const neutral200 = Color(0xFFEAE7E7);
-  static const neutral300 = Color(0xFFD7D3D3);
-  static const neutral400 = Color(0xFFBAB6B6);
-  static const neutral500 = Color(0xFF9B9797);
-  static const neutral600 = Color(0xFF7D7979);
-  static const neutral700 = Color(0xFF605D5D);
-  static const neutral800 = Color(0xFF444141);
-  static const neutral900 = Color(0xFF2D2B2B);
+  // ── light ──
+  static const lightBg = Color(0xFFF7F9FC);
+  static const lightElev1 = Color(0xFFFFFFFF);
+  static const lightElev2 = Color(0xFFF2F5FA);
+  static const lightElev3 = Color(0xFFE9EEF6);
+  static const lightText = Color(0xFF0B1220);
+  static const lightLine = Color(0x1A0F2042);
+  static const lightLineStrong = Color(0x330F2042);
 
-  static const accent100 = Color(0xFFE9F8FF);
-  static const accent200 = Color(0xFFCBEEFF);
-  static const accent500 = Color(0xFF38A6CF);
-  static const accent600 = Color(0xFF1186AC);
-  static const accent700 = Color(0xFF006786);
-  static const accent800 = Color(0xFF004961);
+  // ── the blue-to-cyan accent that carries every primary action ──
+  static const accent = Color(0xFF2F7BF6);
+  static const accentMid = Color(0xFF22A7E8);
+  static const accentEnd = Color(0xFF22D3EE);
+  static const accent400 = Color(0xFF5B9BFF);
+  static const accent500 = Color(0xFF2F7BF6);
+  static const accent600 = Color(0xFF63A9FF);
+  static const accent700 = Color(0xFF8CC2FF);
+  static const accentInk = Color(0xFF05121F); // ink on the gradient
 
-  static const accent2100 = Color(0xFFFFF1F4);
-  static const accent2500 = Color(0xFFFF458E);
-  static const accent2600 = Color(0xFFD82071);
-  static const accent2700 = Color(0xFFAA0B56);
-  static const accent2800 = Color(0xFF790E3D);
+  // Accent tints for chips and icon plates.
+  static const accent100Dark = Color(0x1F2F7BF6);
+  static const accent100Light = Color(0xFFEAF2FF);
 
-  // Dark
-  static const darkBg = Color(0xFF191817);
-  static const darkSurface = Color(0xFF232120);
-  static const darkText = Color(0xFFF3F2F2);
-  static const darkAccent = Color(0xFF62C5EE);
+  // ── semantic ──
+  static const ok = Color(0xFF34D399);
+  static const warn = Color(0xFFFBBF24);
+  static const bad = Color(0xFFFB7185);
+
+  // ── the printed sheet, always ink on paper ──
+  static const paper = Color(0xFFFFFFFF);
+  static const paperInk = Color(0xFF0B1220);
+
+  /// The gradient behind every primary action.
+  static const gradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [accent, accentMid, accentEnd],
+    stops: [0.0, 0.55, 1.0],
+  );
+}
+
+/// Palette values that depend on the active appearance.
+extension VfPalette on BuildContext {
+  bool get isDark => Theme.of(this).brightness == Brightness.dark;
+
+  Color get vfBg => isDark ? VfColors.bg : VfColors.lightBg;
+  Color get vfElev1 => isDark ? VfColors.elev1 : VfColors.lightElev1;
+  Color get vfElev2 => isDark ? VfColors.elev2 : VfColors.lightElev2;
+  Color get vfElev3 => isDark ? VfColors.elev3 : VfColors.lightElev3;
+  Color get vfInk => isDark ? VfColors.text : VfColors.lightText;
+  Color get vfLine => isDark ? VfColors.line : VfColors.lightLine;
+  Color get vfLineStrong =>
+      isDark ? VfColors.lineStrong : VfColors.lightLineStrong;
+  Color get vfMuted => Theme.of(this).textTheme.bodySmall?.color ?? vfInk;
+  Color get vfAccent => isDark ? VfColors.accent600 : VfColors.accent500;
+  Color get vfAccentTint =>
+      isDark ? VfColors.accent100Dark : VfColors.accent100Light;
 }
 
 class VfTheme {
@@ -48,68 +80,68 @@ class VfTheme {
 
   static const fontFamily = 'Poppins';
 
-  /// The ink a filled button paints on its own background — near-white on the
-  /// light theme's cyan, near-black on the dark theme's lighter blue. Progress
-  /// indicators placed inside such a button must use this, not plain white.
-  static Color onPrimary(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.light
-      ? VfColors.bg
-      : VfColors.darkBg;
+  /// Radii, from the design: 6 / 10 / 14 / 18.
+  static const rSm = 6.0;
+  static const rMd = 10.0;
+  static const rLg = 14.0;
+  static const rXl = 18.0;
+
+  /// The ink a gradient-filled button paints on itself. Progress indicators
+  /// inside such a button must use this, never plain white.
+  static Color onPrimary(BuildContext context) => VfColors.accentInk;
 
   static ThemeData light() => _base(
     brightness: Brightness.light,
-    background: VfColors.bg,
-    surface: VfColors.neutral100,
-    onSurface: VfColors.text,
-    accent: VfColors.accent,
-    divider: VfColors.text.withValues(alpha: 0.16),
-    muted: VfColors.neutral700,
-    field: VfColors.surface,
+    background: VfColors.lightBg,
+    surface: VfColors.lightElev1,
+    field: VfColors.lightElev2,
+    onSurface: VfColors.lightText,
+    accent: VfColors.accent500,
+    divider: VfColors.lightLine,
+    muted: const Color(0xFF5A6782),
   );
 
   static ThemeData dark() => _base(
     brightness: Brightness.dark,
-    background: VfColors.darkBg,
-    surface: VfColors.darkSurface,
-    onSurface: VfColors.darkText,
-    accent: VfColors.darkAccent,
-    divider: VfColors.darkText.withValues(alpha: 0.20),
-    muted: const Color(0xFFBAB6B6),
-    field: const Color(0xFF2D2B2B),
+    background: VfColors.bg,
+    surface: VfColors.elev1,
+    field: VfColors.elev2,
+    onSurface: VfColors.text,
+    accent: VfColors.accent600,
+    divider: VfColors.line,
+    muted: const Color(0xFF94A3BE),
   );
 
   static ThemeData _base({
     required Brightness brightness,
     required Color background,
     required Color surface,
+    required Color field,
     required Color onSurface,
     required Color accent,
     required Color divider,
     required Color muted,
-    required Color field,
   }) {
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: accent,
+          seedColor: VfColors.accent500,
           brightness: brightness,
         ).copyWith(
           primary: accent,
           surface: background,
           onSurface: onSurface,
-          error: brightness == Brightness.light
-              ? VfColors.accent2600
-              : VfColors.accent2500,
+          error: VfColors.bad,
+          outline: divider,
         );
 
-    // The design sets tight, editorial type. Letter-spacing is pulled in on the
-    // display sizes to match the printed voucher.
+    // Tight display type, matching the web client and the printed voucher.
     TextStyle heading(double size, [FontWeight weight = FontWeight.w600]) =>
         TextStyle(
           fontFamily: fontFamily,
           fontSize: size,
           fontWeight: weight,
-          height: 1.14,
-          letterSpacing: -size * 0.016,
+          height: 1.1,
+          letterSpacing: -size * 0.03,
           color: onSurface,
         );
 
@@ -118,7 +150,7 @@ class VfTheme {
           fontFamily: fontFamily,
           fontSize: size,
           fontWeight: weight,
-          height: 1.45,
+          height: 1.5,
           color: onSurface,
         );
 
@@ -133,21 +165,21 @@ class VfTheme {
       dividerTheme: DividerThemeData(color: divider, thickness: 1, space: 1),
       splashFactory: InkSparkle.splashFactory,
       textTheme: TextTheme(
-        displaySmall: heading(34, FontWeight.w700),
-        headlineMedium: heading(28, FontWeight.w700),
-        headlineSmall: heading(23),
-        titleLarge: heading(20),
-        titleMedium: heading(17),
+        displaySmall: heading(32, FontWeight.w600),
+        headlineMedium: heading(27),
+        headlineSmall: heading(22),
+        titleLarge: heading(19),
+        titleMedium: heading(16.5),
         titleSmall: body(14, FontWeight.w600),
         bodyLarge: body(16),
         bodyMedium: body(14.5),
         bodySmall: body(13).copyWith(color: muted),
-        labelLarge: body(14, FontWeight.w600),
+        labelLarge: body(14.5, FontWeight.w600),
         labelSmall: TextStyle(
           fontFamily: fontFamily,
-          fontSize: 11,
+          fontSize: 11.5,
           fontWeight: FontWeight.w500,
-          letterSpacing: 1.1,
+          letterSpacing: 0.9,
           color: muted,
         ),
       ),
@@ -156,7 +188,7 @@ class VfTheme {
         surfaceTintColor: Colors.transparent,
         foregroundColor: onSurface,
         elevation: 0,
-        scrolledUnderElevation: 0.5,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: heading(19),
       ),
@@ -166,37 +198,42 @@ class VfTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(rLg),
           side: BorderSide(color: divider),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: accent,
-          foregroundColor: brightness == Brightness.light
-              ? background
-              : VfColors.darkBg,
-          minimumSize: const Size(0, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+          backgroundColor: VfColors.accent500,
+          foregroundColor: VfColors.accentInk,
+          minimumSize: const Size(0, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(rMd),
+          ),
           textStyle: body(15, FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: onSurface,
-          minimumSize: const Size(0, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          side: BorderSide(color: divider),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+          backgroundColor: field,
+          minimumSize: const Size(0, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          side: BorderSide(
+            color: brightness == Brightness.dark
+                ? VfColors.lineStrong
+                : VfColors.lightLineStrong,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(rMd),
+          ),
           textStyle: body(15, FontWeight.w600),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: brightness == Brightness.light
-              ? VfColors.accent700
-              : VfColors.darkAccent,
+          foregroundColor: accent,
           textStyle: body(14.5, FontWeight.w600),
         ),
       ),
@@ -204,111 +241,159 @@ class VfTheme {
         filled: true,
         fillColor: field,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 14,
+          horizontal: 14,
+          vertical: 15,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(rMd),
           borderSide: BorderSide(color: divider),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(rMd),
           borderSide: BorderSide(color: divider),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
-          borderSide: BorderSide(color: accent, width: 1.6),
+          borderRadius: BorderRadius.circular(rMd),
+          borderSide: const BorderSide(color: VfColors.accent500, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
-          borderSide: BorderSide(color: scheme.error),
+          borderRadius: BorderRadius.circular(rMd),
+          borderSide: const BorderSide(color: VfColors.bad),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(rMd),
+          borderSide: const BorderSide(color: VfColors.bad, width: 1.6),
         ),
         labelStyle: body(13.5).copyWith(color: muted),
         hintStyle: body(14.5).copyWith(color: muted),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: surface,
+        backgroundColor: field,
         side: BorderSide(color: divider),
         labelStyle: body(12.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rSm)),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: background,
+        backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: accent.withValues(alpha: 0.16),
-        height: 66,
+        indicatorColor: VfColors.accent500.withValues(alpha: 0.18),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(rMd),
+        ),
+        height: 68,
         labelTextStyle: WidgetStatePropertyAll(body(11.5, FontWeight.w500)),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(rXl)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(rXl),
+          side: BorderSide(color: divider),
+        ),
+      ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: brightness == Brightness.light
-            ? VfColors.neutral900
-            : VfColors.neutral200,
+        backgroundColor: brightness == Brightness.dark
+            ? VfColors.elev3
+            : VfColors.lightText,
         contentTextStyle: body(14).copyWith(
-          color: brightness == Brightness.light
-              ? VfColors.neutral100
-              : VfColors.neutral900,
+          color: brightness == Brightness.dark
+              ? VfColors.text
+              : VfColors.lightBg,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rMd)),
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: accent,
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: VfColors.accent500,
         linearMinHeight: 3,
       ),
     );
   }
 }
 
-/// Count badges. Small bold text on a saturated ground needs the pairing chosen
-/// per theme: white on #ff458e measures only about 2.6:1.
+/// Count badges. Small bold text on a saturated ground needs the pairing
+/// chosen deliberately — white on the warn amber measures far too low.
 class VfBadge {
   const VfBadge._();
 
   static Color background(Brightness brightness) =>
-      brightness == Brightness.dark ? VfColors.accent2500 : VfColors.accent2600;
+      VfColors.warn.withValues(alpha: brightness == Brightness.dark ? .22 : .2);
 
   static Color foreground(Brightness brightness) =>
-      brightness == Brightness.dark ? VfColors.neutral900 : Colors.white;
+      brightness == Brightness.dark ? VfColors.warn : const Color(0xFF7A5300);
 }
 
 /// Status colours shared by chips, timelines and list rows.
+///
+/// The tags mirror the web client: neutral for drafts, amber for anything
+/// waiting on a person, blue for approved-and-awaiting-payment, green for
+/// paid, rose for rejected or returned.
 class VfStatus {
   const VfStatus._();
 
-  static Color background(String tag, Brightness brightness) {
-    final dark = brightness == Brightness.dark;
+  static Color _base(String tag) {
     switch (tag) {
       case 'tag-accent':
-        return dark
-            ? VfColors.accent800.withValues(alpha: .45)
-            : VfColors.accent100;
+        return VfColors.ok;
       case 'tag-accent-2':
-        return dark
-            ? VfColors.accent2800.withValues(alpha: .45)
-            : VfColors.accent2100;
+        return VfColors.bad;
+      case 'tag-info':
+        return VfColors.accent500;
       case 'tag-outline':
-        return Colors.transparent;
+        return VfColors.warn;
       default:
-        return dark ? VfColors.neutral900 : VfColors.neutral200;
+        return const Color(0xFF8494B0);
     }
+  }
+
+  static Color background(String tag, Brightness brightness) {
+    if (tag == 'tag-neutral' || tag.isEmpty) {
+      return brightness == Brightness.dark
+          ? VfColors.elev3
+          : VfColors.lightElev3;
+    }
+    return _base(
+      tag,
+    ).withValues(alpha: brightness == Brightness.dark ? .15 : .13);
   }
 
   static Color foreground(String tag, Brightness brightness) {
-    final dark = brightness == Brightness.dark;
+    if (tag == 'tag-neutral' || tag.isEmpty) {
+      return brightness == Brightness.dark
+          ? const Color(0xFFB9C4D8)
+          : const Color(0xFF44506A);
+    }
+    // The amber and green read well on dark; on light they need darkening.
+    final base = _base(tag);
+    if (brightness == Brightness.dark) return base;
     switch (tag) {
       case 'tag-accent':
-        return dark ? VfColors.accent200 : VfColors.accent800;
+        return const Color(0xFF0F7A54);
       case 'tag-accent-2':
-        return dark ? const Color(0xFFFFC0D0) : VfColors.accent2800;
+        return const Color(0xFFA3183A);
+      case 'tag-info':
+        return const Color(0xFF1A4FAE);
       case 'tag-outline':
-        return dark ? VfColors.darkAccent : VfColors.accent700;
+        return const Color(0xFF7A5300);
       default:
-        return dark ? VfColors.neutral300 : VfColors.neutral800;
+        return base;
     }
   }
 
-  static Color border(String tag, Brightness brightness) =>
-      tag == 'tag-outline' ? foreground(tag, brightness) : Colors.transparent;
+  static Color border(String tag, Brightness brightness) {
+    if (tag == 'tag-neutral' || tag.isEmpty) {
+      return brightness == Brightness.dark ? VfColors.line : VfColors.lightLine;
+    }
+    return _base(tag).withValues(alpha: .34);
+  }
 }

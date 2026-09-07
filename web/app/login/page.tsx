@@ -8,13 +8,17 @@ import { useApp } from "@/lib/app-context";
 import { AuthFrame } from "@/components/auth-frame";
 import { Field, Icon, Spinner } from "@/components/ui";
 
-/** Seeded accounts, offered so the workflow can be walked through immediately. */
+/**
+ * Seeded accounts, offered so the whole workflow can be walked through
+ * immediately — one per step of the default route, plus the two admin scopes.
+ */
 const DEMO = [
-  { label: "Employee", email: "john@acme.test", note: "creates vouchers, sees only their own" },
-  { label: "HOD", email: "asha@acme.test", note: "reviews and signs — cannot approve" },
-  { label: "Manager", email: "daniel@acme.test", note: "approves or rejects" },
-  { label: "Company Admin", email: "admin@acme.test", note: "runs the whole company" },
-  { label: "Super Admin", email: "super@vouchflow.test", note: "runs the platform" },
+  { label: "Employee", person: "John Mwakyusa", email: "john@acme.test", icon: "ph-user", note: "raises vouchers, sees only their own" },
+  { label: "HOD", person: "Asha Mushi", email: "asha@acme.test", icon: "ph-signature", note: "reviews and signs — never approves" },
+  { label: "CEO", person: "Daniel Joseph", email: "daniel@acme.test", icon: "ph-seal-check", note: "approves or rejects — the final decision" },
+  { label: "Cashier", person: "Fatuma Kalinga", email: "fatuma@acme.test", icon: "ph-wallet", note: "releases the funds and records the reference" },
+  { label: "Company Admin", person: "Neema William", email: "admin@acme.test", icon: "ph-buildings", note: "runs Acme Tanzania Ltd" },
+  { label: "Super Admin", person: "Grace Kimaro", email: "super@vouchflow.test", icon: "ph-globe-hemisphere-east", note: "runs the platform" },
 ];
 
 export default function LoginPage() {
@@ -51,7 +55,7 @@ export default function LoginPage() {
       sub={t("heroSub")}
       footer={<>{t("noAccountYet")} <Link href="/register">{t("registerCompany")}</Link></>}
       aside={
-        <div style={{ border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", background: "var(--color-neutral-100)" }}>
+        <div className="vf-panel" style={{ padding: "var(--space-4)" }}>
           <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
             {t("demoSignInAs")}
           </div>
@@ -60,21 +64,26 @@ export default function LoginPage() {
               <button
                 key={account.email}
                 type="button"
+                aria-pressed={email === account.email}
                 onClick={() => { setEmail(account.email); setPassword("Password123!"); }}
-                style={{
-                  display: "block", width: "100%", textAlign: "left", cursor: "pointer",
-                  border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)",
-                  background: "transparent", padding: "9px var(--space-3)", fontFamily: "var(--font-body)",
-                  color: "var(--color-text)",
-                }}
+                className="vf-choice"
+                style={{ padding: "10px 12px", borderRadius: 12 }}
               >
-                <div style={{ fontWeight: 600, fontSize: 14.5 }}>{account.label}</div>
-                <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)" }}>{account.email} · {account.note}</div>
+                <span className="vf-choice-icon" style={{ width: 30, height: 30 }}>
+                  <Icon name={account.icon} size={16} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontWeight: 600, fontSize: 14.5 }}>
+                    {account.label} <span style={{ fontWeight: 400, color: "var(--color-neutral-600)" }}>· {account.person}</span>
+                  </span>
+                  <span style={{ display: "block", fontSize: 12.5, color: "var(--color-neutral-600)" }}>{account.note}</span>
+                </span>
               </button>
             ))}
           </div>
           <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)", marginTop: "var(--space-3)" }}>
-            Password for every demo account: <code>Password123!</code>
+            Password for every demo account: <code>Password123!</code>. This prototype runs on
+            local mock data — nothing leaves your browser.
           </div>
         </div>
       }
@@ -88,7 +97,7 @@ export default function LoginPage() {
 
         <Field label={t("emailOrPhone")} htmlFor="email" error={fieldError("email")} required>
           <input
-            id="email" className="input" value={email} autoComplete="username" required
+id="email" type="email" className="input" value={email} autoComplete="username" required
             aria-invalid={!!fieldError("email")}
             onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com"
           />

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { compactMoney, formatDate, money } from "@/lib/format";
 import {
-  Banner, EmptyState, ErrorState, Icon, LoadingBlock, PageHeader,
+  Banner, EmptyState, ErrorState, Icon, LoadingBlock, Note, PageHeader,
   SectionTitle, StatBlock, StatGrid,
 } from "@/components/ui";
 import { VoucherCard, VoucherTable } from "@/components/voucher-bits";
@@ -31,6 +31,7 @@ export default function DashboardPage() {
 
   const d = payload.data;
   const queue = d.queue ?? [];
+  const isCashier = user?.role === "cashier";
   const recent = d.recent ?? [];
   const expiring = company && company.status === "trial" && (company.days_remaining ?? 99) <= 7;
 
@@ -55,7 +56,9 @@ export default function DashboardPage() {
         title={d.headline}
         sub={d.sub}
         actions={
-          user?.role !== "super_admin" ? (
+          isCashier ? (
+            <Link className="btn btn-secondary" href="/vouchers"><Icon name="ph-receipt" size={15} /> {t("voucherRegister")}</Link>
+          ) : user?.role !== "super_admin" ? (
             <>
               <Link className="btn btn-primary" href="/vouchers/new"><Icon name="ph-plus-circle" size={15} /> {t("createVoucher")}</Link>
               <Link className="btn btn-secondary" href="/vouchers">{t("trackMine")}</Link>
@@ -75,17 +78,17 @@ export default function DashboardPage() {
       {/* Approver queue */}
       {queue.length > 0 && (
         <section style={{ marginBottom: "var(--space-8)" }}>
-          <SectionTitle>{t("pendingApprovals")}</SectionTitle>
+          <SectionTitle>{isCashier ? t("paymentQueue") : t("pendingApprovals")}</SectionTitle>
           <div style={{ display: "grid", gap: "var(--space-3)" }}>
             {queue.map((voucher) => <VoucherCard key={voucher.id} voucher={voucher} />)}
           </div>
-          <div style={{ marginTop: "var(--space-4)", fontSize: 14, color: "var(--color-neutral-700)", borderLeft: "2px solid var(--color-accent-300)", paddingLeft: 12, maxWidth: "62ch" }}>
-            {t("signOnlyNote")}
+          <div style={{ marginTop: "var(--space-4)", maxWidth: "72ch" }}>
+            <Note>{isCashier ? t("payNote") : user?.role === "hod" ? t("signOnlyNote") : t("approveNextNote")}</Note>
           </div>
         </section>
       )}
 
-      {queue.length === 0 && (user?.role === "hod" || user?.role === "manager" || user?.role === "finance" || user?.role === "director") && (
+      {queue.length === 0 && (user?.role === "hod" || user?.role === "ceo" || user?.role === "cashier" || user?.role === "finance" || user?.role === "director") && (
         <section style={{ marginBottom: "var(--space-8)" }}>
           <EmptyState icon="ph-check-square-offset" title={t("nothingAwaiting")} body={t("nothingAwaitingBody")}
             action={<Link className="btn btn-secondary" href="/vouchers">{t("register")}</Link>} />
@@ -98,7 +101,7 @@ export default function DashboardPage() {
           {d.volume && (
             <div>
               <SectionTitle>{t("voucherVolume")}</SectionTitle>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-3)", height: 150, borderBottom: "1px solid var(--color-text)", paddingBottom: 2 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-3)", height: 150, borderBottom: "1px solid var(--vf-line-strong)", paddingBottom: 2 }}>
                 {(() => {
                   const max = Math.max(...d.volume!.map((b) => b.count), 1);
                   return d.volume!.map((bar) => (
@@ -107,8 +110,8 @@ export default function DashboardPage() {
                       <div
                         title={`${bar.label}: ${bar.count} vouchers, ${money(bar.total, company?.currency)}`}
                         style={{
-                          width: "100%", height: `${Math.max(3, (bar.count / max) * 100)}%`,
-                          background: bar.is_current ? "var(--color-accent-2-500)" : "var(--color-accent-500)",
+                          width: "100%", height: `${Math.max(3, (bar.count / max) * 100)}%`, borderRadius: "5px 5px 0 0",
+                          background: bar.is_current ? "var(--vf-grad)" : "color-mix(in srgb, var(--color-accent-500) 42%, transparent)",
                         }}
                       />
                     </div>
@@ -136,8 +139,8 @@ export default function DashboardPage() {
                         {compactMoney(row.total, company?.currency)}
                       </span>
                     </div>
-                    <div style={{ height: 5, background: "var(--color-neutral-200)", marginTop: 3 }}>
-                      <div style={{ height: "100%", width: row.share, background: "var(--color-accent-500)" }} />
+                    <div className="vf-meter" style={{ marginTop: 4 }}>
+                      <span style={{ width: row.share }} />
                     </div>
                   </div>
                 ))}

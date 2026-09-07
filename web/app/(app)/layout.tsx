@@ -15,6 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [payCount, setPayCount] = useState(0);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Voucher[]>([]);
 
@@ -24,12 +25,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setDrawer(false); }, [pathname]);
 
+  const items = useMemo(() => (user ? navFor(user.role) : []), [user]);
+  const tabs = useMemo(() => (user ? mobileNavFor(user.role) : []), [user]);
+
   useEffect(() => {
     if (!user) return;
     api.get<{ data: Voucher[] }>("/vouchers/pending")
       .then((r) => setPendingCount(r.data.length))
       .catch(() => setPendingCount(0));
-  }, [user, pathname]);
+
+    if (items.some((i) => i.badge === "payments")) {
+      api.get<{ data: Voucher[] }>("/vouchers", { status: "approved", per_page: 100 })
+        .then((r) => setPayCount(r.data.length))
+        .catch(() => setPayCount(0));
+    }
+  }, [user, pathname, items]);
 
   // Debounced type-ahead across the vouchers this caller may actually see.
   useEffect(() => {
@@ -42,9 +52,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  const items = useMemo(() => (user ? navFor(user.role) : []), [user]);
-  const tabs = useMemo(() => (user ? mobileNavFor(user.role) : []), [user]);
-
   if (!ready || !user) {
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
@@ -55,6 +62,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const badgeFor = (item: { badge?: string }) =>
     item.badge === "pending" ? (pendingCount || null)
+      : item.badge === "payments" ? (payCount || null)
       : item.badge === "notifications" ? (unread || null) : null;
 
   const active = (href: string) =>
@@ -70,14 +78,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <aside className="vf-sidebar" data-open={drawer}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 var(--space-2) var(--space-3)" }}>
-          <div style={{
-            width: 30, height: 30, background: "var(--color-text)", color: "var(--color-bg)",
-            display: "grid", placeItems: "center", fontFamily: "var(--font-heading)", fontWeight: 700,
-            borderRadius: "var(--radius-md)", flex: "none", overflow: "hidden",
-          }}>
+          <div className="vf-mark" style={{ width: 32, height: 32, fontSize: 16 }}>
             {company?.logo_url
               ? <img src={company.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : "V"}
+              : (user.role === "super_admin" ? "V" : (company?.name ?? "V").trim().charAt(0).toUpperCase())}
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 15.5, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -102,10 +106,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div style={{ flex: 1 }} />
 
-        <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: "var(--space-3)", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ borderTop: "1px solid var(--vf-line)", paddingTop: "var(--space-3)", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: "50%", background: "var(--color-accent-200)",
-            color: "var(--color-accent-800)", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 600, flex: "none",
+            width: 32, height: 32, borderRadius: "50%",
+            background: "color-mix(in srgb, var(--color-accent-500) 18%, transparent)",
+            border: "1px solid var(--vf-line)", color: "var(--color-accent-600)",
+            display: "grid", placeItems: "center", fontSize: 13, fontWeight: 600, flex: "none",
           }}>{user.initials}</div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
@@ -159,7 +165,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Icon name="ph-bell" />
             {unread > 0 && <span style={{ position: "absolute", top: 3, right: 3, width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent-2-500)" }} />}
           </Link>
-          {user.role !== "super_admin" && (
+          {user.role !== "super_admin" && user.role !== "cashier" && (
             <Link className="btn btn-primary vf-topbar-extras" href="/vouchers/new" style={{ whiteSpace: "nowrap" }}>
               <Icon name="ph-plus" size={15} /> {t("newVoucher")}
             </Link>
@@ -180,7 +186,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </span>
               ) : null}
             </span>
-            {t(item.label)}
+            {t(item.short ?? item.label)}
           </Link>
         ))}
       </nav>

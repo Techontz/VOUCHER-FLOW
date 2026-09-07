@@ -248,7 +248,8 @@ export default function OnboardingPage() {
                   onChange={(e) => setInvites((v) => v.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))}>
                   <option value="employee">Employee</option>
                   <option value="hod">Head of department</option>
-                  <option value="manager">Manager</option>
+                  <option value="ceo">CEO / approving manager</option>
+                  <option value="cashier">Cashier · finance</option>
                   <option value="finance">Finance</option>
                   <option value="company_admin">Administrator</option>
                 </select>

@@ -7,6 +7,7 @@ import '../../data/services/api_service.dart';
 import '../../data/services/session_service.dart';
 import '../../data/services/voucher_repository.dart';
 import '../../routes/routes.dart';
+import '../shell/shell_page.dart';
 import '../../widgets/common.dart';
 import '../vouchers/voucher_card.dart';
 
@@ -64,14 +65,14 @@ class DashboardTab extends GetView<DashboardController> {
       return RefreshIndicator(
         onRefresh: controller.load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 96),
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 120),
           children: [
             if (company != null && !company.isUsable)
               _Banner(
                 icon: Icons.warning_amber_outlined,
                 title: 'state.expired'.tr,
                 body: 'state.expiredBody'.tr,
-                colour: VfColors.accent2600,
+                colour: VfColors.bad,
               ),
             if (company != null &&
                 company.isUsable &&
@@ -81,7 +82,7 @@ class DashboardTab extends GetView<DashboardController> {
                 title: '${company.plan?.name ?? ''} trial',
                 body:
                     '${company.daysRemaining ?? 0} days remaining · ends ${Fmt.date(company.trialEndsAt)}',
-                colour: VfColors.processYellow,
+                colour: VfColors.warn,
               ),
 
             Text(
@@ -95,17 +96,18 @@ class DashboardTab extends GetView<DashboardController> {
             Text(d.sub, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 20),
 
-            if (!session.me.isSuperAdmin)
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => Get.toNamed(
-                    Routes.createVoucher,
-                  )?.then((_) => controller.load()),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text('voucher.create'.tr),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Get.find<ShellController>().index.value = 1,
+                icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                label: Text(
+                  session.me.isCashier || session.me.isApprover
+                      ? 'nav.vouchers'.tr
+                      : 'voucher.trackMine'.tr,
                 ),
               ),
+            ),
             const SizedBox(height: 22),
 
             // A fixed aspect ratio clips the moment a label wraps to two lines or
@@ -127,6 +129,9 @@ class DashboardTab extends GetView<DashboardController> {
                             label: s.label,
                             value: s.value,
                             sub: s.sub,
+                            icon: s.icon,
+                            trend: s.trend,
+                            up: s.up,
                           ),
                         ),
                       )
@@ -168,14 +173,20 @@ class DashboardTab extends GetView<DashboardController> {
               Padding(
                 padding: const EdgeInsets.only(top: 30),
                 child: EmptyView(
-                  title: 'voucher.none'.tr,
-                  body: 'voucher.noneBody'.tr,
-                  action: FilledButton(
-                    onPressed: () => Get.toNamed(
-                      Routes.createVoucher,
-                    )?.then((_) => controller.load()),
-                    child: Text('voucher.create'.tr),
-                  ),
+                  title: session.me.isCashier
+                      ? 'pay.nothing'.tr
+                      : 'voucher.none'.tr,
+                  body: session.me.isCashier
+                      ? 'pay.nothingBody'.tr
+                      : 'voucher.noneBody'.tr,
+                  action: session.me.canCreateVouchers
+                      ? FilledButton(
+                          onPressed: () => Get.toNamed(
+                            Routes.createVoucher,
+                          )?.then((_) => controller.load()),
+                          child: Text('voucher.create'.tr),
+                        )
+                      : null,
                 ),
               ),
           ],

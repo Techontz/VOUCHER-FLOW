@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config.dart';
+import '../mock/mock_api.dart';
 
 /// A failed request, carrying Laravel's per-field validation messages.
 class ApiException implements Exception {
@@ -30,7 +31,11 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// Talks to the Laravel API and owns the Sanctum token.
+/// Talks to the API and owns the auth token.
+///
+/// In Phase 1 the transport underneath is the in-app [MockApi]; the paths,
+/// verbs and JSON shapes are the ones Laravel will serve, so switching with
+/// --dart-define=API_MODE=live changes nothing above this class.
 class ApiService extends GetxService {
   static const _tokenKey = 'vouchflow.token';
   static const _localeKey = 'vouchflow.locale';
@@ -41,6 +46,7 @@ class ApiService extends GetxService {
 
   late final SharedPreferences _prefs;
   final _client = http.Client();
+  final _mock = VfConfig.useMock ? MockApi() : null;
 
   String? _token;
   String _locale = 'en';
@@ -102,28 +108,64 @@ class ApiService extends GetxService {
     if (hasToken) 'Authorization': 'Bearer $_token',
   };
 
-  Future<dynamic> get(String path, [Map<String, dynamic>? query]) => _send(
-    () => _client.get(_uri(path, query), headers: _headers(json: false)),
-  );
+  Future<dynamic> get(String path, [Map<String, dynamic>? query]) {
+    if (_mock != null) return _viaMock('GET', path, query: query);
+    return _send(
+      () => _client.get(_uri(path, query), headers: _headers(json: false)),
+    );
+  }
 
-  Future<dynamic> post(String path, [Map<String, dynamic>? body]) => _send(
-    () => _client.post(
-      _uri(path),
-      headers: _headers(),
-      body: jsonEncode(body ?? {}),
-    ),
-  );
+  Future<dynamic> post(String path, [Map<String, dynamic>? body]) {
+    if (_mock != null) return _viaMock('POST', path, body: body);
+    return _send(
+      () => _client.post(
+        _uri(path),
+        headers: _headers(),
+        body: jsonEncode(body ?? {}),
+      ),
+    );
+  }
 
-  Future<dynamic> put(String path, [Map<String, dynamic>? body]) => _send(
-    () => _client.put(
-      _uri(path),
-      headers: _headers(),
-      body: jsonEncode(body ?? {}),
-    ),
-  );
+  Future<dynamic> put(String path, [Map<String, dynamic>? body]) {
+    if (_mock != null) return _viaMock('PUT', path, body: body);
+    return _send(
+      () => _client.put(
+        _uri(path),
+        headers: _headers(),
+        body: jsonEncode(body ?? {}),
+      ),
+    );
+  }
 
-  Future<dynamic> delete(String path) =>
-      _send(() => _client.delete(_uri(path), headers: _headers()));
+  Future<dynamic> delete(String path) {
+    if (_mock != null) return _viaMock('DELETE', path);
+    return _send(() => _client.delete(_uri(path), headers: _headers()));
+  }
+
+  /// Routes one call to the in-app mock, raising the same [ApiException]
+  /// shapes the HTTP path raises.
+  Future<dynamic> _viaMock(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      return await _mock!.handle(
+        method,
+        path,
+        body: body ?? const {},
+        query: query ?? const {},
+      );
+    } on ApiException catch (error) {
+      if (error.isUnauthorised) {
+        for (final handler in onUnauthorised) {
+          handler();
+        }
+      }
+      rethrow;
+    }
+  }
 
   /// Multipart upload — used for attachments, avatars and the company logo.
   Future<dynamic> upload(
@@ -132,6 +174,16 @@ class ApiService extends GetxService {
     Map<String, String> fields = const {},
     String method = 'POST',
   }) async {
+    if (_mock != null) {
+      // Attachments are stored server-side; the prototype records the intent
+      // rather than pretending a file was persisted.
+      throw ApiException(
+        501,
+        'File upload arrives with the backend. Everything else in this '
+        'prototype is live.',
+      );
+    }
+
     final request = http.MultipartRequest(method, _uri(path))
       ..headers.addAll(_headers(json: false))
       ..fields.addAll(fields)
@@ -144,6 +196,14 @@ class ApiService extends GetxService {
 
   /// Raw bytes, for PDFs and attachments.
   Future<List<int>> bytes(String path, [Map<String, dynamic>? query]) async {
+    if (_mock != null) {
+      throw ApiException(
+        501,
+        'The PDF is generated server-side and arrives with the backend. '
+        'Use Share to send the voucher in the meantime.',
+      );
+    }
+
     final response = await _client.get(
       _uri(path, query),
       headers: {

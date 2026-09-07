@@ -15,11 +15,21 @@ class LoginController extends GetxController {
   final error = RxnString();
   final obscure = true.obs;
 
+  /// One account per step of the default route, plus the administrator.
   static const demoAccounts = [
-    ('Employee', 'john@acme.test', 'creates vouchers, sees only their own'),
-    ('HOD', 'asha@acme.test', 'reviews and signs — cannot approve'),
-    ('Manager', 'daniel@acme.test', 'approves or rejects'),
-    ('Administrator', 'admin@acme.test', 'runs the whole company'),
+    (
+      'Employee · John',
+      'john@acme.test',
+      'raises vouchers, sees only their own',
+    ),
+    ('HOD · Peter', 'peter@acme.test', 'reviews and signs — never approves'),
+    ('CEO · Daniel', 'daniel@acme.test', 'approves or rejects — the final say'),
+    (
+      'Cashier · Fatuma',
+      'fatuma@acme.test',
+      'releases the funds, records the reference',
+    ),
+    ('Administrator · Neema', 'admin@acme.test', 'runs Acme Tanzania Ltd'),
   ];
 
   void useDemo(String address) {
@@ -113,11 +123,9 @@ class LoginPage extends GetView<LoginController> {
                               vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: VfColors.accent2100,
+                              color: VfColors.bad,
                               border: Border.all(
-                                color: VfColors.accent2500.withValues(
-                                  alpha: .5,
-                                ),
+                                color: VfColors.bad.withValues(alpha: .5),
                               ),
                               borderRadius: BorderRadius.circular(2),
                             ),
@@ -126,14 +134,14 @@ class LoginPage extends GetView<LoginController> {
                                 const Icon(
                                   Icons.error_outline,
                                   size: 18,
-                                  color: VfColors.accent2700,
+                                  color: VfColors.bad,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     controller.error.value!,
                                     style: const TextStyle(
-                                      color: VfColors.accent2800,
+                                      color: VfColors.bad,
                                       fontSize: 13.5,
                                     ),
                                   ),
@@ -228,7 +236,7 @@ class LoginPage extends GetView<LoginController> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Password for every demo account: Password123!',
+                    'Password for every demo account: Password123!  ·  This prototype runs on local demo data.',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],

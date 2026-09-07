@@ -1,97 +1,190 @@
+/* Base structural classes, then the VouchFlow v2 skin on top — the same
+   layering the design uses. */
 @import "../styles/broadsheet.css";
+@import "../styles/vouchflow.css";
 
-/* Print: the browser's own print path renders the on-screen document view.
-   Server-generated PDFs remain the canonical artefact. */
+/* ── Print ────────────────────────────────────────────────────────────────
+   Paper is white whatever the screen was showing. Server-generated PDFs stay
+   the canonical artefact; this is for the browser's own print path. */
 @media print {
   .no-print { display: none !important; }
   a[href]::after { content: none !important; }
 
-  /* Paper is white whatever the screen was showing. Without this, printing from
-     dark mode puts light text on a white sheet. */
-  :root, :root[data-theme="dark"] {
+  :root, :root[data-theme="dark"], :root[data-theme="light"] {
     --color-bg: #ffffff;
-    --color-surface: #eae9e9;
-    --color-text: #201e1d;
-    --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
-    --color-neutral-100: #f8f4f4; --color-neutral-200: #eae7e7; --color-neutral-300: #d7d3d3;
-    --color-neutral-400: #bab6b6; --color-neutral-500: #9b9797; --color-neutral-600: #7d7979;
-    --color-neutral-700: #605d5d; --color-neutral-800: #444141; --color-neutral-900: #2d2b2b;
-    --color-accent: #0088b0; --color-accent-700: #006786; --color-accent-800: #004961;
+    --color-text: #0b1220;
+    --vf-elev-1: #ffffff; --vf-elev-2: #f7f9fc; --vf-elev-3: #eef2f8;
+    --vf-line: rgba(15, 32, 66, .16); --vf-line-strong: rgba(15, 32, 66, .28);
+    --color-neutral-600: #64718a; --color-neutral-700: #4a566d; --color-neutral-800: #2a3550;
   }
-  body { background: #fff; color: #201e1d; }
+  body { background: #fff; color: #0b1220; }
+
+  /* The app chrome never prints; only the page's content does. */
+  .vf-sidebar, .vf-topbar, .vf-tabbar, .vf-scrim { display: none !important; }
+  .vf-content { padding: 0 !important; }
+  .vf-print-hide { display: none !important; }
+
+  .vf-sheet {
+    width: auto !important; min-height: 0 !important;
+    box-shadow: none !important; border-radius: 0 !important;
+    margin: 0 !important; padding: 14mm 15mm !important;
+    break-inside: auto;
+  }
+  @page { size: A4; margin: 0; }
 }
 
-/* App shell responsiveness — the sidebar collapses into a drawer on narrow
-   screens, and the mobile tab bar takes over below the same breakpoint. */
-.vf-shell { display: flex; min-height: 100vh; }
-.vf-sidebar {
-  width: 246px; flex: 0 0 246px; border-right: 1px solid var(--color-divider);
-  padding: var(--space-4) var(--space-3); display: flex; flex-direction: column;
-  gap: var(--space-2); position: sticky; top: 0; height: 100vh; overflow-y: auto;
+/* ── The printed A4 voucher ───────────────────────────────────────────────
+   Always ink-on-paper, whatever appearance the interface is wearing: this is
+   a preview of the document, not a piece of the interface. */
+.vf-sheet {
+  position: relative; overflow: hidden;
+  width: 794px; max-width: 100%; min-height: 1123px;
+  margin: 0 auto;
+  background: var(--vf-paper); color: var(--vf-paper-ink);
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .7);
+  border-radius: 4px;
+  padding: 60px 64px;
+  font-size: 12.5px; line-height: 1.55;
+  color-scheme: light;
 }
-.vf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.vf-topbar {
-  display: flex; align-items: center; gap: var(--space-3);
-  padding: var(--space-3) var(--space-6); border-bottom: 1px solid var(--color-divider);
-  position: sticky; top: 0; background: var(--color-bg); z-index: 20;
-}
-.vf-content { flex: 1; padding: var(--space-6); min-width: 0; }
-.vf-navitem {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  border: 0; border-radius: var(--radius-md); cursor: pointer;
-  font-family: var(--font-body); font-size: 15px; padding: 8px var(--space-2);
-  background: transparent; color: var(--color-text); text-decoration: none;
-}
-.vf-navitem:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); text-decoration: none; color: var(--color-text); }
-.vf-navitem[aria-current="page"] { background: var(--color-accent-100); color: var(--color-accent-800); font-weight: 600; }
-.vf-navbadge {
-  font-size: 12px; font-variant-numeric: tabular-nums;
-  background: var(--color-badge-bg); color: var(--color-badge-fg);
-  border-radius: 9px; padding: 1px 7px; font-weight: 600;
-}
-.vf-tabbar { display: none; }
-.vf-scrim { display: none; }
 
 @media (max-width: 900px) {
+  .vf-sheet { padding: 30px 24px; min-height: 0; font-size: 12px; }
+  .vf-sheet table { font-size: 11.5px; }
+}
+
+/* ── App shell ────────────────────────────────────────────────────────────
+   The sidebar collapses into a drawer and the bottom tab bar takes over at the
+   same breakpoint. */
+.vf-shell { display: flex; min-height: 100vh; }
+
+.vf-sidebar {
+  width: 258px; flex: 0 0 258px;
+  border-right: 1px solid var(--vf-line);
+  background: var(--vf-elev-1);
+  padding: 16px 12px; display: flex; flex-direction: column; gap: 4px;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+
+.vf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.vf-topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 24px; border-bottom: 1px solid var(--vf-line);
+  position: sticky; top: 0; z-index: 20;
+  background: var(--vf-glass);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}
+
+.vf-content { flex: 1; padding: 28px 24px 40px; min-width: 0; }
+
+.vf-navitem {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  border: 1px solid transparent; border-radius: 10px; cursor: pointer;
+  font-family: var(--font-body); font-size: 14.5px; font-weight: 400;
+  padding: 9px 11px; background: transparent; color: var(--color-neutral-700);
+  text-decoration: none; transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+.vf-navitem i { font-size: 18px; color: var(--color-neutral-500); transition: color .16s ease; }
+.vf-navitem:hover { background: var(--vf-elev-2); color: var(--color-text); text-decoration: none; }
+.vf-navitem:hover i { color: var(--color-neutral-700); }
+.vf-navitem[aria-current="page"] {
+  background: var(--vf-elev-3); color: var(--color-text); font-weight: 500;
+  border-color: var(--vf-line);
+}
+.vf-navitem[aria-current="page"] i { color: var(--color-accent-600); }
+
+.vf-navbadge {
+  font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--vf-warn) 18%, transparent);
+  color: var(--vf-warn); border-radius: 7px; padding: 1px 7px;
+}
+.vf-navbadge-quiet { background: var(--vf-elev-3); color: var(--color-neutral-600); }
+
+.vf-sectionlabel {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--color-neutral-500); padding: 14px 11px 6px;
+}
+
+.vf-tabbar { display: none; }
+.vf-scrim { display: none; }
+.vf-menu-btn { display: none; }
+
+@media (max-width: 980px) {
   .vf-sidebar {
-    position: fixed; inset: 0 auto 0 0; z-index: 60; background: var(--color-bg);
+    position: fixed; inset: 0 auto 0 0; z-index: 60; width: 274px; flex-basis: 274px;
     box-shadow: var(--shadow-lg); transform: translateX(-100%);
-    transition: transform .18s ease-out, visibility .18s;
-    /* visibility, not just the transform: an off-screen drawer must also leave
-       the tab order, or keyboard users land inside an invisible menu. */
-    visibility: hidden;
+    transition: transform .2s ease, visibility .2s;
+    visibility: hidden;   /* an off-screen drawer must leave the tab order too */
   }
   .vf-sidebar[data-open="true"] { transform: none; visibility: visible; }
-  .vf-scrim { display: block; position: fixed; inset: 0; z-index: 55; background: color-mix(in srgb, var(--color-neutral-900) 45%, transparent); border: 0; }
-  .vf-topbar { padding: var(--space-2) var(--space-3); }
-  .vf-content { padding: var(--space-4) var(--space-3) 84px; }
+  .vf-scrim {
+    display: block; position: fixed; inset: 0; z-index: 55; border: 0;
+    background: rgba(3, 6, 14, .6); backdrop-filter: blur(3px);
+  }
+  .vf-menu-btn { display: inline-flex; }
+  .vf-topbar { padding: 10px 14px; }
+  .vf-content { padding: 18px 14px 96px; }
+  .vf-topbar-extras { display: none; }
+
   .vf-tabbar {
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-    background: var(--color-bg); border-top: 1px solid var(--color-divider);
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--vf-glass); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid var(--vf-line);
+    padding: 7px 4px calc(7px + env(safe-area-inset-bottom, 0px));
   }
   .vf-tabbar a {
-    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    font-size: 10.5px; padding: 4px 2px; color: var(--color-neutral-600); text-decoration: none;
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 10.5px; font-weight: 500; padding: 4px 2px;
+    color: var(--color-neutral-600); text-decoration: none; border-radius: 10px;
+    /* One line only — the bar has five slots and no room to wrap. */
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-align: center;
   }
-  .vf-tabbar a[aria-current="page"] { color: var(--color-accent-700); }
+  .vf-tabbar a[aria-current="page"] { color: var(--color-accent-600); }
   .vf-tabbar a:hover { text-decoration: none; }
 }
 
-/* Two-column page bodies fold to one column on narrow screens. */
-.vf-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .82fr); gap: var(--space-8); align-items: start; }
-@media (max-width: 1040px) { .vf-split { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); } }
+/* ── Layout helpers ───────────────────────────────────────────────────── */
+
+.vf-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .82fr); gap: 26px; align-items: start; }
+@media (max-width: 1080px) { .vf-split { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
 
 .vf-sticky { position: sticky; top: 84px; }
-@media (max-width: 1040px) { .vf-sticky { position: static; } }
+@media (max-width: 1080px) { .vf-sticky { position: static; } }
 
-/* The landing page uses the design's editorial measure. */
-.vf-page { max-width: 1180px; margin: 0 auto; padding: 0 var(--space-6); }
-@media (max-width: 700px) { .vf-page { padding: 0 var(--space-3); } }
+.vf-page { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+@media (max-width: 700px) { .vf-page { padding: 0 16px; } }
 
-/* The drawer trigger and the wider top-bar controls swap at the shell breakpoint. */
-.vf-menu-btn { display: none; }
-@media (max-width: 900px) {
-  .vf-menu-btn { display: inline-flex; }
-  .vf-topbar-extras { display: none; }
+.table-wrap {
+  width: 100%; overflow-x: auto;
+  border: 1px solid var(--vf-line); border-radius: 14px; background: var(--vf-elev-1);
 }
+/* Inside a panel the surface is already drawn — no second frame. */
+.vf-panel > .table-wrap,
+.vf-panel .vf-panel-pad > .table-wrap { border: 0; border-radius: 0; background: transparent; }
+
+.table-wrap .table thead th { padding-top: 14px; }
+.table-wrap .table thead th:first-child,
+.table-wrap .table tbody td:first-child { padding-left: 18px; }
+.table-wrap .table thead th:last-child,
+.table-wrap .table tbody td:last-child { padding-right: 18px; }
+
+/* The printed sheet, framed so it reads as paper on the dark ground. */
+.vf-paper-sheet {
+  background: var(--vf-paper); color: var(--vf-paper-ink);
+  border: 1px solid var(--vf-line-strong); border-radius: 14px;
+  box-shadow: var(--shadow-lg); overflow: hidden;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }
+.text-muted { color: var(--color-neutral-600); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* The filter disclosure only earns its place on a narrow screen. */
+.vf-filter-toggle { display: none; }
+@media (max-width: 980px) { .vf-filter-toggle { display: inline-flex; } }

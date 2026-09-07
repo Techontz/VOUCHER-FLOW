@@ -1,12 +1,24 @@
 /**
  * Typed client for the VouchFlow API.
  *
- * Holds the Sanctum token, the active language and the chosen appearance, and
- * turns Laravel's error shapes into something the forms can render field by field.
+ * Holds the token, the active language and the chosen appearance, and turns the
+ * API's error shapes into something the forms can render field by field.
+ *
+ * PHASE 1 — the transport underneath is an in-browser mock (`lib/mock/`), not
+ * HTTP. Every screen calls `api.get` / `api.post` / … exactly as it will against
+ * Laravel, and the paths, verbs and payload shapes are the same. Setting
+ * `NEXT_PUBLIC_API_MODE=live` switches the transport to `fetch` with no change
+ * to a single component.
  */
+
+import { handle, MockError } from "./mock/router";
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api";
+
+/** `mock` (default, Phase 1) or `live` (Phase 2, once Laravel is connected). */
+export const API_MODE: "mock" | "live" =
+  process.env.NEXT_PUBLIC_API_MODE === "live" ? "live" : "mock";
 
 const TOKEN_KEY = "vouchflow.token";
 const LOCALE_KEY = "vouchflow.locale";
@@ -133,7 +145,54 @@ async function parse(response: Response) {
   }
 }
 
+/** Network-shaped latency, so loading states are exercised the way they will be. */
+const settle = () => new Promise((r) => setTimeout(r, 90 + Math.random() * 160));
+
+/** Reads a FormData body into the plain object the mock router expects. */
+function formToBody(form: FormData): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  form.forEach((value, key) => {
+    body[key] = value instanceof File
+      ? { name: value.name, size: value.size, type: value.type }
+      : value;
+  });
+  return body;
+}
+
+async function mockRequest<T>(path: string, options: RequestOptions): Promise<T> {
+  await settle();
+
+  const [cleanPath, inlineQuery] = path.split("?");
+  const query: Record<string, string> = {};
+  new URLSearchParams(inlineQuery ?? "").forEach((v, k) => { query[k] = v; });
+  if (options.query) {
+    for (const [key, value] of Object.entries(options.query)) {
+      if (value !== undefined && value !== null && value !== "") query[key] = String(value);
+    }
+  }
+
+  const body = options.form
+    ? formToBody(options.form)
+    : ((options.body as Record<string, unknown>) ?? {});
+  const method = options.method ?? (options.body || options.form ? "POST" : "GET");
+
+  try {
+    return handle(method, cleanPath, body, query, getToken()) as T;
+  } catch (error) {
+    if (error instanceof MockError) {
+      if (error.status === 401 && typeof window !== "undefined") {
+        setToken(null);
+        if (!window.location.pathname.startsWith("/login")) window.location.href = "/login";
+      }
+      throw new ApiError(error.status, error.message, error.errors, error.code);
+    }
+    throw error;
+  }
+}
+
 export async function request<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (API_MODE === "mock") return mockRequest<T>(path, options);
+
   const headers: Record<string, string> = {
     Accept: "application/json",
     "X-Locale": getLocale(),
@@ -184,6 +243,15 @@ export async function request<T = any>(path: string, options: RequestOptions = {
 
 /** Fetches a file (PDF, spreadsheet) as a blob, carrying auth headers. */
 export async function download(path: string, query?: Query): Promise<Blob> {
+  if (API_MODE === "mock") {
+    throw new ApiError(
+      501,
+      "File export is generated server-side and arrives with the backend. Use Print to produce a PDF from this page in the meantime.",
+      {},
+      "phase_one_frontend_only",
+    );
+  }
+
   const token = getToken();
   const response = await fetch(buildUrl(path, query), {
     headers: {

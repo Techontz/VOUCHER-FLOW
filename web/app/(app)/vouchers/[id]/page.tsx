@@ -1,24 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api, download, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDate, formatDateTime } from "@/lib/format";
 import {
-  Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, Spinner,
+  Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, Note, Panel, Spinner,
 } from "@/components/ui";
-import { DocumentActions } from "@/components/voucher-bits";
+import { DocumentActions, KindChip } from "@/components/voucher-bits";
+import { VoucherSheet } from "@/components/voucher-sheet";
 import { SignaturePad } from "@/components/signature-pad";
 import type { Voucher } from "@/lib/types";
 
-type Action = "sign" | "submit_signed" | "approve" | "reject" | "request_changes" | "submit" | "cancel";
+type Action = "sign" | "submit_signed" | "approve" | "reject" | "request_changes" | "submit" | "cancel" | "pay";
 
 export default function VoucherDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { t, locale, user, toast, reportError, refreshUnread } = useApp();
+  const { t, locale, user, company, toast, reportError, refreshUnread } = useApp();
+  const search = useSearchParams();
 
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +33,9 @@ export default function VoucherDetailPage() {
   const [statement, setStatement] = useState(false);
   const [comment, setComment] = useState("");
   const [newComment, setNewComment] = useState("");
+  const [payReference, setPayReference] = useState("");
+  const [payMethod, setPayMethod] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
@@ -40,6 +45,14 @@ export default function VoucherDetailPage() {
   }, [params.id]);
 
   useEffect(load, [load, locale]);
+
+  // Arriving from a Print button elsewhere: show the sheet and open the dialog.
+  useEffect(() => {
+    if (search.get("print") !== "1" || !voucher) return;
+    setSheetOpen(true);
+    const timer = window.setTimeout(() => window.print(), 350);
+    return () => window.clearTimeout(timer);
+  }, [search, voucher]);
 
   useEffect(() => {
     if (user?.has_signature) {
@@ -53,6 +66,10 @@ export default function VoucherDetailPage() {
     setDialog(action);
     setStatement(false);
     setComment("");
+    if (action === "pay") {
+      setPayReference("");
+      setPayMethod(voucher?.kind === "cash" ? "Cash" : "Bank transfer");
+    }
     setSignature(action === "sign" || action === "approve" ? (user?.has_signature ? savedSignature : null) : null);
   }
 
@@ -62,7 +79,8 @@ export default function VoucherDetailPage() {
     try {
       const endpoint: Record<Action, string> = {
         sign: "sign", submit_signed: "submit-signed", approve: "approve",
-        reject: "reject", request_changes: "request-changes", submit: "submit", cancel: "cancel",
+        reject: "reject", request_changes: "request-changes", submit: "submit",
+        cancel: "cancel", pay: "pay",
       };
 
       const body: Record<string, unknown> = { comment: comment || undefined };
@@ -71,6 +89,10 @@ export default function VoucherDetailPage() {
         body.save_signature = saveSignature && !!signature;
       }
       if (action === "approve" && signature) body.signature = signature;
+      if (action === "pay") {
+        body.reference = payReference.trim();
+        body.method = payMethod || (voucher.kind === "cash" ? "Cash" : "Bank transfer");
+      }
 
       const res = await api.post<{ data: Voucher }>(`/vouchers/${voucher.id}/${endpoint[action]}`, body);
       setVoucher(res.data);
@@ -85,6 +107,7 @@ export default function VoucherDetailPage() {
         request_changes: ["Changes requested", `${res.data.requester?.name ?? "The requester"} has been notified.`],
         submit: ["Voucher submitted", `${res.data.number} — ${res.data.status_label}`],
         cancel: ["Voucher cancelled", res.data.number],
+        pay: ["Payment recorded", `${res.data.number} — ${res.data.amount_text} released · reference ${res.data.payment_reference}.`],
       };
       const [title, bodyText] = messages[action];
       toast(title, bodyText, action === "reject" ? "bad" : action === "request_changes" ? "warn" : "ok");
@@ -129,7 +152,8 @@ export default function VoucherDetailPage() {
 
   const a = voucher.actions;
   const step = voucher.current_step;
-  const canAct = a && (a.sign || a.submit_signed || a.approve || a.reject || a.request_changes);
+  const printing = search.get("print") === "1";
+  const canAct = a && (a.sign || a.submit_signed || a.approve || a.reject || a.request_changes || a.pay);
   const signValid = statement && !!signature;
 
   return (
@@ -142,6 +166,7 @@ export default function VoucherDetailPage() {
           </Link>
           <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-3)", flexWrap: "wrap" }}>
             <h1 style={{ fontSize: "clamp(24px,3.4vw,34px)", letterSpacing: "-.015em", margin: 0, fontVariantNumeric: "tabular-nums" }}>{voucher.number}</h1>
+            <KindChip kind={voucher.kind} size={12} />
             <span className={`tag ${voucher.status_tag}`} style={{ fontSize: 13.5 }}>{voucher.status_label}</span>
           </div>
           <div style={{ color: "var(--color-neutral-700)", marginTop: 6 }}>
@@ -250,51 +275,74 @@ export default function VoucherDetailPage() {
 
         {/* ── timeline & actions ── */}
         <div>
-          <div style={{ border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", background: "var(--color-neutral-100)" }}>
-            <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
-              {t("approvalTimeline")}
-            </div>
-            {voucher.timeline?.map((row, index) => {
-              const colour = row.state === "rejected" ? "var(--color-accent-2-500)"
-                : row.state === "done" ? "var(--color-accent-500)"
-                : row.state === "current" ? "var(--color-process-yellow)" : "var(--color-neutral-300)";
-              const last = index === (voucher.timeline?.length ?? 0) - 1;
+          <Panel title={t("approvalTimeline")}>
+            <div className="vf-timeline">
+              {voucher.timeline?.map((row, index) => {
+                const last = index === (voucher.timeline?.length ?? 0) - 1;
+                const tone = row.state === "rejected" ? "var(--vf-bad)"
+                  : row.state === "done" ? "var(--vf-ok)"
+                  : row.state === "current" ? "var(--vf-warn)" : "var(--color-neutral-500)";
+                const lit = row.state !== "pending";
 
-              return (
-                <div key={index} style={{ display: "grid", gridTemplateColumns: "20px minmax(0,1fr)", gap: "var(--space-3)", paddingBottom: last ? 0 : "var(--space-4)" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                    <Icon name={row.icon} size={19} color={colour} />
-                    {!last && <div style={{ flex: 1, width: 1, background: "var(--color-neutral-300)" }} />}
-                  </div>
-                  <div style={{ color: row.state === "pending" ? "var(--color-neutral-600)" : "var(--color-text)" }}>
-                    <div style={{ fontSize: 11.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>
-                      {locale === "sw" ? row.sub_sw : row.sub}
+                return (
+                  <div key={index} className="vf-tl-row">
+                    <div className="vf-tl-rail">
+                      <span
+                        className={`vf-tl-dot${row.state === "current" ? " vf-tl-live" : ""}`}
+                        style={{
+                          color: tone,
+                          borderColor: lit ? `color-mix(in srgb, ${tone} 40%, transparent)` : "var(--vf-line)",
+                          background: lit ? `color-mix(in srgb, ${tone} 13%, transparent)` : "var(--vf-elev-2)",
+                        }}
+                      >
+                        <Icon name={row.icon} size={14} color={tone} />
+                      </span>
+                      {!last && (
+                        <span className="vf-tl-line" style={{
+                          background: row.state === "done"
+                            ? "color-mix(in srgb, var(--vf-ok) 42%, transparent)"
+                            : "var(--vf-line)",
+                        }} />
+                      )}
                     </div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{locale === "sw" && row.name_sw ? row.name_sw : row.name}</div>
-                    <div style={{ fontSize: 14.5 }}>{row.person}</div>
-                    <div style={{ fontSize: 14.5 }}>
-                      {locale === "sw" ? row.act_sw : row.act}{row.when ? ` · ${formatDateTime(row.when, locale)}` : ""}
-                    </div>
-                    <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)", marginTop: 2 }}>
-                      {t("permittedHere")}: {row.capability_text}
-                    </div>
-                    {row.signature && (
-                      <img src={row.signature} alt="Signature" style={{ maxHeight: 46, marginTop: 6, background: "#fff", border: "1px solid var(--color-divider)", borderRadius: 2, padding: 2 }} />
-                    )}
-                    {row.comment && (
-                      <div style={{ fontSize: 14.5, fontStyle: "italic", color: "var(--color-neutral-700)", borderLeft: "2px solid var(--color-accent-300)", paddingLeft: 10, marginTop: 6 }}>
-                        {row.comment}
+
+                    <div className="vf-tl-body" style={{ color: lit ? "var(--color-text)" : "var(--color-neutral-600)" }}>
+                      <div style={{ fontSize: 11.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>
+                        {locale === "sw" ? row.sub_sw : row.sub}
                       </div>
-                    )}
+                      <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-.01em" }}>
+                        {locale === "sw" && row.name_sw ? row.name_sw : row.name}
+                      </div>
+                      <div style={{ fontSize: 14.5, color: "var(--color-neutral-700)" }}>{row.person}</div>
+                      <div style={{ fontSize: 14.5, color: tone, fontWeight: 500 }}>
+                        {locale === "sw" ? row.act_sw : row.act}
+                        {row.when ? <span style={{ color: "var(--color-neutral-600)", fontWeight: 400 }}> · {formatDateTime(row.when, locale)}</span> : null}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)", marginTop: 2 }}>
+                        {t("permittedHere")}: {row.capability_text}
+                      </div>
+                      {row.signature && (
+                        <img src={row.signature} alt="Signature" style={{
+                          maxHeight: 46, marginTop: 6, background: "#fff",
+                          border: "1px solid var(--vf-line)", borderRadius: 6, padding: 3,
+                        }} />
+                      )}
+                      {row.comment && (
+                        <div style={{
+                          fontSize: 14, color: "var(--color-neutral-700)", marginTop: 7,
+                          borderLeft: "2px solid var(--vf-line-strong)", paddingLeft: 10, fontStyle: "italic",
+                        }}>{row.comment}</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </Panel>
 
           {/* action panel */}
           {(canAct || a?.submit) && (
-            <div className="no-print" style={{ border: "1px solid var(--color-accent-500)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", marginTop: "var(--space-4)" }}>
+            <div className="no-print vf-panel" style={{ borderColor: "var(--color-accent-500)", padding: "var(--space-4)", marginTop: "var(--space-4)" }}>
               <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 19, marginBottom: 2 }}>
                 {step?.name ?? t("yourDecision")}
               </div>
@@ -338,6 +386,15 @@ export default function VoucherDetailPage() {
                 </button>
               )}
 
+              {a?.pay && (
+                <>
+                  <button className="btn btn-primary btn-block" onClick={() => openDialog("pay")}>
+                    <Icon name="ph-wallet" size={15} /> {voucher.kind === "cash" ? t("releaseFunds") : t("recordPayment")}
+                  </button>
+                  <div style={{ fontSize: 13, color: "var(--color-neutral-600)", marginTop: 6 }}>{t("payNote")}</div>
+                </>
+              )}
+
               {(a?.request_changes || a?.reject) && (
                 <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
                   {a?.request_changes && <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => openDialog("request_changes")}>{t("requestChanges")}</button>}
@@ -354,6 +411,8 @@ export default function VoucherDetailPage() {
             {voucher.submitted_at && <div>Submitted {formatDateTime(voucher.submitted_at, locale)}</div>}
             {voucher.approved_at && <div>Approved {formatDateTime(voucher.approved_at, locale)}</div>}
             {voucher.rejected_at && <div>Rejected {formatDateTime(voucher.rejected_at, locale)}</div>}
+            {voucher.paid_at && <div>Paid {formatDateTime(voucher.paid_at, locale)} · {voucher.paid_by}</div>}
+            {voucher.payment_reference && <div>{t("paymentRef")} {voucher.payment_reference}</div>}
             {voucher.verification_code && <div>{t("verificationCode")} {voucher.verification_code}</div>}
           </div>
         </div>
@@ -462,6 +521,76 @@ export default function VoucherDetailPage() {
           <textarea id="submit-comment" className="input" value={comment} onChange={(e) => setComment(e.target.value)} style={{ minHeight: 66 }} />
         </Field>
       </Dialog>
+
+      <Dialog
+        open={dialog === "pay"}
+        title={voucher.kind === "cash" ? t("releaseFunds") : t("recordPayment")}
+        onClose={() => setDialog(null)}
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setDialog(null)} disabled={busy}>{t("cancel")}</button>
+            <button className="btn btn-primary" onClick={() => run("pay")} disabled={busy || !payReference.trim()}>
+              {busy ? <Spinner /> : t("markPaid")}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: "grid", gap: "var(--space-3)" }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+            padding: "12px 14px", borderRadius: 12, background: "var(--vf-elev-2)", border: "1px solid var(--vf-line)",
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: "var(--color-neutral-600)" }}>{voucher.number} · {voucher.payee}</div>
+              <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 22, letterSpacing: "-.03em" }}>
+                {voucher.amount_text}
+              </div>
+            </div>
+            <KindChip kind={voucher.kind} size={12} />
+          </div>
+
+          <Field label={t("payFrom")} htmlFor="pay-method">
+            <select id="pay-method" className="input" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+              {(voucher.kind === "cash"
+                ? ["Cash — office float", "Cash — branch float"]
+                : ["Bank transfer", "Cheque", "Mobile money"]
+              ).map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </Field>
+
+          <Field
+            label={voucher.kind === "cash" ? t("paymentRef") : t("chequeNo")}
+            htmlFor="pay-ref"
+            required
+            hint={voucher.kind === "cash" ? "e.g. PC-REL-4471" : "e.g. TRF-2026-4471"}
+          >
+            <input id="pay-ref" className="input" value={payReference} autoFocus
+              onChange={(e) => setPayReference(e.target.value)} />
+          </Field>
+
+          <Field label={t("commentOptional")} htmlFor="pay-comment">
+            <textarea id="pay-comment" className="input" value={comment}
+              onChange={(e) => setComment(e.target.value)} style={{ minHeight: 62 }} />
+          </Field>
+
+          <Note>{t("payNote")}</Note>
+        </div>
+      </Dialog>
+
+      {/* The A4 document. Collapsed on screen until asked for; always the thing
+          that prints, since the PDF is generated from this same layout. */}
+      <section style={{ marginTop: "var(--space-8)" }}>
+        <div className="no-print vf-print-hide" style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
+          <button className="btn btn-secondary" onClick={() => setSheetOpen((v) => !v)} aria-expanded={sheetOpen}>
+            <Icon name={sheetOpen ? "ph-caret-up" : "ph-file-text"} size={15} />
+            {sheetOpen ? t("close") : t("voucherPdfA4")}
+          </button>
+          <span style={{ fontSize: 13, color: "var(--color-neutral-600)" }}>{t("previewNote")}</span>
+        </div>
+        <div hidden={!sheetOpen && !printing}>
+          <VoucherSheet voucher={voucher} company={company} />
+        </div>
+      </section>
     </div>
   );
 }

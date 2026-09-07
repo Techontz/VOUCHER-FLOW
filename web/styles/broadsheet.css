@@ -1,3 +1,8 @@
+/* Structural base only. VouchFlow v2 supersedes every colour, radius and
+   type token defined here — see styles/vouchflow.css, which is imported
+   after this file. Kept because the component skeletons (.field, .seg,
+   .switch, .radio) are still the ones the app builds on. */
+
 /* ============================================================================
    Broadsheet — design-system tokens and component classes.
    Ported from the VouchFlow design project (broadsheet.css) and retuned per the

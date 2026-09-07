@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { dateInputValue, money } from "@/lib/format";
-import { Field, Icon, PageHeader, Spinner } from "@/components/ui";
+import { Choice, Field, Icon, Note, PageHeader, Spinner } from "@/components/ui";
+import { VoucherSheet } from "@/components/voucher-sheet";
+import type { Voucher as VoucherModel } from "@/lib/types";
 import type { Department, Voucher, VoucherType } from "@/lib/types";
 
 const METHODS = ["Bank Transfer", "Mobile Money", "Cash", "Cheque"];
@@ -22,6 +24,7 @@ export default function CreateVoucherPage() {
   const [error, setError] = useState<ApiError | null>(null);
 
   const [form, setForm] = useState({
+    kind: "bank" as "bank" | "cash",
     voucher_type_id: 0,
     department_id: "",
     payee: "",
@@ -59,6 +62,37 @@ export default function CreateVoucherPage() {
   const amountNumber = Number(String(form.amount).replace(/[^0-9.]/g, "")) || 0;
 
   const words = useMemo(() => amountInWords(amountNumber, form.currency), [amountNumber, form.currency]);
+
+  /* The preview is a real Voucher shape so the A4 sheet needs no special case. */
+  const preview = useMemo<VoucherModel>(() => ({
+    id: 0,
+    number: selectedType?.next_number_preview ?? "—",
+    status: "draft", kind: form.kind,
+    status_key: "draft", status_label: t("drafts"), status_label_en: "Draft", status_label_sw: "Rasimu",
+    status_tag: "tag-neutral",
+    payee: form.payee || "—", purpose: form.purpose || "—",
+    description: form.description || null,
+    amount: amountNumber, currency: form.currency,
+    amount_text: money(amountNumber, form.currency), amount_in_words: words,
+    payment_method: form.payment_method, account_ref: form.account_ref || null,
+    category: form.category,
+    cost_centre: departments.find((d) => String(d.id) === form.department_id)?.cost_centre ?? null,
+    voucher_date: form.voucher_date, notes_to_approver: form.notes_to_approver || null,
+    verification_code: null,
+    voucher_type_id: form.voucher_type_id,
+    voucher_type: selectedType ? { id: selectedType.id, name: selectedType.name, label: selectedType.label } : undefined,
+    department_id: form.department_id ? Number(form.department_id) : null,
+    department: departments.find((d) => String(d.id) === form.department_id)
+      ? { id: Number(form.department_id), name: departments.find((d) => String(d.id) === form.department_id)!.name }
+      : null,
+    requester_id: user?.id ?? 0,
+    requester: user ? { id: user.id, name: user.name, initials: user.initials, job_title: user.job_title } : null,
+    workflow_id: null, current_step_position: null, current_step: null,
+    is_signed_at_current_step: false, is_editable: true, is_terminal: false,
+    submitted_at: null, approved_at: null, rejected_at: null,
+    paid_at: null, payment_reference: null, paid_by: null,
+    created_at: null, updated_at: null, timeline: [],
+  }), [form, amountNumber, words, selectedType, departments, user, t]);
 
   async function save(mode: "draft" | "submit") {
     setBusy(mode);
@@ -114,6 +148,22 @@ export default function CreateVoucherPage() {
       <div className="vf-split">
         <form onSubmit={(e) => { e.preventDefault(); save("submit"); }} noValidate>
           <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: 10 }}>
+            {t("voucherKind")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "var(--space-2)", marginBottom: "var(--space-6)" }}>
+            <Choice
+              selected={form.kind === "bank"} icon="ph-bank" label={t("bankVoucher")}
+              sub="Transfer or cheque to a bank account"
+              onSelect={() => setForm((f) => ({ ...f, kind: "bank", payment_method: "Bank Transfer" }))}
+            />
+            <Choice
+              selected={form.kind === "cash"} icon="ph-money" label={t("cashVoucher")}
+              sub="Notes released from a petty cash float"
+              onSelect={() => setForm((f) => ({ ...f, kind: "cash", payment_method: "Cash" }))}
+            />
+          </div>
+
+          <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: 10 }}>
             {t("voucherType")}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: "var(--space-6)" }}>
@@ -123,11 +173,11 @@ export default function CreateVoucherPage() {
                 <button key={type.id} type="button" onClick={() => setForm((f) => ({ ...f, voucher_type_id: type.id }))}
                   aria-pressed={on}
                   style={{
-                    border: `1px solid ${on ? "var(--color-accent-500)" : "var(--color-divider)"}`,
-                    background: on ? "var(--color-accent-100)" : "transparent",
-                    color: on ? "var(--color-accent-800)" : "var(--color-text)",
+                    border: `1px solid ${on ? "var(--color-accent-500)" : "var(--vf-line)"}`,
+                    background: on ? "color-mix(in srgb, var(--color-accent-500) 12%, transparent)" : "var(--vf-elev-1)",
+                    color: on ? "var(--color-accent-600)" : "var(--color-text)",
                     fontFamily: "var(--font-body)", fontSize: 14.5, padding: "7px 13px",
-                    borderRadius: "var(--radius-md)", cursor: "pointer",
+                    borderRadius: 10, cursor: "pointer", fontWeight: on ? 600 : 400,
                   }}>
                   {type.label}
                 </button>
@@ -189,8 +239,12 @@ export default function CreateVoucherPage() {
               </Field>
             </div>
 
-            <Field label={t("accountRef")} htmlFor="account_ref" error={fe("account_ref")}>
-              <input id="account_ref" className="input" value={form.account_ref} onChange={set("account_ref")} placeholder="Invoice or account number" />
+            <Field
+              label={form.kind === "cash" ? "Cash float / reference" : t("accountRef")}
+              htmlFor="account_ref" error={fe("account_ref")}
+            >
+              <input id="account_ref" className="input" value={form.account_ref} onChange={set("account_ref")}
+                placeholder={form.kind === "cash" ? "Petty cash float" : "Bank account or invoice number"} />
             </Field>
 
             <div>
@@ -198,8 +252,8 @@ export default function CreateVoucherPage() {
                 {t("supportingDocs")}
               </div>
               <label style={{
-                display: "block", border: "1px dashed var(--color-neutral-400)", borderRadius: "var(--radius-md)",
-                padding: "var(--space-4)", textAlign: "center", cursor: "pointer",
+                display: "block", border: "1px dashed var(--vf-line-strong)", borderRadius: 14,
+                background: "var(--vf-elev-1)", padding: "var(--space-5)", textAlign: "center", cursor: "pointer",
               }}>
                 <input type="file" multiple accept="application/pdf,image/*" style={{ display: "none" }}
                   onChange={(e) => setFiles((f) => [...f, ...Array.from(e.target.files ?? [])])} />
@@ -233,70 +287,21 @@ export default function CreateVoucherPage() {
           </div>
         </form>
 
-        {/* Live A4 preview — the same layout the server prints. */}
+        {/* Live A4 preview — literally the sheet that prints. */}
         <div className="vf-sticky">
           <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: 10 }}>
             {t("livePreview")}
           </div>
-          <div style={{ background: "#fff", color: "#201e1d", border: "1px solid var(--color-neutral-400)", boxShadow: "var(--shadow-lg)", padding: 28, fontSize: 13.5 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #201e1d", paddingBottom: 12, gap: 12 }}>
-              <div style={{ minWidth: 0 }}>
-                {company?.logo_url && <img src={company.logo_url} alt="" style={{ maxHeight: 34, marginBottom: 6 }} />}
-                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 18 }}>{company?.name ?? "Your company"}</div>
-                <div style={{ color: "#605d5d", fontSize: 12 }}>
-                  {[company?.address, company?.phone].filter(Boolean).join(" · ")}
-                </div>
-              </div>
-              <div style={{ textAlign: "right", flex: "none" }}>
-                <div style={{ fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase", color: "#605d5d" }}>{selectedType?.label}</div>
-                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
-                  {selectedType?.next_number_preview}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 20px", padding: "14px 0", borderBottom: "1px solid #d7d3d3" }}>
-              <PreviewCell label={t("date")} value={form.voucher_date} />
-              <PreviewCell label={t("department")} value={departments.find((d) => String(d.id) === form.department_id)?.name ?? "—"} />
-              <PreviewCell label={t("payee")} value={form.payee || "—"} />
-              <PreviewCell label={t("requester")} value={user?.name ?? "—"} />
-            </div>
-
-            <div style={{ padding: "14px 0", borderBottom: "1px solid #d7d3d3" }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "#605d5d" }}>{t("paymentPurpose")}</div>
-              <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 16, margin: "2px 0 6px" }}>{form.purpose || "—"}</div>
-              <div style={{ color: "#444141", lineHeight: 1.5 }}>{form.description}</div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0", borderBottom: "3px solid #201e1d", gap: 12 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "#605d5d" }}>{t("amountWords")}</div>
-                <div style={{ fontStyle: "italic", maxWidth: "30ch" }}>{words}</div>
-              </div>
-              <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 24, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                {money(amountNumber, form.currency)}
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, paddingTop: 18 }}>
-              <div><div style={{ borderBottom: "1px solid #9b9797", height: 34 }} /><div style={{ fontSize: 11, color: "#605d5d", marginTop: 4 }}>Signature &amp; date</div></div>
-              <div><div style={{ borderBottom: "1px solid #9b9797", height: 34 }} /><div style={{ fontSize: 11, color: "#605d5d", marginTop: 4 }}>Approval &amp; date</div></div>
+          <div style={{ overflow: "hidden", borderRadius: 8 }}>
+            <div style={{ width: 794, transform: "scale(.52)", transformOrigin: "top left", height: 1123 * 0.52 }}>
+              <VoucherSheet voucher={preview} company={company} />
             </div>
           </div>
-          <div style={{ fontSize: 13, color: "var(--color-neutral-600)", marginTop: 10 }}>
-            This is what prints. The signature blocks follow your company&rsquo;s configured workflow.
+          <div style={{ marginTop: 10 }}>
+            <Note>{t("previewNote")}</Note>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function PreviewCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "#605d5d" }}>{label}</div>
-      <div>{value}</div>
     </div>
   );
 }

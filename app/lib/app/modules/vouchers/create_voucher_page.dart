@@ -34,6 +34,9 @@ class CreateVoucherController extends GetxController {
   final amount = TextEditingController();
   final reference = TextEditingController();
   final notes = TextEditingController();
+
+  /// Bank or cash — the two corporate formats, chosen first.
+  final kind = 'bank'.obs;
   final method = 'Bank Transfer'.obs;
   final category = 'Logistics'.obs;
   final currency = 'TZS'.obs;
@@ -115,6 +118,7 @@ class CreateVoucherController extends GetxController {
     fieldErrors.clear();
     try {
       final voucher = await repo.create({
+        'kind': kind.value,
         'voucher_type_id': typeId.value,
         'department_id': departmentId.value,
         'payee': payee.text.trim(),
@@ -281,6 +285,30 @@ class _TypeStep extends StatelessWidget {
     () => ListView(
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
       children: [
+        Text('voucher.kind'.tr, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 10),
+        ChoiceCard(
+          selected: controller.kind.value == 'bank',
+          onTap: () {
+            controller.kind.value = 'bank';
+            controller.method.value = 'Bank Transfer';
+          },
+          icon: Icons.account_balance_outlined,
+          label: 'voucher.bank'.tr,
+          sub: 'voucher.bankSub'.tr,
+        ),
+        const SizedBox(height: 8),
+        ChoiceCard(
+          selected: controller.kind.value == 'cash',
+          onTap: () {
+            controller.kind.value = 'cash';
+            controller.method.value = 'Cash';
+          },
+          icon: Icons.payments_outlined,
+          label: 'voucher.cash'.tr,
+          sub: 'voucher.cashSub'.tr,
+        ),
+        const SizedBox(height: 22),
         Text('voucher.type'.tr, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
         RadioGroup<int>(
@@ -304,7 +332,14 @@ class _TypeStep extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<int?>(
-          initialValue: controller.departmentId.value,
+          // The department is pre-filled from the signed-in user before the
+          // list arrives; offering a value with no matching item throws.
+          initialValue:
+              controller.departments.any(
+                (d) => d.id == controller.departmentId.value,
+              )
+              ? controller.departmentId.value
+              : null,
           decoration: InputDecoration(labelText: 'voucher.department'.tr),
           items: [
             const DropdownMenuItem<int?>(value: null, child: Text('—')),

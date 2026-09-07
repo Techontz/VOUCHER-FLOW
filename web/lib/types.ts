@@ -1,5 +1,6 @@
+/** v2 routes a voucher Employee → HOD → CEO → Cashier. */
 export type Role =
-  | "super_admin" | "company_admin" | "employee" | "hod" | "manager" | "finance" | "director";
+  | "super_admin" | "company_admin" | "employee" | "hod" | "ceo" | "cashier" | "finance" | "director";
 
 export interface User {
   id: number;
@@ -103,7 +104,7 @@ export interface WorkflowStep {
   name: string;
   name_sw: string | null;
   label: string;
-  role: "employee" | "hod" | "manager" | "finance" | "director" | "custom";
+  role: "employee" | "hod" | "ceo" | "cashier" | "finance" | "director" | "custom";
   role_label: string;
   assigned_user_id: number | null;
   assigned_user?: { id: number; name: string } | null;
@@ -112,6 +113,7 @@ export interface WorkflowStep {
   can_approve: boolean;
   can_reject: boolean;
   can_request_changes: boolean;
+  can_pay: boolean;
   can_print: boolean;
   can_download: boolean;
   requires_signature: boolean;
@@ -160,6 +162,8 @@ export interface VoucherActions {
   approve: boolean;
   reject: boolean;
   request_changes: boolean;
+  /** The cashier releases funds and closes the voucher. */
+  pay: boolean;
   cancel: boolean;
   comment: boolean;
   print: boolean;
@@ -173,6 +177,8 @@ export interface TimelineRow {
   sub: string;
   sub_sw: string;
   person: string;
+  /** Job title of whoever acted, for the printed signature panels. */
+  person_title?: string;
   act: string;
   act_sw: string;
   when: string | null;
@@ -207,7 +213,9 @@ export interface Comment {
 export interface Voucher {
   id: number;
   number: string;
-  status: "draft" | "in_review" | "changes_requested" | "approved" | "rejected" | "cancelled";
+  status: "draft" | "in_review" | "changes_requested" | "approved" | "paid" | "rejected" | "cancelled";
+  /** Bank transfer or physical cash — each prints its own A4 layout. */
+  kind: "bank" | "cash";
   status_key: string;
   status_label: string;
   status_label_en: string;
@@ -245,6 +253,9 @@ export interface Voucher {
   submitted_at: string | null;
   approved_at: string | null;
   rejected_at: string | null;
+  paid_at: string | null;
+  payment_reference: string | null;
+  paid_by: string | null;
   created_at: string | null;
   updated_at: string | null;
   attachments_count?: number;
@@ -346,7 +357,14 @@ export interface Usage {
   approval_levels: { label: string; limit: number | null };
 }
 
-export interface DashboardStat { label: string; value: string; sub: string }
+export interface DashboardStat {
+  label: string;
+  value: string;
+  sub: string;
+  icon?: string;
+  trend?: string | null;
+  up?: boolean | null;
+}
 
 export interface DashboardPayload {
   role: Role;

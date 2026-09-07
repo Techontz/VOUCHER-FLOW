@@ -29,7 +29,7 @@ export default function ApprovalsPage() {
     <div style={{ maxWidth: 1000 }}>
       <PageHeader
         kicker={t("approvals")}
-        title={queue.length > 0 ? `${queue.length} ${queue.length === 1 ? t("voucher") : t("vouchers")} ${t("awaitingYou")}` : t("nothingAwaiting")}
+        title={queue.length > 0 ? `${queue.length} ${queue.length === 1 ? t("voucherWord") : t("vouchersWord")} ${t("awaitingYou")}` : t("nothingAwaiting")}
         sub={t("signOnlyNote")}
       />
 

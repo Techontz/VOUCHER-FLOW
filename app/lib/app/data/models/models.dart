@@ -107,7 +107,11 @@ class AppUser {
 
   bool get isEmployee => role == 'employee';
   bool get isApprover =>
-      const ['hod', 'manager', 'finance', 'director'].contains(role);
+      const ['hod', 'ceo', 'finance', 'director'].contains(role);
+
+  /// Releases funds; never makes an approval decision.
+  bool get isCashier => role == 'cashier';
+  bool get canCreateVouchers => !isCashier && !isSuperAdmin;
   bool get isAdmin => role == 'company_admin' || role == 'super_admin';
   bool get isSuperAdmin => role == 'super_admin';
 }
@@ -143,6 +147,7 @@ class VoucherActions {
       reject = json?['reject'] == true,
       requestChanges = json?['request_changes'] == true,
       cancel = json?['cancel'] == true,
+      pay = json?['pay'] == true,
       print = json?['print'] == true,
       download = json?['download'] == true;
 
@@ -155,11 +160,12 @@ class VoucherActions {
       reject,
       requestChanges,
       cancel,
+      pay,
       print,
       download;
 
   bool get hasWorkflowAction =>
-      sign || submitSigned || approve || reject || requestChanges;
+      sign || submitSigned || approve || reject || requestChanges || pay;
 }
 
 class TimelineEntry {
@@ -169,6 +175,7 @@ class TimelineEntry {
       sub = '${json['sub']}',
       subSw = '${json['sub_sw'] ?? json['sub']}',
       person = '${json['person']}',
+      personTitle = _as<String>(json['person_title']),
       act = '${json['act']}',
       actSw = '${json['act_sw'] ?? json['act']}',
       when = _toDate(json['when']),
@@ -178,7 +185,7 @@ class TimelineEntry {
       state = '${json['state']}';
 
   final String name, sub, subSw, person, act, actSw, capabilityText, state;
-  final String? nameSw, comment, signature;
+  final String? nameSw, comment, signature, personTitle;
   final DateTime? when;
 
   String label(String locale) => locale == 'sw' ? (nameSw ?? name) : name;
@@ -215,6 +222,7 @@ class Voucher {
   Voucher.fromJson(Map<String, dynamic> json)
     : id = _toInt(json['id']),
       number = '${json['number']}',
+      kind = json['kind'] == 'cash' ? 'cash' : 'bank',
       status = '${json['status']}',
       statusKey = '${json['status_key']}',
       statusLabel = '${json['status_label']}',
@@ -234,6 +242,9 @@ class Voucher {
       voucherDate = _toDate(json['voucher_date']),
       submittedAt = _toDate(json['submitted_at']),
       approvedAt = _toDate(json['approved_at']),
+      paidAt = _toDate(json['paid_at']),
+      paymentReference = _as<String>(json['payment_reference']),
+      paidBy = _as<String>(json['paid_by']),
       createdAt = _toDate(json['created_at']),
       voucherTypeId = _toInt(json['voucher_type_id']),
       voucherTypeLabel = _nested(json['voucher_type'], 'label'),
@@ -261,7 +272,7 @@ class Voucher {
 
   final int id, voucherTypeId, requesterId, attachmentsCount;
   final int? departmentId;
-  final String number, status, statusKey, statusLabel, statusTag;
+  final String number, kind, status, statusKey, statusLabel, statusTag;
   final String payee, purpose, currency, amountText;
   final String? description,
       amountInWords,
@@ -273,10 +284,14 @@ class Voucher {
       voucherTypeLabel,
       departmentName,
       requesterName,
-      currentStepName;
+      currentStepName,
+      paymentReference,
+      paidBy;
   final double amount;
   final bool currentStepCanApprove, isEditable, isTerminal;
-  final DateTime? voucherDate, submittedAt, approvedAt, createdAt;
+
+  bool get isCash => kind == 'cash';
+  final DateTime? voucherDate, submittedAt, approvedAt, paidAt, createdAt;
   final VoucherActions actions;
   final List<TimelineEntry> timeline;
   final List<Attachment> attachments;
@@ -305,9 +320,14 @@ class DashboardStat {
   DashboardStat.fromJson(Map<String, dynamic> json)
     : label = '${json['label']}',
       value = '${json['value']}',
-      sub = '${json['sub'] ?? ''}';
+      sub = '${json['sub'] ?? ''}',
+      icon = _as<String>(json['icon']),
+      trend = _as<String>(json['trend']),
+      up = json['up'] as bool?;
 
   final String label, value, sub;
+  final String? icon, trend;
+  final bool? up;
 }
 
 class DashboardData {

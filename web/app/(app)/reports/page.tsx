@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, download, saveBlob } from "@/lib/api";
+import { api, API_MODE, download, saveBlob } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { EmptyState, ErrorState, Icon, LoadingBlock, PageHeader, Spinner } from "@/components/ui";
 import type { Department, VoucherType } from "@/lib/types";
@@ -47,6 +47,29 @@ export default function ReportsPage() {
   useEffect(load, [load, locale]);
 
   async function exportAs(format: "pdf" | "xlsx" | "csv") {
+    /* Phase 1: the report on screen is real, so the spreadsheet is built from
+       it here rather than pretending a server produced one. PDF goes through
+       the browser's print dialog, which is also how a reader saves one. */
+    if (API_MODE === "mock") {
+      if (format === "pdf") {
+        toast(t("exportBtn"), "Choose “Save as PDF” in the print dialog.", "warn");
+        window.setTimeout(() => window.print(), 150);
+        return;
+      }
+      if (!result) return;
+      const csv = [result.headings, ...result.rows]
+        .map((row) => row.map((cell) => {
+          const text = cell === null || cell === undefined ? "" : String(cell);
+          return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        }).join(","))
+        .join("\r\n");
+      // A BOM keeps Excel honest about UTF-8 (Swahili headings, the − sign).
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+      saveBlob(blob, `vouchflow-${active}-${new Date().toISOString().slice(0, 10)}.csv`);
+      toast(t("exportBtn"), `${result.rows.length} rows · CSV`, "ok");
+      return;
+    }
+
     setExporting(format);
     try {
       const blob = await download(`/reports/${active}/export`, { ...filters, format });
@@ -73,9 +96,11 @@ export default function ReportsPage() {
             <button className="btn btn-secondary" onClick={() => exportAs("pdf")} disabled={exporting !== null}>
               {exporting === "pdf" ? <Spinner /> : <><Icon name="ph-file-pdf" size={15} /> PDF</>}
             </button>
-            <button className="btn btn-secondary" onClick={() => exportAs("xlsx")} disabled={exporting !== null}>
-              {exporting === "xlsx" ? <Spinner /> : <><Icon name="ph-microsoft-excel-logo" size={15} /> Excel</>}
-            </button>
+            {API_MODE === "live" && (
+              <button className="btn btn-secondary" onClick={() => exportAs("xlsx")} disabled={exporting !== null}>
+                {exporting === "xlsx" ? <Spinner /> : <><Icon name="ph-microsoft-excel-logo" size={15} /> Excel</>}
+              </button>
+            )}
             <button className="btn btn-secondary" onClick={() => exportAs("csv")} disabled={exporting !== null}>
               {exporting === "csv" ? <Spinner /> : <><Icon name="ph-file-csv" size={15} /> CSV</>}
             </button>
@@ -89,9 +114,10 @@ export default function ReportsPage() {
             <button key={kind.key} onClick={() => setActive(kind.key)} aria-pressed={on}
               style={{
                 textAlign: "left", cursor: "pointer", fontFamily: "var(--font-body)",
-                border: `1px solid ${on ? "var(--color-accent-500)" : "var(--color-divider)"}`,
-                background: on ? "var(--color-accent-100)" : "transparent",
-                color: "var(--color-text)", borderRadius: "var(--radius-md)", padding: "var(--space-3)",
+                border: `1px solid ${on ? "var(--color-accent-500)" : "var(--vf-line)"}`,
+                background: on ? "color-mix(in srgb, var(--color-accent-500) 9%, var(--vf-elev-1))" : "var(--vf-elev-1)",
+                color: "var(--color-text)", borderRadius: 14, padding: "var(--space-4)",
+                transition: "border-color .18s ease, background .18s ease",
               }}>
               <Icon name={kind.icon} size={22} color="var(--color-accent-600)" />
               <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 16, marginTop: 6 }}>
@@ -105,7 +131,8 @@ export default function ReportsPage() {
         })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
+      <div className="vf-panel" style={{ padding: "var(--space-4)", marginBottom: "var(--space-4)",
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)" }}>
         <input className="input" type="date" value={filters.from} onChange={set("from")} aria-label={t("from")} />
         <input className="input" type="date" value={filters.to} onChange={set("to")} aria-label={t("to")} />
         <select className="input" value={filters.department_id} onChange={set("department_id")} aria-label={t("department")}>

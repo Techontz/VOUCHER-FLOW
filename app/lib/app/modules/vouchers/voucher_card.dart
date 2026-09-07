@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/theme.dart';
 import '../../data/models/models.dart';
 import '../../routes/routes.dart';
 import '../../widgets/common.dart';
@@ -23,23 +24,33 @@ class VoucherCard extends StatelessWidget {
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          border: Border.all(color: theme.dividerColor),
-          borderRadius: BorderRadius.circular(2),
+          color: context.vfElev1,
+          border: Border.all(color: context.vfLine),
+          borderRadius: BorderRadius.circular(VfTheme.rLg),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              [
-                voucher.number,
-                voucher.voucherTypeLabel,
-                voucher.departmentName,
-              ].whereType<String>().join(' · '),
-              style: theme.textTheme.bodySmall,
+            Row(
+              children: [
+                KindChip(kind: voucher.kind),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    [
+                      voucher.number,
+                      voucher.departmentName,
+                    ].whereType<String>().join(' · '),
+                    style: theme.textTheme.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 6),
             Text(
               voucher.purpose,
               style: theme.textTheme.titleMedium,
@@ -54,17 +65,19 @@ class VoucherCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 10),
-            Row(
+            // The amount takes the full width; the status wraps beneath it so a
+            // long label never squeezes the figure onto two lines.
+            Text(
+              voucher.amountText,
+              style: theme.textTheme.titleLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
               children: [
-                Expanded(
-                  child: Text(
-                    voucher.amountText,
-                    style: theme.textTheme.titleLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
                 StatusChip(
                   label: voucher.statusLabel,
                   tag: voucher.statusTag,
@@ -77,7 +90,9 @@ class VoucherCard extends StatelessWidget {
               Row(
                 children: [
                   Icon(
-                    voucher.actions.approve
+                    voucher.actions.pay
+                        ? Icons.account_balance_wallet_outlined
+                        : voucher.actions.approve
                         ? Icons.verified_outlined
                         : voucher.actions.submitSigned
                         ? Icons.forward_outlined
@@ -87,7 +102,9 @@ class VoucherCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    voucher.actions.approve
+                    voucher.actions.pay
+                        ? (voucher.isCash ? 'pay.release'.tr : 'pay.record'.tr)
+                        : voucher.actions.approve
                         ? 'act.approve'.tr
                         : voucher.actions.submitSigned
                         ? 'act.submitSigned'.tr

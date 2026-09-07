@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import {
-  Banner, Dialog, ErrorState, Field, Icon, LoadingBlock, PageHeader, SectionTitle, Spinner,
+  Banner, Dialog, ErrorState, Field, Icon, LoadingBlock, Note, PageHeader, SectionTitle, Spinner,
 } from "@/components/ui";
 import type { Company, Workflow, WorkflowStep, VoucherType } from "@/lib/types";
 
@@ -16,7 +16,8 @@ const ROLE_OPTIONS = [
   { value: "employee", label: "Employee" },
   { value: "hod", label: "HOD" },
   { value: "finance", label: "Finance" },
-  { value: "manager", label: "Manager" },
+  { value: "ceo", label: "CEO" },
+  { value: "cashier", label: "Cashier" },
   { value: "director", label: "Director" },
   { value: "custom", label: "Custom approver" },
 ];
@@ -26,6 +27,7 @@ const CAPS: { key: keyof WorkflowStep; label: string }[] = [
   { key: "can_approve", label: "Approve" },
   { key: "can_reject", label: "Reject" },
   { key: "can_request_changes", label: "Request changes" },
+  { key: "can_pay", label: "Record payment" },
   { key: "can_print", label: "Print / PDF" },
 ];
 
@@ -60,7 +62,7 @@ export default function SettingsPage() {
 /* ─────────────────────────────────────────────── workflow builder ───────── */
 
 function WorkflowBuilder() {
-  const { t, toast, reportError } = useApp();
+  const { t, company, toast, reportError } = useApp();
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [current, setCurrent] = useState<Workflow | null>(null);
@@ -107,7 +109,7 @@ function WorkflowBuilder() {
     setSteps((list) => [...list, {
       position: list.length + 1, name: "New step", name_sw: null, label: "New step",
       role: "finance", role_label: "Finance", assigned_user_id: null, assignee_hint: "Assign a person or role",
-      can_sign: false, can_approve: true, can_reject: true, can_request_changes: true,
+      can_sign: false, can_approve: true, can_reject: true, can_request_changes: true, can_pay: false,
       can_print: true, can_download: true, requires_signature: false,
       min_amount: null, max_amount: null, is_request_step: false,
     }]);
@@ -173,6 +175,10 @@ function WorkflowBuilder() {
           </button>
         </>
       }>{current.name}</SectionTitle>
+
+      <div style={{ margin: "0 0 var(--space-4)", maxWidth: "78ch" }}>
+        <Note>{t("isolationNote").replace("Acme Tanzania Ltd", company?.name ?? "this company")}</Note>
+      </div>
 
       <div style={{ display: "grid", gap: "var(--space-3)" }}>
         {steps.map((step, index) => (

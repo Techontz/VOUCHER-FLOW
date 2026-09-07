@@ -41,23 +41,102 @@ export function SectionTitle({ children, actions }: { children: ReactNode; actio
   );
 }
 
-/** The design's rule-topped statistic block. */
-export function StatBlock({ label, value, sub }: { label: string; value: string; sub?: string }) {
+/**
+ * The v2 statistic card: gradient wash, iconed label, tabular value and an
+ * optional trend chip. Replaces the broadsheet rule-topped block.
+ */
+export interface Kpi {
+  label: string;
+  value: string;
+  sub?: string | null;
+  icon?: string;
+  trend?: string | null;
+  up?: boolean | null;
+}
+
+export function StatBlock({ label, value, sub, icon = "ph-chart-bar", trend, up }: Kpi) {
   return (
-    <div style={{ borderTop: "2px solid var(--color-text)", paddingTop: 10 }}>
-      <div style={{ fontSize: 12, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>{label}</div>
-      <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 27, fontVariantNumeric: "tabular-nums", margin: "4px 0 2px", overflowWrap: "anywhere" }}>
-        {value}
+    <div className="vf-kpi">
+      <div className="vf-kpi-top">
+        <span className="vf-kpi-icon"><Icon name={icon} size={15} /></span>
+        <span className="vf-kpi-label">{label}</span>
       </div>
-      {sub && <div style={{ fontSize: 13, color: "var(--color-neutral-600)" }}>{sub}</div>}
+      <div className="vf-kpi-value">{value}</div>
+      {(trend || sub) && (
+        <div className="vf-kpi-foot">
+          {trend && (
+            <span className={`vf-trend ${up ? "vf-trend-up" : "vf-trend-down"}`}>
+              <Icon name={up ? "ph-trend-up" : "ph-trend-down"} size={12} />{trend}
+            </span>
+          )}
+          {sub && <span className="vf-kpi-sub">{sub}</span>}
+        </div>
+      )}
     </div>
   );
 }
 
 export function StatGrid({ children }: { children: ReactNode }) {
+  return <div className="vf-kpis">{children}</div>;
+}
+
+/** Renders a dashboard's stat array straight from the API payload. */
+export function KpiRow({ stats }: { stats: Kpi[] }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "var(--space-6)" }}>
-      {children}
+    <div className="vf-kpis">
+      {stats.map((stat) => <StatBlock key={stat.label} {...stat} />)}
+    </div>
+  );
+}
+
+/** The elevated surface almost every block sits on. */
+export function Panel({
+  title, sub, actions, children, pad = true, style,
+}: { title?: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode; pad?: boolean; style?: React.CSSProperties }) {
+  return (
+    <section className="vf-panel" style={style}>
+      {(title || actions) && (
+        <div className="vf-panel-head">
+          <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+            {title && <h2>{title}</h2>}
+            {sub && <div style={{ fontSize: 13, color: "var(--color-neutral-600)", marginTop: 3 }}>{sub}</div>}
+          </div>
+          {actions && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{actions}</div>}
+        </div>
+      )}
+      <div className={pad ? "vf-panel-pad" : undefined}>{children}</div>
+    </section>
+  );
+}
+
+/** Soft rule-led callout for scope, isolation and workflow notes. */
+export function Note({ children, tone }: { children: ReactNode; tone?: "warn" }) {
+  return <div className={`vf-note${tone === "warn" ? " vf-note-warn" : ""}`}>{children}</div>;
+}
+
+/** A large selectable option card — voucher format, plan, payment method. */
+export function Choice({
+  selected, onSelect, icon, label, sub,
+}: { selected: boolean; onSelect: () => void; icon: string; label: string; sub?: string }) {
+  return (
+    <button type="button" className="vf-choice" aria-pressed={selected} onClick={onSelect}>
+      <span className="vf-choice-icon"><Icon name={icon} size={18} /></span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontWeight: 600, fontSize: 15 }}>{label}</span>
+        {sub && <span style={{ display: "block", fontSize: 13, color: "var(--color-neutral-600)", marginTop: 2 }}>{sub}</span>}
+      </span>
+      <Icon name={selected ? "ph-check-circle" : "ph-circle"} size={18}
+        color={selected ? "var(--color-accent-600)" : "var(--color-neutral-500)"} />
+    </button>
+  );
+}
+
+/** Usage meter for plan limits. */
+export function Meter({ percent, exceeded }: { percent: number | null; exceeded?: boolean }) {
+  return (
+    <div className="vf-meter" data-exceeded={exceeded ? "true" : undefined}
+      role="progressbar" aria-valuenow={percent ?? 0} aria-valuemin={0} aria-valuemax={100}>
+      <span style={{ width: `${Math.min(100, Math.max(2, percent ?? 0))}%` }} />
     </div>
   );
 }
@@ -107,8 +186,8 @@ export function EmptyState({
 }: { icon?: string; title: string; body?: string; action?: ReactNode }) {
   return (
     <div style={{
-      border: "1px dashed var(--color-neutral-400)", borderRadius: "var(--radius-md)",
-      padding: "var(--space-8) var(--space-4)", textAlign: "center",
+      border: "1px dashed var(--vf-line-strong)", borderRadius: 16,
+      background: "var(--vf-elev-1)", padding: "var(--space-8) var(--space-4)", textAlign: "center",
     }}>
       <Icon name={icon} size={30} color="var(--color-neutral-500)" />
       <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 19, marginTop: 10 }}>{title}</div>
@@ -138,7 +217,7 @@ export function Banner({
 }: { tone?: "accent" | "warn" | "danger"; icon?: string; title?: string; children?: ReactNode; action?: ReactNode }) {
   const palette = {
     accent: { border: "var(--color-accent-400)", bg: "var(--color-accent-100)", fg: "var(--color-accent-800)" },
-    warn: { border: "var(--color-process-yellow)", bg: "color-mix(in srgb, var(--color-process-yellow) 16%, transparent)", fg: "var(--color-text)" },
+    warn: { border: "color-mix(in srgb, var(--vf-warn) 45%, transparent)", bg: "color-mix(in srgb, var(--vf-warn) 12%, transparent)", fg: "var(--color-text)" },
     danger: { border: "var(--color-accent-2-400)", bg: "var(--color-accent-2-100)", fg: "var(--color-accent-2-800)" },
   }[tone];
 
@@ -232,8 +311,8 @@ export function Toasts() {
         return (
           <div key={item.id} style={{
             display: "flex", gap: "var(--space-2)", alignItems: "flex-start",
-            background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)",
-            borderLeft: `3px solid ${colour}`, borderRadius: "var(--radius-md)",
+            background: "var(--vf-elev-2)", border: "1px solid var(--vf-line)",
+            borderLeft: `3px solid ${colour}`, borderRadius: 14,
             boxShadow: "var(--shadow-lg)", padding: "var(--space-3)",
             animation: "vf-toast .18s ease-out",
           }}>

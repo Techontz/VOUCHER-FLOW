@@ -10,6 +10,15 @@ class VfConfig {
 
   static const _override = String.fromEnvironment('API_URL');
 
+  /// Phase 1 runs entirely on the in-app mock in `data/mock/`. Nothing leaves
+  /// the device. Build with --dart-define=API_MODE=live once the Laravel API
+  /// is connected; every screen, controller and model stays as it is.
+  static const apiMode = String.fromEnvironment(
+    'API_MODE',
+    defaultValue: 'mock',
+  );
+  static bool get useMock => apiMode != 'live';
+
   static String get apiUrl {
     if (_override.isNotEmpty) return _override;
 

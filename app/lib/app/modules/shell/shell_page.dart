@@ -9,19 +9,24 @@ import '../notifications/notifications_tab.dart';
 import '../profile/profile_tab.dart';
 import '../vouchers/voucher_list_tab.dart';
 
-/// The five-slot tab shell from the design. Approvers get an Approvals tab;
-/// an employee does not, because nothing is ever routed to them.
+/// The five-slot tab shell from the design.
+///
+/// The middle tab follows the role: an approver gets Approvals, a cashier gets
+/// the Payment queue, and an employee gets neither, because nothing is ever
+/// routed to them.
 class ShellController extends GetxController {
   final session = Get.find<SessionService>();
   final index = 0.obs;
 
-  late final bool showsApprovals = session.me.isApprover || session.me.isAdmin;
+  late final bool isCashier = session.me.isCashier;
+  late final bool showsQueue =
+      session.me.isApprover || session.me.isAdmin || isCashier;
 
   late final VoucherListController register = Get.put(
     VoucherListController(),
     tag: 'register',
   );
-  late final VoucherListController? queue = showsApprovals
+  late final VoucherListController? queue = showsQueue
       ? Get.put(VoucherListController(pendingOnly: true), tag: 'queue')
       : null;
 
@@ -32,7 +37,7 @@ class ShellController extends GetxController {
       case 1:
         register.load();
       default:
-        if (showsApprovals && index.value == 2) queue?.load();
+        if (showsQueue && index.value == 2) queue?.load();
     }
   }
 }
@@ -48,7 +53,7 @@ class ShellPage extends GetView<ShellController> {
       final tabs = <Widget>[
         const DashboardTab(),
         VoucherListTab(controller: controller.register),
-        if (controller.showsApprovals)
+        if (controller.showsQueue)
           VoucherListTab(controller: controller.queue!),
         const NotificationsTab(),
         const ProfileTab(),
@@ -65,11 +70,21 @@ class ShellPage extends GetView<ShellController> {
           selectedIcon: const Icon(Icons.receipt_long),
           label: 'nav.vouchers'.tr,
         ),
-        if (controller.showsApprovals)
+        if (controller.showsQueue)
           NavigationDestination(
-            icon: const Icon(Icons.fact_check_outlined),
-            selectedIcon: const Icon(Icons.fact_check),
-            label: 'nav.approvals'.tr,
+            icon: Icon(
+              controller.isCashier
+                  ? Icons.account_balance_wallet_outlined
+                  : Icons.fact_check_outlined,
+            ),
+            selectedIcon: Icon(
+              controller.isCashier
+                  ? Icons.account_balance_wallet
+                  : Icons.fact_check,
+            ),
+            label: controller.isCashier
+                ? 'nav.payments'.tr
+                : 'nav.approvals'.tr,
           ),
         NavigationDestination(
           icon: Badge(
@@ -92,8 +107,8 @@ class ShellPage extends GetView<ShellController> {
       final title = switch (controller.index.value) {
         0 => session.company.value?.name ?? 'app.name'.tr,
         1 => 'nav.vouchers'.tr,
-        _ when controller.showsApprovals && controller.index.value == 2 =>
-          'nav.approvals'.tr,
+        _ when controller.showsQueue && controller.index.value == 2 =>
+          controller.isCashier ? 'nav.payments'.tr : 'nav.approvals'.tr,
         _ when controller.index.value == destinations.length - 2 =>
           'alerts.title'.tr,
         _ => 'profile.title'.tr,
@@ -116,7 +131,7 @@ class ShellPage extends GetView<ShellController> {
         ),
         body: IndexedStack(index: controller.index.value, children: tabs),
         floatingActionButton:
-            session.me.isSuperAdmin || controller.index.value > 1
+            !session.me.canCreateVouchers || controller.index.value > 1
             ? null
             : FloatingActionButton.extended(
                 onPressed: () => Get.toNamed(

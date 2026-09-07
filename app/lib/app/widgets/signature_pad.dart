@@ -95,7 +95,7 @@ class _SignaturePadState extends State<SignaturePad> {
               height: widget.height,
               decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border.all(color: VfColors.neutral400),
+                border: Border.all(color: VfColors.lineStrong),
                 borderRadius: BorderRadius.circular(2),
               ),
               child: GestureDetector(

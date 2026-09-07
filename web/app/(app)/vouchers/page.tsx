@@ -13,15 +13,24 @@ const STATUSES = [
   { value: "", key: "allStatuses" },
   { value: "drafts", key: "drafts" },
   { value: "pending", key: "pending" },
-  { value: "approved", key: "approved" },
+  { value: "approved", key: "awaitingPayment" },
+  { value: "paid", key: "paidAct" },
   { value: "rejected", key: "rejected" },
   { value: "changes_requested", key: "requestChanges" },
 ] as const;
 
+const BLANK = { q: "", status: "", kind: "", department_id: "", voucher_type_id: "", from: "", to: "" };
+
 export default function VouchersPage() {
   const { t, user, company, locale } = useApp();
+  // Six stacked controls swallow a phone screen; fold them away by default
+  // there and leave them open on a desktop, where they cost one row.
+  const [showFilters, setShowFilters] = useState(true);
+  useEffect(() => {
+    setShowFilters(window.matchMedia("(min-width: 981px)").matches);
+  }, []);
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState({ q: "", status: "", department_id: "", voucher_type_id: "", from: "", to: "" });
+  const [filters, setFilters] = useState({ ...BLANK });
   const [result, setResult] = useState<Paginated<Voucher> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,29 +70,70 @@ export default function VouchersPage() {
         kicker={user?.role === "employee" ? t("myVouchers") : t("register")}
         title={user?.role === "employee" ? t("myVouchers") : t("voucherRegister")}
         sub={user?.role === "employee" ? "You see only your own vouchers." : undefined}
-        actions={<Link className="btn btn-primary" href="/vouchers/new"><Icon name="ph-plus-circle" size={15} /> {t("createVoucher")}</Link>}
+        actions={user?.role !== "cashier" && user?.role !== "super_admin"
+          ? <Link className="btn btn-primary" href="/vouchers/new"><Icon name="ph-plus-circle" size={15} /> {t("createVoucher")}</Link>
+          : undefined}
       />
 
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-        gap: "var(--space-2)", marginBottom: "var(--space-4)",
-      }}>
-        <input className="input" placeholder={t("searchPh")} value={filters.q} onChange={set("q")} aria-label={t("search")} />
-        <select className="input" value={filters.status} onChange={set("status")} aria-label={t("status")}>
-          {STATUSES.map((s) => <option key={s.value} value={s.value}>{t(s.key as never)}</option>)}
-        </select>
-        {departments.length > 0 && (
-          <select className="input" value={filters.department_id} onChange={set("department_id")} aria-label={t("department")}>
-            <option value="">{t("allDepartments")}</option>
-            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        )}
-        <select className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")} aria-label={t("voucherType")}>
-          <option value="">{t("allTypes")}</option>
-          {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
-        </select>
-        <input className="input" type="date" value={filters.from} onChange={set("from")} aria-label={t("from")} />
-        <input className="input" type="date" value={filters.to} onChange={set("to")} aria-label={t("to")} />
+      <div className="vf-panel" style={{ padding: "var(--space-4)", marginBottom: "var(--space-4)" }}>
+        <div style={{ position: "relative", marginBottom: showFilters ? "var(--space-3)" : 0 }}>
+          <Icon name="ph-magnifying-glass" size={16}
+            style={{ position: "absolute", left: 11, top: 12, color: "var(--color-neutral-600)" }} />
+          <input className="input" placeholder={t("searchPh")} value={filters.q} onChange={set("q")}
+            aria-label={t("search")} style={{ paddingLeft: 34 }} />
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm vf-filter-toggle"
+          aria-expanded={showFilters}
+          onClick={() => setShowFilters((v) => !v)}
+          style={{ marginTop: "var(--space-2)" }}
+        >
+          <Icon name={showFilters ? "ph-caret-up" : "ph-sliders-horizontal"} size={14} />
+          {t("filters")}
+          {hasFilters && !showFilters ? " ·" : ""}
+        </button>
+
+        <div hidden={!showFilters} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)" }}>
+          <FilterField label={t("status")} htmlFor="f-status">
+            <select id="f-status" className="input" value={filters.status} onChange={set("status")}>
+              {STATUSES.map((s) => <option key={s.value} value={s.value}>{t(s.key as never)}</option>)}
+            </select>
+          </FilterField>
+
+          <FilterField label={t("voucherKind")} htmlFor="f-kind">
+            <select id="f-kind" className="input" value={filters.kind} onChange={set("kind")}>
+              <option value="">{t("all")}</option>
+              <option value="bank">{t("bankVoucher")}</option>
+              <option value="cash">{t("cashVoucher")}</option>
+            </select>
+          </FilterField>
+
+          {departments.length > 0 && (
+            <FilterField label={t("department")} htmlFor="f-dept">
+              <select id="f-dept" className="input" value={filters.department_id} onChange={set("department_id")}>
+                <option value="">{t("allDepartments")}</option>
+                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </FilterField>
+          )}
+
+          <FilterField label={t("voucherType")} htmlFor="f-type">
+            <select id="f-type" className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")}>
+              <option value="">{t("allTypes")}</option>
+              {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+            </select>
+          </FilterField>
+
+          <FilterField label={t("from")} htmlFor="f-from">
+            <input id="f-from" className="input" type="date" value={filters.from} onChange={set("from")} />
+          </FilterField>
+
+          <FilterField label={t("to")} htmlFor="f-to">
+            <input id="f-to" className="input" type="date" value={filters.to} onChange={set("to")} />
+          </FilterField>
+        </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-3)", marginBottom: "var(--space-2)", flexWrap: "wrap" }}>
@@ -93,7 +143,7 @@ export default function VouchersPage() {
         </div>
         <div style={{ flex: 1 }} />
         {hasFilters && (
-          <button className="btn btn-ghost btn-sm" onClick={() => { setFilters({ q: "", status: "", department_id: "", voucher_type_id: "", from: "", to: "" }); setPage(1); }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setFilters({ ...BLANK }); setPage(1); }}>
             <Icon name="ph-x" size={13} /> {t("clearFilters")}
           </button>
         )}
@@ -107,7 +157,7 @@ export default function VouchersPage() {
           title={hasFilters ? t("noResults") : t("noVouchersYet")}
           body={hasFilters ? undefined : t("noVouchersBody")}
           action={hasFilters
-            ? <button className="btn btn-secondary" onClick={() => setFilters({ q: "", status: "", department_id: "", voucher_type_id: "", from: "", to: "" })}>{t("clearFilters")}</button>
+            ? <button className="btn btn-secondary" onClick={() => setFilters({ ...BLANK })}>{t("clearFilters")}</button>
             : <Link className="btn btn-primary" href="/vouchers/new">{t("createVoucher")}</Link>}
         />
       )}
@@ -123,6 +173,19 @@ export default function VouchersPage() {
           />
         </>
       )}
+    </div>
+  );
+}
+
+/** A labelled filter control — the bare selects read as unlabelled otherwise. */
+function FilterField({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label htmlFor={htmlFor} style={{
+        display: "block", fontSize: 11.5, letterSpacing: ".08em", textTransform: "uppercase",
+        color: "var(--color-neutral-600)", marginBottom: 4,
+      }}>{label}</label>
+      {children}
     </div>
   );
 }
