@@ -25,9 +25,9 @@
   .vf-print-hide { display: none !important; }
 
   .vf-sheet {
-    width: auto !important; min-height: 0 !important;
+    width: auto !important; min-height: 100vh !important;
     box-shadow: none !important; border-radius: 0 !important;
-    margin: 0 !important; padding: 14mm 15mm !important;
+    margin: 0 !important; padding: 13mm 14mm 11mm !important;
     break-inside: auto;
   }
   @page { size: A4; margin: 0; }
@@ -43,14 +43,17 @@
   background: var(--vf-paper); color: var(--vf-paper-ink);
   box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .7);
   border-radius: 4px;
-  padding: 60px 64px;
-  font-size: 12.5px; line-height: 1.55;
+  /* A4 with a conventional 16mm margin. The column runs to the full height so
+     the footer sits on the bottom rule rather than floating mid-page. */
+  padding: 40px 46px 34px;
+  display: flex; flex-direction: column;
+  font-family: var(--font-body);
+  font-size: 12px; line-height: 1.5;
   color-scheme: light;
 }
 
 @media (max-width: 900px) {
-  .vf-sheet { padding: 30px 24px; min-height: 0; font-size: 12px; }
-  .vf-sheet table { font-size: 11.5px; }
+  .vf-sheet { padding: 26px 20px; min-height: 0; }
 }
 
 /* ── App shell ────────────────────────────────────────────────────────────
@@ -188,3 +191,49 @@
 /* The filter disclosure only earns its place on a narrow screen. */
 .vf-filter-toggle { display: none; }
 @media (max-width: 980px) { .vf-filter-toggle { display: inline-flex; } }
+
+/* ── The document, framed on the dark ground ─────────────────────────────
+   The sheet is white because it is paper; the frame is what stops it looking
+   like a hole cut in the interface. On screen it scales to the column it is
+   given, and at print size it is exactly A4. */
+.vf-document-frame {
+  border-radius: 10px;
+  padding: 14px;
+  background: linear-gradient(180deg, var(--vf-elev-2), var(--vf-elev-1));
+  border: 1px solid var(--vf-line);
+  overflow: hidden;
+}
+.vf-document-frame .vf-sheet {
+  /* Fit the sheet to the column without reflowing the print geometry. */
+  transform-origin: top left;
+  box-shadow: 0 18px 44px -22px rgba(0, 0, 0, .75);
+}
+
+@media print {
+  .vf-document-frame {
+    border: 0 !important; padding: 0 !important; background: none !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* A stamp shrunk into an interface row still needs its own breathing room. */
+.vf-mark-chip { flex: none; display: inline-flex; padding: 2px 0; }
+
+/* The A4 sheet is 794px wide. Inside a narrower column it is scaled as a
+   whole rather than re-laid-out, so the printed geometry always survives —
+   measured against the frame it sits in, not the window, because the same
+   frame appears in a wide page and a narrow preview column. */
+.vf-document-frame { container-type: inline-size; }
+
+/* Discrete steps rather than a calc(): zoom takes a plain factor everywhere,
+   which a container-unit calculation does not reliably survive. */
+@container (max-width: 830px) { .vf-document-frame .vf-sheet { zoom: .84; } }
+@container (max-width: 700px) { .vf-document-frame .vf-sheet { zoom: .72; } }
+@container (max-width: 600px) { .vf-document-frame .vf-sheet { zoom: .62; } }
+@container (max-width: 520px) { .vf-document-frame .vf-sheet { zoom: .52; } }
+@container (max-width: 430px) { .vf-document-frame .vf-sheet { zoom: .42; } }
+@container (max-width: 360px) { .vf-document-frame .vf-sheet { zoom: .35; } }
+
+@media print {
+  .vf-document-frame .vf-sheet { zoom: 1 !important; }
+}

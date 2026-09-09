@@ -7,8 +7,9 @@ import { api, download, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDate, formatDateTime } from "@/lib/format";
 import {
-  Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, Note, Panel, Spinner,
+  Dialog, Disclosure, EmptyState, ErrorState, Field, Icon, LoadingBlock, Note, Spinner,
 } from "@/components/ui";
+import { Stamp, type StampKind } from "@/components/stamps";
 import { DocumentActions, KindChip } from "@/components/voucher-bits";
 import { VoucherSheet } from "@/components/voucher-sheet";
 import { SignaturePad } from "@/components/signature-pad";
@@ -35,6 +36,7 @@ export default function VoucherDetailPage() {
   const [newComment, setNewComment] = useState("");
   const [payReference, setPayReference] = useState("");
   const [payMethod, setPayMethod] = useState("");
+  const [receivedBy, setReceivedBy] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const load = useCallback(() => {
@@ -68,6 +70,7 @@ export default function VoucherDetailPage() {
     setComment("");
     if (action === "pay") {
       setPayReference("");
+      setReceivedBy(voucher?.kind === "cash" ? voucher.payee : "");
       setPayMethod(voucher?.kind === "cash" ? "Cash" : "Bank transfer");
     }
     setSignature(action === "sign" || action === "approve" ? (user?.has_signature ? savedSignature : null) : null);
@@ -156,6 +159,27 @@ export default function VoucherDetailPage() {
   const canAct = a && (a.sign || a.submit_signed || a.approve || a.reject || a.request_changes || a.pay);
   const signValid = statement && !!signature;
 
+  /* The same marks the printed document carries, so the screen and the paper
+     never disagree about who has put their name to this. */
+  const rows = voucher.timeline ?? [];
+  const marks: { caption: string; name: string | null; when: string | null; stamp: StampKind }[] = [
+    {
+      caption: t("signedByName"),
+      ...pick(rows.find((r) => r.capabilities?.sign && !r.capabilities?.approve && r.when)),
+      stamp: "signed",
+    },
+    {
+      caption: t("approvedByName"),
+      ...pick(rows.find((r) => r.capabilities?.approve && r.when)),
+      stamp: voucher.status === "rejected" ? "rejected" : "approved",
+    },
+    {
+      caption: t("paidBy"),
+      ...pick(rows.find((r) => r.capabilities?.pay && r.when)),
+      stamp: "paid",
+    },
+  ];
+
   return (
     <div style={{ maxWidth: 1200 }}>
       {/* ── header ── */}
@@ -183,171 +207,173 @@ export default function VoucherDetailPage() {
         </div>
       </div>
 
+      {/* The document is the page. Everything secondary folds away beneath it,
+          so what is on screen is what will print. */}
       <div className="vf-split">
-        {/* ── body ── */}
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "var(--space-4) var(--space-6)", paddingBottom: "var(--space-4)", borderBottom: "1px solid var(--color-divider)" }}>
-            <Detail label={t("payee")} value={voucher.payee} />
-            <Detail label={t("requester")} value={voucher.requester?.name ?? "—"} />
-            <Detail label={t("paymentMethod")} value={voucher.payment_method ?? "—"} />
-            <Detail label={t("category")} value={voucher.category ?? "—"} />
-            <Detail label={t("reference")} value={voucher.account_ref ?? "—"} mono />
-            <Detail label={t("costCentre")} value={voucher.cost_centre ?? "—"} mono />
+        <div style={{ minWidth: 0 }}>
+          <div className="vf-document-frame">
+            <VoucherSheet voucher={voucher} company={company} />
           </div>
 
-          <h2 style={{ fontSize: 21, margin: "var(--space-6) 0 8px" }}>{voucher.purpose}</h2>
-          {voucher.description && <p style={{ fontSize: 16.5, lineHeight: 1.6, color: "var(--color-neutral-800)", maxWidth: "62ch", margin: 0 }}>{voucher.description}</p>}
-          {voucher.amount_in_words && (
-            <p style={{ fontStyle: "italic", color: "var(--color-neutral-700)", marginTop: "var(--space-2)" }}>{voucher.amount_in_words}</p>
-          )}
-
-          {/* attachments */}
-          <h3 style={{ fontSize: 18, margin: "var(--space-6) 0 10px" }}>{t("attachments")}</h3>
-          {voucher.attachments && voucher.attachments.length > 0 ? (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
-              {voucher.attachments.map((file) => (
-                <button key={file.id}
-                  onClick={async () => {
-                    try {
-                      const blob = await download(`/vouchers/${voucher.id}/attachments/${file.id}`);
-                      window.open(URL.createObjectURL(blob), "_blank");
-                    } catch (err) { reportError(err, "Could not open the attachment"); }
-                  }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 9, border: "1px solid var(--color-divider)",
-                    borderRadius: "var(--radius-md)", padding: "9px var(--space-3)", fontSize: 14.5,
-                    cursor: "pointer", background: "transparent", fontFamily: "var(--font-body)", color: "var(--color-text)",
-                  }}>
-                  <Icon name={file.icon} size={20} color="var(--color-accent-700)" />
-                  <span>{file.name}</span>
-                  <span style={{ color: "var(--color-neutral-600)", fontSize: 12.5 }}>{file.size}</span>
-                  <Icon name="ph-arrow-square-out" size={14} style={{ opacity: .5 }} />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p style={{ color: "var(--color-neutral-600)", fontSize: 14.5 }}>No documents attached.</p>
-          )}
-
-          {a?.edit && (
-            <label className="btn btn-secondary btn-sm no-print" style={{ marginTop: "var(--space-3)" }}>
-              <Icon name="ph-paperclip" size={14} /> {t("add")}
-              <input type="file" multiple accept="application/pdf,image/*" style={{ display: "none" }}
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  if (!files.length) return;
-                  const form = new FormData();
-                  files.forEach((f) => form.append("files[]", f));
-                  try {
-                    await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form });
-                    toast("Attached", `${files.length} file(s) added.`, "ok");
-                    load();
-                  } catch (err) { reportError(err, "Upload failed"); }
-                }} />
-            </label>
-          )}
-
-          {/* comments */}
-          <h3 style={{ fontSize: 18, margin: "var(--space-8) 0 10px" }}>{t("comments")}</h3>
-          {voucher.comments?.map((c) => (
-            <div key={c.id} style={{ display: "flex", gap: "var(--space-3)", paddingBottom: "var(--space-3)", marginBottom: "var(--space-3)", borderBottom: "1px solid var(--color-divider)" }}>
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--color-accent-200)", color: "var(--color-accent-800)", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600, flex: "none" }}>
-                {c.user?.initials}
-              </div>
-              <div>
-                <div style={{ fontSize: 14.5 }}>
-                  <strong style={{ fontWeight: 600 }}>{c.user?.name}</strong>{" "}
-                  <span style={{ color: "var(--color-neutral-600)" }}>
-                    · {c.user?.department ?? c.user?.role_label} · {formatDateTime(c.created_at, locale)}
-                  </span>
+          {/* ── secondary, folded away ── */}
+          <div className="no-print" style={{ display: "grid", gap: "var(--space-3)", marginTop: "var(--space-4)" }}>
+            <Disclosure
+              title={t("attachments")}
+              count={voucher.attachments?.length ?? 0}
+              icon="ph-paperclip"
+            >
+              {voucher.attachments && voucher.attachments.length > 0 ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+                  {voucher.attachments.map((file) => (
+                    <button key={file.id}
+                      onClick={async () => {
+                        try {
+                          const blob = await download(`/vouchers/${voucher.id}/attachments/${file.id}`);
+                          window.open(URL.createObjectURL(blob), "_blank");
+                        } catch (err) { reportError(err, "Could not open the attachment"); }
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 9,
+                        border: "1px solid var(--vf-line)", background: "var(--vf-elev-2)",
+                        borderRadius: 10, padding: "9px var(--space-3)", fontSize: 14,
+                        cursor: "pointer", fontFamily: "var(--font-body)", color: "var(--color-text)",
+                      }}>
+                      <Icon name={file.icon} size={19} color="var(--color-accent-600)" />
+                      <span>{file.name}</span>
+                      <span style={{ color: "var(--color-neutral-600)", fontSize: 12.5 }}>{file.size}</span>
+                      <Icon name="ph-arrow-square-out" size={13} style={{ opacity: .5 }} />
+                    </button>
+                  ))}
                 </div>
-                <div style={{ fontSize: 15.5, marginTop: 2 }}>{c.body}</div>
+              ) : (
+                <p style={{ color: "var(--color-neutral-600)", fontSize: 14, margin: 0 }}>{t("noneAttached")}</p>
+              )}
+
+              {a?.edit && (
+                <label className="btn btn-secondary btn-sm" style={{ marginTop: "var(--space-3)" }}>
+                  <Icon name="ph-paperclip" size={14} /> {t("add")}
+                  <input type="file" multiple accept="application/pdf,image/*" style={{ display: "none" }}
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      if (!files.length) return;
+                      const form = new FormData();
+                      files.forEach((f) => form.append("files[]", f));
+                      try {
+                        await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form });
+                        toast("Attached", `${files.length} file(s) added.`, "ok");
+                        load();
+                      } catch (err) { reportError(err, "Upload failed"); }
+                    }} />
+                </label>
+              )}
+            </Disclosure>
+
+            <Disclosure title={t("comments")} count={voucher.comments?.length ?? 0} icon="ph-chat-teardrop-text">
+              {voucher.comments?.map((c) => (
+                <div key={c.id} style={{
+                  display: "flex", gap: "var(--space-3)", paddingBottom: "var(--space-3)",
+                  marginBottom: "var(--space-3)", borderBottom: "1px solid var(--vf-line)",
+                }}>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: "50%", flex: "none",
+                    background: "color-mix(in srgb, var(--color-accent-500) 18%, transparent)",
+                    border: "1px solid var(--vf-line)", color: "var(--color-accent-600)",
+                    display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600,
+                  }}>{c.user?.initials}</div>
+                  <div>
+                    <div style={{ fontSize: 14 }}>
+                      <strong style={{ fontWeight: 600 }}>{c.user?.name}</strong>{" "}
+                      <span style={{ color: "var(--color-neutral-600)" }}>
+                        · {c.user?.department ?? c.user?.role_label} · {formatDateTime(c.created_at, locale)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 15, marginTop: 2 }}>{c.body}</div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                <input className="input" placeholder={t("addComment")} value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postComment(); } }} />
+                <button className="btn btn-secondary" onClick={postComment} disabled={!newComment.trim()}>{t("post")}</button>
               </div>
-            </div>
-          ))}
-          <div className="no-print" style={{ display: "flex", gap: "var(--space-2)" }}>
-            <input className="input" placeholder={t("addComment")} value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postComment(); } }} />
-            <button className="btn btn-secondary" onClick={postComment} disabled={!newComment.trim()}>{t("post")}</button>
+            </Disclosure>
+
+            <Disclosure title={t("approvalTimeline")} count={voucher.timeline?.length ?? 0} icon="ph-list-checks">
+              <div className="vf-timeline">
+                {voucher.timeline?.map((row, index) => {
+                  const last = index === (voucher.timeline?.length ?? 0) - 1;
+                  const tone = row.state === "rejected" ? "var(--vf-bad)"
+                    : row.state === "done" ? "var(--vf-ok)"
+                    : row.state === "current" ? "var(--vf-warn)" : "var(--color-neutral-500)";
+                  const lit = row.state !== "pending";
+
+                  return (
+                    <div key={index} className="vf-tl-row">
+                      <div className="vf-tl-rail">
+                        <span className={`vf-tl-dot${row.state === "current" ? " vf-tl-live" : ""}`}
+                          style={{
+                            color: tone,
+                            borderColor: lit ? `color-mix(in srgb, ${tone} 40%, transparent)` : "var(--vf-line)",
+                            background: lit ? `color-mix(in srgb, ${tone} 13%, transparent)` : "var(--vf-elev-2)",
+                          }}>
+                          <Icon name={row.icon} size={13} color={tone} />
+                        </span>
+                        {!last && (
+                          <span className="vf-tl-line" style={{
+                            background: row.state === "done"
+                              ? "color-mix(in srgb, var(--vf-ok) 42%, transparent)" : "var(--vf-line)",
+                          }} />
+                        )}
+                      </div>
+                      <div className="vf-tl-body" style={{ color: lit ? "var(--color-text)" : "var(--color-neutral-600)" }}>
+                        <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>
+                          {locale === "sw" ? row.sub_sw : row.sub}
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 600 }}>
+                          {locale === "sw" && row.name_sw ? row.name_sw : row.name}
+                        </div>
+                        <div style={{ fontSize: 14, color: "var(--color-neutral-700)" }}>{row.person}</div>
+                        <div style={{ fontSize: 14, color: tone, fontWeight: 500 }}>
+                          {locale === "sw" ? row.act_sw : row.act}
+                          {row.when ? <span style={{ color: "var(--color-neutral-600)", fontWeight: 400 }}> · {formatDateTime(row.when, locale)}</span> : null}
+                        </div>
+                        {row.comment && (
+                          <div style={{
+                            fontSize: 13.5, color: "var(--color-neutral-700)", marginTop: 6,
+                            borderLeft: "2px solid var(--vf-line-strong)", paddingLeft: 10, fontStyle: "italic",
+                          }}>{row.comment}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Disclosure>
+
+            <Disclosure title={t("auditTrail")} icon="ph-scroll">
+              <div style={{ fontSize: 13.5, color: "var(--color-neutral-700)", lineHeight: 1.75, fontVariantNumeric: "tabular-nums" }}>
+                <div>Created {formatDateTime(voucher.created_at, locale)}</div>
+                {voucher.submitted_at && <div>Submitted {formatDateTime(voucher.submitted_at, locale)}</div>}
+                {voucher.approved_at && <div>Approved {formatDateTime(voucher.approved_at, locale)}</div>}
+                {voucher.rejected_at && <div>Rejected {formatDateTime(voucher.rejected_at, locale)}</div>}
+                {voucher.paid_at && <div>Paid {formatDateTime(voucher.paid_at, locale)} · {voucher.paid_by}</div>}
+                {voucher.payment_reference && <div>{t("paymentRef")} {voucher.payment_reference}</div>}
+                {voucher.verification_code && <div>{t("verificationCode")} {voucher.verification_code}</div>}
+              </div>
+            </Disclosure>
           </div>
         </div>
 
-        {/* ── timeline & actions ── */}
-        <div>
-          <Panel title={t("approvalTimeline")}>
-            <div className="vf-timeline">
-              {voucher.timeline?.map((row, index) => {
-                const last = index === (voucher.timeline?.length ?? 0) - 1;
-                const tone = row.state === "rejected" ? "var(--vf-bad)"
-                  : row.state === "done" ? "var(--vf-ok)"
-                  : row.state === "current" ? "var(--vf-warn)" : "var(--color-neutral-500)";
-                const lit = row.state !== "pending";
-
-                return (
-                  <div key={index} className="vf-tl-row">
-                    <div className="vf-tl-rail">
-                      <span
-                        className={`vf-tl-dot${row.state === "current" ? " vf-tl-live" : ""}`}
-                        style={{
-                          color: tone,
-                          borderColor: lit ? `color-mix(in srgb, ${tone} 40%, transparent)` : "var(--vf-line)",
-                          background: lit ? `color-mix(in srgb, ${tone} 13%, transparent)` : "var(--vf-elev-2)",
-                        }}
-                      >
-                        <Icon name={row.icon} size={14} color={tone} />
-                      </span>
-                      {!last && (
-                        <span className="vf-tl-line" style={{
-                          background: row.state === "done"
-                            ? "color-mix(in srgb, var(--vf-ok) 42%, transparent)"
-                            : "var(--vf-line)",
-                        }} />
-                      )}
-                    </div>
-
-                    <div className="vf-tl-body" style={{ color: lit ? "var(--color-text)" : "var(--color-neutral-600)" }}>
-                      <div style={{ fontSize: 11.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>
-                        {locale === "sw" ? row.sub_sw : row.sub}
-                      </div>
-                      <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-.01em" }}>
-                        {locale === "sw" && row.name_sw ? row.name_sw : row.name}
-                      </div>
-                      <div style={{ fontSize: 14.5, color: "var(--color-neutral-700)" }}>{row.person}</div>
-                      <div style={{ fontSize: 14.5, color: tone, fontWeight: 500 }}>
-                        {locale === "sw" ? row.act_sw : row.act}
-                        {row.when ? <span style={{ color: "var(--color-neutral-600)", fontWeight: 400 }}> · {formatDateTime(row.when, locale)}</span> : null}
-                      </div>
-                      <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)", marginTop: 2 }}>
-                        {t("permittedHere")}: {row.capability_text}
-                      </div>
-                      {row.signature && (
-                        <img src={row.signature} alt="Signature" style={{
-                          maxHeight: 46, marginTop: 6, background: "#fff",
-                          border: "1px solid var(--vf-line)", borderRadius: 6, padding: 3,
-                        }} />
-                      )}
-                      {row.comment && (
-                        <div style={{
-                          fontSize: 14, color: "var(--color-neutral-700)", marginTop: 7,
-                          borderLeft: "2px solid var(--vf-line-strong)", paddingLeft: 10, fontStyle: "italic",
-                        }}>{row.comment}</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Panel>
-
-          {/* action panel */}
-          {(canAct || a?.submit) && (
-            <div className="no-print vf-panel" style={{ borderColor: "var(--color-accent-500)", padding: "var(--space-4)", marginTop: "var(--space-4)" }}>
-              <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 19, marginBottom: 2 }}>
+        {/* ── what to do now ── */}
+        <div className="vf-sticky no-print">
+          {(canAct || a?.submit) ? (
+            <div className="vf-panel" style={{ borderColor: "var(--color-accent-500)", padding: "var(--space-4)" }}>
+              <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 18, marginBottom: 2 }}>
                 {step?.name ?? t("yourDecision")}
               </div>
               {step && (
-                <div style={{ fontSize: 14.5, color: "var(--color-neutral-700)", marginBottom: "var(--space-3)" }}>
+                <div style={{ fontSize: 13.5, color: "var(--color-neutral-700)", marginBottom: "var(--space-3)" }}>
                   {t("thisStepMay")}: {Object.entries(step.capabilities).filter(([, on]) => on).map(([k]) => k.replace(/_/g, " ")).join(" · ") || t("viewOnly")}.
                 </div>
               )}
@@ -371,8 +397,9 @@ export default function VoucherDetailPage() {
 
               {a?.submit_signed && (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5, color: "var(--color-accent-700)", marginBottom: "var(--space-2)" }}>
-                    <Icon name="ph-check-circle" size={19} /> Signed by you
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-3)" }}>
+                    <Stamp kind="signed" scale={.8} tilt={-3} />
+                    <span style={{ fontSize: 13.5, color: "var(--color-neutral-700)" }}>{t("signedByYou")}</span>
                   </div>
                   <button className="btn btn-primary btn-block" onClick={() => openDialog("submit_signed")}>
                     <Icon name="ph-paper-plane-tilt" size={15} /> {t("submitSigned")}
@@ -401,19 +428,33 @@ export default function VoucherDetailPage() {
                   {a?.reject && <button className="btn btn-secondary btn-danger" style={{ flex: 1 }} onClick={() => openDialog("reject")}>{t("reject")}</button>}
                 </div>
               )}
+
+              <div style={{ marginTop: "var(--space-3)", paddingTop: "var(--space-3)", borderTop: "1px solid var(--vf-line)" }}>
+                <Note>{t("clearedNote")}</Note>
+              </div>
+            </div>
+          ) : (
+            <div className="vf-panel" style={{ padding: "var(--space-4)" }}>
+              <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 17 }}>
+                {voucher.status_label}
+              </div>
+              <p style={{ fontSize: 13.5, color: "var(--color-neutral-700)", margin: "6px 0 0" }}>
+                {voucher.is_terminal ? t("historyInReports") : t("nothingOnYou")}
+              </p>
             </div>
           )}
 
-          {/* audit trail */}
-          <div style={{ marginTop: "var(--space-4)", fontSize: 13.5, color: "var(--color-neutral-600)", lineHeight: 1.6 }}>
-            <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", marginBottom: 8 }}>{t("auditTrail")}</div>
-            <div>Created {formatDateTime(voucher.created_at, locale)}</div>
-            {voucher.submitted_at && <div>Submitted {formatDateTime(voucher.submitted_at, locale)}</div>}
-            {voucher.approved_at && <div>Approved {formatDateTime(voucher.approved_at, locale)}</div>}
-            {voucher.rejected_at && <div>Rejected {formatDateTime(voucher.rejected_at, locale)}</div>}
-            {voucher.paid_at && <div>Paid {formatDateTime(voucher.paid_at, locale)} · {voucher.paid_by}</div>}
-            {voucher.payment_reference && <div>{t("paymentRef")} {voucher.payment_reference}</div>}
-            {voucher.verification_code && <div>{t("verificationCode")} {voucher.verification_code}</div>}
+          {/* Who has put their name to it, at a glance. */}
+          <div className="vf-panel" style={{ padding: "var(--space-4)", marginTop: "var(--space-3)" }}>
+            <div style={{ fontSize: 11.5, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
+              {t("authorisation")}
+            </div>
+            <div style={{ display: "grid", gap: "var(--space-3)" }}>
+              <MarkRow caption={t("preparedBy")} name={voucher.requester?.name ?? "—"} />
+              {marks.map((m) => (
+                <MarkRow key={m.caption} caption={m.caption} name={m.name} when={m.when} stamp={m.stamp} />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -529,7 +570,8 @@ export default function VoucherDetailPage() {
         actions={
           <>
             <button className="btn btn-secondary" onClick={() => setDialog(null)} disabled={busy}>{t("cancel")}</button>
-            <button className="btn btn-primary" onClick={() => run("pay")} disabled={busy || !payReference.trim()}>
+            <button className="btn btn-primary" onClick={() => run("pay")}
+              disabled={busy || !payReference.trim() || (voucher.kind === "cash" && !receivedBy.trim())}>
               {busy ? <Spinner /> : t("markPaid")}
             </button>
           </>
@@ -568,6 +610,14 @@ export default function VoucherDetailPage() {
               onChange={(e) => setPayReference(e.target.value)} />
           </Field>
 
+          {voucher.kind === "cash" && (
+            <Field label={t("receivedBy")} htmlFor="pay-received" required
+              hint="Printed on the voucher as the acknowledgement of receipt">
+              <input id="pay-received" className="input" value={receivedBy}
+                onChange={(e) => setReceivedBy(e.target.value)} />
+            </Field>
+          )}
+
           <Field label={t("commentOptional")} htmlFor="pay-comment">
             <textarea id="pay-comment" className="input" value={comment}
               onChange={(e) => setComment(e.target.value)} style={{ minHeight: 62 }} />
@@ -577,20 +627,6 @@ export default function VoucherDetailPage() {
         </div>
       </Dialog>
 
-      {/* The A4 document. Collapsed on screen until asked for; always the thing
-          that prints, since the PDF is generated from this same layout. */}
-      <section style={{ marginTop: "var(--space-8)" }}>
-        <div className="no-print vf-print-hide" style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
-          <button className="btn btn-secondary" onClick={() => setSheetOpen((v) => !v)} aria-expanded={sheetOpen}>
-            <Icon name={sheetOpen ? "ph-caret-up" : "ph-file-text"} size={15} />
-            {sheetOpen ? t("close") : t("voucherPdfA4")}
-          </button>
-          <span style={{ fontSize: 13, color: "var(--color-neutral-600)" }}>{t("previewNote")}</span>
-        </div>
-        <div hidden={!sheetOpen && !printing}>
-          <VoucherSheet voucher={voucher} company={company} />
-        </div>
-      </section>
     </div>
   );
 }
@@ -600,6 +636,38 @@ function Detail({ label, value, mono }: { label: string; value: string; mono?: b
     <div>
       <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>{label}</div>
       <div style={{ fontSize: 16, fontVariantNumeric: mono ? "tabular-nums" : undefined, overflowWrap: "anywhere" }}>{value}</div>
+    </div>
+  );
+}
+
+/** Pulls the acting name and moment out of a timeline row, if it happened. */
+function pick(row?: { person?: string; when?: string | null }) {
+  return { name: row?.when ? row.person ?? null : null, when: row?.when ?? null };
+}
+
+/** One line of the authorisation panel: caption, mark, name and moment. */
+function MarkRow({ caption, name, when, stamp }: {
+  caption: string; name: string | null; when?: string | null; stamp?: StampKind;
+}) {
+  const { locale } = useApp();
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>
+          {caption}
+        </div>
+        <div style={{ fontSize: 14.5, fontWeight: 600, color: name ? "var(--color-text)" : "var(--color-neutral-600)" }}>
+          {name ?? "—"}
+        </div>
+        {when && (
+          <div style={{ fontSize: 12, color: "var(--color-neutral-600)", fontVariantNumeric: "tabular-nums" }}>
+            {formatDateTime(when, locale)}
+          </div>
+        )}
+      </div>
+      {name && stamp && (
+        <span className="vf-mark-chip"><Stamp kind={stamp} scale={.62} tilt={-3} /></span>
+      )}
     </div>
   );
 }

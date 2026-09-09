@@ -479,6 +479,11 @@ class Fmt {
     return '$currency ${NumberFormat(pattern, 'en_US').format(amount)}';
   }
 
+  /// The bare grouped figure, for a document column that already names its
+  /// currency in the heading.
+  static String plain(double amount) =>
+      NumberFormat('#,##0', 'en_US').format(amount);
+
   static String date(DateTime? value) =>
       value == null ? '—' : DateFormat('d MMM yyyy').format(value);
 
@@ -510,5 +515,141 @@ Uint8List? decodeSignature(String? dataUrl) {
     return base64Decode(payload);
   } on FormatException {
     return null;
+  }
+}
+
+/// A collapsible secondary section.
+///
+/// Attachments, comments, the timeline and the audit trail matter, but they
+/// are not the voucher — giving each a permanent slab pushes the document
+/// itself off the screen. They live here instead: one line each until asked
+/// for.
+class Disclosure extends StatefulWidget {
+  const Disclosure({
+    super.key,
+    required this.title,
+    required this.child,
+    this.count,
+    this.icon,
+    this.initiallyOpen = false,
+  });
+
+  final String title;
+  final Widget child;
+  final int? count;
+  final IconData? icon;
+  final bool initiallyOpen;
+
+  @override
+  State<Disclosure> createState() => _DisclosureState();
+}
+
+class _DisclosureState extends State<Disclosure> {
+  late bool _open = widget.initiallyOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: context.vfElev1,
+        border: Border.all(color: context.vfLine),
+        borderRadius: BorderRadius.circular(VfTheme.rLg),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _open = !_open),
+            borderRadius: BorderRadius.circular(VfTheme.rLg),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+              child: Row(
+                children: [
+                  if (widget.icon != null) ...[
+                    Icon(widget.icon, size: 17, color: context.vfMuted),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ),
+                  if ((widget.count ?? 0) > 0)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: context.vfElev3,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        '${widget.count}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  Icon(
+                    _open ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    size: 20,
+                    color: context.vfMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: widget.child,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The printed document, framed and scaled to whatever width it is given.
+///
+/// The sheet keeps its A4 geometry and is scaled as a whole, so what is on
+/// screen is exactly what prints — it is never re-laid-out to fit a phone.
+class DocumentFrame extends StatelessWidget {
+  const DocumentFrame({super.key, required this.child, this.sheetWidth = 794});
+
+  final Widget child;
+  final double sheetWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: context.vfElev2,
+            border: Border.all(color: context.vfLine),
+            borderRadius: BorderRadius.circular(VfTheme.rLg),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            // The sheet is scaled as a whole rather than reflowed, so the
+            // printed geometry survives the phone.
+            child: AspectRatio(
+              aspectRatio: 794 / 1123,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                alignment: Alignment.topCenter,
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }

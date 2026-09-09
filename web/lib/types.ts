@@ -63,6 +63,14 @@ export interface Company {
   locale: "en" | "sw";
   timezone: string;
   logo_url: string | null;
+  /** Square mark for compact interface surfaces; the lockup is logo_url. */
+  logo_mark_url: string | null;
+  tin: string | null;
+  /** The account a bank voucher is drawn on. */
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  bank_branch: string | null;
   primary_color: string;
   accent_color: string;
   theme: "light" | "dark";
@@ -256,6 +264,14 @@ export interface Voucher {
   paid_at: string | null;
   payment_reference: string | null;
   paid_by: string | null;
+  /* Particulars that belong to one format only. */
+  payee_bank: string | null;
+  payee_account_name: string | null;
+  payee_account_number: string | null;
+  payee_bank_branch: string | null;
+  cheque_number: string | null;
+  cash_float: string | null;
+  received_by: string | null;
   created_at: string | null;
   updated_at: string | null;
   attachments_count?: number;
@@ -377,9 +393,15 @@ export interface DashboardPayload {
     queue?: Voucher[];
     volume?: { period: string; label: string; count: number; total: number; is_current: boolean }[];
     by_department?: { id: number; name: string; count: number; total: number; share: string }[];
+    by_stage?: { name: string; count: number; total: number; share: string }[];
+    attention?: { id: number; name: string; status: string; plan: string | null; users_count: number; note: string }[];
     recent_companies?: any[];
     recent_payments?: any[];
   };
+  /** The work that is this user's to do right now. */
+  queue?: Voucher[];
+  queue_total?: number;
+  queue_total_text?: string;
 }
 
 export interface Paginated<T> {

@@ -60,22 +60,63 @@ Password for all of them: `Password123!`
 
 | Role | Email | What they can do |
 | --- | --- | --- |
-| Employee | `john@acme.test` | Raises vouchers; sees **only their own** |
-| HOD | `peter@acme.test` | Reviews and **signs** — never approves (Procurement) |
-| HOD | `asha@acme.test` | The same, for Finance, Operations and HR |
-| CEO | `daniel@acme.test` | Approves or rejects — the final decision |
-| Cashier | `fatuma@acme.test` | Releases the funds and records the reference |
-| Company Admin | `admin@acme.test` | Runs Acme Tanzania Ltd end to end |
+| Employee | `frank@watercom.test` | Raises vouchers; sees **only their own** (Procurement) |
+| Employee | `baraka@watercom.test` | The same, for Transport & Logistics |
+| HOD | `joseph@watercom.test` | Reviews and **signs** — never approves (Procurement, Production) |
+| HOD | `salum@watercom.test` | The same, for Transport & Logistics and Sales |
+| HOD | `anna@watercom.test` | The same, for Human Resources |
+| Managing Director | `emmanuel@watercom.test` | Approves or rejects — the final decision |
+| Cashier | `mwajuma@watercom.test` | Releases the funds and records the reference |
+| Company Admin | `admin@watercom.test` | Runs Watercom (T) Limited end to end |
 | Super Admin | `super@vouchflow.test` | Runs the platform, across all companies |
 
-The web prototype also seeds two further tenants — one on a four-step route with
-Finance between the HOD and the CEO, and one on an expiring trial — so that
-per-company workflows and the renewal path are both visible.
+The first tenant is **Watercom (T) Limited**, a beverage manufacturer, carrying
+its own logo, letterhead, banking details and colour. None of that is baked into
+the platform — it is what a company fills in under Branding, and the printed
+voucher picks it up automatically. Two further tenants are seeded: one on a
+four-step route with Finance between the HOD and the CEO, and one on an expiring
+trial, so per-company workflows and the renewal path are both visible.
 
 To start over from the seeded data, sign out and clear the site's storage; the web
 client keeps its state under `vouchflow.mock.v2` in `localStorage`.
 
 ---
+
+---
+
+## A dashboard is an action queue
+
+Every dashboard shows one thing: the work that is on that person right now.
+
+When a user acts, the voucher moves to whoever is next in the route and **leaves
+their dashboard**. An employee's queue is their own drafts and returns; a head
+of department's is what has actually reached their step; the cashier's is what is
+approved and unpaid; an administrator's is whatever has stalled. Completed work
+never sits on a dashboard — it is found through Reports, which are themselves
+scoped to what the caller may see.
+
+```
+Employee submits  → leaves the employee's dashboard, appears for the HOD
+HOD signs & sends → leaves the HOD's dashboard, appears for the CEO
+CEO approves      → leaves the CEO's dashboard, appears for the Cashier
+Cashier pays      → leaves the Cashier's dashboard, available in Reports
+```
+
+## Reports are permission-aware
+
+Reports are where history lives, so they are also where permission matters most.
+
+| Role | Sees | Report set |
+| --- | --- | --- |
+| Employee | Their own vouchers only | Register, monthly summary |
+| Head of department | The departments they run | Register, department, expense, requester, approval, monthly |
+| Managing Director / Director | Company-wide | All of them |
+| Cashier | Company-wide, money that moved | Register, payment, approved-but-unpaid, bank, cash, monthly |
+| Company Admin | Company-wide | All of them |
+| Super Admin | Platform-wide | All of them |
+
+A department filter can narrow a caller's scope; it can never widen it. Transport
+reports on Transport, HR on HR, Procurement on Procurement.
 
 ---
 
@@ -189,8 +230,11 @@ expiring trial so the renewal path is visible.
 
 ## What is included
 
-**Vouchers** — two corporate formats (bank and cash, each printing its own A4
-layout) across five voucher types, with per-tenant sequential numbering
+**Vouchers** — two corporate formats kept separate throughout. A **bank voucher**
+carries the payee's bank, account name, number and branch, and names the company
+account it is drawn on; a **cash voucher** names the petty cash float it comes out
+of and records who physically received the money. Five voucher types, with
+per-tenant sequential numbering
 (`PV-2026-000123`, format and padding configurable), attachments, comments,
 amount-in-words, verification codes, drafts, edit-and-resubmit.
 
@@ -199,9 +243,13 @@ or reuse a saved one), request-changes and reject with a recorded reason, an
 approval timeline generated from the voucher's own workflow, and Print/Download
 **at every stage**, not just at the end.
 
-**Documents** — server-generated A4 PDFs in Poppins, carrying the company logo,
-colour, footer text and every captured signature. Authorisation blocks are built
-from the route the voucher actually travelled.
+**Documents** — an A4 voucher built as a real financial document: the company's
+own letterhead, a ruled particulars table with the amount and the amount in words
+beneath the description, payment particulars alongside, and an authorisation band
+carrying **Prepared by / Signed by / Approved by / Paid by** with each officer's
+signature and an official SIGNED, APPROVED or PAID mark. Attachments, comments,
+the timeline and the audit trail fold away beneath it, so what is on screen is
+what prints.
 
 **Administration** — employees and roles, departments with heads and managers,
 voucher types and numbering, branding, company profile, and the workflow builder.

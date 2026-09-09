@@ -78,9 +78,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <aside className="vf-sidebar" data-open={drawer}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 var(--space-2) var(--space-3)" }}>
-          <div className="vf-mark" style={{ width: 32, height: 32, fontSize: 16 }}>
-            {company?.logo_url
-              ? <img src={company.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          {/* The square mark, not the lockup: a wordmark crushed into 34px is
+              unreadable, which is exactly why brands ship both. */}
+          <div className="vf-mark" style={{
+            width: 34, height: 34, fontSize: 16,
+            background: company?.logo_mark_url ? "transparent" : undefined,
+          }}>
+            {company?.logo_mark_url
+              ? <img src={company.logo_mark_url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               : (user.role === "super_admin" ? "V" : (company?.name ?? "V").trim().charAt(0).toUpperCase())}
           </div>
           <div style={{ minWidth: 0 }}>

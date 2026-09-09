@@ -57,12 +57,12 @@ void main() {
       await settle(tester, 2000);
 
       // ── employee ──
-      await signIn(tester, 'john@acme.test');
+      await signIn(tester, 'frank@watercom.test');
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(
-        find.textContaining('You see only your own vouchers'),
+        find.textContaining('need your attention'),
         findsWidgets,
-        reason: 'the employee dashboard states its own scope',
+        reason: 'the employee dashboard leads with the work that is on them',
       );
       expect(
         find.byType(FloatingActionButton),
@@ -76,7 +76,7 @@ void main() {
       );
 
       // ── head of department ──
-      await signIn(tester, 'peter@acme.test');
+      await signIn(tester, 'joseph@watercom.test');
       expect(
         find.byIcon(Icons.fact_check_outlined),
         findsWidgets,
@@ -89,13 +89,13 @@ void main() {
       );
 
       // ── cashier ──
-      await signIn(tester, 'fatuma@acme.test');
+      await signIn(tester, 'mwajuma@watercom.test');
       expect(
         find.byIcon(Icons.account_balance_wallet_outlined),
         findsWidgets,
         reason: 'the cashier gets a payment queue, not an approvals queue',
       );
-      expect(find.textContaining('awaiting payment'), findsWidgets);
+      expect(find.textContaining('to pay'), findsWidgets);
       expect(
         find.byType(FloatingActionButton),
         findsNothing,
@@ -112,7 +112,7 @@ void main() {
       await app.main();
       await settle(tester, 2000);
 
-      await signIn(tester, 'peter@acme.test');
+      await signIn(tester, 'joseph@watercom.test');
       await tester.tap(find.byIcon(Icons.fact_check_outlined).last);
       await settle(tester, 1400);
 
@@ -140,7 +140,7 @@ void main() {
       await app.main();
       await settle(tester, 2000);
 
-      await signIn(tester, 'fatuma@acme.test');
+      await signIn(tester, 'mwajuma@watercom.test');
       await tester.tap(find.byIcon(Icons.account_balance_wallet_outlined).last);
       await settle(tester, 1400);
 

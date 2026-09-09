@@ -213,6 +213,10 @@ class MockVoucher {
   String? description, paymentMethod, category, accountRef, notesToApprover;
   String? stepSignedAt, submittedAt, approvedAt, rejectedAt, paidAt;
   String? paymentReference, paidBy;
+  /* Bank vouchers settle into an account; cash vouchers come out of a float
+     and are acknowledged by hand. Each format carries only what it needs. */
+  String? payeeBank, payeeAccountName, payeeAccountNumber, payeeBankBranch;
+  String? chequeNumber, cashFloat, receivedBy;
   int? departmentId, currentStepPosition;
   double amount;
   final List<MockComment> comments;

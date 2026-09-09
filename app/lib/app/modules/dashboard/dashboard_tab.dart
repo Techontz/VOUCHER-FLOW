@@ -140,45 +140,41 @@ class DashboardTab extends GetView<DashboardController> {
               },
             ),
 
+            /* The queue, and only the queue. Acting on a voucher moves it to
+               whoever is next, so it leaves this list — an empty dashboard
+               means the work really is clear. */
             if (d.queue.isNotEmpty) ...[
               const SizedBox(height: 26),
-              SectionHeader(title: 'approvals.title'.tr),
+              SectionHeader(
+                title: session.me.isCashier
+                    ? 'pay.queue'.tr
+                    : session.me.isEmployee
+                    ? 'queue.title'.tr
+                    : session.me.isAdmin
+                    ? 'queue.stalled'.tr
+                    : 'approvals.title'.tr,
+                trailing: d.queueTotalText.isEmpty
+                    ? null
+                    : Text(d.queueTotalText, style: theme.textTheme.bodySmall),
+              ),
               ...d.queue.map(
                 (v) => VoucherCard(voucher: v, onReturn: controller.load),
               ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.only(left: 10),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    left: BorderSide(color: VfColors.accent500, width: 2),
-                  ),
-                ),
-                child: Text(
-                  'approvals.signOnly'.tr,
-                  style: theme.textTheme.bodySmall,
-                ),
+              const SizedBox(height: 6),
+              VfNote(
+                session.me.isAdmin ? 'queue.stalledNote'.tr : 'queue.note'.tr,
               ),
             ],
 
-            if (d.recent.isNotEmpty) ...[
-              const SizedBox(height: 26),
-              SectionHeader(title: 'nav.vouchers'.tr),
-              ...d.recent.map(
-                (v) => VoucherCard(voucher: v, onReturn: controller.load),
-              ),
-            ],
-
-            if (d.recent.isEmpty && d.queue.isEmpty)
+            if (d.queue.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 30),
                 child: EmptyView(
+                  icon: Icons.check_circle_outline,
                   title: session.me.isCashier
                       ? 'pay.nothing'.tr
-                      : 'voucher.none'.tr,
-                  body: session.me.isCashier
-                      ? 'pay.nothingBody'.tr
-                      : 'voucher.noneBody'.tr,
+                      : 'queue.empty'.tr,
+                  body: 'queue.historyInReports'.tr,
                   action: session.me.canCreateVouchers
                       ? FilledButton(
                           onPressed: () => Get.toNamed(

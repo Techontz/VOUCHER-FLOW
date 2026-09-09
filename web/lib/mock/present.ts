@@ -88,10 +88,14 @@ export function companyResource(db: MockDataset, companyId: number | null) {
     : null;
 
   return {
-    id: c.id, name: c.name, slug: c.slug, legal_name: null, email: c.email,
-    phone: c.phone, address: c.address, website: null, country: "TZ",
+    id: c.id, name: c.name, slug: c.slug, legal_name: c.legal_name, email: c.email,
+    phone: c.phone, address: c.address, website: c.website, country: "TZ",
+    tin: c.tin,
+    bank_name: c.bank_name, bank_account_name: c.bank_account_name,
+    bank_account_number: c.bank_account_number, bank_branch: c.bank_branch,
     currency: c.currency, locale: c.locale, timezone: "Africa/Dar_es_Salaam",
-    logo_url: c.logo_url, primary_color: c.primary_color, accent_color: "#22d3ee",
+    logo_url: c.logo_url, logo_mark_url: c.logo_mark_url,
+    primary_color: c.primary_color, accent_color: "#22d3ee",
     theme: c.theme, voucher_footer_text: c.voucher_footer_text,
     status: c.status,
     is_usable: !["suspended", "cancelled"].includes(c.status) && (c.status !== "trial" || (daysRemaining ?? 1) > 0),
@@ -176,6 +180,9 @@ export function voucherResource(
     is_terminal: ["paid", "rejected", "cancelled"].includes(v.status),
     submitted_at: v.submitted_at, approved_at: v.approved_at, rejected_at: v.rejected_at,
     paid_at: v.paid_at, payment_reference: v.payment_reference, paid_by: v.paid_by,
+    payee_bank: v.payee_bank, payee_account_name: v.payee_account_name,
+    payee_account_number: v.payee_account_number, payee_bank_branch: v.payee_bank_branch,
+    cheque_number: v.cheque_number, cash_float: v.cash_float, received_by: v.received_by,
     created_at: v.created_at, updated_at: v.created_at,
     attachments_count: v.attachments.length,
     comments_count: v.comments.length,

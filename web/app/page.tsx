@@ -11,7 +11,7 @@ import type { Plan } from "@/lib/types";
 
 /** The companies named on the trust row — neutral demo names, as everywhere else. */
 const LOGOS: [string, string][] = [
-  ["Acme Tanzania Ltd", "AT"],
+  ["Watercom (T) Limited", "WC"],
   ["Zamani Logistics", "ZL"],
   ["Tembo Holdings", "TH"],
   ["Baobab Business Solutions", "BB"],
@@ -20,9 +20,9 @@ const LOGOS: [string, string][] = [
 
 /** The queue shown inside the hero card — illustrative, not live data. */
 const HERO_QUEUE = [
-  { id: "PV-2026-001245", dept: "Procurement", purpose: "Freight to Arusha — September", amount: "TZS 4,850,000", tag: "tag-outline", statusKey: "awaitingSignature" },
-  { id: "PV-2026-001244", dept: "Finance", purpose: "Office rent — Q4 2026", amount: "TZS 21,500,000", tag: "tag-outline", statusKey: "signedReadySubmit" },
-  { id: "PC-2026-000318", dept: "IT", purpose: "Replacement laptop batteries", amount: "TZS 1,450,000", tag: "tag-outline", statusKey: "awaitingApprovalAct" },
+  { id: "PV-2026-001248", dept: "Procurement", purpose: "PET preforms — Afiya 500 ml line", amount: "TZS 18,400,000", tag: "tag-outline", statusKey: "awaitingSignature" },
+  { id: "PV-2026-001247", dept: "Transport", purpose: "Distribution haulage — Mwanza route", amount: "TZS 6,750,000", tag: "tag-outline", statusKey: "signedReadySubmit" },
+  { id: "PV-2026-001245", dept: "Production", purpose: "Food-grade CO₂ — Supa Cola line", amount: "TZS 9,200,000", tag: "tag-outline", statusKey: "awaitingApprovalAct" },
 ] as const;
 
 const STEP_ICONS = ["ph-note-pencil", "ph-signature", "ph-seal-check", "ph-wallet"];
@@ -125,7 +125,7 @@ export default function LandingPage() {
               }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--vf-warn)", boxShadow: "0 0 0 3px color-mix(in srgb, var(--vf-warn) 20%, transparent)" }} />
                 <strong style={{ fontWeight: 600, color: "var(--color-text)", fontSize: 13.5 }}>{t("approvalsCard")}</strong>
-                <span>Acme Tanzania Ltd</span>
+                <span>Watercom (T) Limited</span>
                 <span style={{ flex: 1 }} />
                 <span style={{ whiteSpace: "nowrap", padding: "2px 8px", borderRadius: 6, background: "var(--vf-elev-3)", border: "1px solid var(--vf-line)" }}>
                   3 {t("awaitingYou")}

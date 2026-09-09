@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, API_MODE, download, saveBlob } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { EmptyState, ErrorState, Icon, LoadingBlock, PageHeader, Spinner } from "@/components/ui";
+import { EmptyState, ErrorState, Icon, LoadingBlock, Note, PageHeader, Panel, Spinner } from "@/components/ui";
 import type { Department, VoucherType } from "@/lib/types";
 
 interface ReportKind {
@@ -18,11 +18,15 @@ interface ReportResult {
   generated_at: string;
 }
 
+/** What this caller is allowed to look back over. */
+interface ReportScope { label: string; departments: string[]; locked: boolean }
+
 export default function ReportsPage() {
-  const { t, locale, reportError, toast } = useApp();
+  const { t, locale, user, reportError, toast } = useApp();
   const [kinds, setKinds] = useState<ReportKind[]>([]);
+  const [scope, setScope] = useState<ReportScope | null>(null);
   const [active, setActive] = useState("vouchers");
-  const [filters, setFilters] = useState({ from: "", to: "", department_id: "", voucher_type_id: "", status: "" });
+  const [filters, setFilters] = useState({ from: "", to: "", department_id: "", voucher_type_id: "", status: "", kind: "" });
   const [result, setResult] = useState<ReportResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +35,14 @@ export default function ReportsPage() {
   const [types, setTypes] = useState<VoucherType[]>([]);
 
   useEffect(() => {
-    api.get<{ data: ReportKind[] }>("/reports").then((r) => setKinds(r.data)).catch(() => undefined);
+    api.get<{ data: ReportKind[]; scope: ReportScope }>("/reports")
+      .then((r) => {
+        setKinds(r.data);
+        setScope(r.scope);
+        // Land on a report this role can actually run.
+        if (r.data.length && !r.data.some((k) => k.key === "vouchers")) setActive(r.data[0].key);
+      })
+      .catch(() => undefined);
     api.get<{ data: Department[] }>("/departments").then((r) => setDepartments(r.data)).catch(() => undefined);
     api.get<{ data: VoucherType[] }>("/voucher-types").then((r) => setTypes(r.data)).catch(() => undefined);
   }, []);
@@ -107,6 +118,24 @@ export default function ReportsPage() {
           </>
         } />
 
+      {scope && (
+        <div className="vf-panel" style={{
+          display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap",
+          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
+        }}>
+          <Icon name={scope.locked ? "ph-lock-key" : "ph-eye"} size={17} color="var(--color-accent-600)" />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>
+              {t("reportsYouMayRun")}
+            </div>
+            <div style={{ fontSize: 14.5, fontWeight: 500 }}>{scope.label}</div>
+          </div>
+          <span className="tag tag-neutral" style={{ fontSize: 12 }}>
+            {kinds.length} {kinds.length === 1 ? "report" : "reports"}
+          </span>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "var(--space-3)", marginBottom: "var(--space-6)" }}>
         {kinds.map((kind) => {
           const on = kind.key === active;
@@ -135,9 +164,21 @@ export default function ReportsPage() {
         display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)" }}>
         <input className="input" type="date" value={filters.from} onChange={set("from")} aria-label={t("from")} />
         <input className="input" type="date" value={filters.to} onChange={set("to")} aria-label={t("to")} />
-        <select className="input" value={filters.department_id} onChange={set("department_id")} aria-label={t("department")}>
-          <option value="">{t("allDepartments")}</option>
-          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        <select className="input" value={filters.department_id} onChange={set("department_id")}
+          aria-label={t("department")} disabled={scope?.locked && scope.departments.length <= 1}>
+          <option value="">
+            {scope?.locked && scope.departments.length
+              ? scope.departments.join(" · ")
+              : t("allDepartments")}
+          </option>
+          {departments
+            .filter((d) => !scope?.locked || scope.departments.includes(d.name))
+            .map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        <select className="input" value={filters.kind} onChange={set("kind")} aria-label={t("voucherKind")}>
+          <option value="">{t("all")}</option>
+          <option value="bank">{t("bankVoucher")}</option>
+          <option value="cash">{t("cashVoucher")}</option>
         </select>
         <select className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")} aria-label={t("voucherType")}>
           <option value="">{t("allTypes")}</option>

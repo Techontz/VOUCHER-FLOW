@@ -9,6 +9,7 @@ import '../../data/services/api_service.dart';
 import '../../data/services/session_service.dart';
 import '../../data/services/voucher_repository.dart';
 import '../../widgets/common.dart';
+import '../../widgets/voucher_document.dart';
 import '../../widgets/signature_pad.dart';
 
 class VoucherDetailController extends GetxController {
@@ -192,12 +193,36 @@ class VoucherDetailPage extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(18, 12, 18, 120),
             children: [
               _Header(voucher: v),
-              const SizedBox(height: 20),
-              _Details(voucher: v),
-              const SizedBox(height: 22),
-              _Timeline(voucher: v),
-              const SizedBox(height: 22),
-              _Comments(controller: controller, voucher: v),
+              const SizedBox(height: 18),
+
+              /* The document is the page. Everything secondary folds away
+                 beneath it, so what is on screen is what will print. */
+              DocumentFrame(
+                child: VoucherDocument(
+                  voucher: v,
+                  company: Get.find<SessionService>().company.value,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Disclosure(
+                title: 'voucher.attachments'.tr,
+                icon: Icons.attach_file,
+                count: v.attachments.length,
+                child: _Details(voucher: v),
+              ),
+              Disclosure(
+                title: 'voucher.timeline'.tr,
+                icon: Icons.timeline_outlined,
+                count: v.timeline.length,
+                child: _Timeline(voucher: v),
+              ),
+              Disclosure(
+                title: 'voucher.comments'.tr,
+                icon: Icons.chat_bubble_outline,
+                count: v.comments.length,
+                child: _Comments(controller: controller, voucher: v),
+              ),
             ],
           ),
         );
@@ -213,6 +238,8 @@ class VoucherDetailPage extends StatelessWidget {
   }
 }
 
+/// Identity only. The document beneath carries the rest, so repeating the
+/// purpose, description and amount here would just push it off the screen.
 class _Header extends StatelessWidget {
   const _Header({required this.voucher});
 
@@ -224,8 +251,6 @@ class _Header extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // The number is the record's identity — it gets the full width and never
-        // wraps; the status sits beneath it with the rest of the meta line.
         Text(
           voucher.number,
           style: theme.textTheme.displaySmall,
@@ -240,33 +265,19 @@ class _Header extends StatelessWidget {
           children: [
             KindChip(kind: voucher.kind, dense: false),
             StatusChip(label: voucher.statusLabel, tag: voucher.statusTag),
-            Text(
-              [
-                voucher.voucherTypeLabel,
-                voucher.departmentName,
-                Fmt.date(voucher.voucherDate),
-              ].whereType<String>().join(' · '),
-              style: theme.textTheme.bodySmall,
-            ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
+        Text(
+          [
+            voucher.voucherTypeLabel,
+            voucher.departmentName,
+            Fmt.date(voucher.voucherDate),
+          ].whereType<String>().join(' · '),
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 10),
         Text(voucher.amountText, style: theme.textTheme.headlineMedium),
-        const SizedBox(height: 12),
-        Text(voucher.purpose, style: theme.textTheme.titleLarge),
-        if (voucher.description != null) ...[
-          const SizedBox(height: 6),
-          Text(voucher.description!, style: theme.textTheme.bodyLarge),
-        ],
-        if (voucher.amountInWords != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            voucher.amountInWords!,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
       ],
     );
   }

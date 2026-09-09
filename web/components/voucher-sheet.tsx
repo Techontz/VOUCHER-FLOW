@@ -2,293 +2,433 @@
 
 import { useApp } from "@/lib/app-context";
 import { formatDate, formatDateTime, money } from "@/lib/format";
+import { AuthorisationBlock, DocumentStatusMark } from "@/components/stamps";
 import type { Company, TimelineRow, Voucher } from "@/lib/types";
 
-/* The printed sheet is always light: it represents ink on A4 paper, and the
-   generated PDF is white whatever appearance the interface is wearing. These
+/* The document is always ink on paper: it is a preview of what prints, and the
+   printed voucher is white whatever appearance the interface is wearing. These
    are therefore literal colours, not theme tokens. */
 const INK = "#0b1220";
-const MUTED = "#475467";
+const BODY = "#33405a";
+const MUTED = "#6b7789";
 const FAINT = "#98a2b3";
-const RULE = "#e4e8f0";
+const RULE = "#e2e7ef";
+const WASH = "#f6f8fc";
 
 const label: React.CSSProperties = {
-  fontSize: 9, fontWeight: 700, letterSpacing: ".11em",
+  fontSize: 7.5, fontWeight: 800, letterSpacing: ".13em",
   textTransform: "uppercase", color: FAINT,
 };
 
-function Cell({ title, children }: { title: string; children: React.ReactNode }) {
+/** One row of the payment-particulars panel. */
+function Particular({ term, value, strong }: { term: string; value: React.ReactNode; strong?: boolean }) {
   return (
-    <div>
-      <div style={label}>{title}</div>
-      <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 3 }}>{children}</div>
+    <div style={{
+      display: "grid", gridTemplateColumns: "82px minmax(0, 1fr)", gap: 8,
+      padding: "5px 0", borderBottom: `1px solid ${RULE}`, alignItems: "baseline",
+    }}>
+      <span style={{ ...label, fontSize: 7, letterSpacing: ".1em" }}>{term}</span>
+      <span style={{
+        fontSize: strong ? 12 : 10.5,
+        fontWeight: strong ? 700 : 500,
+        color: strong ? INK : BODY,
+        fontVariantNumeric: "tabular-nums",
+        overflowWrap: "anywhere",
+      }}>{value}</span>
     </div>
   );
 }
 
-/** One authorisation box: signature above, role and timestamp below. */
-function SignatureBox({
-  row, caption, highlight, locale,
-}: { row: TimelineRow | null; caption: string; highlight?: boolean; locale: "en" | "sw" }) {
-  const signed = !!row?.when;
+function MetaCell({ term, value, sub }: { term: string; value: string; sub?: string | null }) {
   return (
-    <div style={{
-      border: `1px solid ${highlight ? "#cfe0ff" : RULE}`, borderRadius: 10, padding: 14,
-      background: highlight ? "#f5f9ff" : "#fbfcfe", breakInside: "avoid",
-    }}>
-      <div style={{ height: 44, display: "flex", alignItems: "flex-end" }}>
-        {row?.signature ? (
-          <img src={row.signature} alt="" style={{ maxHeight: 44, maxWidth: "100%" }} />
-        ) : (
-          <span style={{
-            fontFamily: "var(--font-heading)", fontStyle: "italic", fontWeight: 500,
-            fontSize: 19, color: signed ? INK : "transparent",
-          }}>{signed ? row?.person : "—"}</span>
-        )}
-      </div>
-      <div style={{
-        borderTop: `1px solid ${highlight ? "#b3d0ff" : "#d0d5dd"}`,
-        paddingTop: 7, marginTop: 4, fontSize: 10.5, lineHeight: 1.5,
-      }}>
-        <strong style={{ fontWeight: 600 }}>{caption}</strong><br />
-        <span style={{ color: MUTED }}>
-          {row?.person_title ?? "—"}<br />
-          {row?.when ? formatDateTime(row.when, locale) : (locale === "sw" ? "Inasubiri" : "Pending")}
-        </span>
-      </div>
+    <div style={{ minWidth: 0 }}>
+      <div style={label}>{term}</div>
+      <div style={{ fontSize: 11.5, fontWeight: 600, color: INK, marginTop: 2, overflowWrap: "anywhere" }}>{value}</div>
+      {sub && <div style={{ fontSize: 8.5, color: FAINT, marginTop: 1 }}>{sub}</div>}
     </div>
   );
 }
 
 /**
- * The A4 payment/cash voucher exactly as it prints.
+ * The A4 voucher exactly as it prints.
  *
- * Rendered on screen as a preview and, in Phase 1, printed straight from the
- * browser — the print stylesheet in globals.css hides everything else. When the
- * backend lands, the same layout is what the server-side PDF reproduces.
+ * The company's own letterhead sits at the top, the narrative runs down the
+ * left with the amount immediately beneath the description, and the right
+ * column carries the payment particulars — which differ by format, because a
+ * bank voucher settles into an account and a cash voucher comes out of a float.
+ * The authorisation band closes the page: who prepared, signed, approved and
+ * paid, each with their mark.
  */
 export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: Company | null }) {
   const { t, locale } = useApp();
   const rows = voucher.timeline ?? [];
-
   const isCash = voucher.kind === "cash";
+
   const requestRow = rows.find((r) => r.position === 1) ?? null;
-  const signRow = rows.find((r) => r.capabilities?.sign && !r.capabilities?.approve) ?? null;
-  const approveRow = rows.find((r) => r.capabilities?.approve) ?? null;
-  const payRow = rows.find((r) => r.capabilities?.pay) ?? null;
+  const signRow = rows.find((r) => r.capabilities?.sign && !r.capabilities?.approve && r.when) ?? null;
+  const approveRow = rows.find((r) => r.capabilities?.approve && r.when) ?? null;
+  const payRow = rows.find((r) => r.capabilities?.pay && r.when) ?? null;
 
-  const stamp = isCash
-    ? { bg: "#fff4e6", fg: "#a5590a", text: t("cashVoucher") }
-    : { bg: "#eaf2ff", fg: "#1a4fae", text: t("bankVoucher") };
+  const when = (row: TimelineRow | null) => (row?.when ? formatDateTime(row.when, locale) : null);
 
-  const payeeLine = isCash
-    ? `${locale === "sw" ? "Fedha taslimu" : "Cash release"} · ${voucher.account_ref || (locale === "sw" ? "Mfuko wa ofisi" : "Petty cash float")}`
-    : voucher.account_ref || (locale === "sw" ? "Uhamisho wa benki" : "Bank transfer");
+  const closed = voucher.status === "paid" ? "paid"
+    : voucher.status === "rejected" ? "rejected"
+    : voucher.status === "changes_requested" ? "returned"
+    : null;
 
   const initial = (company?.name ?? "V").trim().charAt(0).toUpperCase();
 
   return (
     <div className="vf-sheet">
+      {/* the company's colour, carried onto its own paperwork */}
       <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: 5,
-        background: "linear-gradient(90deg, #0b1220 0%, #1a4fae 42%, #22a7e8 72%, #22d3ee 100%)",
+        position: "absolute", top: 0, left: 0, right: 0, height: 4,
+        background: company?.primary_color ?? "#2E3192",
       }} />
 
-      {/* letterhead */}
-      <div style={{
+      {closed && (
+        <DocumentStatusMark
+          kind={closed}
+          date={voucher.paid_at ? formatDate(voucher.paid_at, locale)
+            : voucher.rejected_at ? formatDate(voucher.rejected_at, locale) : null}
+          reference={voucher.payment_reference}
+        />
+      )}
+
+      {/* ── letterhead ── */}
+      <header style={{
         display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-        gap: 30, paddingBottom: 20, borderBottom: `2px solid ${INK}`,
+        gap: 24, paddingBottom: 14, borderBottom: `2px solid ${INK}`,
       }}>
-        <div style={{ display: "flex", gap: 15, alignItems: "center", minWidth: 0 }}>
-          <div style={{
-            width: 50, height: 50, borderRadius: 12, background: INK, color: "#fff",
-            display: "grid", placeItems: "center", overflow: "hidden", flex: "none",
-            fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 24, letterSpacing: "-.03em",
-          }}>
-            {company?.logo_url
-              ? <img src={company.logo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : initial}
-          </div>
+        <div style={{ display: "flex", gap: 14, alignItems: "flex-start", minWidth: 0 }}>
+          {company?.logo_url ? (
+            <img src={company.logo_url} alt=""
+              style={{ height: 52, maxWidth: 210, objectFit: "contain", flex: "none" }} />
+          ) : (
+            <div style={{
+              width: 46, height: 46, borderRadius: 8, flex: "none",
+              background: company?.primary_color ?? INK, color: "#fff",
+              display: "grid", placeItems: "center",
+              fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22,
+            }}>{initial}</div>
+          )}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 21, letterSpacing: "-.032em" }}>
-              {company?.name ?? "VouchFlow"}
-            </div>
-            <div style={{ fontSize: 11, color: "#667085", lineHeight: 1.55, marginTop: 2 }}>
+            <div style={{
+              fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17,
+              letterSpacing: "-.02em", color: INK, lineHeight: 1.2,
+            }}>{company?.legal_name ?? company?.name ?? "VouchFlow"}</div>
+            <div style={{ fontSize: 8.5, color: MUTED, lineHeight: 1.5, marginTop: 3 }}>
               {company?.address}
-              {company?.phone && <><br />{company.phone}{company.email ? ` · ${company.email}` : ""}</>}
+              {(company?.phone || company?.email) && (
+                <><br />{[company?.phone, company?.email].filter(Boolean).join(" · ")}</>
+              )}
+              {(company?.website || company?.tin) && (
+                <><br />{[company?.website, company?.tin ? `TIN ${company.tin}` : null].filter(Boolean).join(" · ")}</>
+              )}
             </div>
           </div>
         </div>
+
         <div style={{ textAlign: "right", flex: "none" }}>
           <div style={{
-            display: "inline-block", padding: "5px 11px", borderRadius: 6,
-            background: stamp.bg, color: stamp.fg,
-            fontSize: 10, fontWeight: 700, letterSpacing: ".13em", textTransform: "uppercase",
-          }}>{stamp.text}</div>
+            fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 13,
+            letterSpacing: ".1em", textTransform: "uppercase", color: INK,
+          }}>
+            {voucher.voucher_type?.label ?? t("paymentVoucherStamp")}
+          </div>
           <div style={{
-            fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 19,
-            fontVariantNumeric: "tabular-nums", marginTop: 7, letterSpacing: "-.025em",
+            display: "inline-block", marginTop: 4, padding: "2px 8px", borderRadius: 3,
+            border: `1px solid ${isCash ? "#c48a1a" : "#2f6fd0"}`,
+            color: isCash ? "#8a5a00" : "#1a4fae",
+            background: isCash ? "#fff8ec" : "#eef4ff",
+            fontSize: 8, fontWeight: 800, letterSpacing: ".14em",
+          }}>
+            {isCash ? t("cashVoucher").toUpperCase() : t("bankVoucher").toUpperCase()}
+          </div>
+          <div style={{
+            fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15,
+            fontVariantNumeric: "tabular-nums", marginTop: 6, color: INK,
           }}>{voucher.number}</div>
-          <div style={{ fontSize: 10.5, color: FAINT, marginTop: 1 }}>{t("originalPage")}</div>
+          <div style={{ fontSize: 8, color: FAINT }}>{t("originalPage")}</div>
         </div>
-      </div>
+      </header>
 
-      {/* who and when */}
+      {/* ── who, when, where it is charged ── */}
       <div style={{
-        display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18,
-        padding: "22px 0", borderBottom: `1px solid ${RULE}`,
+        display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14,
+        padding: "11px 0", borderBottom: `1px solid ${RULE}`,
       }}>
-        <Cell title={t("date")}>{formatDate(voucher.voucher_date, locale)}</Cell>
-        <Cell title={t("department")}>{voucher.department?.name ?? "—"}</Cell>
-        <Cell title={t("requestedBy")}>
-          {voucher.requester?.name ?? "—"}
-          <div style={{ fontSize: 10.5, color: FAINT, fontWeight: 400 }}>
-            {voucher.requester?.job_title ?? ""}
-          </div>
-        </Cell>
-        <Cell title={t("costCentre")}>{voucher.cost_centre ?? "—"}</Cell>
+        <MetaCell term={t("date")} value={formatDate(voucher.voucher_date, locale)} />
+        <MetaCell term={t("department")} value={voucher.department?.name ?? "—"} sub={voucher.cost_centre} />
+        <MetaCell term={t("requestedBy")} value={voucher.requester?.name ?? "—"}
+          sub={voucher.requester?.job_title} />
+        <MetaCell term={t("category")} value={voucher.category ?? "—"} />
       </div>
 
-      {/* payee */}
-      <div style={{ display: "flex", gap: 30, padding: "22px 0 20px", borderBottom: `1px solid ${RULE}`, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+      {/* ── the substance, with the particulars alongside ── */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "minmax(0, 1.55fr) minmax(0, 1fr)",
+        gap: 20, padding: "13px 0 0", flex: 1, alignItems: "stretch", minHeight: 0,
+      }}>
+        {/* The left column is the voucher's ruled particulars, the way a
+            voucher book is printed: what is being paid for, then the total,
+            then the amount written out. Blank rules carry the form down the
+            page rather than leaving a hole in the middle of it. */}
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={label}>{t("payee")}</div>
-          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 18, letterSpacing: "-.025em", marginTop: 3 }}>
-            {voucher.payee}
+          <div style={{
+            fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15,
+            letterSpacing: "-.015em", color: INK, margin: "2px 0 10px",
+          }}>{voucher.payee}</div>
+
+          <table style={{
+            width: "100%", borderCollapse: "collapse", flex: 1,
+            border: `1px solid ${RULE}`, tableLayout: "fixed",
+          }}>
+            <thead>
+              <tr style={{ background: WASH }}>
+                <th style={{ ...label, textAlign: "left", padding: "6px 9px", borderBottom: `1px solid ${RULE}`, color: MUTED }}>
+                  {t("particulars")}
+                </th>
+                <th style={{ ...label, textAlign: "right", padding: "6px 9px", borderBottom: `1px solid ${RULE}`, color: MUTED, width: 108 }}>
+                  {t("amount")} · {voucher.currency}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ verticalAlign: "top" }}>
+                <td style={{ padding: "8px 9px", borderBottom: `1px solid ${RULE}` }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: INK }}>{voucher.purpose}</div>
+                  {voucher.description && (
+                    <p style={{ fontSize: 10, lineHeight: 1.6, color: BODY, margin: "3px 0 0" }}>
+                      {voucher.description}
+                    </p>
+                  )}
+                  {voucher.account_ref && (
+                    <div style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>
+                      {t("reference")}: <span style={{ fontVariantNumeric: "tabular-nums" }}>{voucher.account_ref}</span>
+                    </div>
+                  )}
+                </td>
+                <td style={{
+                  padding: "8px 9px", borderBottom: `1px solid ${RULE}`, textAlign: "right",
+                  fontSize: 12, fontWeight: 600, color: INK, fontVariantNumeric: "tabular-nums",
+                }}>
+                  {Math.round(voucher.amount).toLocaleString("en-US")}
+                </td>
+              </tr>
+
+              {/* The form's remaining rules. They keep the page looking like a
+                  voucher rather than a half-filled page. */}
+              <tr style={{ height: "100%" }}>
+                <td style={{ borderBottom: `1px solid ${RULE}` }} />
+                <td style={{ borderBottom: `1px solid ${RULE}` }} />
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr style={{ background: WASH }}>
+                <td style={{
+                  padding: "9px 9px", borderTop: `2px solid ${INK}`,
+                  ...label, color: INK, fontSize: 8.5,
+                }}>{t("totalPayable")}</td>
+                <td style={{
+                  padding: "9px 9px", borderTop: `2px solid ${INK}`, textAlign: "right",
+                  fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15,
+                  letterSpacing: "-.02em", color: INK, fontVariantNumeric: "tabular-nums",
+                }}>{Math.round(voucher.amount).toLocaleString("en-US")}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div style={{
+            marginTop: 8, border: `1px solid ${RULE}`, borderLeft: `3px solid ${INK}`,
+            borderRadius: 3, background: WASH, padding: "7px 10px",
+          }}>
+            <span style={{ ...label, fontSize: 7 }}>{t("amountWords")}</span>
+            <div style={{ fontSize: 10.5, fontStyle: "italic", color: INK, marginTop: 1 }}>
+              {voucher.amount_in_words ?? money(voucher.amount, voucher.currency)}
+            </div>
           </div>
-          <div style={{ fontSize: 11.5, color: MUTED, marginTop: 3 }}>{payeeLine}</div>
         </div>
-        <div style={{ flex: "none", textAlign: "right" }}>
-          <div style={label}>{t("paymentMethod")}</div>
-          <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 3 }}>
-            {voucher.payment_method ?? (isCash ? t("cash") : t("bank"))}
+
+        {/* The right column earns its place: everything a payments clerk needs
+            to actually move the money, and nothing else. */}
+        <aside style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{
+            border: `1px solid ${RULE}`, borderRadius: 5, overflow: "hidden", background: "#fff",
+          }}>
+            <div style={{
+              background: WASH, borderBottom: `1px solid ${RULE}`, padding: "6px 10px",
+              ...label, color: MUTED,
+            }}>{t("paymentParticulars")}</div>
+
+            <div style={{ padding: "2px 10px 8px" }}>
+              <Particular term={t("amount")} value={voucher.amount_text} strong />
+              <Particular term={t("currency")} value={voucher.currency} />
+              <Particular term={t("paymentMethod")} value={voucher.payment_method ?? (isCash ? t("cash") : t("bank"))} />
+              <Particular term={t("voucherType")} value={voucher.voucher_type?.label ?? "—"} />
+              <Particular term={t("reference")} value={voucher.account_ref || "—"} />
+
+              {isCash ? (
+                <>
+                  <Particular term={t("payFrom")} value={voucher.cash_float ?? "Petty cash float"} />
+                  <Particular term={t("receivedBy")} value={voucher.received_by ?? "—"} />
+                </>
+              ) : (
+                <>
+                  <Particular term={t("bank")} value={voucher.payee_bank ?? "—"} />
+                  <Particular term={t("accountName")} value={voucher.payee_account_name ?? voucher.payee} />
+                  <Particular term={t("accountNo")} value={voucher.payee_account_number ?? "—"} />
+                  <Particular term={t("branch")} value={voucher.payee_bank_branch ?? "—"} />
+                  {voucher.cheque_number && <Particular term={t("chequeNo")} value={voucher.cheque_number} />}
+                </>
+              )}
+
+              {voucher.payment_reference && (
+                <Particular term={t("paymentRef")} value={voucher.payment_reference} />
+              )}
+            </div>
+
+            {/* A bank voucher is drawn on the company's own account; saying so
+                on the document is what makes it a bank voucher. */}
+            {!isCash && company?.bank_account_number && (
+              <div style={{ borderTop: `1px solid ${RULE}`, background: WASH, padding: "7px 10px" }}>
+                <div style={{ ...label, fontSize: 7 }}>{t("drawnOn")}</div>
+                <div style={{ fontSize: 9.5, color: BODY, lineHeight: 1.5, marginTop: 2 }}>
+                  <strong style={{ color: INK }}>{company.bank_name}</strong><br />
+                  {company.bank_account_name}<br />
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{company.bank_account_number}</span>
+                  {company.bank_branch ? ` · ${company.bank_branch}` : ""}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+
+          {/* Supporting papers belong beside the money they justify. */}
+          <div style={{
+            border: `1px solid ${RULE}`, borderRadius: 5, background: "#fff",
+            padding: "7px 10px", flex: 1, minHeight: 58,
+          }}>
+            <div style={{ ...label, fontSize: 7 }}>{t("supportingDocs")}</div>
+            {voucher.attachments && voucher.attachments.length > 0 ? (
+              <ol style={{ margin: "4px 0 0", padding: 0, listStyle: "none", fontSize: 9.5, color: BODY }}>
+                {voucher.attachments.map((file, i) => (
+                  <li key={file.id} style={{ display: "flex", gap: 5, padding: "2px 0" }}>
+                    <span style={{ color: FAINT, fontVariantNumeric: "tabular-nums" }}>{i + 1}.</span>
+                    <span style={{ flex: 1, overflowWrap: "anywhere" }}>{file.name}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <div style={{ fontSize: 9.5, color: "#c2c9d6", marginTop: 4 }}>{t("noneAttached")}</div>
+            )}
+          </div>
+        </aside>
       </div>
 
-      {/* line items — one line in the prototype, as the design shows */}
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
-        <thead>
-          <tr style={{ background: "#f7f9fc" }}>
-            <th style={{ ...label, textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #d0d5dd", color: "#667085" }}>{t("description")}</th>
-            <th style={{ ...label, textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #d0d5dd", color: "#667085", width: 110 }}>{t("reference")}</th>
-            <th style={{ ...label, textAlign: "right", padding: "10px 12px", borderBottom: "1px solid #d0d5dd", color: "#667085", width: 130 }}>
-              {t("amount")} ({voucher.currency})
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={{ padding: "14px 12px", verticalAlign: "top", borderBottom: "1px solid #eef1f6", lineHeight: 1.55 }}>
-              <strong style={{ fontWeight: 600 }}>{voucher.purpose}</strong>
-              {voucher.description && <><br />{voucher.description}</>}
-            </td>
-            <td style={{ padding: "14px 12px", verticalAlign: "top", borderBottom: "1px solid #eef1f6", fontVariantNumeric: "tabular-nums", color: MUTED }}>
-              {voucher.account_ref ?? "—"}
-            </td>
-            <td style={{ padding: "14px 12px", textAlign: "right", borderBottom: "1px solid #eef1f6", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
-              {Math.round(voucher.amount).toLocaleString("en-US")}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+      {/* ── remarks ── */}
+      <div style={{ marginTop: 12 }}>
+        <div style={label}>{t("remarks")}</div>
         <div style={{
-          width: 300, maxWidth: "100%", borderRadius: 10, background: INK, color: "#fff",
-          padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+          marginTop: 3, border: `1px solid ${RULE}`, borderRadius: 4,
+          padding: "7px 10px", fontSize: 10, lineHeight: 1.6, color: BODY,
+          background: "#fff", minHeight: 34,
         }}>
-          <span style={{ ...label, color: FAINT, letterSpacing: ".12em", fontSize: 10 }}>{t("totalPayable")}</span>
-          <span style={{
-            fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 23,
-            fontVariantNumeric: "tabular-nums", letterSpacing: "-.035em",
-          }}>{Math.round(voucher.amount).toLocaleString("en-US")}</span>
+          {voucher.notes_to_approver
+            ?? remarksFromTrail(rows)
+            ?? <span style={{ color: "#c2c9d6" }}>—</span>}
         </div>
       </div>
 
-      <div style={{ padding: "18px 0", marginTop: 6, borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
-        <div style={label}>{t("amountWords")}</div>
-        <div style={{ fontStyle: "italic", fontSize: 14, color: "#344054", marginTop: 3 }}>
-          {voucher.amount_in_words ?? money(voucher.amount, voucher.currency)}
-        </div>
+      {/* ── authorisation ── */}
+      <div style={{ ...label, margin: "0 0 7px" }}>{t("authorisation")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 9 }}>
+        <AuthorisationBlock
+          caption={t("preparedBy")}
+          name={voucher.requester?.name}
+          title={voucher.requester?.job_title}
+          date={when(requestRow) ?? (voucher.submitted_at ? formatDateTime(voucher.submitted_at, locale) : null)}
+          note={t("notSubmitted")}
+        />
+        <AuthorisationBlock
+          caption={t("signedByName")}
+          name={signRow?.person}
+          title={signRow?.person_title}
+          date={when(signRow)}
+          signature={signRow?.signature}
+          stamp="signed"
+          note={t("awaitingSignature")}
+        />
+        <AuthorisationBlock
+          caption={t("approvedByName")}
+          name={approveRow?.person}
+          title={approveRow?.person_title}
+          date={when(approveRow)}
+          signature={approveRow?.signature}
+          stamp={voucher.status === "rejected" ? "rejected" : "approved"}
+          note={t("awaitingApprovalAct")}
+          emphasis
+        />
+        <AuthorisationBlock
+          caption={isCash ? t("paidReceivedBy") : t("paidBy")}
+          name={payRow?.person ?? voucher.paid_by}
+          title={payRow?.person_title}
+          date={when(payRow) ?? (voucher.paid_at ? formatDateTime(voucher.paid_at, locale) : null)}
+          signature={payRow?.signature}
+          stamp="paid"
+          reference={voucher.payment_reference}
+          note={t("awaitingPayment")}
+        />
       </div>
 
-      {/* payment record */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginTop: 22,
-        padding: "14px 16px", borderRadius: 10, background: "#f7f9fc", border: `1px solid ${RULE}`,
-      }}>
-        <div>
-          <div style={label}>{t("paymentRef")}</div>
-          <div style={{ fontSize: 12.5, fontWeight: 500, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
-            {voucher.payment_reference ?? "—"}
-          </div>
-        </div>
-        <div>
-          <div style={label}>{t("paidOn")}</div>
-          <div style={{ fontSize: 12.5, fontWeight: 500, marginTop: 2 }}>
-            {voucher.paid_at ? formatDateTime(voucher.paid_at, locale) : (locale === "sw" ? "Inasubiri" : "Pending")}
-          </div>
-        </div>
-        <div>
-          <div style={label}>{t("paidBy")}</div>
-          <div style={{ fontSize: 12.5, fontWeight: 500, marginTop: 2 }}>{voucher.paid_by ?? "—"}</div>
-        </div>
-      </div>
-
-      {/* authorisation */}
-      <div style={{ ...label, margin: "26px 0 14px" }}>{t("authorisation")}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-        <SignatureBox row={requestRow} caption={t("preparedBy")} locale={locale} />
-        <SignatureBox row={signRow} caption={t("signedByHod")} locale={locale} />
-        <SignatureBox row={approveRow} caption={t("approvedByMgr")} highlight locale={locale} />
-        <SignatureBox row={payRow} caption={isCash ? t("receivedBy") : t("cashierSig")} locale={locale} />
-      </div>
-
-      <div style={{
+      {/* ── footer ── */}
+      <footer style={{
         display: "flex", alignItems: "flex-end", justifyContent: "space-between",
-        gap: 24, marginTop: 44, borderTop: `1px solid ${RULE}`, paddingTop: 16, flexWrap: "wrap",
+        gap: 20, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${RULE}`,
       }}>
-        <div style={{ fontSize: 10, color: "#667085", maxWidth: "54ch", lineHeight: 1.6 }}>
-          {company?.voucher_footer_text
-            ?? "This voucher is valid only with the signatures above."}<br />
+        <div style={{ fontSize: 8, color: MUTED, maxWidth: "62ch", lineHeight: 1.55 }}>
+          {company?.voucher_footer_text ?? "This voucher is valid only with the authorisations above."}
           {voucher.verification_code && (
-            <>Verification code <strong style={{ color: INK }}>{voucher.verification_code}</strong>.</>
+            <><br />{t("verificationCode")} <strong style={{ color: INK }}>{voucher.verification_code}</strong></>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flex: "none" }}>
-          <div style={{ ...label, textAlign: "right", letterSpacing: ".1em", paddingBottom: 2 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 9, flex: "none" }}>
+          <div style={{ ...label, fontSize: 6.5, textAlign: "right", paddingBottom: 2 }}>
             Scan to<br />verify
           </div>
           <VerificationGlyph seed={voucher.verification_code ?? voucher.number} />
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
 
+/** The most recent decision note, which is what a remarks box would carry. */
+function remarksFromTrail(rows: TimelineRow[]): string | null {
+  const withComment = rows.filter((r) => r.comment && r.when);
+  return withComment.length ? withComment[withComment.length - 1].comment : null;
+}
+
 /**
- * A deterministic 7×7 glyph standing in for the verification QR code. It is
- * derived from the voucher's own verification code, so it is stable per
- * voucher; the real code is printed beside it and is what actually verifies.
+ * A deterministic glyph standing in for the verification QR code, derived from
+ * the voucher's own code so it is stable per voucher. The code itself is
+ * printed beside it and is what actually verifies.
  */
 function VerificationGlyph({ seed }: { seed: string }) {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
 
-  const cells = Array.from({ length: 49 }, (_, i) => {
-    const corner = [0, 1, 2, 7, 8, 9, 14, 15, 16, 4, 5, 6, 11, 12, 13, 18, 19, 20, 28, 29, 30, 35, 36, 37, 42, 43, 44]
-      .includes(i);
-    return corner ? i % 3 !== 1 : ((hash >> (i % 30)) & 1) === 1;
-  });
+  const finder = new Set([0, 1, 2, 7, 8, 9, 14, 15, 16, 4, 5, 6, 11, 12, 13, 18, 19, 20, 28, 29, 30, 35, 36, 37, 42, 43, 44]);
+  const cells = Array.from({ length: 49 }, (_, i) =>
+    finder.has(i) ? i % 3 !== 1 : ((hash >> (i % 30)) & 1) === 1);
 
   return (
-    <div style={{
-      padding: 6, background: "#fff", border: `1px solid ${RULE}`, borderRadius: 8,
-      display: "grid", gridTemplateColumns: "repeat(7, 8px)", gridAutoRows: 8, gap: 2,
-    }} aria-hidden="true">
+    <div aria-hidden="true" style={{
+      padding: 4, background: "#fff", border: `1px solid ${RULE}`, borderRadius: 4,
+      display: "grid", gridTemplateColumns: "repeat(7, 5px)", gridAutoRows: 5, gap: 1.5,
+    }}>
       {cells.map((on, i) => (
-        <div key={i} style={{ width: 8, height: 8, background: on ? INK : "#fff", borderRadius: 1 }} />
+        <div key={i} style={{ width: 5, height: 5, background: on ? INK : "#fff" }} />
       ))}
     </div>
   );

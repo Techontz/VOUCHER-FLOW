@@ -19,6 +19,8 @@ String? _nested(dynamic parent, String key) {
   return value == null ? null : '$value';
 }
 
+bool _cap(dynamic caps, String key) => caps is Map && caps[key] == true;
+
 bool _stepCan(dynamic step, String capability) {
   if (step is! Map) return false;
   final caps = step['capabilities'];
@@ -61,6 +63,15 @@ class Company {
       currency = '${json['currency'] ?? 'TZS'}',
       locale = '${json['locale'] ?? 'en'}',
       logoUrl = _as<String>(json['logo_url']),
+      logoMarkUrl = _as<String>(json['logo_mark_url']),
+      legalName = _as<String>(json['legal_name']),
+      website = _as<String>(json['website']),
+      tin = _as<String>(json['tin']),
+      bankName = _as<String>(json['bank_name']),
+      bankAccountName = _as<String>(json['bank_account_name']),
+      bankAccountNumber = _as<String>(json['bank_account_number']),
+      bankBranch = _as<String>(json['bank_branch']),
+      voucherFooterText = _as<String>(json['voucher_footer_text']),
       primaryColor = '${json['primary_color'] ?? '#0088b0'}',
       status = '${json['status']}',
       isUsable = json['is_usable'] == true,
@@ -72,7 +83,9 @@ class Company {
 
   final int id;
   final String name, email, currency, locale, primaryColor, status;
-  final String? phone, address, logoUrl;
+  final String? phone, address, logoUrl, logoMarkUrl, legalName, website, tin;
+  final String? bankName, bankAccountName, bankAccountNumber, bankBranch;
+  final String? voucherFooterText;
   final bool isUsable, isExpired;
   final int? daysRemaining;
   final DateTime? trialEndsAt, currentPeriodEnd;
@@ -182,10 +195,14 @@ class TimelineEntry {
       comment = _as<String>(json['comment']),
       signature = _as<String>(json['signature']),
       capabilityText = '${json['capability_text'] ?? ''}',
+      capabilitySign = _cap(json['capabilities'], 'sign'),
+      capabilityApprove = _cap(json['capabilities'], 'approve'),
+      capabilityPay = _cap(json['capabilities'], 'pay'),
       state = '${json['state']}';
 
   final String name, sub, subSw, person, act, actSw, capabilityText, state;
   final String? nameSw, comment, signature, personTitle;
+  final bool capabilitySign, capabilityApprove, capabilityPay;
   final DateTime? when;
 
   String label(String locale) => locale == 'sw' ? (nameSw ?? name) : name;
@@ -245,6 +262,14 @@ class Voucher {
       paidAt = _toDate(json['paid_at']),
       paymentReference = _as<String>(json['payment_reference']),
       paidBy = _as<String>(json['paid_by']),
+      payeeBank = _as<String>(json['payee_bank']),
+      payeeAccountName = _as<String>(json['payee_account_name']),
+      payeeAccountNumber = _as<String>(json['payee_account_number']),
+      payeeBankBranch = _as<String>(json['payee_bank_branch']),
+      chequeNumber = _as<String>(json['cheque_number']),
+      cashFloat = _as<String>(json['cash_float']),
+      receivedBy = _as<String>(json['received_by']),
+      notesToApprover = _as<String>(json['notes_to_approver']),
       createdAt = _toDate(json['created_at']),
       voucherTypeId = _toInt(json['voucher_type_id']),
       voucherTypeLabel = _nested(json['voucher_type'], 'label'),
@@ -286,7 +311,15 @@ class Voucher {
       requesterName,
       currentStepName,
       paymentReference,
-      paidBy;
+      paidBy,
+      payeeBank,
+      payeeAccountName,
+      payeeAccountNumber,
+      payeeBankBranch,
+      chequeNumber,
+      cashFloat,
+      receivedBy,
+      notesToApprover;
   final double amount;
   final bool currentStepCanApprove, isEditable, isTerminal;
 
@@ -339,14 +372,17 @@ class DashboardData {
       stats = ((json['data'] as Map)['stats'] as List? ?? [])
           .map((e) => DashboardStat.fromJson(e as Map<String, dynamic>))
           .toList(),
-      queue = ((json['data'] as Map)['queue'] as List? ?? [])
+      queueTotalText = '${json['queue_total_text'] ?? ''}',
+      // The action queue is the payload's own, not a slice of the data block:
+      // a dashboard is what is on you, not what has happened.
+      queue = ((json['queue'] ?? (json['data'] as Map)['queue']) as List? ?? [])
           .map((e) => Voucher.fromJson(e as Map<String, dynamic>))
           .toList(),
       recent = ((json['data'] as Map)['recent'] as List? ?? [])
           .map((e) => Voucher.fromJson(e as Map<String, dynamic>))
           .toList();
 
-  final String greeting, role, headline, sub;
+  final String greeting, role, headline, sub, queueTotalText;
   final List<DashboardStat> stats;
   final List<Voucher> queue, recent;
 }

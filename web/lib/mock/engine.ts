@@ -346,3 +346,77 @@ export function pendingFor(db: MockDataset, user: MockUser): MockVoucher[] {
     return actions.sign || actions.submit_signed || actions.approve || actions.reject || actions.pay;
   });
 }
+
+/**
+ * What this user must personally do next.
+ *
+ * A dashboard is a queue of work, not a record of it. A voucher belongs here
+ * only while this user is the one holding it up; the moment they act, it moves
+ * to whoever is next and leaves this list. History lives in Reports.
+ */
+export function actionQueueFor(db: MockDataset, user: MockUser): MockVoucher[] {
+  if (user.role === "employee") {
+    // The requester's own move: finish a draft, or answer a request for changes.
+    return db.vouchers
+      .filter((v) => v.company_id === user.company_id
+        && v.requester_id === user.id
+        && (v.status === "draft" || v.status === "changes_requested"))
+      .sort((a, b) => b.voucher_date.localeCompare(a.voucher_date));
+  }
+
+  const queue = pendingFor(db, user);
+
+  if (user.role === "company_admin") {
+    // An administrator sits outside the route by default, so their queue is
+    // what the route itself has failed to move: anything idle too long.
+    return stalledVouchers(db, user);
+  }
+
+  // An approver may also have their own drafts waiting on them.
+  const mine = db.vouchers.filter((v) => v.company_id === user.company_id
+    && v.requester_id === user.id
+    && (v.status === "draft" || v.status === "changes_requested"));
+
+  return [...queue, ...mine.filter((m) => !queue.some((q) => q.id === m.id))];
+}
+
+/** How long a voucher has been sitting on its current step, in days. */
+export function idleDays(db: MockDataset, voucher: MockVoucher): number {
+  const events = db.approvals.filter((a) => a.voucher_id === voucher.id);
+  const last = events[events.length - 1];
+  const since = last?.acted_at ?? voucher.submitted_at ?? voucher.created_at;
+  return Math.floor((Date.now() - new Date(since).getTime()) / 86_400_000);
+}
+
+/** Open vouchers that have not moved in a while — the administrator's queue. */
+export function stalledVouchers(db: MockDataset, user: MockUser, thresholdDays = 3): MockVoucher[] {
+  return visibleVouchers(db, user)
+    .filter((v) => (v.status === "in_review" || v.status === "approved")
+      && idleDays(db, v) >= thresholdDays)
+    .sort((a, b) => idleDays(db, b) - idleDays(db, a));
+}
+
+/** Everything still moving through the route, for company-wide counters. */
+export function inFlight(db: MockDataset, user: MockUser): MockVoucher[] {
+  return visibleVouchers(db, user)
+    .filter((v) => v.status === "in_review" || v.status === "approved");
+}
+
+/**
+ * The departments a user may report on.
+ *
+ * An employee reports on nothing but their own work, a head on the departments
+ * they run, and a company-wide role on all of them.
+ */
+export function reportableDepartments(db: MockDataset, user: MockUser): number[] | "all" | "own" {
+  if (user.role === "employee") return "own";
+  if (user.role === "super_admin" || user.role === "company_admin") return "all";
+  if (user.role === "ceo" || user.role === "director" || user.role === "finance" || user.role === "cashier") return "all";
+
+  const headed = db.departments
+    .filter((d) => d.company_id === user.company_id
+      && (d.hod_user_id === user.id || d.manager_user_id === user.id))
+    .map((d) => d.id);
+
+  return headed.length ? headed : (user.department_id ? [user.department_id] : []);
+}

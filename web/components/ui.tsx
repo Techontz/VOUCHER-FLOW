@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/lib/app-context";
 
 /* ────────────────────────────────────────────────────────── icon ────────── */
@@ -385,5 +385,56 @@ export function Pagination({
         {t("next")} <Icon name="ph-caret-right" size={14} />
       </button>
     </div>
+  );
+}
+
+/**
+ * A collapsible secondary section.
+ *
+ * Attachments, comments, the timeline and the audit trail matter, but they are
+ * not the voucher — giving each a permanent slab pushes the document itself off
+ * the screen. They live here instead: one line each until asked for, and never
+ * printed.
+ */
+export function Disclosure({
+  title, count, icon, children, defaultOpen = false,
+}: {
+  title: string;
+  count?: number | null;
+  icon?: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section className="vf-panel no-print" style={{ overflow: "hidden" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%",
+          border: 0, background: "transparent", cursor: "pointer",
+          padding: "13px var(--space-4)", textAlign: "left",
+          fontFamily: "var(--font-body)", color: "var(--color-text)",
+        }}
+      >
+        {icon && <Icon name={icon} size={17} color="var(--color-neutral-600)" />}
+        <span style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>{title}</span>
+        {count != null && count > 0 && (
+          <span style={{
+            fontSize: 12, fontWeight: 600, minWidth: 20, textAlign: "center",
+            padding: "1px 7px", borderRadius: 999,
+            background: "var(--vf-elev-3)", color: "var(--color-neutral-700)",
+          }}>{count}</span>
+        )}
+        <Icon name={open ? "ph-caret-up" : "ph-caret-down"} size={15} color="var(--color-neutral-600)" />
+      </button>
+
+      <div hidden={!open} style={{ padding: "0 var(--space-4) var(--space-4)" }}>
+        {children}
+      </div>
+    </section>
   );
 }

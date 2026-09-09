@@ -25,6 +25,11 @@ export default function CreateVoucherPage() {
 
   const [form, setForm] = useState({
     kind: "bank" as "bank" | "cash",
+    payee_bank: "",
+    payee_account_name: "",
+    payee_account_number: "",
+    payee_bank_branch: "",
+    cash_float: "",
     voucher_type_id: 0,
     department_id: "",
     payee: "",
@@ -91,6 +96,13 @@ export default function CreateVoucherPage() {
     is_signed_at_current_step: false, is_editable: true, is_terminal: false,
     submitted_at: null, approved_at: null, rejected_at: null,
     paid_at: null, payment_reference: null, paid_by: null,
+    payee_bank: form.payee_bank || null,
+    payee_account_name: form.payee_account_name || null,
+    payee_account_number: form.payee_account_number || null,
+    payee_bank_branch: form.payee_bank_branch || null,
+    cheque_number: null,
+    cash_float: form.cash_float || null,
+    received_by: null,
     created_at: null, updated_at: null, timeline: [],
   }), [form, amountNumber, words, selectedType, departments, user, t]);
 
@@ -239,13 +251,74 @@ export default function CreateVoucherPage() {
               </Field>
             </div>
 
-            <Field
-              label={form.kind === "cash" ? "Cash float / reference" : t("accountRef")}
-              htmlFor="account_ref" error={fe("account_ref")}
-            >
+            <Field label={t("accountRef")} htmlFor="account_ref" error={fe("account_ref")}
+              hint="Invoice, quotation or receipt number">
               <input id="account_ref" className="input" value={form.account_ref} onChange={set("account_ref")}
-                placeholder={form.kind === "cash" ? "Petty cash float" : "Bank account or invoice number"} />
+                placeholder="INV-88213" />
             </Field>
+
+            {/* The two formats settle differently, so they ask for different
+                things. A bank voucher needs an account to pay into; a cash
+                voucher needs the float it comes out of. */}
+            {form.kind === "bank" ? (
+              <fieldset style={{
+                border: "1px solid var(--vf-line)", borderRadius: 14, padding: "var(--space-4)",
+                background: "var(--vf-elev-1)", margin: 0,
+              }}>
+                <legend style={{
+                  fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase",
+                  color: "var(--color-neutral-600)", padding: "0 6px",
+                }}>{t("payeeBankDetails")}</legend>
+
+                <div style={{ display: "grid", gap: "var(--space-3)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-3)" }}>
+                    <Field label={t("bank")} htmlFor="payee_bank">
+                      <input id="payee_bank" className="input" value={form.payee_bank}
+                        onChange={set("payee_bank")} placeholder="CRDB Bank" />
+                    </Field>
+                    <Field label={t("branch")} htmlFor="payee_bank_branch">
+                      <input id="payee_bank_branch" className="input" value={form.payee_bank_branch}
+                        onChange={set("payee_bank_branch")} placeholder="Tower Branch" />
+                    </Field>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-3)" }}>
+                    <Field label={t("accountName")} htmlFor="payee_account_name">
+                      <input id="payee_account_name" className="input" value={form.payee_account_name}
+                        onChange={set("payee_account_name")} placeholder={form.payee || "Account holder"} />
+                    </Field>
+                    <Field label={t("accountNo")} htmlFor="payee_account_number">
+                      <input id="payee_account_number" className="input" value={form.payee_account_number}
+                        onChange={set("payee_account_number")} style={{ fontVariantNumeric: "tabular-nums" }}
+                        placeholder="0150000000000" />
+                    </Field>
+                  </div>
+                  {company?.bank_account_number && (
+                    <Note>
+                      {t("drawnOn")}: {company.bank_name} · {company.bank_account_number}
+                      {company.bank_branch ? ` · ${company.bank_branch}` : ""}
+                    </Note>
+                  )}
+                </div>
+              </fieldset>
+            ) : (
+              <fieldset style={{
+                border: "1px solid var(--vf-line)", borderRadius: 14, padding: "var(--space-4)",
+                background: "var(--vf-elev-1)", margin: 0,
+              }}>
+                <legend style={{
+                  fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase",
+                  color: "var(--color-neutral-600)", padding: "0 6px",
+                }}>{t("cashDetails")}</legend>
+
+                <Field label={t("payFrom")} htmlFor="cash_float" hint="The float the notes come out of">
+                  <input id="cash_float" className="input" value={form.cash_float}
+                    onChange={set("cash_float")} placeholder="Kibada plant petty cash float" />
+                </Field>
+                <div style={{ marginTop: "var(--space-3)" }}>
+                  <Note>{t("cashReceiptNote")}</Note>
+                </div>
+              </fieldset>
+            )}
 
             <div>
               <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: 8 }}>

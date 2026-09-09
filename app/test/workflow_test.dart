@@ -38,7 +38,7 @@ void main() {
       api.handle(
         'POST',
         '/auth/login',
-        body: {'email': 'john@acme.test', 'password': 'wrong'},
+        body: {'email': 'frank@watercom.test', 'password': 'wrong'},
       ),
       throwsA(isA<ApiException>()),
     );
@@ -46,7 +46,7 @@ void main() {
 
   test('a full voucher runs employee → HOD → CEO → cashier', () async {
     // 1. The employee raises a cash voucher and submits it.
-    await signIn('john@acme.test');
+    await signIn('frank@watercom.test');
     final created =
         (await api.handle(
               'POST',
@@ -73,7 +73,7 @@ void main() {
     expect(voucher['status_label'], 'Awaiting HOD signature');
 
     // 2. The head of the requesting department signs. Procurement is Peter's.
-    await signIn('asha@acme.test');
+    await signIn('rehema@watercom.test');
     await expectLater(
       show(id),
       throwsA(
@@ -82,7 +82,7 @@ void main() {
       reason: 'a head of another department must not reach this voucher',
     );
 
-    await signIn('peter@acme.test');
+    await signIn('joseph@watercom.test');
     voucher = await show(id);
     final hodActions = voucher['actions'] as Map<String, dynamic>;
     expect(hodActions['sign'], isTrue);
@@ -100,7 +100,7 @@ void main() {
     expect(voucher['status_label'], 'Awaiting CEO approval');
 
     // 3. The CEO approves. The voucher is now the cashier's problem.
-    await signIn('daniel@acme.test');
+    await signIn('emmanuel@watercom.test');
     voucher = await show(id);
     expect((voucher['actions'] as Map)['approve'], isTrue);
     expect(
@@ -114,7 +114,7 @@ void main() {
     expect(voucher['status_label'], 'Approved — awaiting payment');
 
     // 4. The cashier releases the funds.
-    await signIn('fatuma@acme.test');
+    await signIn('mwajuma@watercom.test');
     voucher = await show(id);
     expect((voucher['actions'] as Map)['pay'], isTrue);
     expect((voucher['actions'] as Map)['approve'], isFalse);
@@ -132,7 +132,7 @@ void main() {
     expect(voucher['status'], 'paid');
     expect(voucher['status_label'], 'Paid & completed');
     expect(voucher['payment_reference'], 'PC-REL-9931');
-    expect(voucher['paid_by'], 'Fatuma Kalinga');
+    expect(voucher['paid_by'], 'Mwajuma Hamisi');
     expect(
       voucher['amount_in_words'],
       'Four hundred twelve thousand five hundred shillings only',
@@ -155,7 +155,7 @@ void main() {
   });
 
   test('an employee sees only their own vouchers', () async {
-    await signIn('john@acme.test');
+    await signIn('frank@watercom.test');
     final mine =
         (await api.handle(
               'GET',
@@ -165,13 +165,13 @@ void main() {
             as List;
     expect(mine, isNotEmpty);
     expect(
-      mine.every((v) => v['requester']['name'] == 'John Mwakyusa'),
+      mine.every((v) => v['requester']['name'] == 'Frank Kessy'),
       isTrue,
       reason: 'an employee register must contain nothing but their own work',
     );
 
     // Another employee's voucher is not reachable by id either.
-    await signIn('baraka@acme.test');
+    await signIn('baraka@watercom.test');
     final theirs =
         (await api.handle(
               'GET',
@@ -185,8 +185,55 @@ void main() {
     await expectLater(show(johnId), throwsA(isA<ApiException>()));
   });
 
+  test('a dashboard holds only what is on that person right now', () async {
+    // The employee's queue is their own unfinished work, never their history.
+    await signIn('frank@watercom.test');
+    final employee = await api.handle('GET', '/dashboard') as Map<String, dynamic>;
+    final employeeQueue = employee['queue'] as List;
+    expect(employeeQueue, isNotEmpty);
+    expect(
+      employeeQueue.every((v) =>
+          v['status'] == 'draft' || v['status'] == 'changes_requested'),
+      isTrue,
+      reason: 'a dashboard is what is on you, not what you have already sent',
+    );
+
+    // The head's queue is only what has actually reached their step.
+    await signIn('joseph@watercom.test');
+    final hod = await api.handle('GET', '/dashboard') as Map<String, dynamic>;
+    for (final v in hod['queue'] as List) {
+      final actions = v['actions'] as Map;
+      expect(
+        actions['sign'] == true ||
+            actions['submit_signed'] == true ||
+            actions['submit'] == true,
+        isTrue,
+        reason: 'nothing should sit in a queue its owner cannot act on',
+      );
+      expect(actions['approve'], isFalse,
+          reason: 'the HOD step signs only, wherever it appears');
+    }
+
+    // Acting on it takes it out of the queue.
+    final target = (hod['queue'] as List).first as Map<String, dynamic>;
+    final id = target['id'] as int;
+    await act(id, 'sign', {'use_saved_signature': true});
+    await act(id, 'submit-signed');
+    final after = await api.handle('GET', '/dashboard') as Map<String, dynamic>;
+    expect(
+      (after['queue'] as List).any((v) => v['id'] == id),
+      isFalse,
+      reason: 'once signed and sent on, it belongs to the next person',
+    );
+
+    // And it is now the approver's.
+    await signIn('emmanuel@watercom.test');
+    final ceo = await api.handle('GET', '/dashboard') as Map<String, dynamic>;
+    expect((ceo['queue'] as List).any((v) => v['id'] == id), isTrue);
+  });
+
   test('the cashier queue holds only approved and paid vouchers', () async {
-    await signIn('fatuma@acme.test');
+    await signIn('mwajuma@watercom.test');
     final rows =
         (await api.handle(
               'GET',
@@ -203,11 +250,11 @@ void main() {
 
     final dashboard =
         await api.handle('GET', '/dashboard') as Map<String, dynamic>;
-    expect(dashboard['data']['headline'], contains('awaiting payment'));
+    expect(dashboard['data']['headline'], contains('to pay'));
   });
 
   test('rejecting closes the voucher and notifies the requester', () async {
-    await signIn('daniel@acme.test');
+    await signIn('emmanuel@watercom.test');
     final queue =
         (await api.handle('GET', '/vouchers/pending'))['data'] as List;
     expect(queue, isNotEmpty);
@@ -216,8 +263,10 @@ void main() {
     final id = target['id'] as int;
     final requester = target['requester']['name'] as String;
     final requesterEmail = {
-      'John Mwakyusa': 'john@acme.test',
-      'Baraka Ndosi': 'baraka@acme.test',
+      'Frank Kessy': 'frank@watercom.test',
+      'Baraka Ndosi': 'baraka@watercom.test',
+      'Doreen Massawe': 'doreen@watercom.test',
+      'Gloria Mtei': 'gloria@watercom.test',
     }[requester]!;
 
     await expectLater(
@@ -244,7 +293,7 @@ void main() {
   test(
     'requesting changes returns the voucher to the requester as editable',
     () async {
-      await signIn('peter@acme.test');
+      await signIn('joseph@watercom.test');
       final queue =
           (await api.handle('GET', '/vouchers/pending'))['data'] as List;
       final id = queue.first['id'] as int;
@@ -253,7 +302,7 @@ void main() {
         'comment': 'Attach the supplier quotation before resubmitting.',
       });
 
-      await signIn('john@acme.test');
+      await signIn('frank@watercom.test');
       final voucher = await show(id);
       expect(voucher['status'], 'changes_requested');
       expect((voucher['actions'] as Map)['edit'], isTrue);

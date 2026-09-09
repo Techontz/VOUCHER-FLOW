@@ -397,3 +397,61 @@ class VfStatus {
     return _base(tag).withValues(alpha: .34);
   }
 }
+
+
+/// The printed document's palette and type.
+///
+/// The voucher is white with dark ink whatever appearance the interface is
+/// wearing, because it is a preview of a piece of paper. These are therefore
+/// literal colours, not theme tokens.
+class VfDoc {
+  const VfDoc._();
+
+  static const ink = Color(0xFF0B1220);
+  static const body = Color(0xFF33405A);
+  static const muted = Color(0xFF6B7789);
+  static const faint = Color(0xFF98A2B3);
+  static const rule = Color(0xFFE2E7EF);
+  static const wash = Color(0xFFF6F8FC);
+  static const paper = Color(0xFFFFFFFF);
+
+  static const label = TextStyle(
+    fontFamily: VfTheme.fontFamily,
+    fontSize: 7.5,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 1.1,
+    height: 1.4,
+    color: faint,
+  );
+
+  static const strong = TextStyle(
+    fontFamily: VfTheme.fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    height: 1.35,
+    color: ink,
+  );
+
+  static const bodyText = TextStyle(
+    fontFamily: VfTheme.fontFamily,
+    fontSize: 10,
+    height: 1.55,
+    color: body,
+  );
+
+  static const mutedStyle = TextStyle(
+    fontFamily: VfTheme.fontFamily,
+    fontSize: 9,
+    height: 1.45,
+    color: muted,
+  );
+
+  static const faintStyle = TextStyle(
+    fontFamily: VfTheme.fontFamily,
+    fontSize: 8.5,
+    height: 1.4,
+    color: faint,
+  );
+
+  // Convenience aliases so widgets read naturally.
+}

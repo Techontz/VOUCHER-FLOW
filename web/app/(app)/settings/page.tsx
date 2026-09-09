@@ -177,7 +177,7 @@ function WorkflowBuilder() {
       }>{current.name}</SectionTitle>
 
       <div style={{ margin: "0 0 var(--space-4)", maxWidth: "78ch" }}>
-        <Note>{t("isolationNote").replace("Acme Tanzania Ltd", company?.name ?? "this company")}</Note>
+        <Note>{t("isolationNote").replace("this company", company?.name ?? "this company")}</Note>
       </div>
 
       <div style={{ display: "grid", gap: "var(--space-3)" }}>

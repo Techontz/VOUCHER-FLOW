@@ -13,11 +13,11 @@ import { Field, Icon, Spinner } from "@/components/ui";
  * immediately — one per step of the default route, plus the two admin scopes.
  */
 const DEMO = [
-  { label: "Employee", person: "John Mwakyusa", email: "john@acme.test", icon: "ph-user", note: "raises vouchers, sees only their own" },
-  { label: "HOD", person: "Asha Mushi", email: "asha@acme.test", icon: "ph-signature", note: "reviews and signs — never approves" },
-  { label: "CEO", person: "Daniel Joseph", email: "daniel@acme.test", icon: "ph-seal-check", note: "approves or rejects — the final decision" },
-  { label: "Cashier", person: "Fatuma Kalinga", email: "fatuma@acme.test", icon: "ph-wallet", note: "releases the funds and records the reference" },
-  { label: "Company Admin", person: "Neema William", email: "admin@acme.test", icon: "ph-buildings", note: "runs Acme Tanzania Ltd" },
+  { label: "Employee", person: "Frank Kessy", email: "frank@watercom.test", icon: "ph-user", note: "raises vouchers, sees only their own" },
+  { label: "HOD", person: "Joseph Mrisho", email: "joseph@watercom.test", icon: "ph-signature", note: "reviews and signs — never approves" },
+  { label: "Managing Director", person: "Emmanuel Massawe", email: "emmanuel@watercom.test", icon: "ph-seal-check", note: "approves or rejects — the final decision" },
+  { label: "Cashier", person: "Mwajuma Hamisi", email: "mwajuma@watercom.test", icon: "ph-wallet", note: "releases the funds and records the reference" },
+  { label: "Company Admin", person: "Neema Shirima", email: "admin@watercom.test", icon: "ph-buildings", note: "runs Watercom (T) Limited" },
   { label: "Super Admin", person: "Grace Kimaro", email: "super@vouchflow.test", icon: "ph-globe-hemisphere-east", note: "runs the platform" },
 ];
 

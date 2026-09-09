@@ -16,21 +16,15 @@ class LoginController extends GetxController {
   final obscure = true.obs;
 
   /// One account per step of the default route, plus the administrator.
+  /// One account per step of the default route, plus the administrator.
   static const demoAccounts = [
-    (
-      'Employee · John',
-      'john@acme.test',
-      'raises vouchers, sees only their own',
-    ),
-    ('HOD · Peter', 'peter@acme.test', 'reviews and signs — never approves'),
-    ('CEO · Daniel', 'daniel@acme.test', 'approves or rejects — the final say'),
-    (
-      'Cashier · Fatuma',
-      'fatuma@acme.test',
-      'releases the funds, records the reference',
-    ),
-    ('Administrator · Neema', 'admin@acme.test', 'runs Acme Tanzania Ltd'),
+    ('Employee · Frank', 'frank@watercom.test', 'raises vouchers, sees only their own'),
+    ('HOD · Joseph', 'joseph@watercom.test', 'reviews and signs — never approves'),
+    ('MD · Emmanuel', 'emmanuel@watercom.test', 'approves or rejects — the final say'),
+    ('Cashier · Mwajuma', 'mwajuma@watercom.test', 'releases the funds, records the reference'),
+    ('Administrator · Neema', 'admin@watercom.test', 'runs Watercom (T) Limited'),
   ];
+
 
   void useDemo(String address) {
     email.text = address;
