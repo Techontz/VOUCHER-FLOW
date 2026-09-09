@@ -62,8 +62,11 @@
   --radius-md: 12px;
   --radius-lg: 18px;
 
-  --space-1: 5px; --space-2: 10px; --space-3: 15px;
-  --space-4: 20px; --space-6: 30px; --space-8: 40px;
+  /* A complete 5px scale. The gaps skipped here were still being asked for by
+     name in seven places, where the whole declaration was dropped as invalid
+     and the spacing silently collapsed to nothing. */
+  --space-1: 5px; --space-2: 10px; --space-3: 15px; --space-4: 20px;
+  --space-5: 25px; --space-6: 30px; --space-7: 35px; --space-8: 40px;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
   --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, .65);
@@ -352,6 +355,17 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent-5
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
   gap: 14px;
+}
+/* Two to a row on a phone. Four full-width blocks turn the top of a dashboard
+   into a scroll, and these numbers are short enough to sit side by side. */
+@media (max-width: 620px) {
+  .vf-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .vf-kpi { padding: 13px 13px 12px; border-radius: 14px; }
+  .vf-kpi::after { left: 13px; right: 13px; }
+  .vf-kpi-top { gap: 7px; margin-bottom: 7px; }
+  .vf-kpi-icon { width: 24px; height: 24px; border-radius: 7px; }
+  .vf-kpi-label { font-size: 10.5px; letter-spacing: .04em; }
+  .vf-kpi-value { font-size: 24px; }
 }
 .vf-kpi {
   position: relative; overflow: hidden;

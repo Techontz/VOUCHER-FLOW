@@ -28,6 +28,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const items = useMemo(() => (user ? navFor(user.role) : []), [user]);
   const tabs = useMemo(() => (user ? mobileNavFor(user.role) : []), [user]);
 
+  /**
+   * Exactly one entry is ever current, in each menu.
+   *
+   * "Create voucher" lives at /vouchers/new, which is a route *beneath*
+   * /vouchers — so a plain prefix test lights both rows at once. The deepest
+   * href that still covers the current path is the one the user is on.
+   *
+   * The two menus resolve separately, because they hold different sets: the
+   * tab bar has no /vouchers/new slot, so on the create screen it falls back
+   * to /vouchers and still shows where you are rather than going blank.
+   */
+  const deepest = (hrefs: string[]) => hrefs
+    .filter((h) => pathname === h || pathname.startsWith(h + "/"))
+    .sort((a, b) => b.length - a.length)[0] ?? null;
+
+  const currentHref = useMemo(() => deepest(items.map((i) => i.href)), [items, pathname]);
+  const currentTab = useMemo(() => deepest(tabs.map((i) => i.href)), [tabs, pathname]);
+
   useEffect(() => {
     if (!user) return;
     api.get<{ data: Voucher[] }>("/vouchers/pending")
@@ -65,8 +83,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       : item.badge === "payments" ? (payCount || null)
       : item.badge === "notifications" ? (unread || null) : null;
 
-  const active = (href: string) =>
-    href === "/dashboard" ? pathname === href : pathname === href || pathname.startsWith(href + "/");
+  const active = (href: string) => href === currentHref;
+  const activeTab = (href: string) => href === currentTab;
 
   const tenantLine = user.role === "super_admin"
     ? "Platform"
@@ -89,7 +107,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               : (user.role === "super_admin" ? "V" : (company?.name ?? "V").trim().charAt(0).toUpperCase())}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 15.5, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {/* Two lines before an ellipsis: a tenant's own name is the last
+                thing that should be cut off inside its own workspace. */}
+            <div style={{
+              fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 14.5, lineHeight: 1.2,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            }}>
               {user.role === "super_admin" ? "VouchFlow Platform" : company?.name ?? "VouchFlow"}
             </div>
             <div style={{ fontSize: 12, color: "var(--color-neutral-600)", textTransform: "capitalize" }}>{tenantLine}</div>
@@ -182,7 +205,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <nav className="vf-tabbar no-print" aria-label="Primary">
         {tabs.map((item) => (
-          <Link key={item.href} href={item.href} aria-current={active(item.href) ? "page" : undefined}>
+          <Link key={item.href} href={item.href} aria-current={activeTab(item.href) ? "page" : undefined}>
             <span style={{ position: "relative" }}>
               <Icon name={item.icon} size={20} />
               {badgeFor(item) ? (

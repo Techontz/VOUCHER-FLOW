@@ -59,6 +59,12 @@ function MetaCell({ term, value, sub }: { term: string; value: string; sub?: str
  * The authorisation band closes the page: who prepared, signed, approved and
  * paid, each with their mark.
  */
+/**
+ * A voucher that has no figure on it yet shows a blank rule, the way a paper
+ * form does — never a printed nil, which reads as a decision to pay nothing.
+ */
+const figure = (n: number) => (n > 0 ? Math.round(n).toLocaleString("en-US") : "\u2014");
+
 export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: Company | null }) {
   const { t, locale } = useApp();
   const rows = voucher.timeline ?? [];
@@ -214,7 +220,7 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
                   padding: "8px 9px", borderBottom: `1px solid ${RULE}`, textAlign: "right",
                   fontSize: 12, fontWeight: 600, color: INK, fontVariantNumeric: "tabular-nums",
                 }}>
-                  {Math.round(voucher.amount).toLocaleString("en-US")}
+                  {figure(voucher.amount)}
                 </td>
               </tr>
 
@@ -235,7 +241,7 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
                   padding: "9px 9px", borderTop: `2px solid ${INK}`, textAlign: "right",
                   fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15,
                   letterSpacing: "-.02em", color: INK, fontVariantNumeric: "tabular-nums",
-                }}>{Math.round(voucher.amount).toLocaleString("en-US")}</td>
+                }}>{figure(voucher.amount)}</td>
               </tr>
             </tfoot>
           </table>
@@ -246,7 +252,7 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
           }}>
             <span style={{ ...label, fontSize: 7 }}>{t("amountWords")}</span>
             <div style={{ fontSize: 10.5, fontStyle: "italic", color: INK, marginTop: 1 }}>
-              {voucher.amount_in_words ?? money(voucher.amount, voucher.currency)}
+              {voucher.amount > 0 ? (voucher.amount_in_words ?? money(voucher.amount, voucher.currency)) : "\u2014"}
             </div>
           </div>
         </div>
@@ -263,7 +269,7 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
             }}>{t("paymentParticulars")}</div>
 
             <div style={{ padding: "2px 10px 8px" }}>
-              <Particular term={t("amount")} value={voucher.amount_text} strong />
+              <Particular term={t("amount")} value={voucher.amount > 0 ? voucher.amount_text : "\u2014"} strong />
               <Particular term={t("currency")} value={voucher.currency} />
               <Particular term={t("paymentMethod")} value={voucher.payment_method ?? (isCash ? t("cash") : t("bank"))} />
               <Particular term={t("voucherType")} value={voucher.voucher_type?.label ?? "—"} />
