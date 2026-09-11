@@ -736,11 +736,19 @@ Future<void> _recordPayment(
   Voucher voucher,
 ) async {
   final reference = TextEditingController();
+  final receivedBy = TextEditingController();
   final comment = TextEditingController();
   final method = (voucher.isCash ? 'Cash — office float' : 'Bank transfer').obs;
   final ready = false.obs;
 
-  reference.addListener(() => ready.value = reference.text.trim().isNotEmpty);
+  // A cash voucher has no transfer reference to quote; what it has is a person
+  // who took the notes. Each format gates on the field it can actually supply.
+  void revalidate() => ready.value = voucher.isCash
+      ? receivedBy.text.trim().isNotEmpty
+      : reference.text.trim().isNotEmpty;
+
+  reference.addListener(revalidate);
+  receivedBy.addListener(revalidate);
 
   final methods = voucher.isCash
       ? const ['Cash — office float', 'Cash — branch float']
@@ -749,7 +757,7 @@ Future<void> _recordPayment(
   await Get.bottomSheet<void>(
     isScrollControlled: true,
     _SheetScope(
-      onDispose: [reference.dispose, comment.dispose],
+      onDispose: [reference.dispose, receivedBy.dispose, comment.dispose],
       child: SafeArea(
         child: Padding(
           padding: EdgeInsets.only(
@@ -808,15 +816,32 @@ Future<void> _recordPayment(
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: reference,
-                  decoration: InputDecoration(
-                    labelText: voucher.isCash
-                        ? 'pay.reference'.tr
-                        : 'pay.cheque'.tr,
-                    hintText: voucher.isCash ? 'PC-REL-4471' : 'TRF-2026-4471',
+                if (voucher.isCash)
+                  TextField(
+                    controller: receivedBy,
+                    decoration: InputDecoration(
+                      labelText: 'pay.receivedBy'.tr,
+                      hintText: voucher.payee,
+                    ),
+                  )
+                else
+                  Obx(
+                    () => TextField(
+                      controller: reference,
+                      decoration: InputDecoration(
+                        // The label follows the METHOD, not the format: only a
+                        // cheque has a cheque number.
+                        labelText:
+                            method.value.toLowerCase().contains('cheque')
+                            ? 'pay.cheque'.tr
+                            : 'pay.reference'.tr,
+                        hintText:
+                            method.value.toLowerCase().contains('cheque')
+                            ? '004471'
+                            : 'CRDB-TRX-8841207',
+                      ),
+                    ),
                   ),
-                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: comment,
@@ -847,8 +872,10 @@ Future<void> _recordPayment(
                                   controller.run(
                                     () => controller.repo.pay(
                                       voucher.id,
-                                      reference: reference.text.trim(),
+                                      isCash: voucher.isCash,
                                       method: method.value,
+                                      reference: reference.text.trim(),
+                                      receivedBy: receivedBy.text.trim(),
                                       comment: comment.text.trim().isEmpty
                                           ? null
                                           : comment.text.trim(),

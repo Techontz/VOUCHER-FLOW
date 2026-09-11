@@ -71,7 +71,7 @@ class DashboardController extends Controller
         // The employee's own move: finish a draft, or answer a request for
         // changes. A voucher they have submitted is with someone else and is
         // deliberately not here — they can follow it in Reports.
-        $queue = Voucher::with(['requester', 'department', 'voucherType', 'workflow.steps'])
+        $queue = Voucher::with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
             ->where('requester_id', $user->id)
             ->whereIn('status', [Voucher::STATUS_DRAFT, Voucher::STATUS_CHANGES_REQUESTED])
             ->orderByDesc('voucher_date')->orderByDesc('id')
@@ -108,7 +108,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $queue = Voucher::query()->with(['requester', 'department', 'voucherType', 'workflow.steps']);
+        $queue = Voucher::query()->with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps']);
         $this->visibility->pendingFor($queue, $user);
         $pending = $this->visibility->actionableOnly($queue->orderBy('submitted_at')->get(), $user);
 
@@ -172,7 +172,7 @@ class DashboardController extends Controller
         $user = $request->user();
         $engine = app(\App\Services\WorkflowEngine::class);
 
-        $query = Voucher::with(['requester', 'department', 'voucherType', 'workflow.steps'])
+        $query = Voucher::with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
             ->awaitingPayment();
         $this->visibility->apply($query, $user);
 
@@ -230,7 +230,7 @@ class DashboardController extends Controller
         // register, and they already have one. What actually needs them is what
         // has STOPPED: vouchers sitting on the same step long enough that
         // someone has to go and unblock them.
-        $stalled = Voucher::with(['requester', 'department', 'voucherType', 'workflow.steps'])
+        $stalled = Voucher::with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
             ->where('status', Voucher::STATUS_IN_REVIEW)
             ->where(fn ($q) => $q
                 ->where('updated_at', '<=', now()->subDays(self::STALL_DAYS))

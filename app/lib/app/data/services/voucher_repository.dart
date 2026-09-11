@@ -99,15 +99,29 @@ class VoucherRepository {
       act(id, 'request-changes', body: {'comment': comment});
 
   /// Releases the funds and records the reference against the voucher.
+  /// Records the release of money.
+  ///
+  /// The two formats settle differently: a transfer is reconciled against its
+  /// reference, cash is acknowledged by whoever took it. Each sends only what
+  /// it has, which is exactly what the API requires of it.
   Future<Voucher> pay(
     int id, {
-    required String reference,
+    required bool isCash,
     required String method,
+    String? reference,
+    String? receivedBy,
     String? comment,
   }) => act(
     id,
     'pay',
-    body: {'reference': reference, 'method': method, 'comment': comment},
+    body: {
+      'payment_method': method,
+      if (isCash) 'received_by': receivedBy,
+      if (!isCash) 'payment_reference': reference,
+      if (!isCash && method.toLowerCase().contains('cheque'))
+        'cheque_number': reference,
+      'note': comment,
+    },
   );
 
   Future<void> comment(int id, String body) =>

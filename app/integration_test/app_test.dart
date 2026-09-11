@@ -141,7 +141,9 @@ void main() {
       await settle(tester, 2000);
 
       await signIn(tester, 'mwajuma@watercom.test');
-      await tester.tap(find.byIcon(Icons.account_balance_wallet_outlined).last);
+      // No navigation: a cashier's home IS the payment queue. Tapping the
+      // wallet icon here used to open a voucher instead — the card carries the
+      // same icon as the tab, and `.last` picked the card.
       await settle(tester, 1400);
 
       final due = find.textContaining('Approved — awaiting payment');
@@ -160,10 +162,10 @@ void main() {
       await tester.tap(payButton);
       await settle(tester, 1400);
 
-      // The label follows the format: a reference for cash, a cheque or
-      // transfer number for a bank voucher.
+      // The label follows the payment METHOD for a bank voucher, and a cash
+      // voucher is asked who received the money instead.
       expect(
-        find.textContaining(RegExp('Payment reference|Cheque / transfer no.')),
+        find.textContaining(RegExp('Payment reference|Cheque number|Received by')),
         findsWidgets,
       );
       await tester.enterText(find.byType(TextField).first, 'TRF-2026-9001');

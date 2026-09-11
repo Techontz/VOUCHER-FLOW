@@ -184,7 +184,7 @@ class ReportController extends Controller
 
     private function scopedVouchers(Request $request)
     {
-        $query = Voucher::query()->with(['requester', 'department', 'voucherType', 'workflow.steps']);
+        $query = Voucher::query()->with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps']);
 
         $this->visibility->apply($query, $request->user());
 

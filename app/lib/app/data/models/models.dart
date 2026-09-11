@@ -261,7 +261,8 @@ class Voucher {
       approvedAt = _toDate(json['approved_at']),
       paidAt = _toDate(json['paid_at']),
       paymentReference = _as<String>(json['payment_reference']),
-      paidBy = _as<String>(json['paid_by']),
+      // The API sends the payer as an object, not a name.
+      paidBy = _nested(json['paid_by'], 'name'),
       payeeBank = _as<String>(json['payee_bank']),
       payeeAccountName = _as<String>(json['payee_account_name']),
       payeeAccountNumber = _as<String>(json['payee_account_number']),

@@ -169,16 +169,12 @@ class AuthorisationBlock extends StatelessWidget {
                               reference: reference,
                               scale: .74,
                             ),
-                          if (bytes == null && stamp == null)
-                            Text(
-                              name!,
-                              style: const TextStyle(
-                                fontFamily: VfTheme.fontFamily,
-                                fontStyle: FontStyle.italic,
-                                fontSize: 15,
-                                color: VfDoc.ink,
-                              ),
-                            ),
+                          // No mark and no pen stroke means this column records
+                          // authorship rather than assent — "Prepared by" is a
+                          // name, not a signature. Setting it in an italic face
+                          // here made it read as one, and repeated the name the
+                          // footer already carries.
+
                         ],
                       ),
                     )

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/session_service.dart';
@@ -230,7 +231,8 @@ class LoginPage extends GetView<LoginController> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Password for every demo account: Password123!  ·  This prototype runs on local demo data.',
+                    'Password for every demo account: Password123!'
+                    '${VfConfig.useMock ? '  ·  Running on local demo data.' : ''}',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],

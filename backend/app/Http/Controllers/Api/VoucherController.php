@@ -67,7 +67,7 @@ class VoucherController extends Controller
         $user = $request->user();
 
         $query = Voucher::query()
-            ->with(['requester', 'department', 'voucherType', 'workflow.steps'])
+            ->with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
             ->withCount('attachments');
 
         $this->visibility->pendingFor($query, $user);
@@ -291,7 +291,7 @@ class VoucherController extends Controller
         $user = $request->user();
 
         $query = Voucher::query()
-            ->with(['requester', 'department', 'voucherType', 'workflow.steps'])
+            ->with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
             ->withCount('attachments')
             ->awaitingPayment()
             ->kind($request->query('kind'));
@@ -352,7 +352,7 @@ class VoucherController extends Controller
         $user = $request->user();
 
         $query = Voucher::query()
-            ->with(['requester', 'department', 'voucherType', 'workflow.steps'])
+            ->with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
             ->withCount(['attachments', 'comments']);
 
         $scope = $request->query('scope', 'all');
@@ -424,7 +424,7 @@ class VoucherController extends Controller
     private function respond(Request $request, Voucher $voucher, int $status = 200)
     {
         $voucher->load([
-            'requester', 'department', 'voucherType', 'workflow.steps',
+            'requester', 'department', 'voucherType', 'paidBy', 'workflow.steps',
             'approvals.actor', 'attachments', 'comments.user',
         ])->loadCount(['attachments', 'comments']);
 
