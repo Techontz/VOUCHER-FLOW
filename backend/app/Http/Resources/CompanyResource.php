@@ -14,25 +14,41 @@ class CompanyResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'legal_name' => $this->legal_name,
+            'trading_name' => $this->trading_name,
+            'document_name' => $this->documentName(),
+            'initials' => $this->initials(),
+
             'email' => $this->email,
             'phone' => $this->phone,
-            'address' => $this->address,
+            'alternative_phone' => $this->alternative_phone,
             'website' => $this->website,
+
+            'address' => $this->address,
+            'postal_address' => $this->postal_address,
+            'city' => $this->city,
+            'region' => $this->region,
             'country' => $this->country,
+
+            'tin' => $this->tin,
+            'registration_number' => $this->registration_number,
+            'business_license_number' => $this->business_license_number,
+
+            'contact_person' => $this->contact_person,
+            'contact_email' => $this->contact_email,
+            'contact_phone' => $this->contact_phone,
+
             'currency' => $this->currency,
             'locale' => $this->locale,
             'timezone' => $this->timezone,
 
-            'tin' => $this->tin,
-            'registration_number' => $this->registration_number,
+            // Resolved through the model, so a path whose file was never
+            // published reads as "no logo" rather than a broken image.
+            'logo_url' => $this->logoUrl(),
+            'logo_mark_url' => $this->logoMarkUrl(),
+            'has_logo' => $this->logoUrl() !== null,
 
-            'logo_url' => $this->logo_path ? asset('storage/'.$this->logo_path) : null,
-            // The square mark, for avatars and favicons. Falls back to the
-            // lockup so a tenant that has uploaded only one still renders.
-            'logo_mark_url' => $this->logo_mark_path
-                ? asset('storage/'.$this->logo_mark_path)
-                : ($this->logo_path ? asset('storage/'.$this->logo_path) : null),
             'primary_color' => $this->primary_color,
+            'secondary_color' => $this->secondary_color,
             'accent_color' => $this->accent_color,
             'theme' => $this->theme,
             'voucher_header_text' => $this->voucher_header_text,
@@ -42,6 +58,7 @@ class CompanyResource extends JsonResource
             'bank_account_name' => $this->bank_account_name,
             'bank_account_number' => $this->bank_account_number,
             'bank_branch' => $this->bank_branch,
+            'swift_code' => $this->swift_code,
 
             'status' => $this->status,
             'is_usable' => $this->isUsable(),

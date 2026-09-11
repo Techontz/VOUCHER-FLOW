@@ -101,9 +101,13 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
     });
 
     /* ------------------------------------------------------ company & people */
+    // The caller's own company. Which company that is comes from the
+    // authenticated user, never from the request.
     Route::get('company', [CompanyController::class, 'show']);
-    Route::put('company', [CompanyController::class, 'update']);
+    Route::match(['put', 'patch'], 'company', [CompanyController::class, 'update']);
     Route::post('company/branding', [CompanyController::class, 'updateBranding']);
+    Route::post('company/logo', [CompanyController::class, 'storeLogo']);
+    Route::delete('company/logo', [CompanyController::class, 'destroyLogo']);
     Route::get('company/usage', [CompanyController::class, 'usage']);
 
     Route::get('directory', [EmployeeController::class, 'directory']);
@@ -155,6 +159,9 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
         Route::post('companies/{company}/suspend', [Platform\CompanyController::class, 'suspend']);
         Route::post('companies/{company}/activate', [Platform\CompanyController::class, 'activate']);
         Route::post('companies/{company}/change-plan', [Platform\CompanyController::class, 'changePlan']);
+        Route::post('companies/{company}/branding', [Platform\CompanyController::class, 'updateBranding']);
+        Route::post('companies/{company}/logo', [Platform\CompanyController::class, 'storeLogo']);
+        Route::delete('companies/{company}/logo', [Platform\CompanyController::class, 'destroyLogo']);
 
         Route::apiResource('plans', Platform\PlanController::class)->except(['show']);
 

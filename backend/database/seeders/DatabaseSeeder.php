@@ -26,7 +26,14 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        if (filter_var(env('SEED_DEMO', true), FILTER_VALIDATE_BOOL)) {
+        // Demo tenants are for local work and demonstrations. The default
+        // follows the environment rather than being `true` everywhere: a
+        // production deploy that runs db:seed should get the plans and the
+        // platform operator, and NOT three fictional companies. Setting
+        // SEED_DEMO=true explicitly still opts in anywhere.
+        $demoByDefault = app()->environment(['local', 'testing', 'development']);
+
+        if (filter_var(env('SEED_DEMO', $demoByDefault), FILTER_VALIDATE_BOOL)) {
             $this->call(DemoSeeder::class);
         }
     }

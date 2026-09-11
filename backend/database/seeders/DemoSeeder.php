@@ -10,6 +10,7 @@ use App\Models\Voucher;
 use App\Models\VoucherComment;
 use App\Models\VoucherType;
 use App\Services\AmountFormatter;
+use App\Services\CompanyBranding;
 use App\Services\CompanyProvisioner;
 use App\Services\PaymentGateway;
 use App\Services\VoucherNumberGenerator;
@@ -81,17 +82,30 @@ class DemoSeeder extends Seeder
             // this is one tenant's configuration, not the product's identity.
             $company->forceFill([
                 'status' => 'active',
+                'trading_name' => 'Watercom',
                 'tin' => '109-482-771',
-                'primary_color' => '#2E3192',
+                'registration_number' => '128 471 992',
+                'alternative_phone' => '+255 754 640 831',
+                'postal_address' => 'P.O. Box 20831, Dar es Salaam',
+                'city' => 'Dar es Salaam',
+                'region' => 'Kisarawe II, Kibada',
+                'contact_person' => 'Neema Shirima',
+                'contact_email' => 'info@watercom.co.tz',
+                'contact_phone' => '+255 22 264 0831',
+                'primary_color' => '#001C94',
+                'secondary_color' => '#2E3192',
                 'accent_color' => '#22a7e8',
-                'logo_path' => 'demo/watercom-logo.png',
-                'logo_mark_path' => 'demo/watercom-mark.png',
                 'bank_name' => 'CRDB Bank',
                 'bank_account_name' => 'WATERCOM T LIMITED',
                 'bank_account_number' => '0250390569500',
                 'bank_branch' => 'Tower Branch',
                 'voucher_footer_text' => 'This voucher is computer generated and valid without a wet stamp. Retain the original for audit.',
             ])->save();
+
+            // Artwork goes through the same service an upload uses, so seeded
+            // branding and uploaded branding are indistinguishable afterwards —
+            // same directory, same random filename, same columns.
+            $this->publishBrandAssets($company);
 
             if ($plan) {
                 $subscription = $this->payments->subscribe($company, $plan, 'monthly');
@@ -146,7 +160,6 @@ class DemoSeeder extends Seeder
 
             $admin->update(['department_id' => $departments['Human Resources']->id]);
 
-            $this->publishBrandAssets();
             $this->makeVouchers($company, $people, $departments, $admin);
 
             return $company->fresh();
@@ -154,21 +167,29 @@ class DemoSeeder extends Seeder
     }
 
     /**
-     * Copies the demo tenant's artwork onto the public disk.
+     * Publishes the demo tenant's real artwork.
      *
-     * A company's logo normally arrives through the Branding screen and lands
-     * here as an upload; the seeder puts the demo one in the same place so the
-     * path stored on the company row means the same thing either way.
+     * The files under database/seeders/assets are the ACTUAL supplied Watercom
+     * lockup, byte for byte, plus a square mark cropped out of it — never a
+     * redrawn approximation. They are stored through CompanyBranding so the
+     * demo company's logo lives exactly where an uploaded one would, under a
+     * per-tenant prefix with a random filename.
      */
-    private function publishBrandAssets(): void
+    private function publishBrandAssets(Company $company): void
     {
-        foreach (['watercom-logo.png', 'watercom-mark.png'] as $file) {
-            $source = database_path('seeders/assets/'.$file);
+        $branding = app(CompanyBranding::class);
 
-            if (is_file($source)) {
-                Storage::disk('public')->put('demo/'.$file, file_get_contents($source));
-            }
-        }
+        $branding->publishFile(
+            $company,
+            database_path('seeders/assets/watercom-logo.png'),
+            CompanyBranding::SLOT_LOGO,
+        );
+
+        $branding->publishFile(
+            $company,
+            database_path('seeders/assets/watercom-mark.png'),
+            CompanyBranding::SLOT_MARK,
+        );
     }
 
     /**
