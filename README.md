@@ -4,309 +4,269 @@ A multi-tenant voucher approval SaaS. Employees raise vouchers; each company's o
 approval route carries them through signing, approval and payment to a print-ready
 A4 document, with every signature, comment and timestamp on the record.
 
-Built from the VouchFlow v2 design as the UI source of truth.
-
 ```
+backend/   Laravel 13 · Sanctum · MySQL    the system of record
 web/       Next.js 16 (App Router) · TS    responsive web client
 app/       Flutter · GetX                  mobile client
-backend/   Laravel 13 API · MySQL          the system of record (Phase 2)
 design/    the v2 design file              the UI/UX source of truth
 ```
 
----
+Both clients talk to the **same** Laravel API, the same accounts and the same
+database. There is no second backend.
 
-## Phase 1 — the frontend prototype
-
-**Both clients currently run entirely on local mock data. Nothing is connected to
-Laravel, MySQL, a payment provider or any other service.** Every screen and every
-workflow is live and interactive; the data simply lives in the browser tab (web)
-or in memory (mobile) instead of on a server.
-
-This is deliberate: the prototype exists to be shown and approved before backend
-integration begins.
-
-### How the seam is drawn
-
-The mock is a *transport*, not a fake sprinkled through the UI. No component,
-controller or model knows it exists.
-
-| | web | mobile |
-| --- | --- | --- |
-| Public surface | `api.get / post / put / delete` in `web/lib/api.ts` | `ApiService.get / post / put / delete` |
-| Phase 1 transport | `web/lib/mock/router.ts` | `app/lib/app/data/mock/mock_api.dart` |
-| Switch to live | `NEXT_PUBLIC_API_MODE=live` | `--dart-define=API_MODE=live` |
-
-The mock answers **the same paths, verbs and JSON shapes** the Laravel API serves
-(`GET /vouchers`, `POST /vouchers/{id}/sign`, `POST /vouchers/{id}/pay`, …). Phase 2
-is therefore a transport swap and a base URL — not a UI rewrite.
-
-Two things are honestly absent rather than faked, because they are produced
-server-side: **file upload** and **server-generated PDF/Excel exports**. In their
-place the prototype prints the real A4 sheet through the browser (which is also
-how a reader saves it as a PDF) and builds report CSVs from the report on screen.
-
-### Running the prototype
-
-```sh
-cd web && npm install && npm run dev     # http://localhost:3000
-cd app && flutter pub get && flutter run
 ```
-
-No database, no API, no configuration.
-
-### Demo accounts
-
-Password for all of them: `Password123!`
-
-| Role | Email | What they can do |
-| --- | --- | --- |
-| Employee | `frank@watercom.test` | Raises vouchers; sees **only their own** (Procurement) |
-| Employee | `baraka@watercom.test` | The same, for Transport & Logistics |
-| HOD | `joseph@watercom.test` | Reviews and **signs** — never approves (Procurement, Production) |
-| HOD | `salum@watercom.test` | The same, for Transport & Logistics and Sales |
-| HOD | `anna@watercom.test` | The same, for Human Resources |
-| Managing Director | `emmanuel@watercom.test` | Approves or rejects — the final decision |
-| Cashier | `mwajuma@watercom.test` | Releases the funds and records the reference |
-| Company Admin | `admin@watercom.test` | Runs Watercom (T) Limited end to end |
-| Super Admin | `super@vouchflow.test` | Runs the platform, across all companies |
-
-The first tenant is **Watercom (T) Limited**, a beverage manufacturer, carrying
-its own logo, letterhead, banking details and colour. None of that is baked into
-the platform — it is what a company fills in under Branding, and the printed
-voucher picks it up automatically. Two further tenants are seeded: one on a
-four-step route with Finance between the HOD and the CEO, and one on an expiring
-trial, so per-company workflows and the renewal path are both visible.
-
-To start over from the seeded data, sign out and clear the site's storage; the web
-client keeps its state under `vouchflow.mock.v2` in `localStorage`.
+Next.js  ─┐
+          ├─→  Laravel REST API  ─→  MySQL (one database, many tenants)
+Flutter  ─┘
+```
 
 ---
 
----
+## Running the whole system locally
 
-## A dashboard is an action queue
-
-Every dashboard shows one thing: the work that is on that person right now.
-
-When a user acts, the voucher moves to whoever is next in the route and **leaves
-their dashboard**. An employee's queue is their own drafts and returns; a head
-of department's is what has actually reached their step; the cashier's is what is
-approved and unpaid; an administrator's is whatever has stalled. Completed work
-never sits on a dashboard — it is found through Reports, which are themselves
-scoped to what the caller may see.
-
-```
-Employee submits  → leaves the employee's dashboard, appears for the HOD
-HOD signs & sends → leaves the HOD's dashboard, appears for the CEO
-CEO approves      → leaves the CEO's dashboard, appears for the Cashier
-Cashier pays      → leaves the Cashier's dashboard, available in Reports
-```
-
-## Reports are permission-aware
-
-Reports are where history lives, so they are also where permission matters most.
-
-| Role | Sees | Report set |
-| --- | --- | --- |
-| Employee | Their own vouchers only | Register, monthly summary |
-| Head of department | The departments they run | Register, department, expense, requester, approval, monthly |
-| Managing Director / Director | Company-wide | All of them |
-| Cashier | Company-wide, money that moved | Register, payment, approved-but-unpaid, bank, cash, monthly |
-| Company Admin | Company-wide | All of them |
-| Super Admin | Platform-wide | All of them |
-
-A department filter can narrow a caller's scope; it can never widen it. Transport
-reports on Transport, HR on HR, Procurement on Procurement.
-
----
-
-## The core workflow
-
-```
-Employee raises a bank or cash voucher → submits
-   → HOD reviews → HOD SIGNS ONLY → HOD submits the signed voucher
-   → CEO reviews → CEO approves / rejects
-   → Cashier releases the funds and records the reference
-   → completed · printable at every stage
-```
-
-Signing, approving and paying are three separate acts.
-
-A step that signs does not approve: once signed, its holder submits the voucher
-onward, and the approve/reject decision belongs to a later step. A step that
-approves does not release money: an approved voucher waits in the cashier's queue
-until the funds are actually paid and a reference is recorded against it.
-
-This is enforced in the workflow engine, not in the interface. Each client's mock
-refuses the action outright — `POST /vouchers/{id}/approve` from a signing-only
-step, or `POST /vouchers/{id}/pay` on a voucher that is not yet approved — exactly
-as the API will.
-
-**Nothing about that route is hard-coded.** Every company stores its own ordered
-steps, and each step carries its own capability flags — sign, approve, reject,
-request changes, print, download — plus an assignee (a named user or a role) and
-optional amount thresholds. Three presets ship (`Sign then approve`,
-`Finance in the middle`, `Single approver`) and administrators can build their own
-in Settings → Approval workflow. The seeded demo runs two different routes side by
-side to prove it.
-
-## Multi-tenancy
-
-One central MySQL database. Isolation is enforced **below the query layer**:
-
-- `TenantContext` holds exactly one company per request, resolved by the
-  `ResolveTenant` middleware straight after authentication.
-- Every tenant-owned model uses `BelongsToTenant`, which applies `TenantScope`
-  globally and stamps `company_id` on create.
-- The scope **fails closed**: with no tenant resolved and no platform flag, it
-  matches nothing. A controller that forgets to filter returns zero rows rather
-  than leaking.
-- Route-model binding is deliberately re-registered *after* the tenant middleware
-  (see `routes/api.php`), so `{voucher}` resolves inside the caller's scope.
-
-On top of that sits row-level visibility (`VoucherVisibility`): an employee sees
-only their own vouchers; a head of department sees only the departments they head;
-an approver sees what their workflow actually routes to them, plus anything they
-have already acted on. Reports, exports and PDFs all reuse the same rules, so no
-surface can widen what a role may see.
-
----
-
-## Running it
-
-**Prerequisites:** PHP 8.3+, Composer, MySQL 8+, Node 20+, and Flutter 3.3+ for
-the mobile client.
+You need PHP 8.3+, Composer, MySQL, Node 20+ and the Flutter SDK.
 
 ### 1. Backend
 
 ```sh
 cd backend
-cp .env.example .env          # adjust DB_* if your MySQL differs
 composer install
-php artisan key:generate
-mysql -u root -e "CREATE DATABASE vouchflow CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-php artisan migrate --seed
-php artisan storage:link
-php artisan serve             # http://127.0.0.1:8000
+cp .env.example .env && php artisan key:generate
+mysql -uroot -e "CREATE DATABASE vouchflow CHARACTER SET utf8mb4"
+php artisan migrate:fresh --seed        # schema + three demo tenants
+php artisan storage:link                # serves company logos
+php artisan serve                       # http://127.0.0.1:8000
 ```
 
 ### 2. Web
 
 ```sh
 cd web
-cp .env.example .env.local    # NEXT_PUBLIC_API_URL
 npm install
-npm run dev                   # http://localhost:3000
+npm run dev                             # http://localhost:3000
 ```
+
+`web/.env.local` already points at `http://127.0.0.1:8000/api`. Set
+`NEXT_PUBLIC_API_MODE=mock` to run the in-browser fixture with no backend.
 
 ### 3. Mobile
 
 ```sh
 cd app
 flutter pub get
-flutter run                   # Android emulator reaches the host on 10.0.2.2
-# real device or hosted API:
-flutter run --dart-define=API_URL=https://your-host/api
+flutter run                             # talks to the API by default
+```
+
+The Android emulator reaches the host through `10.0.2.2`, which is the default
+there. For a real device or a hosted API:
+
+```sh
+flutter run --dart-define=API_URL=https://api.example.com/api
+flutter run --dart-define=API_MODE=mock     # offline, no backend
 ```
 
 ### Demo accounts
 
-Password for all of them: `Password123!`
+Password for every one of them: `Password123!`
 
-| Role | Email | What they can do |
+| Role | Email | What they see |
 | --- | --- | --- |
-| Employee | `john@acme.test` | Creates vouchers; sees **only their own** |
-| HOD | `asha@acme.test` | Reviews and **signs** — cannot approve |
-| CEO | `daniel@acme.test` | Approves or rejects |
-| Cashier | `fatuma@acme.test` | Releases the funds and records the reference |
-| Company Admin | `admin@acme.test` | Runs one company end to end |
-| Super Admin | `super@vouchflow.test` | Runs the platform, across all companies |
+| Employee | `frank@watercom.test` | their own vouchers, nothing else |
+| HOD | `joseph@watercom.test` | Procurement & Production — reviews and **signs**, never approves |
+| HOD | `salum@watercom.test` | Transport & Logistics, Sales |
+| Managing Director | `emmanuel@watercom.test` | company-wide; approves or rejects |
+| Cashier | `mwajuma@watercom.test` | approved and unpaid; releases the money |
+| Company Admin | `admin@watercom.test` | all of Watercom |
+| Super Admin | `super@vouchflow.test` | all companies |
 
-A second tenant (`admin@zamani.test`) runs a **four-step** route with Finance
-between the HOD and the Manager, and a third (`admin@baobab.test`) sits on an
-expiring trial so the renewal path is visible.
+Two further tenants exist — **Zamani Logistics** (a five-step route with Finance
+in the middle) and **Baobab Business Solutions** (on trial) — so tenant isolation
+and configurable workflows are exercised against real variety rather than claimed.
+
+---
+
+## A dashboard is an action queue
+
+The rule the product is built around: **a dashboard shows what is waiting on
+*you*, right now.** Completing your step removes the voucher from your dashboard
+and puts it on whoever is next. Finished work is found through Reports.
+
+| Role | Their queue |
+| --- | --- |
+| Employee | drafts and vouchers returned for changes |
+| HOD / approver | vouchers parked on a step they may act on |
+| Cashier | approved and unpaid |
+| Company Admin | what has **stalled** — three days on one step |
+
+An empty dashboard therefore means the work is genuinely clear, not that nothing
+has happened. Driven end to end, the queues move like this:
+
+```
+STAGE                       EMP  HOD  CEO  CASH
+employee created draft        1    0    0     0
+employee submitted            0    1    0     0
+HOD signed and forwarded      0    0    1     0
+CEO approved                  0    0    0     1
+cashier paid                  0    0    0     0
+```
+
+## Reports are permission-aware
+
+Reports are where history lives, so the catalogue is filtered per role **and** the
+endpoint refuses what the catalogue withheld — a hidden card is not a control.
+
+| Role | Scope ceiling | Reports offered |
+| --- | --- | --- |
+| Employee | their own vouchers | 2 |
+| HOD | the departments they head | 7 |
+| Cashier | company-wide, money released | 5 |
+| MD / Admin | company-wide | 7 |
+
+A department filter **narrows** the caller's ceiling and can never widen it, which
+is enforced in the query rather than in the UI. Every report exports to PDF, Excel
+and CSV.
+
+## The core workflow
+
+Watercom's default route, and the one a new tenant is provisioned with:
+
+```
+Employee          create → submit
+  ↓
+HOD               review → SIGN → submit onward      (never approves)
+  ↓
+CEO / Manager     APPROVE or REJECT
+  ↓
+Cashier           record payment → PAID
+  ↓
+Reports
+```
+
+**The HOD step carries no approve capability.** That is not a UI decision — the
+step's `can_approve` flag is false, the API refuses the action with 422, and a
+test holds it down.
+
+Payment sits deliberately *outside* the approval chain. Advancing into a cashier
+step would park a voucher in "under review" when the reviewing is finished; what
+is outstanding at that point is a payment, and the status says so.
+
+### It is configuration, not code
+
+Nothing above is hard-coded. A workflow is a list of steps, and each step stores
+what it may do: `sign`, `approve`, `reject`, `request_changes`, `print`,
+`download`, `pay`, plus `requires_signature` and amount thresholds. A Company
+Admin can rename a step, reorder it, pin it to a named person, or take a
+capability away. Three presets ship; the builder composes any route.
+
+## Multi-tenancy
+
+One MySQL database, many companies, and the isolation is enforced in the query
+layer rather than the UI.
+
+- Every tenant-owned model uses `BelongsToTenant`, which adds a global scope and
+  stamps `company_id` on create, so a controller cannot forget either.
+- `TenantScope` **fails closed**: with no tenant resolved and no platform flag it
+  matches nothing, so a missing middleware leaks no data rather than all of it.
+- Route-model binding resolves *inside* the scope, so another company's voucher
+  returns **404, not 403** — answering "forbidden" would confirm it exists.
+- `VoucherVisibility` narrows further within a tenant: an employee sees only their
+  own, an HOD only the departments they head.
+
+## Authorisation
+
+`app/Policies` is the single door every authorisation question goes through —
+`VoucherPolicy`, `CompanyPolicy`, `WorkflowPolicy`. The policies delegate to the
+services that own the rules rather than restating them, so the API, a console
+command and a queued job all get the same answer.
+
+The frontend never decides anything. It renders the `actions` map the API returns
+with each voucher, and the API re-checks on every call.
+
+## Bank and cash vouchers
+
+They are different instruments and are kept apart end to end: different fields on
+the form, different validation, different API payloads, different panels on the
+printed document, and a payment report that splits them — because one reconciles
+against a bank statement and the other against a float.
+
+A bank voucher carries the payee's bank, account name, account number, branch and
+cheque number, and prints the company's own "drawn on" account. A cash voucher
+carries the float it came from and the name of whoever received the notes. Neither
+is ever asked for the other's fields.
+
+## The document
+
+The A4 sheet is the same in all three places it appears — the web preview, the
+mobile preview and the server-generated PDF: the tenant's letterhead and TIN, the
+voucher type and number, a ruled particulars table with TOTAL PAYABLE, the amount
+in words, a payment panel carrying only the particulars that format uses, and an
+authorisation band with **Prepared by / Signed by / Approved by / Paid by** and
+official SIGNED, APPROVED and PAID marks.
+
+It stays white and print-friendly whatever theme the application is wearing,
+because it is a financial document rather than a piece of the interface.
+
+## Company branding
+
+Everything the document needs is per-tenant and editable from the Branding screen:
+logo lockup, square mark, legal name, address, phone, email, website, TIN,
+registration number, primary and accent colour, voucher header and footer text,
+and the company's banking details. The PDF reads them from the company row.
+
+Watercom is seeded demo data through those same columns. Nothing about it is
+special to the platform.
 
 ---
 
 ## What is included
 
-**Vouchers** — two corporate formats kept separate throughout. A **bank voucher**
-carries the payee's bank, account name, number and branch, and names the company
-account it is drawn on; a **cash voucher** names the petty cash float it comes out
-of and records who physically received the money. Five voucher types, with
-per-tenant sequential numbering
-(`PV-2026-000123`, format and padding configurable), attachments, comments,
-amount-in-words, verification codes, drafts, edit-and-resubmit.
+**Database** — 21 migrations. Companies, plans, subscriptions and invoices;
+departments, users and roles; voucher types, workflows and workflow steps;
+vouchers, approvals, attachments and comments; notifications, audit logs and OTP
+codes. Foreign keys throughout, indexes on the paths the queues actually query,
+and soft deletes where history matters.
 
-**Approvals** — configurable multi-step routes, digital signatures (draw, upload
-or reuse a saved one), request-changes and reject with a recorded reason, an
-approval timeline generated from the voucher's own workflow, and Print/Download
-**at every stage**, not just at the end.
+**API** — Sanctum token auth, 101 REST endpoints under `/api`, Form Request
+validation, API Resources, policies, and services holding the business logic
+(`WorkflowEngine`, `VoucherVisibility`, `VoucherPdfService`, `UsageLimits`,
+`Notifier`, `AuditLogger`). Critical transitions — submit, sign, approve, reject,
+pay — run in a database transaction.
 
-**Documents** — an A4 voucher built as a real financial document: the company's
-own letterhead, a ruled particulars table with the amount and the amount in words
-beneath the description, payment particulars alongside, and an authorisation band
-carrying **Prepared by / Signed by / Approved by / Paid by** with each officer's
-signature and an official SIGNED, APPROVED or PAID mark. Attachments, comments,
-the timeline and the audit trail fold away beneath it, so what is on screen is
-what prints.
+**Auth** — register (provisions a whole tenant), login, logout, logout-all, OTP,
+forgot/reset password, change password, session listing and revocation, profile,
+and a saved signature a user can draw, upload, reuse, replace or delete.
 
-**Administration** — employees and roles, departments with heads and managers,
-voucher types and numbering, branding, company profile, and the workflow builder.
+**Web** — every role's screens, a typed API client with loading/empty/error
+states, permission-aware rendering, route protection, the live A4 preview, the
+workflow builder, branding, reports with exports, billing and the platform admin.
 
-**Platform** — companies, plans and limits, subscriptions, payments and refunds,
-cross-tenant users and audit log.
-
-**Billing** — plans with enforced limits (seats, monthly volume, departments,
-approval depth, storage), trials with expiry, online payment (mobile money, card,
-bank transfer) through a swappable gateway, invoices and receipts. An expired
-tenant can still *read* its data and settle up; writes are blocked with `402`.
-
-**Reporting** — voucher, expense, department, employee, approval and monthly
-reports, each exportable to PDF, Excel and CSV.
-
-**Also** — registration and OTP verification, guided onboarding, notifications,
-search and filtering, an append-only audit log, English + Swahili throughout
-(English default), light and dark themes, and full responsive layout down to
-360 px with a mobile tab bar and drawer.
-
----
+**Mobile** — GetX for state, routing, bindings and dependency injection; the
+operational workflow for employee, HOD, manager and cashier, with the same
+document renderer and signature capture.
 
 ## Tests
 
 ```sh
-cd app  && flutter test                       # workflow rules, against the mock
-cd app  && flutter test integration_test      # the app itself, on a device
-cd backend && php artisan test                # the API (Phase 2)
+cd backend && php artisan test                 # 61 tests, 229 assertions
+cd web && npx tsc --noEmit && npx next build
+cd app && flutter analyze && flutter test      # 9 unit tests
+cd app && flutter test integration_test/       # 4 on a device, against the API
 ```
 
-`app/test/workflow_test.dart` drives the mock directly and asserts the rules the
-client cares about: the full employee → HOD → CEO → cashier run, that an employee
-sees nothing but their own work, that a head of another department is refused,
-that the HOD step offers no approval, that approving does not pay, that a payment
-needs a reference, and that a rejection reaches the requester with its reason.
-
-`app/integration_test/app_test.dart` runs the real app on a simulator: each
-persona lands on the right home screen, the HOD is offered signing and not
-approval, and the cashier records a payment end to end.
-
-Covering the guarantees that matter: tenant isolation (including that the scope
-fails closed), employee privacy across list/detail/report/PDF, the signs-but-does-
-not-approve rule, three- and four-step and single-approver routes, workflow
-editing, billing limits, payment success and decline, subscription expiry, and
-per-tenant numbering.
-
-The web client was driven end to end in a real browser during development —
-every page for every role, the whole workflow from creation to payment, the A4
-sheet, both themes, and the responsive layout down to 390 px.
+The backend suite covers the full lifecycle draft → paid in both formats, tenant
+isolation (including cross-tenant payment), employee privacy, report permissions
+and the scope ceiling, the action-queue transitions, configurable workflows,
+billing limits, and the printed document.
 
 ## Notes for production
 
-- `PAYMENTS_DRIVER=demo` settles deterministically (any reference ending `0000`
-  is declined, so the failure path is testable). Implement `PaymentGateway::charge`
-  against a real PSP to go live; nothing else changes.
-- OTPs are written to the log and returned in the response outside production.
-  Wire a mail/SMS driver and they stop being returned.
-- Attachments are stored on the `local` disk under `companies/{id}/…` and served
-  through an authorised controller, never a public URL. Point the disk at S3 for
-  production.
+- `CORS_ALLOWED_ORIGINS` is an explicit allowlist; set it to your front-end
+  origins. Bearer tokens mean credentialed requests are never needed.
+- Attachments are stored on the **private** disk and streamed through an
+  authorised endpoint; they are never reachable by a predictable URL.
+- Notifications are stored and read through the API. Email, push and WhatsApp
+  transports are deliberately not wired: `Notifier` is the seam they attach to.
+- `PaymentGateway` is the seam for a real payment provider. No secret belongs in
+  either client.
+- Run `php artisan config:cache route:cache` on deploy, and put the queue behind
+  a real worker before enabling outbound notifications.

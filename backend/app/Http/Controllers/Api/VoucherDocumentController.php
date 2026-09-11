@@ -9,6 +9,7 @@ use App\Services\VoucherPdfService;
 use App\Services\VoucherVisibility;
 use App\Services\WorkflowEngine;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
@@ -45,17 +46,13 @@ class VoucherDocumentController extends Controller
 
     private function authorizeDocument(Request $request, Voucher $voucher, string $capability): void
     {
-        $user = $request->user();
+        $gate = Gate::forUser($request->user());
 
-        $visible = $this->visibility
-            ->apply(Voucher::query()->whereKey($voucher->id), $user)
-            ->exists();
-
-        if (! $visible) {
+        if ($gate->denies('view', $voucher)) {
             throw new AccessDeniedHttpException('This voucher belongs to another part of the business.');
         }
 
-        if (! ($this->engine->availableActions($user, $voucher)[$capability] ?? false)) {
+        if ($gate->denies($capability, $voucher)) {
             throw new AccessDeniedHttpException('Your current step does not allow that.');
         }
     }

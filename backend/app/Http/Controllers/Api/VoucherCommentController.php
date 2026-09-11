@@ -9,6 +9,7 @@ use App\Models\VoucherComment;
 use App\Services\Notifier;
 use App\Services\VoucherVisibility;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class VoucherCommentController extends Controller
@@ -20,11 +21,7 @@ class VoucherCommentController extends Controller
 
     public function store(Request $request, Voucher $voucher)
     {
-        $visible = $this->visibility
-            ->apply(Voucher::query()->whereKey($voucher->id), $request->user())
-            ->exists();
-
-        if (! $visible) {
+        if (Gate::forUser($request->user())->denies('view', $voucher)) {
             throw new AccessDeniedHttpException('This voucher belongs to another part of the business.');
         }
 

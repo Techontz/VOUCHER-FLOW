@@ -11,6 +11,7 @@ use App\Services\UsageLimits;
 use App\Services\VoucherVisibility;
 use App\Services\WorkflowEngine;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -104,11 +105,7 @@ class VoucherAttachmentController extends Controller
 
     private function authorizeVoucher(Request $request, Voucher $voucher): void
     {
-        $visible = $this->visibility
-            ->apply(Voucher::query()->whereKey($voucher->id), $request->user())
-            ->exists();
-
-        if (! $visible) {
+        if (Gate::forUser($request->user())->denies('view', $voucher)) {
             throw new AccessDeniedHttpException('This voucher belongs to another part of the business.');
         }
     }

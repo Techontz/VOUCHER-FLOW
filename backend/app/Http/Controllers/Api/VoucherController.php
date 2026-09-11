@@ -14,6 +14,7 @@ use App\Services\WorkflowEngine;
 use App\Support\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -336,13 +337,14 @@ class VoucherController extends Controller
      * already guaranteed by the global scope; this adds the row-level rule that an
      * employee sees only their own record.
      */
+    /**
+     * Readability is decided by VoucherPolicy, not here. The helper stays as the
+     * call site every action already uses; what changed is that it now asks the
+     * one authority rather than re-deriving the rule locally.
+     */
     private function authorizeView(Request $request, Voucher $voucher): void
     {
-        $visible = $this->visibility
-            ->apply(Voucher::query()->whereKey($voucher->id), $request->user())
-            ->exists();
-
-        if (! $visible) {
+        if (Gate::forUser($request->user())->denies('view', $voucher)) {
             throw new AccessDeniedHttpException('This voucher belongs to another part of the business.');
         }
     }
