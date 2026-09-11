@@ -17,6 +17,7 @@ use App\Services\WorkflowEngine;
 use App\Support\TenantContext;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Demo data across three tenants.
@@ -145,10 +146,29 @@ class DemoSeeder extends Seeder
 
             $admin->update(['department_id' => $departments['Human Resources']->id]);
 
+            $this->publishBrandAssets();
             $this->makeVouchers($company, $people, $departments, $admin);
 
             return $company->fresh();
         });
+    }
+
+    /**
+     * Copies the demo tenant's artwork onto the public disk.
+     *
+     * A company's logo normally arrives through the Branding screen and lands
+     * here as an upload; the seeder puts the demo one in the same place so the
+     * path stored on the company row means the same thing either way.
+     */
+    private function publishBrandAssets(): void
+    {
+        foreach (['watercom-logo.png', 'watercom-mark.png'] as $file) {
+            $source = database_path('seeders/assets/'.$file);
+
+            if (is_file($source)) {
+                Storage::disk('public')->put('demo/'.$file, file_get_contents($source));
+            }
+        }
     }
 
     /**

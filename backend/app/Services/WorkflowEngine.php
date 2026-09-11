@@ -179,8 +179,17 @@ class WorkflowEngine
             ? $this->stepAt($voucher, $voucher->current_step_position)
             : null;
 
-        $actions['print'] = $isOwner || $isAdmin || $voucher->isTerminal() || ($step?->can_print ?? false);
-        $actions['download'] = $isOwner || $isAdmin || $voucher->isTerminal() || ($step?->can_download ?? false);
+        // Once a voucher is out of review it is a record, and anyone entitled to
+        // see it may take a copy. Note this is deliberately NOT isTerminal():
+        // an approved voucher is not terminal any more — it is waiting to be
+        // paid — and the cashier about to pay it has to be able to print it.
+        $settled = in_array($voucher->status, [
+            Voucher::STATUS_APPROVED, Voucher::STATUS_PAID,
+            Voucher::STATUS_REJECTED, Voucher::STATUS_CANCELLED,
+        ], true);
+
+        $actions['print'] = $isOwner || $isAdmin || $settled || ($step?->can_print ?? false);
+        $actions['download'] = $isOwner || $isAdmin || $settled || ($step?->can_download ?? false);
 
         if (($isOwner || $isAdmin) && $voucher->isEditable()) {
             $actions['edit'] = true;

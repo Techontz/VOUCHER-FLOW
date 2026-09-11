@@ -93,8 +93,14 @@ export default function VoucherDetailPage() {
       }
       if (action === "approve" && signature) body.signature = signature;
       if (action === "pay") {
-        body.reference = payReference.trim();
-        body.method = payMethod || (voucher.kind === "cash" ? "Cash" : "Bank transfer");
+        const isCash = voucher.kind === "cash";
+        body.payment_method = payMethod || (isCash ? "Cash" : "Bank Transfer");
+        // A bank transfer is reconciled against its reference; cash is
+        // acknowledged by the person who took it. Each format sends what it
+        // actually has, and the API requires exactly that.
+        if (isCash) body.received_by = receivedBy.trim();
+        else body.payment_reference = payReference.trim();
+        if (payReference.trim() && /cheque/i.test(payMethod)) body.cheque_number = payReference.trim();
       }
 
       const res = await api.post<{ data: Voucher }>(`/vouchers/${voucher.id}/${endpoint[action]}`, body);
@@ -105,7 +111,7 @@ export default function VoucherDetailPage() {
       const messages: Record<Action, [string, string]> = {
         sign: ["Voucher signed", `${res.data.number} carries your signature. Submit it onward when ready.`],
         submit_signed: ["Signed voucher submitted", `${res.data.number} — ${res.data.status_label}`],
-        approve: ["Voucher approved", `${res.data.number} is ${res.data.status === "approved" ? "completed and ready to print" : res.data.status_label.toLowerCase()}.`],
+        approve: ["Voucher approved", `${res.data.number} is ${res.data.status_label.toLowerCase()}.`],
         reject: ["Voucher rejected", `${res.data.number} was returned to ${res.data.requester?.name ?? "the requester"}.`],
         request_changes: ["Changes requested", `${res.data.requester?.name ?? "The requester"} has been notified.`],
         submit: ["Voucher submitted", `${res.data.number} — ${res.data.status_label}`],
@@ -571,7 +577,7 @@ export default function VoucherDetailPage() {
           <>
             <button className="btn btn-secondary" onClick={() => setDialog(null)} disabled={busy}>{t("cancel")}</button>
             <button className="btn btn-primary" onClick={() => run("pay")}
-              disabled={busy || !payReference.trim() || (voucher.kind === "cash" && !receivedBy.trim())}>
+              disabled={busy || (voucher.kind === "cash" ? !receivedBy.trim() : !payReference.trim())}>
               {busy ? <Spinner /> : t("markPaid")}
             </button>
           </>
@@ -600,15 +606,17 @@ export default function VoucherDetailPage() {
             </select>
           </Field>
 
-          <Field
-            label={voucher.kind === "cash" ? t("paymentRef") : t("chequeNo")}
-            htmlFor="pay-ref"
-            required
-            hint={voucher.kind === "cash" ? "e.g. PC-REL-4471" : "e.g. TRF-2026-4471"}
-          >
-            <input id="pay-ref" className="input" value={payReference} autoFocus
-              onChange={(e) => setPayReference(e.target.value)} />
-          </Field>
+          {voucher.kind !== "cash" && (
+            <Field
+              label={/cheque/i.test(payMethod) ? t("chequeNo") : t("paymentRef")}
+              htmlFor="pay-ref"
+              required
+              hint={/cheque/i.test(payMethod) ? "e.g. 004471" : "e.g. CRDB-TRX-8841207"}
+            >
+              <input id="pay-ref" className="input" value={payReference} autoFocus
+                onChange={(e) => setPayReference(e.target.value)} />
+            </Field>
+          )}
 
           {voucher.kind === "cash" && (
             <Field label={t("receivedBy")} htmlFor="pay-received" required

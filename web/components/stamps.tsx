@@ -125,11 +125,10 @@ export function AuthorisationBlock({
               <img src={signature} alt="" style={{ maxHeight: 34, maxWidth: 78, objectFit: "contain" }} />
             )}
             {stamp && <Stamp kind={stamp} date={date} reference={reference} scale={.86} />}
-            {!signature && !stamp && (
-              <span style={{ fontFamily: "var(--font-heading)", fontStyle: "italic", fontSize: 16, color: "#0b1220" }}>
-                {name}
-              </span>
-            )}
+            {/* No mark and no pen stroke means this column records authorship
+                rather than assent — "Prepared by" is a name, not a signature.
+                Setting the name in a script face here made it read as one, and
+                repeated the name the footer already carries. */}
           </>
         ) : (
           <span style={{ fontSize: 8.5, letterSpacing: ".08em", color: "#b3bccd", textTransform: "uppercase" }}>
