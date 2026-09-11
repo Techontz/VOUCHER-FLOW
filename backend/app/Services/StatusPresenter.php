@@ -28,8 +28,14 @@ class StatusPresenter
                 'changes_requested', 'Changes requested', 'Mabadiliko yameombwa', 'tag-accent-2'
             ),
 
+            // Approved is no longer the end of the road: the money still has to
+            // move, and saying "completed" here would hide the cashier's work.
             Voucher::STATUS_APPROVED => $this->make(
-                'approved', 'Approved & completed', 'Imeidhinishwa na kukamilika', 'tag-accent'
+                'awaiting_payment', 'Approved — awaiting payment', 'Imeidhinishwa — inasubiri malipo', 'tag-info'
+            ),
+
+            Voucher::STATUS_PAID => $this->make(
+                'paid', 'Paid & completed', 'Imelipwa na kukamilika', 'tag-accent'
             ),
 
             Voucher::STATUS_REJECTED => $this->make('rejected', 'Rejected', 'Imekataliwa', 'tag-accent-2'),

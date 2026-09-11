@@ -23,11 +23,25 @@ class CompanyResource extends JsonResource
             'locale' => $this->locale,
             'timezone' => $this->timezone,
 
+            'tin' => $this->tin,
+            'registration_number' => $this->registration_number,
+
             'logo_url' => $this->logo_path ? asset('storage/'.$this->logo_path) : null,
+            // The square mark, for avatars and favicons. Falls back to the
+            // lockup so a tenant that has uploaded only one still renders.
+            'logo_mark_url' => $this->logo_mark_path
+                ? asset('storage/'.$this->logo_mark_path)
+                : ($this->logo_path ? asset('storage/'.$this->logo_path) : null),
             'primary_color' => $this->primary_color,
             'accent_color' => $this->accent_color,
             'theme' => $this->theme,
+            'voucher_header_text' => $this->voucher_header_text,
             'voucher_footer_text' => $this->voucher_footer_text,
+
+            'bank_name' => $this->bank_name,
+            'bank_account_name' => $this->bank_account_name,
+            'bank_account_number' => $this->bank_account_number,
+            'bank_branch' => $this->bank_branch,
 
             'status' => $this->status,
             'is_usable' => $this->isUsable(),

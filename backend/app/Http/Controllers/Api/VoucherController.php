@@ -121,6 +121,12 @@ class VoucherController extends Controller
                 'amount_in_words' => $this->money->inWords((float) $data['amount'], $data['currency'] ?? $company->currency),
                 'payment_method' => $data['payment_method'] ?? null,
                 'account_ref' => $data['account_ref'] ?? null,
+                'kind' => $data['kind'] ?? Voucher::KIND_BANK,
+                'payee_bank' => $data['payee_bank'] ?? null,
+                'payee_account_name' => $data['payee_account_name'] ?? null,
+                'payee_account_number' => $data['payee_account_number'] ?? null,
+                'payee_bank_branch' => $data['payee_bank_branch'] ?? null,
+                'cash_float' => $data['cash_float'] ?? null,
                 'category' => $data['category'] ?? null,
                 'cost_centre' => $data['cost_centre'] ?? null,
                 'voucher_date' => $data['voucher_date'] ?? now()->toDateString(),
@@ -253,6 +259,52 @@ class VoucherController extends Controller
         ));
     }
 
+    /**
+     * Records the release of money against an approved voucher.
+     *
+     * What is asked for depends on the instrument: a bank voucher needs the
+     * reference the transfer can be reconciled against, a cash voucher needs the
+     * name of whoever actually took the notes.
+     */
+    public function pay(Request $request, Voucher $voucher)
+    {
+        $this->authorizeView($request, $voucher);
+
+        $data = $request->validate([
+            'payment_reference' => [$voucher->isBank() ? 'required' : 'nullable', 'string', 'max:120'],
+            'payment_date' => ['nullable', 'date'],
+            'payment_method' => ['nullable', 'string', 'max:80'],
+            'cheque_number' => ['nullable', 'string', 'max:64'],
+            'received_by' => [$voucher->isBank() ? 'nullable' : 'required', 'string', 'max:120'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'signature' => ['nullable', 'string', 'max:1500000'],
+        ]);
+
+        return $this->respond($request, $this->engine->pay(
+            $voucher, $request->user(), $data, $data['signature'] ?? null,
+        ));
+    }
+
+    /** Approved and unpaid, for whoever the workflow entrusts with the money. */
+    public function awaitingPayment(Request $request)
+    {
+        $user = $request->user();
+
+        $query = Voucher::query()
+            ->with(['requester', 'department', 'voucherType', 'workflow.steps'])
+            ->withCount('attachments')
+            ->awaitingPayment()
+            ->kind($request->query('kind'));
+
+        $this->visibility->apply($query, $user);
+
+        $vouchers = $query->orderBy('approved_at')->get()
+            ->filter(fn (Voucher $v) => $this->engine->canPay($user, $v))
+            ->values();
+
+        return VoucherResource::collection($vouchers);
+    }
+
     public function reject(Request $request, Voucher $voucher)
     {
         $this->authorizeView($request, $voucher);
@@ -351,6 +403,17 @@ class VoucherController extends Controller
             'currency' => ['nullable', 'string', 'size:3'],
             'payment_method' => ['nullable', 'string', 'max:60'],
             'account_ref' => ['nullable', 'string', 'max:120'],
+
+            // Which instrument this is, and the particulars that belong to it.
+            // Bank fields are accepted only on a bank voucher and vice versa, so
+            // a cash claim cannot quietly carry a branch name it will never use.
+            'kind' => ['nullable', Rule::in(Voucher::KINDS)],
+            'payee_bank' => ['nullable', 'string', 'max:120', 'exclude_if:kind,cash'],
+            'payee_account_name' => ['nullable', 'string', 'max:180', 'exclude_if:kind,cash'],
+            'payee_account_number' => ['nullable', 'string', 'max:64', 'exclude_if:kind,cash'],
+            'payee_bank_branch' => ['nullable', 'string', 'max:120', 'exclude_if:kind,cash'],
+            'cash_float' => ['nullable', 'string', 'max:120', 'exclude_if:kind,bank'],
+
             'category' => ['nullable', 'string', 'max:120'],
             'cost_centre' => ['nullable', 'string', 'max:120'],
             'voucher_date' => ['nullable', 'date'],

@@ -56,7 +56,7 @@ class VoucherVisibility
             // bare role match is enough for them — and only for them. A role match
             // alone must never widen an HOD or manager beyond their departments,
             // since an unassigned "hod" step exists on every voucher.
-            if (in_array($user->role, [User::ROLE_FINANCE, User::ROLE_DIRECTOR], true)) {
+            if ($user->actsCompanyWide()) {
                 $q->orWhereExists(function ($sub) use ($user) {
                     $sub->selectRaw('1')
                         ->from('workflow_steps')
@@ -120,8 +120,8 @@ class VoucherVisibility
                 $q->orWhereIn('vouchers.department_id', $headed);
             }
 
-            // Roles that are not department-bound (finance, director) see all.
-            if (in_array($user->role, [User::ROLE_FINANCE, User::ROLE_DIRECTOR], true)) {
+            // Roles that are not department-bound see the whole company.
+            if ($user->actsCompanyWide()) {
                 $q->orWhereNotNull('vouchers.id');
             }
         });

@@ -29,7 +29,7 @@ trait TestSupport
     }
 
     /**
-     * @return array{company:Company,admin:User,employee:User,hod:User,manager:User,department:Department}
+     * @return array{company:Company,admin:User,employee:User,hod:User,ceo:User,cashier:User,manager:User,finance:User,department:Department}
      */
     protected function makeTenant(string $name, string $preset = 'default'): array
     {
@@ -62,6 +62,10 @@ trait TestSupport
 
             $employee = $make('employee', User::ROLE_EMPLOYEE);
             $hod = $make('hod', User::ROLE_HOD);
+            // The default route approves at a CEO step and pays at a cashier
+            // step; manager and finance stay for the presets that use them.
+            $ceo = $make('ceo', User::ROLE_CEO);
+            $cashier = $make('cashier', User::ROLE_CASHIER);
             $manager = $make('manager', User::ROLE_MANAGER);
             $finance = $make('finance', User::ROLE_FINANCE);
 
@@ -74,7 +78,7 @@ trait TestSupport
 
             $employee->update(['department_id' => $department->id]);
 
-            return compact('company', 'admin', 'employee', 'hod', 'manager', 'finance', 'department');
+            return compact('company', 'admin', 'employee', 'hod', 'ceo', 'cashier', 'manager', 'finance', 'department');
         });
     }
 

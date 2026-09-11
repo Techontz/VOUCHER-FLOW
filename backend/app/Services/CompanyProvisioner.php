@@ -25,22 +25,37 @@ class CompanyProvisioner
     ) {}
 
     /** The routes offered in the workflow builder, mirroring the design's presets. */
+    /**
+     * The routes offered in the workflow builder.
+     *
+     * These are starting points, not the shape of the product. Every step's
+     * powers are stored flags, so a company admin can rename a step, move it,
+     * point it at a named person, or take a capability away — which is what
+     * lets one tenant run HOD → CEO → Cashier and another run
+     * Supervisor → Manager → Finance without a line of code changing.
+     *
+     * Note what the HOD step does NOT carry in the default route: `can_approve`
+     * is false. Reviewing and signing is the whole of that step's authority;
+     * the decision to commit the company's money belongs further along.
+     */
     public const PRESETS = [
         'default' => [
-            'name' => 'Sign then approve',
-            'description' => 'Employee → HOD (sign) → Manager (approve)',
+            'name' => 'Sign, approve, pay',
+            'description' => 'Employee → HOD (sign) → CEO / Manager (approve) → Cashier (pay)',
             'steps' => [
                 ['name' => 'Request', 'name_sw' => 'Ombi', 'role' => 'employee', 'assignee_hint' => 'Voucher creator',
                     'can_sign' => false, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => false, 'can_print' => true],
                 ['name' => 'Department review', 'name_sw' => 'Ukaguzi wa idara', 'role' => 'hod', 'assignee_hint' => 'Head of the requesting department',
                     'can_sign' => true, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => true, 'can_print' => true, 'requires_signature' => true],
-                ['name' => 'Management approval', 'name_sw' => 'Idhini ya menejimenti', 'role' => 'manager', 'assignee_hint' => 'Approving manager',
-                    'can_sign' => false, 'can_approve' => true, 'can_reject' => true, 'can_request_changes' => true, 'can_print' => true],
+                ['name' => 'Management approval', 'name_sw' => 'Idhini ya menejimenti', 'role' => 'ceo', 'assignee_hint' => 'CEO or approving manager',
+                    'can_sign' => true, 'can_approve' => true, 'can_reject' => true, 'can_request_changes' => true, 'can_print' => true],
+                ['name' => 'Payment', 'name_sw' => 'Malipo', 'role' => 'cashier', 'assignee_hint' => 'Cashier or finance officer',
+                    'can_sign' => true, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => false, 'can_print' => true, 'can_pay' => true],
             ],
         ],
         'finance' => [
             'name' => 'Finance in the middle',
-            'description' => 'Employee → HOD (sign) → Finance (approve) → Manager (approve & sign)',
+            'description' => 'Employee → HOD (sign) → Finance (approve) → Manager (approve) → Cashier (pay)',
             'steps' => [
                 ['name' => 'Request', 'name_sw' => 'Ombi', 'role' => 'employee', 'assignee_hint' => 'Voucher creator',
                     'can_sign' => false, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => false, 'can_print' => true],
@@ -50,16 +65,18 @@ class CompanyProvisioner
                     'can_sign' => true, 'can_approve' => true, 'can_reject' => true, 'can_request_changes' => true, 'can_print' => true],
                 ['name' => 'Management approval', 'name_sw' => 'Idhini ya menejimenti', 'role' => 'manager', 'assignee_hint' => 'Approving manager',
                     'can_sign' => true, 'can_approve' => true, 'can_reject' => true, 'can_request_changes' => false, 'can_print' => true],
+                ['name' => 'Payment', 'name_sw' => 'Malipo', 'role' => 'finance', 'assignee_hint' => 'Finance officer',
+                    'can_sign' => false, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => false, 'can_print' => true, 'can_pay' => true],
             ],
         ],
         'single' => [
             'name' => 'Single approver',
-            'description' => 'Employee → Manager (approve, sign, reject)',
+            'description' => 'Employee → Manager (approve, sign, reject, pay)',
             'steps' => [
                 ['name' => 'Request', 'name_sw' => 'Ombi', 'role' => 'employee', 'assignee_hint' => 'Voucher creator',
                     'can_sign' => false, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => false, 'can_print' => true],
                 ['name' => 'Approval', 'name_sw' => 'Idhini', 'role' => 'manager', 'assignee_hint' => 'Approving manager',
-                    'can_sign' => true, 'can_approve' => true, 'can_reject' => true, 'can_request_changes' => true, 'can_print' => true],
+                    'can_sign' => true, 'can_approve' => true, 'can_reject' => true, 'can_request_changes' => true, 'can_print' => true, 'can_pay' => true],
             ],
         ],
     ];
@@ -182,6 +199,7 @@ class CompanyProvisioner
                     'can_request_changes' => false,
                     'can_print' => true,
                     'can_download' => true,
+                    'can_pay' => false,
                     'requires_signature' => false,
                 ], $step));
             }

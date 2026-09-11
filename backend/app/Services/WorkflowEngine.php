@@ -60,11 +60,18 @@ class WorkflowEngine
             ->values();
     }
 
-    /** Approval steps only — everything after the requester's own step. */
+    /**
+     * The approval chain: everything between the request and the money.
+     *
+     * A pay-only step is deliberately not in here. Advancing into it would park
+     * the voucher in "under review" when the reviewing is finished — what is
+     * actually outstanding at that point is a payment, and the status should say
+     * so. Approval completes the chain; `pay()` acts on the approved voucher.
+     */
     public function approvalSteps(Voucher $voucher): Collection
     {
         return $this->applicableSteps($voucher)
-            ->reject(fn (WorkflowStep $step) => $step->isRequestStep())
+            ->reject(fn (WorkflowStep $step) => $step->isRequestStep() || $step->isPaymentStep())
             ->values();
     }
 
@@ -160,6 +167,7 @@ class WorkflowEngine
             'comment' => true,
             'print' => false,
             'download' => false,
+            'pay' => false,
         ];
 
         $isOwner = $voucher->requester_id === $user->id;
@@ -182,6 +190,15 @@ class WorkflowEngine
 
         if (($isOwner || $isAdmin) && $voucher->status === Voucher::STATUS_IN_REVIEW) {
             $actions['cancel'] = true;
+        }
+
+        // Payment is not another review step. The approval chain ends when the
+        // last approver signs off; releasing the money is a separate function,
+        // performed against an already-approved voucher by whoever the workflow
+        // gave the pay capability to. Keeping the two apart is also what lets a
+        // company route approval one way and disbursement another.
+        if ($voucher->isAwaitingPayment() && $this->canPay($user, $voucher)) {
+            $actions['pay'] = true;
         }
 
         if (! $step || ! $this->canActOnStep($user, $voucher, $step)) {
@@ -208,6 +225,84 @@ class WorkflowEngine
         $actions['request_changes'] = $step->can_request_changes;
 
         return $actions;
+    }
+
+    /**
+     * Whether this user holds a paying step in the voucher's own workflow.
+     *
+     * Read from the step's flag rather than from the user's job title: a tenant
+     * that calls the role "Treasury" and one that calls it "Cashier" are both
+     * answered by the same question — does their step carry `can_pay`.
+     */
+    public function canPay(User $user, Voucher $voucher): bool
+    {
+        if ($user->company_id !== $voucher->company_id) {
+            return false;
+        }
+
+        if ($user->isCompanyAdmin()) {
+            return true;
+        }
+
+        return $this->applicableSteps($voucher)
+            ->filter(fn (WorkflowStep $step) => $step->can_pay)
+            ->contains(fn (WorkflowStep $step) => $this->assigneesFor($voucher, $step)
+                ->contains(fn (User $u) => $u->id === $user->id));
+    }
+
+    /**
+     * Approved → paid. The end of the lifecycle: the money has moved, and the
+     * voucher leaves the cashier's queue for the reports.
+     */
+    public function pay(Voucher $voucher, User $actor, array $details, ?string $signatureData = null): Voucher
+    {
+        $this->guard($voucher->status === Voucher::STATUS_APPROVED, 'Only an approved voucher can be paid.');
+        $this->guard($voucher->paid_at === null, 'This voucher has already been paid.');
+        $this->guard($this->canPay($actor, $voucher), 'You may not release payment on this voucher.');
+
+        $step = $this->applicableSteps($voucher)->first(fn (WorkflowStep $s) => $s->can_pay);
+
+        return DB::transaction(function () use ($voucher, $actor, $details, $signatureData, $step) {
+            $signature = $signatureData ?: $actor->signature_data;
+
+            $this->record($voucher, $actor, 'paid', $details['note'] ?? null, $signature, $step);
+
+            $voucher->forceFill([
+                'status' => Voucher::STATUS_PAID,
+                'paid_at' => now(),
+                'paid_by_id' => $actor->id,
+                'payment_reference' => $details['payment_reference'] ?? null,
+                'payment_date' => $details['payment_date'] ?? now()->toDateString(),
+                'payment_method' => $details['payment_method'] ?? $voucher->payment_method,
+                'cheque_number' => $details['cheque_number'] ?? $voucher->cheque_number,
+                'received_by' => $details['received_by'] ?? $voucher->received_by,
+                'current_step_position' => null,
+                'step_signed_at' => null,
+            ])->save();
+
+            $this->audit->log(
+                'voucher.paid',
+                "Released payment on voucher {$voucher->number}",
+                $voucher,
+                ['status' => Voucher::STATUS_APPROVED],
+                ['status' => Voucher::STATUS_PAID, 'reference' => $voucher->payment_reference],
+            );
+
+            $this->notifier->toUser(
+                $voucher->requester,
+                'voucher.paid',
+                "{$voucher->number} has been paid",
+                "{$voucher->number} imelipwa",
+                "{$actor->name} released {$voucher->currency} ".number_format((float) $voucher->amount)
+                    .($voucher->payment_reference ? " · ref {$voucher->payment_reference}" : '').'.',
+                "{$actor->name} ametoa {$voucher->currency} ".number_format((float) $voucher->amount)
+                    .($voucher->payment_reference ? " · kumb. {$voucher->payment_reference}" : '').'.',
+                $voucher,
+                'ph-check-circle',
+            );
+
+            return $voucher->fresh();
+        });
     }
 
     private function guard(bool $allowed, string $message): void
@@ -455,13 +550,30 @@ class WorkflowEngine
         $this->notifier->toUser(
             $voucher->requester,
             'voucher.approved',
-            "{$voucher->number} approved and completed",
-            "{$voucher->number} imeidhinishwa na kukamilika",
-            'Signature and approval captured. The PDF is ready to download.',
-            'Sahihi na idhini zimepokelewa. PDF ipo tayari kupakuliwa.',
+            "{$voucher->number} approved",
+            "{$voucher->number} imeidhinishwa",
+            'Approved and sent for payment.',
+            'Imeidhinishwa na kupelekwa kwa malipo.',
             $voucher,
             'ph-seal-check',
         );
+
+        // The approval chain is done; the money has not moved. Whoever carries
+        // the pay capability now has it on their queue and should be told so.
+        foreach ($this->applicableSteps($voucher)->filter(fn (WorkflowStep $s) => $s->can_pay) as $payStep) {
+            foreach ($this->assigneesFor($voucher, $payStep) as $payer) {
+                $this->notifier->toUser(
+                    $payer,
+                    'voucher.awaiting_payment',
+                    "{$voucher->number} is ready for payment",
+                    "{$voucher->number} ipo tayari kulipwa",
+                    "{$voucher->currency} ".number_format((float) $voucher->amount)." to {$voucher->payee}.",
+                    "{$voucher->currency} ".number_format((float) $voucher->amount)." kwa {$voucher->payee}.",
+                    $voucher,
+                    'ph-wallet',
+                );
+            }
+        }
     }
 
     private function notifyStep(Voucher $voucher, WorkflowStep $step): void

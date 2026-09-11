@@ -26,6 +26,17 @@ class Voucher extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    /** Money has actually left the account. The end of the lifecycle. */
+    public const STATUS_PAID = 'paid';
+
+    /** Settles into a bank account, reconciled against a statement. */
+    public const KIND_BANK = 'bank';
+
+    /** Comes out of a petty cash float, acknowledged by hand on the day. */
+    public const KIND_CASH = 'cash';
+
+    public const KINDS = [self::KIND_BANK, self::KIND_CASH];
+
     protected $guarded = ['id'];
 
     protected function casts(): array
@@ -37,6 +48,8 @@ class Voucher extends Model
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'rejected_at' => 'datetime',
+            'paid_at' => 'datetime',
+            'payment_date' => 'date',
         ];
     }
 
@@ -58,6 +71,11 @@ class Voucher extends Model
     public function requester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requester_id');
+    }
+
+    public function paidBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'paid_by_id');
     }
 
     public function approvals(): HasMany
@@ -82,7 +100,35 @@ class Voucher extends Model
 
     public function isTerminal(): bool
     {
-        return in_array($this->status, [self::STATUS_APPROVED, self::STATUS_REJECTED, self::STATUS_CANCELLED], true);
+        return in_array($this->status, [
+            self::STATUS_REJECTED, self::STATUS_CANCELLED, self::STATUS_PAID,
+        ], true);
+    }
+
+    /** Approved, and the money has not moved yet: the cashier's queue. */
+    public function isAwaitingPayment(): bool
+    {
+        return $this->status === self::STATUS_APPROVED && $this->paid_at === null;
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->status === self::STATUS_PAID;
+    }
+
+    public function isBank(): bool
+    {
+        return $this->kind === self::KIND_BANK;
+    }
+
+    public function scopeAwaitingPayment(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_APPROVED)->whereNull('paid_at');
+    }
+
+    public function scopeKind(Builder $query, ?string $kind): Builder
+    {
+        return in_array($kind, self::KINDS, true) ? $query->where('kind', $kind) : $query;
     }
 
     /** True when the current step's actor has signed but not yet submitted onward. */

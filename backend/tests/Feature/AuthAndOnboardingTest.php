@@ -41,11 +41,16 @@ class AuthAndOnboardingTest extends TestCase
             $this->assertGreaterThan(0, VoucherType::count());
 
             $workflow = Workflow::with('steps')->where('is_default', true)->firstOrFail();
-            $this->assertCount(3, $workflow->steps);
+            // Request → HOD signs → CEO approves → Cashier pays.
+            $this->assertCount(4, $workflow->steps);
 
             $hod = $workflow->steps->firstWhere('role', 'hod');
             $this->assertTrue($hod->can_sign, 'The HOD step should sign.');
             $this->assertFalse($hod->can_approve, 'The HOD step must not approve.');
+
+            $cashier = $workflow->steps->firstWhere('role', 'cashier');
+            $this->assertTrue($cashier->can_pay, 'The cashier step should release money.');
+            $this->assertFalse($cashier->can_approve, 'Paying is not approving.');
         });
     }
 

@@ -81,7 +81,7 @@ class EmployeeController extends Controller
             'phone' => ['nullable', 'string', 'max:40'],
             'employee_code' => ['nullable', 'string', 'max:40'],
             'job_title' => ['nullable', 'string', 'max:120'],
-            'role' => ['required', Rule::in(['company_admin', 'employee', 'hod', 'manager', 'finance', 'director'])],
+            'role' => ['required', Rule::in(User::ASSIGNABLE_ROLES)],
             'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('company_id', $this->tenant->id())],
             'password' => ['nullable', 'string', 'min:8'],
             'send_invitation' => ['nullable', 'boolean'],
@@ -132,7 +132,7 @@ class EmployeeController extends Controller
             'phone' => ['nullable', 'string', 'max:40'],
             'employee_code' => ['nullable', 'string', 'max:40'],
             'job_title' => ['nullable', 'string', 'max:120'],
-            'role' => ['sometimes', Rule::in(['company_admin', 'employee', 'hod', 'manager', 'finance', 'director'])],
+            'role' => ['sometimes', Rule::in(User::ASSIGNABLE_ROLES)],
             'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('company_id', $this->tenant->id())],
             'status' => ['sometimes', Rule::in(['active', 'invited', 'suspended'])],
         ]);

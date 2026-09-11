@@ -34,7 +34,7 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'status' => ['sometimes', Rule::in(['active', 'invited', 'suspended'])],
-            'role' => ['sometimes', Rule::in(['super_admin', 'company_admin', 'employee', 'hod', 'manager', 'finance', 'director'])],
+            'role' => ['sometimes', Rule::in(User::ALL_ROLES)],
         ]);
 
         $before = $user->only(['role', 'status']);

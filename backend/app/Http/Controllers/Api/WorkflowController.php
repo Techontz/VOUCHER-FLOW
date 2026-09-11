@@ -48,7 +48,7 @@ class WorkflowController extends Controller
         $this->authorizeAdmin($request);
 
         $data = $this->validateWorkflow($request);
-        $this->limits->assertApprovalDepth($this->tenant->company(), count($data['steps']));
+        $this->limits->assertApprovalDepth($this->tenant->company(), $data['steps']);
 
         $workflow = DB::transaction(function () use ($data) {
             if ($data['is_default'] ?? false) {
@@ -79,7 +79,7 @@ class WorkflowController extends Controller
         $this->authorizeAdmin($request);
 
         $data = $this->validateWorkflow($request);
-        $this->limits->assertApprovalDepth($this->tenant->company(), count($data['steps']));
+        $this->limits->assertApprovalDepth($this->tenant->company(), $data['steps']);
 
         $before = ['route' => $workflow->load('steps')->routeSummary(), 'version' => $workflow->version];
 
@@ -175,6 +175,7 @@ class WorkflowController extends Controller
                 'can_request_changes' => $step['can_request_changes'] ?? false,
                 'can_print' => $step['can_print'] ?? true,
                 'can_download' => $step['can_download'] ?? true,
+                'can_pay' => $step['can_pay'] ?? false,
                 'requires_signature' => $step['requires_signature'] ?? ($step['can_sign'] ?? false),
                 'min_amount' => $step['min_amount'] ?? null,
                 'max_amount' => $step['max_amount'] ?? null,
@@ -215,7 +216,7 @@ class WorkflowController extends Controller
             'steps.*.id' => ['nullable', 'integer'],
             'steps.*.name' => ['required', 'string', 'max:120'],
             'steps.*.name_sw' => ['nullable', 'string', 'max:120'],
-            'steps.*.role' => ['required', Rule::in(['employee', 'hod', 'manager', 'finance', 'director', 'custom'])],
+            'steps.*.role' => ['required', Rule::in(WorkflowStep::ROLES)],
             'steps.*.assigned_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('company_id', $this->tenant->id())],
             'steps.*.assignee_hint' => ['nullable', 'string', 'max:180'],
             'steps.*.can_sign' => ['nullable', 'boolean'],
@@ -224,6 +225,7 @@ class WorkflowController extends Controller
             'steps.*.can_request_changes' => ['nullable', 'boolean'],
             'steps.*.can_print' => ['nullable', 'boolean'],
             'steps.*.can_download' => ['nullable', 'boolean'],
+            'steps.*.can_pay' => ['nullable', 'boolean'],
             'steps.*.requires_signature' => ['nullable', 'boolean'],
             'steps.*.min_amount' => ['nullable', 'numeric', 'min:0'],
             'steps.*.max_amount' => ['nullable', 'numeric', 'min:0'],

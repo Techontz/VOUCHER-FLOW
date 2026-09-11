@@ -109,12 +109,26 @@ class UsageLimits
         }
     }
 
-    public function assertApprovalDepth(Company $company, int $steps): void
+    /**
+     * @param  array<int,array<string,mixed>>  $steps  the step definitions being saved
+     */
+    public function assertApprovalDepth(Company $company, array $steps): void
     {
         $limit = $company->plan?->max_approval_levels;
 
-        // The request step is not an approval level.
-        $levels = max(0, $steps - 1);
+        // Neither the request step nor a pay-only step is an approval level.
+        // A plan sells how many people must agree, not how many hands the
+        // voucher passes through, and a cashier decides nothing.
+        $levels = 0;
+
+        foreach ($steps as $index => $step) {
+            $isRequest = $index === 0 || ($step['role'] ?? null) === 'employee';
+            $paysOnly = ($step['can_pay'] ?? false) && ! ($step['can_approve'] ?? false);
+
+            if (! $isRequest && ! $paysOnly) {
+                $levels++;
+            }
+        }
 
         if ($limit !== null && $levels > $limit) {
             throw new RuntimeException(

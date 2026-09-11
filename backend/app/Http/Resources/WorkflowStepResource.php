@@ -31,6 +31,7 @@ class WorkflowStepResource extends JsonResource
             'can_request_changes' => (bool) $this->can_request_changes,
             'can_print' => (bool) $this->can_print,
             'can_download' => (bool) $this->can_download,
+            'can_pay' => (bool) $this->can_pay,
             'requires_signature' => (bool) $this->requires_signature,
             'min_amount' => $this->min_amount !== null ? (float) $this->min_amount : null,
             'max_amount' => $this->max_amount !== null ? (float) $this->max_amount : null,

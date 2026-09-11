@@ -23,7 +23,23 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ReportController extends Controller
 {
-    private const KINDS = ['vouchers', 'expenses', 'departments', 'employees', 'approvals', 'monthly'];
+    private const KINDS = ['vouchers', 'expenses', 'payments', 'departments', 'employees', 'approvals', 'monthly'];
+
+    /**
+     * Which reports each role may run at all.
+     *
+     * The visibility rules already stop a report returning rows a caller may
+     * not see, but that is not the same as being entitled to the report. An
+     * employee running an "Employee report" that lawfully contains only their
+     * own line is a confusing thing to offer; a cashier wants the money moved,
+     * not a turnaround analysis. The catalogue is filtered, and `show` refuses
+     * anything outside it rather than trusting the UI to have hidden it.
+     */
+    private const KINDS_BY_ROLE = [
+        User::ROLE_EMPLOYEE => ['vouchers', 'expenses'],
+        User::ROLE_CASHIER => ['payments', 'vouchers', 'expenses', 'departments', 'monthly'],
+        User::ROLE_FINANCE => ['payments', 'vouchers', 'expenses', 'departments', 'employees', 'approvals', 'monthly'],
+    ];
 
     public function __construct(
         private readonly VoucherVisibility $visibility,
@@ -32,23 +48,73 @@ class ReportController extends Controller
         private readonly TenantContext $tenant,
     ) {}
 
-    public function kinds()
+    public function kinds(Request $request)
     {
         return response()->json([
-            'data' => [
-                ['key' => 'vouchers', 'icon' => 'ph-receipt', 'title' => 'Voucher report', 'title_sw' => 'Ripoti ya vocha', 'body' => 'Every voucher with status, approver and amount', 'body_sw' => 'Kila vocha na hali, mwidhinishaji na kiasi'],
-                ['key' => 'expenses', 'icon' => 'ph-coins', 'title' => 'Expense report', 'title_sw' => 'Ripoti ya matumizi', 'body' => 'Spend by category and cost centre', 'body_sw' => 'Matumizi kwa kundi na kituo cha gharama'],
-                ['key' => 'departments', 'icon' => 'ph-buildings', 'title' => 'Department report', 'title_sw' => 'Ripoti ya idara', 'body' => 'Volume and value per department', 'body_sw' => 'Wingi na thamani kwa kila idara'],
-                ['key' => 'employees', 'icon' => 'ph-user', 'title' => 'Employee report', 'title_sw' => 'Ripoti ya mfanyakazi', 'body' => 'Requests and outcomes per person', 'body_sw' => 'Maombi na matokeo kwa kila mtu'],
-                ['key' => 'approvals', 'icon' => 'ph-list-checks', 'title' => 'Approval report', 'title_sw' => 'Ripoti ya idhini', 'body' => 'Turnaround times and rejection reasons', 'body_sw' => 'Muda wa kushughulikia na sababu za kukataa'],
-                ['key' => 'monthly', 'icon' => 'ph-calendar', 'title' => 'Monthly report', 'title_sw' => 'Ripoti ya mwezi', 'body' => 'Month-end pack, ready for the auditor', 'body_sw' => 'Muhtasari wa mwisho wa mwezi, tayari kwa mkaguzi'],
-            ],
+            'data' => array_values($this->catalogueFor($request->user())),
+            'scope' => $this->scopeDescriptor($request->user()),
         ]);
+    }
+
+    /** The full catalogue, narrowed to what this role may run. */
+    private function catalogueFor(User $user): array
+    {
+        $all = [
+            'vouchers' => ['key' => 'vouchers', 'icon' => 'ph-receipt', 'title' => 'Voucher report', 'title_sw' => 'Ripoti ya vocha', 'body' => 'Every voucher with status, approver and amount', 'body_sw' => 'Kila vocha na hali, mwidhinishaji na kiasi'],
+            'expenses' => ['key' => 'expenses', 'icon' => 'ph-coins', 'title' => 'Expense report', 'title_sw' => 'Ripoti ya matumizi', 'body' => 'Spend by category and cost centre', 'body_sw' => 'Matumizi kwa kundi na kituo cha gharama'],
+            'payments' => ['key' => 'payments', 'icon' => 'ph-wallet', 'title' => 'Payment report', 'title_sw' => 'Ripoti ya malipo', 'body' => 'Money released, by bank and by cash', 'body_sw' => 'Fedha zilizotolewa, kwa benki na kwa taslimu'],
+            'departments' => ['key' => 'departments', 'icon' => 'ph-buildings', 'title' => 'Department report', 'title_sw' => 'Ripoti ya idara', 'body' => 'Volume and value per department', 'body_sw' => 'Wingi na thamani kwa kila idara'],
+            'employees' => ['key' => 'employees', 'icon' => 'ph-user', 'title' => 'Employee report', 'title_sw' => 'Ripoti ya mfanyakazi', 'body' => 'Requests and outcomes per person', 'body_sw' => 'Maombi na matokeo kwa kila mtu'],
+            'approvals' => ['key' => 'approvals', 'icon' => 'ph-list-checks', 'title' => 'Approval report', 'title_sw' => 'Ripoti ya idhini', 'body' => 'Turnaround times and rejection reasons', 'body_sw' => 'Muda wa kushughulikia na sababu za kukataa'],
+            'monthly' => ['key' => 'monthly', 'icon' => 'ph-calendar', 'title' => 'Monthly report', 'title_sw' => 'Ripoti ya mwezi', 'body' => 'Month-end pack, ready for the auditor', 'body_sw' => 'Muhtasari wa mwisho wa mwezi, tayari kwa mkaguzi'],
+        ];
+
+        $permitted = self::KINDS_BY_ROLE[$user->role] ?? self::KINDS;
+
+        return array_intersect_key($all, array_flip($permitted));
+    }
+
+    /**
+     * How wide this caller's reporting reaches, in their own words.
+     *
+     * This is the ceiling, not a filter: a department picker may narrow it and
+     * can never widen it, which is enforced in `scopedVouchers` regardless of
+     * what the client sends.
+     */
+    private function scopeDescriptor(User $user): array
+    {
+        if ($user->isAdmin()) {
+            return ['level' => 'company', 'label' => 'Company-wide', 'department_ids' => null];
+        }
+
+        if (! $user->isApprover()) {
+            return ['level' => 'own', 'label' => 'Your own vouchers only', 'department_ids' => []];
+        }
+
+        if (in_array($user->role, [User::ROLE_CEO, User::ROLE_DIRECTOR, User::ROLE_FINANCE, User::ROLE_CASHIER], true)) {
+            return ['level' => 'company', 'label' => 'Company-wide', 'department_ids' => null];
+        }
+
+        $ids = $user->headedDepartments()->pluck('id')
+            ->merge($user->managedDepartments()->pluck('id'))->unique()->values();
+
+        $names = Department::whereIn('id', $ids)->pluck('name')->implode(' · ');
+
+        return [
+            'level' => 'departments',
+            'label' => $names ?: 'No department assigned',
+            'department_ids' => $ids->all(),
+        ];
     }
 
     public function show(Request $request, string $kind)
     {
         abort_unless(in_array($kind, self::KINDS, true), 404, 'Unknown report.');
+        abort_unless(
+            array_key_exists($kind, $this->catalogueFor($request->user())),
+            403,
+            'That report is outside your permissions.',
+        );
 
         $request->validate($this->filterRules());
 
@@ -56,6 +122,7 @@ class ReportController extends Controller
 
         return response()->json([
             'kind' => $kind,
+            'scope' => $this->scopeDescriptor($request->user()),
             'headings' => $headings,
             'rows' => $rows,
             'summary' => $summary,
@@ -68,6 +135,11 @@ class ReportController extends Controller
     public function export(Request $request, string $kind)
     {
         abort_unless(in_array($kind, self::KINDS, true), 404, 'Unknown report.');
+        abort_unless(
+            array_key_exists($kind, $this->catalogueFor($request->user())),
+            403,
+            'That report is outside your permissions.',
+        );
 
         $request->validate($this->filterRules() + [
             'format' => ['required', Rule::in(['pdf', 'xlsx', 'csv'])],
@@ -101,6 +173,7 @@ class ReportController extends Controller
     {
         return match ($kind) {
             'expenses' => $this->expenses($request),
+            'payments' => $this->payments($request),
             'departments' => $this->departments($request),
             'employees' => $this->employees($request),
             'approvals' => $this->approvals($request),
@@ -121,7 +194,12 @@ class ReportController extends Controller
             ->when($request->query('department_id'), fn ($q, $v) => $q->where('department_id', $v))
             ->when($request->query('voucher_type_id'), fn ($q, $v) => $q->where('voucher_type_id', $v))
             ->when($request->query('requester_id'), fn ($q, $v) => $q->where('requester_id', $v))
-            ->when($request->query('status'), fn ($q, $v) => $q->status($v));
+            ->when($request->query('status'), fn ($q, $v) => $q->status($v))
+            ->when($request->query('kind'), fn ($q, $v) => $q->kind($v))
+            ->when($request->query('payee'), fn ($q, $v) => $q->where('payee', 'like', '%'.$v.'%'))
+            ->when($request->query('min_amount'), fn ($q, $v) => $q->where('amount', '>=', $v))
+            ->when($request->query('max_amount'), fn ($q, $v) => $q->where('amount', '<=', $v))
+            ->when($request->query('payment_method'), fn ($q, $v) => $q->where('payment_method', $v));
     }
 
     private function vouchers(Request $request): array
@@ -168,6 +246,57 @@ class ReportController extends Controller
             'headings' => ['Category', 'Cost centres', 'Vouchers', 'Approved value'],
             'rows' => $rows,
             'summary' => $this->summary($vouchers),
+        ];
+    }
+
+    /**
+     * What the money actually did. Bank and cash are reported side by side
+     * because they reconcile against different things — a statement and a
+     * float — and a single "paid" column hides which is which.
+     */
+    private function payments(Request $request): array
+    {
+        $vouchers = $this->scopedVouchers($request)
+            ->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])
+            ->with('paidBy')
+            ->orderByDesc('payment_date')->orderByDesc('approved_at')
+            ->get();
+
+        $rows = $vouchers->map(fn (Voucher $v) => [
+            $v->number,
+            $v->isBank() ? 'Bank' : 'Cash',
+            $v->payment_date?->format('Y-m-d') ?? '—',
+            $v->payee,
+            $v->department?->name ?? '—',
+            (float) $v->amount,
+            $v->currency,
+            $v->payment_method ?: '—',
+            $v->payment_reference ?: ($v->cheque_number ?: '—'),
+            $v->paidBy?->name ?? '—',
+            $v->isPaid() ? 'Paid' : 'Awaiting payment',
+        ])->all();
+
+        $paid = $vouchers->where('status', Voucher::STATUS_PAID);
+        $outstanding = $vouchers->where('status', Voucher::STATUS_APPROVED);
+        $currency = $this->tenant->company()?->currency ?? 'TZS';
+
+        return [
+            'title' => 'Payment report',
+            'headings' => ['Number', 'Format', 'Paid on', 'Payee', 'Department', 'Amount', 'Currency', 'Method', 'Reference', 'Paid by', 'Status'],
+            'rows' => $rows,
+            // The same shape every other report returns, plus the split that
+            // only matters here: released vs still outstanding, bank vs cash.
+            'summary' => $this->summary($vouchers) + [
+                'paid_total' => (float) $paid->sum('amount'),
+                'paid_total_text' => $this->money->money((float) $paid->sum('amount'), $currency),
+                'paid_count' => $paid->count(),
+                'bank_total_text' => $this->money->money((float) $paid->where('kind', Voucher::KIND_BANK)->sum('amount'), $currency),
+                'bank_count' => $paid->where('kind', Voucher::KIND_BANK)->count(),
+                'cash_total_text' => $this->money->money((float) $paid->where('kind', Voucher::KIND_CASH)->sum('amount'), $currency),
+                'cash_count' => $paid->where('kind', Voucher::KIND_CASH)->count(),
+                'outstanding_total_text' => $this->money->money((float) $outstanding->sum('amount'), $currency),
+                'outstanding_count' => $outstanding->count(),
+            ],
         ];
     }
 
@@ -327,6 +456,11 @@ class ReportController extends Controller
             'voucher_type_id' => ['nullable', 'integer'],
             'requester_id' => ['nullable', 'integer'],
             'status' => ['nullable', 'string'],
+            'kind' => ['nullable', Rule::in(Voucher::KINDS)],
+            'payee' => ['nullable', 'string', 'max:180'],
+            'min_amount' => ['nullable', 'numeric'],
+            'max_amount' => ['nullable', 'numeric'],
+            'payment_method' => ['nullable', 'string', 'max:80'],
         ];
     }
 }

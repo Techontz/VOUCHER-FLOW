@@ -70,6 +70,7 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
     Route::prefix('vouchers')->name('api.vouchers.')->group(function () {
         Route::get('/', [VoucherController::class, 'index']);
         Route::get('pending', [VoucherController::class, 'pending']);
+        Route::get('awaiting-payment', [VoucherController::class, 'awaitingPayment']);
         Route::post('/', [VoucherController::class, 'store'])->middleware('subscription');
         Route::get('{voucher}', [VoucherController::class, 'show']);
         Route::put('{voucher}', [VoucherController::class, 'update'])->middleware('subscription');
@@ -84,6 +85,7 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
             Route::post('{voucher}/reject', [VoucherController::class, 'reject']);
             Route::post('{voucher}/request-changes', [VoucherController::class, 'requestChanges']);
             Route::post('{voucher}/cancel', [VoucherController::class, 'cancel']);
+            Route::post('{voucher}/pay', [VoucherController::class, 'pay']);
         });
 
         // The printed document — available at every stage, per step permissions.

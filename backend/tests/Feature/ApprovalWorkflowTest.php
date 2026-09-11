@@ -19,7 +19,7 @@ class ApprovalWorkflowTest extends TestCase
 
     private const SIGNATURE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
-    public function test_the_full_route_from_draft_to_completed(): void
+    public function test_the_full_route_from_draft_to_paid(): void
     {
         $t = $this->makeTenant('Acme Trading');
         $voucher = $this->makeVoucher($t);
@@ -62,16 +62,77 @@ class ApprovalWorkflowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status_key', 'awaiting_approval');
 
-        // Only the manager closes it.
-        $this->actingAs($t['manager'], 'sanctum')
+        // Only the CEO step decides.
+        $this->actingAs($t['ceo'], 'sanctum')
             ->postJson("/api/vouchers/{$voucher->id}/approve", ['comment' => 'Cleared.'])
             ->assertOk()
-            ->assertJsonPath('data.status', Voucher::STATUS_APPROVED);
+            ->assertJsonPath('data.status', Voucher::STATUS_APPROVED)
+            ->assertJsonPath('data.status_key', 'awaiting_payment');
 
         $this->assertNotNull($voucher->fresh()->approved_at);
+
+        // Approval is not the end: the money still has to move, and only the
+        // step carrying `can_pay` may move it.
+        $this->actingAs($t['employee'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/pay", ['payment_reference' => 'TRX-1'])
+            ->assertStatus(422);
+
+        $this->actingAs($t['cashier'], 'sanctum')
+            ->getJson("/api/vouchers/{$voucher->id}")
+            ->assertJsonPath('data.actions.pay', true);
+
+        $this->actingAs($t['cashier'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/pay", [
+                'payment_reference' => 'CRDB-TRX-99812',
+                'payment_method' => 'Bank Transfer',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', Voucher::STATUS_PAID)
+            ->assertJsonPath('data.status_key', 'paid')
+            ->assertJsonPath('data.payment_reference', 'CRDB-TRX-99812');
+
+        $paid = $voucher->fresh();
+        $this->assertNotNull($paid->paid_at);
+        $this->assertSame($t['cashier']->id, $paid->paid_by_id);
+
+        // And it cannot be paid twice.
+        $this->actingAs($t['cashier'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/pay", ['payment_reference' => 'CRDB-TRX-99813'])
+            ->assertStatus(422);
     }
 
-    public function test_a_manager_can_reject_and_the_voucher_closes(): void
+    /**
+     * A cash voucher asks for a different acknowledgement: no transfer
+     * reference exists, but somebody physically took the notes.
+     */
+    public function test_a_cash_voucher_records_who_received_the_money(): void
+    {
+        $t = $this->makeTenant('Acme Trading');
+        $voucher = $this->makeVoucher($t);
+        $voucher->forceFill(['kind' => Voucher::KIND_CASH])->save();
+
+        $this->actingAs($t['employee'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/submit");
+        $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/sign", ['signature' => self::SIGNATURE]);
+        $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/submit-signed");
+        $this->actingAs($t['ceo'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/approve");
+
+        // A bank reference is meaningless here; the recipient's name is not.
+        $this->actingAs($t['cashier'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/pay", ['payment_method' => 'Cash'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('received_by');
+
+        $this->actingAs($t['cashier'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/pay", [
+                'payment_method' => 'Cash',
+                'received_by' => 'Frank Kessy',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', Voucher::STATUS_PAID)
+            ->assertJsonPath('data.received_by', 'Frank Kessy');
+    }
+
+    public function test_the_approving_step_can_reject_and_the_voucher_closes(): void
     {
         $t = $this->makeTenant('Acme Trading');
         $voucher = $this->makeVoucher($t);
@@ -80,7 +141,7 @@ class ApprovalWorkflowTest extends TestCase
         $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/sign", ['signature' => self::SIGNATURE]);
         $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/submit-signed");
 
-        $this->actingAs($t['manager'], 'sanctum')
+        $this->actingAs($t['ceo'], 'sanctum')
             ->postJson("/api/vouchers/{$voucher->id}/reject", ['comment' => 'Use the branch float.'])
             ->assertOk()
             ->assertJsonPath('data.status', Voucher::STATUS_REJECTED);
@@ -91,7 +152,7 @@ class ApprovalWorkflowTest extends TestCase
         $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$second->id}/sign", ['signature' => self::SIGNATURE]);
         $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$second->id}/submit-signed");
 
-        $this->actingAs($t['manager'], 'sanctum')
+        $this->actingAs($t['ceo'], 'sanctum')
             ->postJson("/api/vouchers/{$second->id}/reject", ['comment' => ''])
             ->assertStatus(422);
     }
@@ -152,6 +213,13 @@ class ApprovalWorkflowTest extends TestCase
             ->postJson("/api/vouchers/{$voucher->id}/approve")
             ->assertOk()
             ->assertJsonPath('data.status', Voucher::STATUS_APPROVED);
+
+        // This tenant pays from its finance step rather than a cashier — the
+        // capability travels with the step, not with the job title.
+        $this->actingAs($t['finance'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/pay", ['payment_reference' => 'NMB-77120'])
+            ->assertOk()
+            ->assertJsonPath('data.status', Voucher::STATUS_PAID);
     }
 
     public function test_a_single_approver_route_completes_in_one_decision(): void
@@ -176,8 +244,8 @@ class ApprovalWorkflowTest extends TestCase
             ->getJson("/api/vouchers/{$voucher->id}")
             ->json('data.timeline');
 
-        // Four configured steps plus the closing "Completed" row.
-        $this->assertCount(5, $timeline);
+        // Five configured steps plus the closing "Completed" row.
+        $this->assertCount(6, $timeline);
         $this->assertSame('Finance verification', $timeline[2]['name']);
     }
 
@@ -199,6 +267,9 @@ class ApprovalWorkflowTest extends TestCase
             'can_reject' => $step->can_reject,
             'can_request_changes' => $step->can_request_changes,
             'can_print' => true,
+            // Carried through deliberately: a PUT replaces the route, so a
+            // capability left out of the payload is a capability taken away.
+            'can_pay' => $step->can_pay,
         ])->all();
 
         // Insert a Finance gate before management approval.
@@ -216,7 +287,7 @@ class ApprovalWorkflowTest extends TestCase
                 'steps' => $steps,
             ])
             ->assertOk()
-            ->assertJsonCount(4, 'data.steps');
+            ->assertJsonCount(5, 'data.steps');
 
         // A non-administrator may not.
         $this->actingAs($t['employee'], 'sanctum')

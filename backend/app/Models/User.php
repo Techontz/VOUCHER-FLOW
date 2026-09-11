@@ -28,10 +28,74 @@ class User extends Authenticatable
 
     public const ROLE_DIRECTOR = 'director';
 
+    public const ROLE_CEO = 'ceo';
+
+    public const ROLE_CASHIER = 'cashier';
+
     /** Roles that may act on an approval step. */
     public const APPROVER_ROLES = [
-        self::ROLE_HOD, self::ROLE_MANAGER, self::ROLE_FINANCE, self::ROLE_DIRECTOR,
+        self::ROLE_HOD, self::ROLE_MANAGER, self::ROLE_CEO,
+        self::ROLE_FINANCE, self::ROLE_CASHIER, self::ROLE_DIRECTOR,
     ];
+
+    /**
+     * The vocabulary a company admin may assign inside their own tenant.
+     *
+     * Kept here rather than repeated in each controller's validation rule: it
+     * had drifted across six `Rule::in` lists, and a role added to one of them
+     * was silently rejected by the others. When per-company role definitions
+     * arrive this is the single place that has to start reading from the tenant.
+     */
+    public const ASSIGNABLE_ROLES = [
+        self::ROLE_COMPANY_ADMIN, self::ROLE_EMPLOYEE, self::ROLE_HOD,
+        self::ROLE_CEO, self::ROLE_MANAGER, self::ROLE_CASHIER,
+        self::ROLE_FINANCE, self::ROLE_DIRECTOR,
+    ];
+
+    /** Everything above, plus the platform role no tenant may grant. */
+    public const ALL_ROLES = [self::ROLE_SUPER_ADMIN, ...self::ASSIGNABLE_ROLES];
+
+    /** Roles whose workflow step releases money. */
+    public const PAYING_ROLES = [self::ROLE_CASHIER, self::ROLE_FINANCE];
+
+    /**
+     * Roles that act for the whole company rather than for one department.
+     *
+     * An HOD's authority is bounded by the departments they head, so a bare
+     * role match must never widen them. These roles have no such boundary — a
+     * CEO approves across the company and a cashier pays across it — so for
+     * them a role-matched step is authority enough.
+     */
+    public const COMPANY_WIDE_ROLES = [
+        self::ROLE_CEO, self::ROLE_DIRECTOR, self::ROLE_FINANCE, self::ROLE_CASHIER,
+    ];
+
+    public function actsCompanyWide(): bool
+    {
+        return in_array($this->role, self::COMPANY_WIDE_ROLES, true);
+    }
+
+    public static function roleLabel(string $role): string
+    {
+        return match ($role) {
+            self::ROLE_SUPER_ADMIN => 'Platform Super Admin',
+            self::ROLE_COMPANY_ADMIN => 'Company Administrator',
+            self::ROLE_EMPLOYEE => 'Employee',
+            self::ROLE_HOD => 'Head of Department',
+            self::ROLE_CEO => 'CEO / Managing Director',
+            self::ROLE_MANAGER => 'Manager',
+            self::ROLE_CASHIER => 'Cashier',
+            self::ROLE_FINANCE => 'Finance',
+            self::ROLE_DIRECTOR => 'Director',
+            default => ucfirst(str_replace('_', ' ', $role)),
+        };
+    }
+
+    /** Whether this user's step in a workflow may release money. */
+    public function canPay(): bool
+    {
+        return in_array($this->role, self::PAYING_ROLES, true);
+    }
 
     protected $guarded = ['id'];
 

@@ -48,6 +48,29 @@ class VoucherResource extends JsonResource
 
             'payment_method' => $this->payment_method,
             'account_ref' => $this->account_ref,
+
+            // The instrument, and only the particulars that instrument uses.
+            // A cash voucher carrying a set of null bank keys invites a client
+            // to render empty rows for them.
+            'kind' => $this->kind,
+            ...($this->isBank() ? [
+                'payee_bank' => $this->payee_bank,
+                'payee_account_name' => $this->payee_account_name,
+                'payee_account_number' => $this->payee_account_number,
+                'payee_bank_branch' => $this->payee_bank_branch,
+                'cheque_number' => $this->cheque_number,
+            ] : [
+                'cash_float' => $this->cash_float,
+                'received_by' => $this->received_by,
+            ]),
+
+            'paid_at' => $this->paid_at?->toIso8601String(),
+            'payment_reference' => $this->payment_reference,
+            'payment_date' => $this->payment_date?->toDateString(),
+            'paid_by' => $this->whenLoaded('paidBy', fn () => $this->paidBy
+                ? ['id' => $this->paidBy->id, 'name' => $this->paidBy->name, 'job_title' => $this->paidBy->job_title]
+                : null),
+            'is_awaiting_payment' => $this->isAwaitingPayment(),
             'category' => $this->category,
             'cost_centre' => $this->cost_centre,
             'voucher_date' => $this->voucher_date?->toDateString(),

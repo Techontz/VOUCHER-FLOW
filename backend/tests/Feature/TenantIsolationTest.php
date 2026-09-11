@@ -85,6 +85,52 @@ class TenantIsolationTest extends TestCase
         $this->assertNotSame('Hijacked', $other['employee']->fresh()->name);
     }
 
+    /**
+     * Releasing money is the highest-value action in the system, so it gets its
+     * own boundary test rather than relying on the generic read check.
+     */
+    public function test_money_cannot_be_released_on_another_companys_voucher(): void
+    {
+        $acme = $this->makeTenant('Acme Trading');
+        $other = $this->makeTenant('Zamani Freight');
+
+        $foreign = $this->makeVoucher($other);
+
+        app(TenantContext::class)->forCompany(
+            $other['company'],
+            fn () => $foreign->forceFill(['status' => Voucher::STATUS_APPROVED, 'approved_at' => now()])->save(),
+        );
+
+        // Acme's cashier holds the pay capability — in Acme, and only there.
+        $this->actingAs($acme['cashier'], 'sanctum')
+            ->postJson("/api/vouchers/{$foreign->id}/pay", ['payment_reference' => 'TRX-THEFT'])
+            ->assertNotFound();
+
+        $this->assertNull($foreign->fresh()->paid_at);
+    }
+
+    public function test_a_payment_queue_never_shows_another_companys_money(): void
+    {
+        $acme = $this->makeTenant('Acme Trading');
+        $other = $this->makeTenant('Zamani Freight');
+
+        foreach ([[$acme, 'mine'], [$other, 'theirs']] as [$t, $_]) {
+            $v = $this->makeVoucher($t);
+            app(TenantContext::class)->forCompany(
+                $t['company'],
+                fn () => $v->forceFill(['status' => Voucher::STATUS_APPROVED, 'approved_at' => now()])->save(),
+            );
+        }
+
+        $ids = collect($this->actingAs($acme['cashier'], 'sanctum')
+            ->getJson('/api/vouchers/awaiting-payment')->assertOk()->json('data'))->pluck('id');
+
+        $foreignIds = Voucher::withoutGlobalScopes()
+            ->where('company_id', $other['company']->id)->pluck('id');
+
+        $this->assertTrue($ids->intersect($foreignIds)->isEmpty());
+    }
+
     public function test_the_tenant_scope_fails_closed_without_a_resolved_company(): void
     {
         $acme = $this->makeTenant('Acme Trading');
