@@ -243,14 +243,30 @@ async function parse(response: Response) {
 /** Network-shaped latency, so loading states are exercised the way they will be. */
 const settle = () => new Promise((r) => setTimeout(r, 90 + Math.random() * 160));
 
-/** Reads a FormData body into the plain object the mock router expects. */
+/**
+ * Reads a FormData body into the plain object the mock router expects.
+ *
+ * Repeated keys collect into an array. Attachments are appended as `files[]`,
+ * so assigning by key kept only the last one and the mock saw a single file
+ * however many were chosen — which is not how the multipart request the live
+ * transport sends behaves.
+ */
 function formToBody(form: FormData): Record<string, unknown> {
   const body: Record<string, unknown> = {};
+
   form.forEach((value, key) => {
-    body[key] = value instanceof File
+    const entry = value instanceof File
       ? { name: value.name, size: value.size, type: value.type }
       : value;
+
+    if (key in body) {
+      const existing = body[key];
+      body[key] = Array.isArray(existing) ? [...existing, entry] : [existing, entry];
+    } else {
+      body[key] = key.endsWith("[]") ? [entry] : entry;
+    }
   });
+
   return body;
 }
 
@@ -339,9 +355,16 @@ export async function request<T = any>(path: string, options: RequestOptions = {
 /** Fetches a file (PDF, spreadsheet) as a blob, carrying auth headers. */
 export async function download(path: string, query?: Query): Promise<Blob> {
   if (API_MODE === "mock") {
+    // An attachment is a file somebody uploaded; the fixture records its name,
+    // type and size but holds no bytes to hand back. Telling the reader to
+    // "use Print" would be nonsense in that case, so say which it is.
+    const isAttachment = /\/attachments\//.test(path);
+
     throw new ApiError(
       501,
-      "File export is generated server-side and arrives with the backend. Use Print to produce a PDF from this page in the meantime.",
+      isAttachment
+        ? "Attachments are stored on the server. Connect the API to open this file."
+        : "File export is generated server-side and arrives with the backend. Use Print to produce a PDF from this page in the meantime.",
       {},
       "phase_one_frontend_only",
     );

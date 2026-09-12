@@ -19,6 +19,23 @@ import { DEFAULT_STEPS, WORKFLOW_PRESETS, SAMPLE_SIGNATURE, type MockDataset, ty
 import { store } from "./store";
 import type { Role } from "../types";
 
+/**
+ * Upload limits, kept identical to backend/config/vouchflow.php. The fixture
+ * has to refuse exactly what Laravel refuses, or a file that attaches cleanly
+ * offline fails the moment the app is pointed at a real server.
+ */
+const MAX_UPLOAD_MB = 10;
+
+const MAX_ATTACHMENTS = 10;
+
+const ALLOWED_UPLOAD_MIMES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+];
+
 export class MockError extends Error {
   constructor(
     public status: number,
@@ -488,6 +505,86 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
               user: { id: user.id, name: user.name, initials: initials(user.name), role_label: roleLabel(user.role), department: null },
               created_at: added.created_at,
             },
+          };
+        }
+
+        /**
+         * Supporting documents.
+         *
+         * Mirrors VoucherAttachmentController@store: the same editability
+         * gate, the same limits as config/vouchflow.php, and the same resource
+         * shape — so a screen that works against the fixture works against
+         * Laravel without a second code path.
+         *
+         * No bytes are kept. The fixture records a file's name, type and size,
+         * which is all the interface renders; fetching one back needs the real
+         * server, and api.download() already says so.
+         */
+        case "attachments": {
+          if (!actions.edit) {
+            throw new MockError(403, "Attachments can only be added while the voucher is editable.");
+          }
+
+          const raw = body["files[]"] ?? body.files;
+          const incoming = (Array.isArray(raw) ? raw : [raw])
+            .filter((f): f is { name: string; size: number; type: string } => !!f && typeof f === "object");
+
+          if (incoming.length === 0) {
+            throw new MockError(422, "Choose a file to attach.", { files: ["Choose a file to attach."] });
+          }
+
+          if (incoming.length > MAX_ATTACHMENTS) {
+            const message = `Attach at most ${MAX_ATTACHMENTS} files at a time.`;
+            throw new MockError(422, message, { files: [message] });
+          }
+
+          for (const file of incoming) {
+            if (!ALLOWED_UPLOAD_MIMES.includes(file.type)) {
+              const message = "Attachments must be a PDF or an image.";
+              throw new MockError(422, message, { files: [message] });
+            }
+
+            if (Number(file.size) > MAX_UPLOAD_MB * 1_048_576) {
+              const message = `Each attachment must be under ${MAX_UPLOAD_MB} MB.`;
+              throw new MockError(422, message, { files: [message] });
+            }
+          }
+
+          const added: { id: number; name: string; mime: string; size_bytes: number }[] = [];
+
+          store.mutate((d) => {
+            const row = d.vouchers.find((v) => v.id === id)!;
+
+            for (const file of incoming) {
+              const attachment = {
+                id: store.nextId("attachment"),
+                name: String(file.name),
+                mime: String(file.type),
+                size_bytes: Number(file.size) || 0,
+              };
+
+              row.attachments.push(attachment);
+              added.push(attachment);
+            }
+          });
+
+          recordAudit(
+            "voucher.attachment_added",
+            `${added.length} attachment(s) added to ${voucher.number}`,
+            user,
+            { type: "Voucher", id },
+          );
+
+          return {
+            data: added.map((a) => ({
+              id: a.id,
+              name: a.name,
+              mime_type: a.mime,
+              size_bytes: a.size_bytes,
+              is_image: a.mime.startsWith("image/"),
+              uploaded_by: { id: user.id, name: user.name },
+              created_at: now(),
+            })),
           };
         }
 

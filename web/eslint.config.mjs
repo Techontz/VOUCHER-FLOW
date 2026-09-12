@@ -12,7 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Throwaway transpile produced by `npm test` so node can import the mock
+    // router. Generated output, not source.
+    ".mocktest/**",
   ]),
 ]);
 
-export default eslintConfig;
+export default eslintConfig

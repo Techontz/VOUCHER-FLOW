@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Throwaway transpile used by `npm test` to exercise the mock router.
+.mocktest/
