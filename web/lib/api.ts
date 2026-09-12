@@ -13,12 +13,107 @@
 
 import { handle, MockError } from "./mock/router";
 
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api";
-
-/** `mock` (default, Phase 1) or `live` (Phase 2, once Laravel is connected). */
+/** `mock` (default) or `live`, which routes every call over HTTP to Laravel. */
 export const API_MODE: "mock" | "live" =
   process.env.NEXT_PUBLIC_API_MODE === "live" ? "live" : "mock";
+
+/** Where `php artisan serve` puts the API. Development convenience only. */
+const DEV_FALLBACK = "http://127.0.0.1:8000/api";
+
+const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?/i;
+
+/**
+ * The API's base URL, including the `/api` prefix.
+ *
+ * Call sites pass paths like `/auth/login`, so the base must carry the prefix;
+ * a trailing slash is trimmed so `.../api` and `.../api/` behave the same.
+ *
+ * The checks below run when the module is evaluated, which during `next build`
+ * means they run while pages are being prerendered — so a deployment that is
+ * misconfigured fails the build instead of shipping a bundle that quietly
+ * dials the visitor's own machine. `NEXT_PUBLIC_*` values are inlined at build
+ * time, which is exactly why this cannot be a runtime check.
+ *
+ * NODE_ENV alone is the wrong signal: `npm run build` sets it to production on
+ * a laptop too, where pointing at 127.0.0.1 is correct. So a loopback URL is
+ * only fatal where it could actually reach users — a real deployment, which
+ * Vercel marks with VERCEL_ENV=production.
+ */
+function resolveApiUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
+
+  // In mock mode nothing is ever dialled, so the value is inert.
+  if (API_MODE === "mock") return configured || DEV_FALLBACK;
+
+  if (!configured) {
+    if (process.env.NODE_ENV !== "production") return DEV_FALLBACK;
+
+    throw new Error(
+      "NEXT_PUBLIC_API_URL is not set, but NEXT_PUBLIC_API_MODE=live. A production " +
+      "build would fall back to " + DEV_FALLBACK + " and every visitor's browser " +
+      "would try to reach its own machine. Set NEXT_PUBLIC_API_URL to the API's " +
+      "base URL including /api — e.g. https://api.example.com/api.",
+    );
+  }
+
+  if (!/^https?:\/\//i.test(configured)) {
+    throw new Error(
+      `NEXT_PUBLIC_API_URL must be an absolute http(s) URL, got "${configured}".`,
+    );
+  }
+
+  const isLoopback = LOOPBACK.test(configured);
+
+  // A real deployment. Anything that cannot work from a visitor's browser is
+  // a build failure here rather than a blank screen later.
+  if (process.env.VERCEL_ENV === "production") {
+    if (isLoopback) {
+      throw new Error(
+        `NEXT_PUBLIC_API_URL is ${configured} in a Vercel production build. That ` +
+        "address only exists on the machine that opens the page. Point it at the " +
+        "deployed API, including /api.",
+      );
+    }
+
+    if (!configured.toLowerCase().startsWith("https://")) {
+      throw new Error(
+        `NEXT_PUBLIC_API_URL must use https in production, got "${configured}". A ` +
+        "browser on an https page blocks plain-http requests as mixed content.",
+      );
+    }
+  }
+
+  // Plain http to a real host cannot work from an https page anywhere.
+  if (process.env.NODE_ENV === "production" && !isLoopback
+      && !configured.toLowerCase().startsWith("https://")) {
+    throw new Error(
+      `NEXT_PUBLIC_API_URL must use https, got "${configured}". A browser on an ` +
+      "https page blocks plain-http requests as mixed content.",
+    );
+  }
+
+  // Legitimate on a laptop, ruinous on a deployment that Vercel has not
+  // labelled. Worth saying out loud in the build log either way.
+  if (process.env.NODE_ENV === "production" && isLoopback) {
+    console.warn(
+      `[vouchflow] Building with NEXT_PUBLIC_API_URL=${configured}. Correct for a ` +
+      "local production build; wrong for anything you deploy.",
+    );
+  }
+
+  // Every call site passes a path beginning with a slash, so a base with no
+  // path of its own is almost certainly missing the /api prefix.
+  if (new URL(configured).pathname === "/") {
+    console.warn(
+      `[vouchflow] NEXT_PUBLIC_API_URL=${configured} has no path. The base URL is ` +
+      "expected to include the API prefix, e.g. https://api.example.com/api.",
+    );
+  }
+
+  return configured;
+}
+
+export const API_URL = resolveApiUrl();
 
 const TOKEN_KEY = "vouchflow.token";
 const LOCALE_KEY = "vouchflow.locale";
