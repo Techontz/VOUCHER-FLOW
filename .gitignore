@@ -1,2 +1,5 @@
 # macOS
 .DS_Store
+
+# Deployment packages built for manual upload to production.
+/dist/
