@@ -18,6 +18,14 @@ class VoucherType extends Model
         return [
             'is_active' => 'boolean',
             'reset_yearly' => 'boolean',
+
+            // Cast, because these are compared numerically and MySQL returns
+            // integer columns as strings under emulated prepared statements.
+            // Without this the year check in VoucherNumberGenerator was a
+            // string-versus-int comparison that was true every time.
+            'next_number' => 'integer',
+            'current_year' => 'integer',
+            'seq_padding' => 'integer',
         ];
     }
 
