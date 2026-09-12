@@ -26,6 +26,30 @@ use Illuminate\Support\Facades\Storage;
  * The second tenant deliberately runs a four-step route with Finance in the
  * middle, so the configurable-workflow behaviour is visible rather than claimed —
  * and so tenant isolation can be checked against a company with different shape.
+ *
+ * IDEMPOTENT. Running this a second or third time updates the same demo world
+ * instead of building another one beside it, because every record it creates is
+ * addressed by a stable identity rather than by insertion order:
+ *
+ *   company      → slug                    (a fixed constant, not a derived one)
+ *   user         → email
+ *   department   → company_id + name
+ *   voucher type → company_id + code
+ *   workflow     → company_id + name
+ *   voucher      → company_id + number     (the table's own unique key)
+ *   comment      → voucher_id + author + body
+ *
+ * Two consequences worth knowing about:
+ *
+ *  - Demo voucher numbers are assigned deterministically from the script's own
+ *    order, NOT from VoucherNumberGenerator. The generator is a counter, and a
+ *    counter cannot produce the same number twice for the same voucher. Each
+ *    tenant's counters are then advanced past whatever was seeded, so the first
+ *    voucher a real user raises afterwards still gets a free number.
+ *
+ *  - The historical spread is generated from a fixed random seed, so the demo
+ *    world is identical on every environment and a rerun recognises the rows it
+ *    wrote last time rather than inventing different ones.
  */
 class DemoSeeder extends Seeder
 {
@@ -38,26 +62,139 @@ class DemoSeeder extends Seeder
         private readonly TenantContext $tenant,
     ) {}
 
+    /**
+     * Stable slugs for the demo tenants.
+     *
+     * CompanyProvisioner derives a slug from the name and appends -2, -3 … to
+     * keep it unique, which is right for a real signup and wrong here: it is
+     * precisely what let a rerun build a second "Watercom (T) Limited" instead
+     * of finding the first. These constants are the demo world's primary keys.
+     */
+    private const SLUG_PRIMARY = 'watercom';
+
+    private const SLUG_SECOND = 'zamani-logistics';
+
+    private const SLUG_TRIAL = 'baobab-business-solutions';
+
+    /** Fixed seed for the historical spread, so the demo is reproducible. */
+    private const RANDOM_SEED = 20260101;
+
     public function run(): void
     {
+        // Every sample amount, date and payee below comes from this sequence.
+        // Seeding it makes the demo world reproducible, which is what lets a
+        // rerun match the rows it wrote last time instead of adding new ones.
+        mt_srand(self::RANDOM_SEED);
+
         $this->tenant->withoutScope(function () {
             $business = Plan::where('code', 'business')->first();
             $starter = Plan::where('code', 'starter')->first();
             $enterprise = Plan::where('code', 'enterprise')->first();
 
-            $acme = $this->buildPrimaryTenant($business);
-            $this->buildSecondTenant($enterprise);
-            $this->buildTrialTenant($starter);
+            $primary = $this->buildPrimaryTenant($business);
+            $second = $this->buildSecondTenant($enterprise);
+            $trial = $this->buildTrialTenant($starter);
 
-            $this->command?->info('Demo tenants ready. Primary company: '.$acme->name);
+            // Demo numbers were handed out from the script, so each tenant's
+            // live counters must be moved past them. Without this the first
+            // voucher a real user raises would be issued a number that is
+            // already on a seeded row.
+            foreach ([$primary, $second, $trial] as $company) {
+                $this->syncNumberCounters($company);
+            }
+
+            $this->command?->info('Demo tenants ready. Primary company: '.$primary->name);
         });
+    }
+
+    /**
+     * Moves each voucher type's counter past the highest number already issued
+     * for it, so seeded and real vouchers cannot collide.
+     */
+    private function syncNumberCounters(Company $company): void
+    {
+        $year = (int) now()->format('Y');
+
+        foreach (VoucherType::withoutGlobalScopes()->where('company_id', $company->id)->get() as $type) {
+            $highest = Voucher::withoutGlobalScopes()
+                ->where('company_id', $company->id)
+                ->where('voucher_type_id', $type->id)
+                ->pluck('number')
+                ->map(fn (string $number) => (int) preg_replace('/\D/', '', substr($number, strrpos($number, '-') + 1)))
+                ->max() ?? 0;
+
+            if ($highest >= (int) $type->next_number) {
+                $type->forceFill([
+                    'next_number' => $highest + 1,
+                    'current_year' => $type->current_year ?: $year,
+                ])->save();
+            }
+        }
+    }
+
+    /**
+     * Finds this demo tenant, or stands it up if it is not there yet.
+     *
+     * The `fresh` flag tells the caller whether it is looking at a company that
+     * has just been created. Things that must happen exactly once — taking out
+     * a subscription, issuing and charging an invoice — are gated on it, since
+     * those have no natural unique key to reconcile against.
+     *
+     * @return array{company:Company,admin:User,fresh:bool}
+     */
+    private function resolveTenant(string $slug, array $companyData, array $adminData, ?Plan $plan): array
+    {
+        $existing = Company::withoutGlobalScopes()->where('slug', $slug)->first();
+
+        if ($existing) {
+            $admin = User::withoutGlobalScopes()
+                ->where('company_id', $existing->id)
+                ->where('email', $adminData['email'])
+                ->first();
+
+            // A tenant whose administrator was removed still needs one to own
+            // the workflow rows and act as the audit actor.
+            $admin ??= $this->tenant->forCompany($existing, fn () => User::create([
+                'company_id' => $existing->id,
+                'name' => $adminData['name'],
+                'email' => $adminData['email'],
+                'password' => $adminData['password'],
+                'job_title' => $adminData['job_title'] ?? 'Company Administrator',
+                'role' => User::ROLE_COMPANY_ADMIN,
+                'status' => 'active',
+                'locale' => $existing->locale,
+                'email_verified_at' => now(),
+            ]));
+
+            // Cheap to assert, and it repairs a tenant that was seeded before a
+            // new default type or a workflow existed. seedVoucherTypes leaves
+            // live counters alone.
+            $this->tenant->forCompany($existing, function () use ($existing, $admin) {
+                $this->provisioner->seedVoucherTypes($existing);
+
+                if (! $existing->workflows()->where('is_default', true)->exists()) {
+                    $this->provisioner->applyPreset($existing, 'default', $admin);
+                }
+            });
+
+            return ['company' => $existing->fresh(), 'admin' => $admin->refresh(), 'fresh' => false];
+        }
+
+        ['company' => $company, 'admin' => $admin] = $this->provisioner->provision($companyData, $adminData, $plan);
+
+        // Pin the slug to the constant so the next run finds this row rather
+        // than deriving `watercom-t-limited-2` and starting again.
+        $company->forceFill(['slug' => $slug])->save();
+
+        return ['company' => $company->fresh(), 'admin' => $admin, 'fresh' => true];
     }
 
     /* ------------------------------------------------------------ tenant one */
 
     private function buildPrimaryTenant(?Plan $plan): Company
     {
-        ['company' => $company, 'admin' => $admin] = $this->provisioner->provision(
+        ['company' => $company, 'admin' => $admin, 'fresh' => $fresh] = $this->resolveTenant(
+            self::SLUG_PRIMARY,
             [
                 'name' => 'Watercom (T) Limited',
                 'legal_name' => 'WATERCOM (T) LIMITED',
@@ -76,7 +213,7 @@ class DemoSeeder extends Seeder
             $plan,
         );
 
-        return $this->tenant->forCompany($company, function () use ($company, $admin, $plan) {
+        return $this->tenant->forCompany($company, function () use ($company, $admin, $plan, $fresh) {
             // Demo branding, set through the same columns the Branding screen
             // writes to. Nothing about Watercom is special to the platform —
             // this is one tenant's configuration, not the product's identity.
@@ -107,7 +244,11 @@ class DemoSeeder extends Seeder
             // same directory, same random filename, same columns.
             $this->publishBrandAssets($company);
 
-            if ($plan) {
+            // Once only. A subscription and its invoices have no natural key to
+            // reconcile a rerun against, so re-running this would stack a
+            // second paid invoice and a second outstanding one on the billing
+            // screen every time.
+            if ($plan && $fresh) {
                 $subscription = $this->payments->subscribe($company, $plan, 'monthly');
                 $invoice = $this->payments->issueInvoice($company, $subscription);
                 $this->payments->charge($invoice, ['method' => 'mobile_money', 'reference' => '255222640831']);
@@ -179,17 +320,24 @@ class DemoSeeder extends Seeder
     {
         $branding = app(CompanyBranding::class);
 
-        $branding->publishFile(
-            $company,
-            database_path('seeders/assets/watercom-logo.png'),
-            CompanyBranding::SLOT_LOGO,
-        );
+        // Only publish what is not already there. publishFile() writes to a new
+        // random filename every time, so re-publishing on each run would orphan
+        // the previous file and change the logo's URL — breaking every cached
+        // copy of it for no reason.
+        $slots = [
+            CompanyBranding::SLOT_LOGO => ['logo_path', 'watercom-logo.png'],
+            CompanyBranding::SLOT_MARK => ['logo_mark_path', 'watercom-mark.png'],
+        ];
 
-        $branding->publishFile(
-            $company,
-            database_path('seeders/assets/watercom-mark.png'),
-            CompanyBranding::SLOT_MARK,
-        );
+        foreach ($slots as $slot => [$column, $file]) {
+            $current = $company->{$column};
+
+            if ($current && Storage::disk('public')->exists($current)) {
+                continue;
+            }
+
+            $branding->publishFile($company, database_path("seeders/assets/{$file}"), $slot);
+        }
     }
 
     /**
@@ -198,7 +346,8 @@ class DemoSeeder extends Seeder
      */
     private function buildSecondTenant(?Plan $plan): Company
     {
-        ['company' => $company, 'admin' => $admin] = $this->provisioner->provision(
+        ['company' => $company, 'admin' => $admin, 'fresh' => $fresh] = $this->resolveTenant(
+            self::SLUG_SECOND,
             [
                 'name' => 'Zamani Logistics',
                 'email' => 'finance@zamani-demo.test',
@@ -215,15 +364,20 @@ class DemoSeeder extends Seeder
             $plan,
         );
 
-        return $this->tenant->forCompany($company, function () use ($company, $admin, $plan) {
+        return $this->tenant->forCompany($company, function () use ($company, $admin, $plan, $fresh) {
             $company->forceFill(['status' => 'active', 'primary_color' => '#1f6f4a'])->save();
 
-            if ($plan) {
+            if ($plan && $fresh) {
                 $this->payments->subscribe($company, $plan, 'annual');
             }
 
             // The distinguishing detail: Finance sits between HOD and Manager.
-            $this->provisioner->applyPreset($company, 'finance', $admin);
+            // applyPreset retires the current default and writes a new one, so
+            // on a rerun it would leave a trail of disabled workflows behind
+            // it — apply it once, when the tenant is first stood up.
+            if ($fresh) {
+                $this->provisioner->applyPreset($company, 'finance', $admin);
+            }
 
             $people = $this->makePeople($company, [
                 ['Peter Massawe', 'peter@zamani.test', 'hod', 'Head of Fleet', 'ZL-0011'],
@@ -268,7 +422,8 @@ class DemoSeeder extends Seeder
 
     private function buildTrialTenant(?Plan $plan): Company
     {
-        ['company' => $company] = $this->provisioner->provision(
+        ['company' => $company] = $this->resolveTenant(
+            self::SLUG_TRIAL,
             [
                 'name' => 'Baobab Business Solutions',
                 'email' => 'hello@baobab-demo.test',
@@ -306,20 +461,24 @@ class DemoSeeder extends Seeder
             // path is exercisable in the demo as well as drawing a fresh one.
             $signs = in_array($role, User::APPROVER_ROLES, true);
 
-            $people[$name] = User::create([
-                'company_id' => $company->id,
-                'name' => $name,
-                'email' => $email,
-                'password' => 'Password123!',
-                'role' => $role,
-                'job_title' => $title,
-                'employee_code' => $code,
-                'status' => 'active',
-                'locale' => 'en',
-                'email_verified_at' => now(),
-                'signature_data' => $signs ? $this->sampleSignature() : null,
-                'signature_updated_at' => $signs ? now() : null,
-            ]);
+            // Email is the account's identity everywhere else in the system;
+            // it is the right key here too.
+            $people[$name] = User::updateOrCreate(
+                ['email' => $email],
+                [
+                    'company_id' => $company->id,
+                    'name' => $name,
+                    'password' => 'Password123!',
+                    'role' => $role,
+                    'job_title' => $title,
+                    'employee_code' => $code,
+                    'status' => 'active',
+                    'locale' => 'en',
+                    'email_verified_at' => now(),
+                    'signature_data' => $signs ? $this->sampleSignature() : null,
+                    'signature_updated_at' => $signs ? now() : null,
+                ],
+            );
         }
 
         return $people;
@@ -331,27 +490,107 @@ class DemoSeeder extends Seeder
         $departments = [];
 
         foreach ($rows as [$name, $code, $hod, $manager]) {
-            $departments[$name] = Department::create([
-                'company_id' => $company->id,
-                'name' => $name,
-                'code' => $code,
-                'cost_centre' => 'CC-'.$code,
-                'hod_user_id' => $hod?->id,
-                'manager_user_id' => $manager?->id,
-            ]);
+            // departments_company_id_name_unique already says what identifies
+            // a department; match it rather than inserting blind.
+            $departments[$name] = Department::updateOrCreate(
+                [
+                    'company_id' => $company->id,
+                    'name' => $name,
+                ],
+                [
+                    'code' => $code,
+                    'cost_centre' => 'CC-'.$code,
+                    'hod_user_id' => $hod?->id,
+                    'manager_user_id' => $manager?->id,
+                ],
+            );
         }
 
         return $departments;
     }
 
+    /**
+     * Per-type sequence for this run, so a given demo voucher always lands on
+     * the same number. Keyed by voucher type id.
+     *
+     * @var array<int,int>
+     */
+    private array $demoSequence = [];
+
+    /**
+     * Ids of the vouchers this run actually inserted.
+     *
+     * The demo script deliberately parks vouchers mid-flight — one awaiting a
+     * signature, one signed but not forwarded, four awaiting approval — and it
+     * gets them there by calling the workflow helpers a fixed number of times.
+     * Those calls describe a journey from `draft`, so replaying them against a
+     * voucher that is already halfway along pushes it FURTHER rather than
+     * leaving it be: reruns quietly drained the approval queues to nothing.
+     *
+     * A voucher that already existed when this run started is history. Nothing
+     * below touches it.
+     *
+     * @var array<int,true>
+     */
+    private array $createdThisRun = [];
+
+    /**
+     * The number a demo voucher should carry.
+     *
+     * Deliberately NOT VoucherNumberGenerator::next(). That is a counter: it
+     * hands out the next unused number and advances, so it cannot produce the
+     * same number twice for the same voucher, and a rerun asks it for numbers
+     * that are already on disk. This derives the number from the voucher's
+     * position in the demo script instead, which is a property of the script
+     * and not of the database — the same voucher gets the same number on the
+     * first run and the third.
+     */
+    private function demoNumber(VoucherType $type): string
+    {
+        $sequence = ($this->demoSequence[$type->id] ?? 0) + 1;
+        $this->demoSequence[$type->id] = $sequence;
+
+        return str_replace(
+            ['{prefix}', '{year}', '{seq}'],
+            [
+                $type->prefix,
+                now()->format('Y'),
+                str_pad((string) $sequence, (int) $type->seq_padding, '0', STR_PAD_LEFT),
+            ],
+            $type->number_format ?: '{prefix}-{year}-{seq}',
+        );
+    }
+
+    /**
+     * Creates a demo voucher, or returns the one that is already there.
+     *
+     * firstOrCreate semantics, not updateOrCreate, and the distinction matters:
+     * the attributes below describe a voucher at the moment it is raised —
+     * status draft, no workflow position. The first run then drove these rows
+     * through signing, approval and payment. Writing the draft attributes back
+     * over an approved-and-paid voucher would reset it to a draft, and the
+     * helpers that follow would drive it again, stacking a second set of
+     * approvals, notifications and audit rows behind it. A voucher that has
+     * been through the workflow is history, and history is left alone.
+     */
     private function makeVoucher(Company $company, array $spec): Voucher
     {
         $type = $spec['type'];
         $currency = $spec['currency'] ?? $company->currency;
+        $number = $spec['number'] ?? $this->demoNumber($type);
 
-        return Voucher::create([
+        $existing = Voucher::withoutGlobalScopes()
+            ->where('company_id', $company->id)
+            ->where('number', $number)
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $voucher = Voucher::create([
             'company_id' => $company->id,
-            'number' => $this->numbers->next($type),
+            'number' => $number,
             'voucher_type_id' => $type->id,
             'workflow_id' => $this->engine->resolveWorkflow($type)?->id,
             'department_id' => $spec['department']?->id,
@@ -364,7 +603,7 @@ class DemoSeeder extends Seeder
             'amount_in_words' => $this->money->inWords((float) $spec['amount'], $currency),
             'kind' => $spec['kind'] ?? Voucher::KIND_BANK,
             'payment_method' => $spec['method'] ?? 'Bank Transfer',
-            'account_ref' => $spec['ref'] ?? 'INV-'.random_int(10000, 99999),
+            'account_ref' => $spec['ref'] ?? 'INV-'.mt_rand(10000, 99999),
 
             // Only the particulars the chosen instrument actually uses.
             'payee_bank' => ($spec['kind'] ?? Voucher::KIND_BANK) === Voucher::KIND_BANK ? ($spec['payee_bank'] ?? null) : null,
@@ -381,6 +620,16 @@ class DemoSeeder extends Seeder
             'updated_by' => $spec['requester']->id,
             'created_at' => $spec['date'] ?? now(),
         ]);
+
+        $this->createdThisRun[$voucher->id] = true;
+
+        return $voucher;
+    }
+
+    /** Whether the workflow helpers may act on this voucher at all. */
+    private function isNew(Voucher $voucher): bool
+    {
+        return isset($this->createdThisRun[$voucher->id]);
     }
 
     /**
@@ -536,12 +785,15 @@ class DemoSeeder extends Seeder
             'cash_float' => 'Head office petty cash',
         ]);
 
-        // A little discussion on the record.
-        VoucherComment::create([
+        // A little discussion on the record. Author plus wording identifies a
+        // seeded remark well enough to recognise it on a rerun; a comment has
+        // no other natural key, and two identical remarks by the same person on
+        // the same voucher is not something the demo needs to represent.
+        VoucherComment::firstOrCreate([
             'voucher_id' => $signedNotSent->id, 'company_id' => $company->id, 'user_id' => $joseph->id,
             'body' => 'Within the Q4 raw materials budget. Rate matches the framework contract.',
         ]);
-        VoucherComment::create([
+        VoucherComment::firstOrCreate([
             'voucher_id' => $awaitingApproval->id, 'company_id' => $company->id, 'user_id' => $baraka->id,
             'body' => 'Service history attached — the trucks are due this month.',
         ]);
@@ -554,6 +806,10 @@ class DemoSeeder extends Seeder
 
     private function submitAs(Voucher $voucher, User $requester): Voucher
     {
+        if (! $this->isNew($voucher)) {
+            return $voucher->fresh();
+        }
+
         return $this->actAs($requester, fn () => $this->engine->submit($voucher->fresh(), $requester));
     }
 
@@ -566,6 +822,10 @@ class DemoSeeder extends Seeder
      */
     private function stepThrough(Voucher $voucher, string $decision = 'forward', ?string $comment = null): Voucher
     {
+        if (! $this->isNew($voucher)) {
+            return $voucher->fresh();
+        }
+
         $voucher = $voucher->fresh();
         $step = $this->engine->stepAt($voucher, $voucher->current_step_position);
 
@@ -612,6 +872,10 @@ class DemoSeeder extends Seeder
      */
     private function payAs(Voucher $voucher, array $details): Voucher
     {
+        if (! $this->isNew($voucher)) {
+            return $voucher->fresh();
+        }
+
         $voucher = $voucher->fresh();
 
         if ($voucher->status !== Voucher::STATUS_APPROVED) {
@@ -644,11 +908,20 @@ class DemoSeeder extends Seeder
             $step = $this->engine->stepAt($voucher, $voucher->current_step_position);
             $isFinal = $step && $step->can_approve && ! $this->engine->nextStepAfter($voucher, $step->position);
 
+            $before = [$voucher->status, $voucher->current_step_position];
+
             $voucher = $this->stepThrough(
                 $voucher,
                 $isFinal ? $finalDecision : 'forward',
                 $isFinal ? $comment : null,
             );
+
+            // A pass that changes nothing will not change anything next time
+            // either — on a rerun every step is already recorded, and without
+            // this the loop would simply spin to its guard.
+            if ([$voucher->status, $voucher->current_step_position] === $before) {
+                break;
+            }
         }
 
         return $voucher->fresh();
@@ -660,29 +933,33 @@ class DemoSeeder extends Seeder
         $purposes = ['Monthly courier retainer', 'Warehouse cleaning contract', 'Generator servicing', 'Branch water supply', 'Security guarding — monthly'];
         $names = array_keys($departments);
 
+        // mt_rand, not random_int: this sequence is seeded in run(), so the
+        // spread is the same on every environment and on every rerun. With a
+        // CSPRNG each run invented a different set of history, and the rows
+        // written last time could never be recognised again.
         for ($monthsAgo = 6; $monthsAgo >= 1; $monthsAgo--) {
-            $count = random_int(3, 7);
+            $count = mt_rand(3, 7);
 
             for ($i = 0; $i < $count; $i++) {
-                $date = now()->subMonthsNoOverflow($monthsAgo)->startOfMonth()->addDays(random_int(0, 25));
-                $kind = random_int(1, 3) === 1 ? Voucher::KIND_CASH : Voucher::KIND_BANK;
+                $date = now()->subMonthsNoOverflow($monthsAgo)->startOfMonth()->addDays(mt_rand(0, 25));
+                $kind = mt_rand(1, 3) === 1 ? Voucher::KIND_CASH : Voucher::KIND_BANK;
 
                 $voucher = $this->makeVoucher($company, [
                     'type' => $type,
                     'requester' => $requester,
-                    'department' => $departments[$names[array_rand($names)]],
-                    'payee' => $payees[array_rand($payees)],
-                    'purpose' => $purposes[array_rand($purposes)],
+                    'department' => $departments[$names[mt_rand(0, count($names) - 1)]],
+                    'payee' => $payees[mt_rand(0, count($payees) - 1)],
+                    'purpose' => $purposes[mt_rand(0, count($purposes) - 1)],
                     'description' => 'Recurring operational cost, approved against the monthly budget.',
-                    'amount' => random_int(2, 90) * 100000,
+                    'amount' => mt_rand(2, 90) * 100000,
                     'kind' => $kind,
-                    'method' => $kind === Voucher::KIND_CASH ? 'Cash' : ['Bank Transfer', 'Mobile Money', 'Cheque'][random_int(0, 2)],
-                    'category' => ['Logistics', 'Premises', 'Transport', 'Professional fees'][random_int(0, 3)],
+                    'method' => $kind === Voucher::KIND_CASH ? 'Cash' : ['Bank Transfer', 'Mobile Money', 'Cheque'][mt_rand(0, 2)],
+                    'category' => ['Logistics', 'Premises', 'Transport', 'Professional fees'][mt_rand(0, 3)],
                     'date' => $date,
                 ]);
 
                 // Roughly one in eight is turned down, so the reports have spread.
-                $reject = random_int(1, 8) === 1;
+                $reject = mt_rand(1, 8) === 1;
 
                 $voucher = $this->runToCompletion(
                     $voucher,
@@ -697,7 +974,7 @@ class DemoSeeder extends Seeder
                 if (! $reject) {
                     $voucher = $this->payAs($voucher, $kind === Voucher::KIND_CASH
                         ? ['payment_method' => 'Cash', 'received_by' => $requester->name]
-                        : ['payment_method' => 'Bank Transfer', 'payment_reference' => 'TRX-'.random_int(1000000, 9999999)]);
+                        : ['payment_method' => 'Bank Transfer', 'payment_reference' => 'TRX-'.mt_rand(1000000, 9999999)]);
                 }
 
                 // Backdate the record so the volume chart spreads across months.

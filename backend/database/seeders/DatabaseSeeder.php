@@ -26,14 +26,17 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        // Demo tenants are for local work and demonstrations. The default
-        // follows the environment rather than being `true` everywhere: a
-        // production deploy that runs db:seed should get the plans and the
-        // platform operator, and NOT three fictional companies. Setting
-        // SEED_DEMO=true explicitly still opts in anywhere.
-        $demoByDefault = app()->environment(['local', 'testing', 'development']);
-
-        if (filter_var(env('SEED_DEMO', $demoByDefault), FILTER_VALIDATE_BOOL)) {
+        // Demo tenants are opt-in, and off unless asked for. `db:seed` on a
+        // production box must give you the plans and the platform operator and
+        // nothing else. .env.example carries SEED_DEMO=true so local work still
+        // gets the demo world by default.
+        //
+        // Read from config, not env(): production caches its config, and with
+        // the config cached env() no longer sees .env. See config/vouchflow.php.
+        //
+        // DemoSeeder can always be run directly and deliberately:
+        //   php artisan db:seed --class=DemoSeeder --force
+        if (config('vouchflow.seed_demo')) {
             $this->call(DemoSeeder::class);
         }
     }

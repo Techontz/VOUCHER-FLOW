@@ -154,19 +154,36 @@ class CompanyProvisioner
         });
     }
 
+    /**
+     * Gives a company the default set of voucher types.
+     *
+     * firstOrCreate, not updateOrCreate, and deliberately so: `next_number` is
+     * a live counter. Re-running this over an existing tenant must never reset
+     * it to 1 — the numbers it would then hand out have already been issued,
+     * and the next insert dies on vouchers_company_id_number_unique. Creating
+     * the row is idempotent; its sequence is left exactly where it was.
+     */
     public function seedVoucherTypes(Company $company): void
     {
         foreach (self::DEFAULT_VOUCHER_TYPES as $index => $type) {
-            VoucherType::create([
-                'company_id' => $company->id,
-                'name' => $type['name'],
-                'name_sw' => $type['name_sw'],
-                'code' => $type['code'],
-                'prefix' => $type['prefix'],
-                'next_number' => 1,
-                'current_year' => (int) now()->format('Y'),
-                'sort_order' => $index,
-            ]);
+            // withoutGlobalScopes: the company is an argument, not an ambient
+            // fact. Relying on the tenant scope here means the lookup half of
+            // firstOrCreate silently matches nothing whenever no tenant happens
+            // to be resolved, and the insert then hits the unique key.
+            VoucherType::withoutGlobalScopes()->firstOrCreate(
+                [
+                    'company_id' => $company->id,
+                    'code' => $type['code'],
+                ],
+                [
+                    'name' => $type['name'],
+                    'name_sw' => $type['name_sw'],
+                    'prefix' => $type['prefix'],
+                    'next_number' => 1,
+                    'current_year' => (int) now()->format('Y'),
+                    'sort_order' => $index,
+                ],
+            );
         }
     }
 
