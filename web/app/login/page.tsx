@@ -9,9 +9,44 @@ import { AuthFrame } from "@/components/auth-frame";
 import { Field, Icon, Spinner } from "@/components/ui";
 
 /**
+ * Whether to offer the seeded demo accounts.
+ *
+ * Off on a real deployment. These are working credentials for a live database,
+ * and a public site should not print them beside a sign-in box — least of all
+ * the company administrator's.
+ *
+ * Both tests are written against `process.env` directly, rather than through
+ * the exported API_MODE, and both read variables that are ALWAYS defined:
+ * NODE_ENV is set by every build, and NEXT_PUBLIC_API_MODE is required for the
+ * app to run at all. That matters more than it looks. The bundler only
+ * substitutes environment variables it can see, so a condition resting on an
+ * optional flag stays a runtime lookup and cannot fold — the panel survives
+ * in the bundle, hidden but readable by anyone who opens the JS. Resting it on
+ * two guaranteed values folds the whole expression to `false`, and the panel,
+ * the account list and the shared password are dropped from the output.
+ *
+ *   next dev                → shown
+ *   any build in mock mode  → shown; the fixture has no real accounts, and it
+ *                             carries the same password in lib/mock/ anyway
+ *   production + live       → hidden, and not present
+ *
+ * A live demo tenant that genuinely wants these shortcuts should add its own
+ * condition here rather than an env flag, so the fold is preserved.
+ */
+const SHOW_DEMO_ACCOUNTS =
+  process.env.NODE_ENV !== "production"
+  || process.env.NEXT_PUBLIC_API_MODE !== "live";
+
+/**
  * Seeded accounts, offered so the whole workflow can be walked through
  * immediately — one per step of the default route, plus the two admin scopes.
+ *
+ * Referenced only by <DemoAccounts>, which is only rendered when
+ * SHOW_DEMO_ACCOUNTS holds — so when that folds to false this becomes
+ * unreachable and goes with it.
  */
+const DEMO_PASSWORD = "Password123!";
+
 const DEMO = [
   { label: "Employee", person: "Frank Kessy", email: "frank@watercom.test", icon: "ph-user", note: "raises vouchers, sees only their own" },
   { label: "HOD", person: "Joseph Mrisho", email: "joseph@watercom.test", icon: "ph-signature", note: "reviews and signs — never approves" },
@@ -27,6 +62,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const pickDemo = (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword(DEMO_PASSWORD);
+  };
   const [error, setError] = useState<ApiError | Error | null>(null);
 
   useEffect(() => {
@@ -54,39 +94,7 @@ export default function LoginPage() {
       title={t("login")}
       sub={t("heroSub")}
       footer={<>{t("noAccountYet")} <Link href="/register">{t("registerCompany")}</Link></>}
-      aside={
-        <div className="vf-panel" style={{ padding: "var(--space-4)" }}>
-          <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
-            {t("demoSignInAs")}
-          </div>
-          <div style={{ display: "grid", gap: 6 }}>
-            {DEMO.map((account) => (
-              <button
-                key={account.email}
-                type="button"
-                aria-pressed={email === account.email}
-                onClick={() => { setEmail(account.email); setPassword("Password123!"); }}
-                className="vf-choice"
-                style={{ padding: "10px 12px", borderRadius: 12 }}
-              >
-                <span className="vf-choice-icon" style={{ width: 30, height: 30 }}>
-                  <Icon name={account.icon} size={16} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontWeight: 600, fontSize: 14.5 }}>
-                    {account.label} <span style={{ fontWeight: 400, color: "var(--color-neutral-600)" }}>· {account.person}</span>
-                  </span>
-                  <span style={{ display: "block", fontSize: 12.5, color: "var(--color-neutral-600)" }}>{account.note}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)", marginTop: "var(--space-3)" }}>
-            Password for every demo account: <code>Password123!</code>. This prototype runs on
-            local mock data — nothing leaves your browser.
-          </div>
-        </div>
-      }
+      aside={SHOW_DEMO_ACCOUNTS ? <DemoAccounts selected={email} onPick={pickDemo} /> : undefined}
     >
       <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-3)" }} noValidate>
         {error && !fieldError("email") && (
@@ -125,5 +133,50 @@ id="email" type="email" className="input" value={email} autoComplete="username" 
         </button>
       </form>
     </AuthFrame>
+  );
+}
+
+/**
+ * The demo sign-in panel. Rendered only where SHOW_DEMO_ACCOUNTS holds.
+ *
+ * Kept as a separate component so the account list and the shared password are
+ * reachable from exactly one place: when the flag folds away at build time,
+ * this function loses its only caller and the bundler drops it, the accounts
+ * and the password together.
+ */
+function DemoAccounts({ selected, onPick }: { selected: string; onPick: (email: string) => void }) {
+  const { t } = useApp();
+
+  return (
+    <div className="vf-panel" style={{ padding: "var(--space-4)" }}>
+      <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
+        {t("demoSignInAs")}
+      </div>
+      <div style={{ display: "grid", gap: 6 }}>
+        {DEMO.map((account) => (
+          <button
+            key={account.email}
+            type="button"
+            aria-pressed={selected === account.email}
+            onClick={() => onPick(account.email)}
+            className="vf-choice"
+            style={{ padding: "10px 12px", borderRadius: 12 }}
+          >
+            <span className="vf-choice-icon" style={{ width: 30, height: 30 }}>
+              <Icon name={account.icon} size={16} />
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontWeight: 600, fontSize: 14.5 }}>
+                {account.label} <span style={{ fontWeight: 400, color: "var(--color-neutral-600)" }}>· {account.person}</span>
+              </span>
+              <span style={{ display: "block", fontSize: 12.5, color: "var(--color-neutral-600)" }}>{account.note}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)", marginTop: "var(--space-3)" }}>
+        Every demo account uses the same password; choosing one fills it in.
+      </div>
+    </div>
   );
 }
