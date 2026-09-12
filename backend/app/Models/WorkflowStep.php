@@ -29,6 +29,15 @@ class WorkflowStep extends Model
     protected function casts(): array
     {
         return [
+            /*
+             * Integer columns are cast because they are compared with === in
+             * PHP. MySQL returns them as strings under emulated prepared
+             * statements, where "8" === 8 is false — which silently turned an
+             * owner into a stranger and a matching id into a mismatch.
+             */
+            'workflow_id' => 'integer',
+            'position' => 'integer',
+            'assigned_user_id' => 'integer',
             'can_sign' => 'boolean',
             'can_approve' => 'boolean',
             'can_reject' => 'boolean',

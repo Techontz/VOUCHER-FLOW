@@ -13,6 +13,22 @@ class VoucherAttachment extends Model
 
     protected $guarded = ['id'];
 
+    protected function casts(): array
+    {
+        return [
+            /*
+             * Integer columns are cast because they are compared with === in
+             * PHP. MySQL returns them as strings under emulated prepared
+             * statements, where "8" === 8 is false — which silently turned an
+             * owner into a stranger and a matching id into a mismatch.
+             */
+            'voucher_id' => 'integer',
+            'company_id' => 'integer',
+            'uploaded_by' => 'integer',
+            'size_bytes' => 'integer',
+        ];
+    }
+
     public function voucher(): BelongsTo
     {
         return $this->belongsTo(Voucher::class);

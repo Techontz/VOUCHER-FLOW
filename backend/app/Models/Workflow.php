@@ -17,6 +17,16 @@ class Workflow extends Model
     protected function casts(): array
     {
         return [
+            /*
+             * Integer columns are cast because they are compared with === in
+             * PHP. MySQL returns them as strings under emulated prepared
+             * statements, where "8" === 8 is false — which silently turned an
+             * owner into a stranger and a matching id into a mismatch.
+             */
+            'company_id' => 'integer',
+            'voucher_type_id' => 'integer',
+            'version' => 'integer',
+            'created_by' => 'integer',
             'is_default' => 'boolean',
             'is_active' => 'boolean',
         ];

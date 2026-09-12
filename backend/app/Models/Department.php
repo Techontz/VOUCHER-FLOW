@@ -16,8 +16,21 @@ class Department extends Model
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return [
+            'is_active' => 'boolean',
+
+            /*
+             * Integer columns are cast because they are compared with === in
+             * PHP. MySQL returns them as strings under emulated prepared
+             * statements, where "8" === 8 is false — which silently turned an
+             * owner into a stranger and a matching id into a mismatch.
+             */
+            'company_id' => 'integer',
+            'hod_user_id' => 'integer',
+            'manager_user_id' => 'integer',
+        ];
     }
+
 
     public function hod(): BelongsTo
     {

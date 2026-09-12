@@ -16,6 +16,14 @@ class Invoice extends Model
     protected function casts(): array
     {
         return [
+            /*
+             * Integer columns are cast because they are compared with === in
+             * PHP. MySQL returns them as strings under emulated prepared
+             * statements, where "8" === 8 is false — which silently turned an
+             * owner into a stranger and a matching id into a mismatch.
+             */
+            'company_id' => 'integer',
+            'subscription_id' => 'integer',
             'amount' => 'decimal:2',
             'tax' => 'decimal:2',
             'total' => 'decimal:2',

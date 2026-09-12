@@ -42,6 +42,21 @@ class Voucher extends Model
     protected function casts(): array
     {
         return [
+            /*
+             * Integer columns are cast because they are compared with === in
+             * PHP. MySQL returns them as strings under emulated prepared
+             * statements, where "8" === 8 is false — which silently turned an
+             * owner into a stranger and a matching id into a mismatch.
+             */
+            'company_id' => 'integer',
+            'voucher_type_id' => 'integer',
+            'workflow_id' => 'integer',
+            'department_id' => 'integer',
+            'requester_id' => 'integer',
+            'current_step_position' => 'integer',
+            'paid_by_id' => 'integer',
+            'created_by' => 'integer',
+            'updated_by' => 'integer',
             'amount' => 'decimal:2',
             'voucher_date' => 'date',
             'step_signed_at' => 'datetime',

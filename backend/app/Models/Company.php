@@ -169,6 +169,13 @@ class Company extends Model
     protected function casts(): array
     {
         return [
+            /*
+             * Integer columns are cast because they are compared with === in
+             * PHP. MySQL returns them as strings under emulated prepared
+             * statements, where "8" === 8 is false — which silently turned an
+             * owner into a stranger and a matching id into a mismatch.
+             */
+            'plan_id' => 'integer',
             'trial_ends_at' => 'datetime',
             'subscribed_at' => 'datetime',
             'current_period_start' => 'datetime',
