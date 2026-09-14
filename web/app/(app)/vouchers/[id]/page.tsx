@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, download, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
+import { ACCEPT_ATTRIBUTE, attachmentForm } from "@/lib/attachments";
 import { formatDate, formatDateTime } from "@/lib/format";
 import {
   Dialog, Disclosure, EmptyState, Field, Icon, Note, Spinner, type SummaryRow,
@@ -195,11 +196,9 @@ export default function VoucherDetailPage() {
 
   async function attach(files: File[]) {
     if (!voucher || !files.length) return;
-    const form = new FormData();
-    files.forEach((f) => form.append("files[]", f));
     setUploading(true);
     try {
-      await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form });
+      await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form: attachmentForm(files) });
       toast("Attached", `${files.length} file(s) added.`, "ok");
       load();
     } catch (err) {
@@ -414,7 +413,7 @@ export default function VoucherDetailPage() {
                 <label className={`btn btn-secondary btn-sm${uploading ? " is-busy" : ""}`}>
                   {uploading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <Icon name="ph-paperclip" size={15} />}
                   {t("add")}
-                  <input type="file" multiple accept="application/pdf,image/*" hidden disabled={uploading}
+                  <input type="file" multiple accept={ACCEPT_ATTRIBUTE} hidden disabled={uploading}
                     onChange={(e) => { void attach(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
                 </label>
               )}

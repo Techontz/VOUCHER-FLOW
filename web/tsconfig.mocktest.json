@@ -15,6 +15,7 @@
     "lib/mock/**/*.ts",
     "lib/types.ts",
     "lib/progress.ts",
-    "lib/workflow-payload.ts"
+    "lib/workflow-payload.ts",
+    "lib/attachments.ts"
   ]
 }

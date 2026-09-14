@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
+import { ACCEPT_ATTRIBUTE, acceptFiles, attachmentForm, MAX_UPLOAD_MB, type Rejected } from "@/lib/attachments";
 import { dateInputValue, money } from "@/lib/format";
 import { Choice, Field, Icon, Note, PageHeader, Spinner } from "@/components/ui";
 import { resolveWorkflow, routeFor } from "@/lib/progress";
@@ -38,6 +39,7 @@ export default function CreateVoucherPage() {
   const [types, setTypes] = useState<VoucherType[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const [rejected, setRejected] = useState<Rejected[]>([]);
   const [busy, setBusy] = useState<"draft" | "submit" | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
@@ -127,6 +129,19 @@ export default function CreateVoucherPage() {
     created_at: null, updated_at: null, timeline: [],
   }), [form, amountNumber, words, selectedType, departments, user, t]);
 
+  /**
+   * Adds files from the picker or a drop. Callers pass an array they have
+   * already copied out of the event: reading the FileList later — inside a
+   * state updater, say — finds it emptied, which is how picked documents used
+   * to vanish without a trace.
+   */
+  function addFiles(picked: File[]) {
+    if (!picked.length) return;
+    const result = acceptFiles(files, picked);
+    setFiles(result.files);
+    setRejected(result.rejected);
+  }
+
   async function save(mode: "draft" | "submit") {
     setBusy(mode);
     setError(null);
@@ -139,9 +154,18 @@ export default function CreateVoucherPage() {
       const voucher = created.data;
 
       if (files.length) {
-        const body = new FormData();
-        files.forEach((file) => body.append("files[]", file));
-        await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form: body });
+        try {
+          await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form: attachmentForm(files) });
+        } catch (err) {
+          // The voucher exists now. Staying here would invite a second save and a
+          // duplicate voucher, so go to the draft — where documents can be added
+          // again — and say exactly what did not attach. It is not submitted:
+          // whoever reviews it would expect those documents to be there.
+          const detail = err instanceof ApiError ? (Object.values(err.errors)[0]?.[0] ?? err.message) : undefined;
+          toast(t("docsNotAttached"), `${voucher.number} — ${detail ?? t("docsNotAttachedBody")}`, "bad");
+          router.push(`/vouchers/${voucher.id}`);
+          return;
+        }
       }
 
       if (mode === "submit") {
@@ -379,15 +403,35 @@ export default function CreateVoucherPage() {
                 onDragLeave={(e) => { delete e.currentTarget.dataset.over; }}
                 onDrop={(e) => {
                   e.preventDefault(); delete e.currentTarget.dataset.over;
-                  setFiles((f) => [...f, ...Array.from(e.dataTransfer.files ?? [])]);
+                  // Copy now: the DataTransfer is emptied once this event returns.
+                  addFiles(Array.from(e.dataTransfer.files ?? []));
                 }}>
-                <input type="file" multiple accept="application/pdf,image/*" hidden
-                  onChange={(e) => { setFiles((f) => [...f, ...Array.from(e.target.files ?? [])]); e.target.value = ""; }} />
+                <input type="file" multiple accept={ACCEPT_ATTRIBUTE} hidden
+                  onChange={(e) => {
+                    // Copy before resetting: clearing the value empties this same FileList.
+                    const picked = Array.from(e.target.files ?? []);
+                    e.target.value = "";
+                    addFiles(picked);
+                  }} />
                 <span className="vf-dropzone-icon"><Icon name="ph-upload-simple" size={22} /></span>
                 <span className="vf-dropzone-title">{t("dropFiles")}</span>
-                <span className="vf-dropzone-sub">PDF, JPG, PNG · up to 10 MB each</span>
+                <span className="vf-dropzone-sub">PDF, JPG, PNG · up to {MAX_UPLOAD_MB} MB each</span>
                 <span className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>{t("browseFiles")}</span>
               </label>
+
+              {rejected.length > 0 && (
+                <div className="vf-alert tone-bad" role="alert" style={{ marginTop: 12 }}>
+                  <Icon name="ph-warning-circle" size={20} style={{ flex: "none" }} />
+                  <div className="vf-alert-text">
+                    <div className="vf-alert-title">{t("filesNotAdded")}</div>
+                    {rejected.map((r) => (
+                      <div key={`${r.name}-${r.reason}`}>
+                        {r.name} — {r.reason === "type" ? t("fileWrongType") : r.reason === "size" ? `${t("fileTooLarge")} ${MAX_UPLOAD_MB} MB` : t("fileTooMany")}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {files.length > 0 && (
                 <ul className="vf-files" style={{ marginTop: 12 }}>
@@ -399,7 +443,7 @@ export default function CreateVoucherPage() {
                           <span className="vf-file-name">{file.name}</span>
                           <span className="vf-file-size">{formatBytes(file.size)}</span>
                         </span>
-                        <button type="button" className="btn btn-icon btn-sm" onClick={() => setFiles((f) => f.filter((_, j) => j !== i))} aria-label={`Remove ${file.name}`}>
+                        <button type="button" className="btn btn-icon btn-sm" onClick={() => { setFiles((f) => f.filter((_, j) => j !== i)); setRejected([]); }} aria-label={`Remove ${file.name}`}>
                           <Icon name="ph-x" size={15} />
                         </button>
                       </div>

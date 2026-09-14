@@ -704,6 +704,12 @@ const D = {
   signedInOpening: ["Signed in — opening your dashboard", "Umeingia — tunafungua dashibodi"],
   newToVouchflow: ["New to VouchFlow?", "Mgeni kwenye VouchFlow?"],
   staffAccountsNote: ["Staff accounts are created by your company administrator.", "Akaunti za wafanyakazi huundwa na msimamizi wa kampuni yako."],
+  docsNotAttached: ["Draft saved — documents not attached", "Rasimu imehifadhiwa — nyaraka hazijaambatishwa"],
+  docsNotAttachedBody: ["Add them again from the voucher.", "Ziongeze tena kwenye vocha."],
+  filesNotAdded: ["Some files were not added", "Baadhi ya faili hazijaongezwa"],
+  fileWrongType: ["only PDF, JPG, PNG, WEBP or HEIC files can be attached", "faili za PDF, JPG, PNG, WEBP au HEIC pekee"],
+  fileTooLarge: ["larger than", "kubwa kuliko"],
+  fileTooMany: ["no more than 10 files per voucher at a time", "si zaidi ya faili 10 kwa wakati mmoja"],
   loginFooter: ["Vouchers, signatures and payments — on the record.", "Vocha, saini na malipo — yote kwenye kumbukumbu."],
 } as const satisfies Record<string, Entry>;
 
