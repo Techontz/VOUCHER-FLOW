@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, API_MODE, download, saveBlob } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDate } from "@/lib/format";
-import { EmptyState, ErrorState, Icon, LoadingBlock, Note, PageHeader, Panel, Spinner } from "@/components/ui";
+import { EmptyState, ErrorState, Icon, LoadingBlock, PageHeader, Spinner } from "@/components/ui";
 import type { Department, VoucherType } from "@/lib/types";
 
 interface ReportKind {
@@ -99,151 +99,152 @@ export default function ReportsPage() {
   const isNumeric = (heading: string) =>
     /amount|value|total|turnaround|vouchers|approved|rejected|pending|requests/i.test(heading);
 
+  const sw = locale === "sw";
+
   return (
-    <div style={{ maxWidth: 1300 }}>
-      <PageHeader kicker={t("reports")} title={locale === "sw" ? activeKind?.title_sw ?? t("reports") : activeKind?.title ?? t("reports")}
-        sub={t("filterExport")}
-        actions={
-          <>
-            <button className="btn btn-secondary" onClick={() => exportAs("pdf")} disabled={exporting !== null}>
-              {exporting === "pdf" ? <Spinner /> : <><Icon name="ph-file-pdf" size={15} /> PDF</>}
+    <div className="app-page app-reports">
+      <PageHeader title={t("reports")} sub={t("filterExport")} />
+
+      <div className="app-reports-grid">
+        <aside className="app-report-kinds" aria-label={t("reportsYouMayRun")}>
+          <div className="app-report-kinds-head">
+            <span>{t("reportsYouMayRun")}</span>
+            <span className="vf-count">{kinds.length}</span>
+          </div>
+          {kinds.map((kind) => (
+            <button key={kind.key} type="button" onClick={() => setActive(kind.key)} aria-pressed={kind.key === active} className="app-report-kind">
+              <Icon name={kind.icon} size={17} />
+              <span className="app-report-kind-text">
+                <strong>{sw ? kind.title_sw : kind.title}</strong>
+                <span>{sw ? kind.body_sw : kind.body}</span>
+              </span>
             </button>
-            {API_MODE === "live" && (
-              <button className="btn btn-secondary" onClick={() => exportAs("xlsx")} disabled={exporting !== null}>
-                {exporting === "xlsx" ? <Spinner /> : <><Icon name="ph-microsoft-excel-logo" size={15} /> Excel</>}
-              </button>
+          ))}
+        </aside>
+
+        <section className="app-report-main">
+          <div className="vf-panel">
+            <div className="vf-panel-head app-report-head">
+              <div className="vf-panel-head-main">
+                <h2>{sw ? activeKind?.title_sw ?? t("reports") : activeKind?.title ?? t("reports")}</h2>
+                {scope && (
+                  <div className="vf-panel-sub app-report-scope">
+                    <Icon name={scope.locked ? "ph-lock-key" : "ph-eye"} size={13} /> {scope.label}
+                  </div>
+                )}
+              </div>
+              <div className="vf-panel-actions">
+                <button className="btn btn-secondary btn-sm" onClick={() => exportAs("pdf")} disabled={exporting !== null}>
+                  {exporting === "pdf" ? <Spinner /> : <><Icon name="ph-file-pdf" size={14} /> PDF</>}
+                </button>
+                {API_MODE === "live" && (
+                  <button className="btn btn-secondary btn-sm" onClick={() => exportAs("xlsx")} disabled={exporting !== null}>
+                    {exporting === "xlsx" ? <Spinner /> : <><Icon name="ph-microsoft-excel-logo" size={14} /> Excel</>}
+                  </button>
+                )}
+                <button className="btn btn-secondary btn-sm" onClick={() => exportAs("csv")} disabled={exporting !== null}>
+                  {exporting === "csv" ? <Spinner /> : <><Icon name="ph-file-csv" size={14} /> CSV</>}
+                </button>
+              </div>
+            </div>
+
+            <div className="app-toolbar app-report-filters">
+              <div className="app-toolbar-main">
+                <label className="app-filter-labelled"><span>{t("from")}</span>
+                  <input className="input" type="date" value={filters.from} onChange={set("from")} aria-label={t("from")} />
+                </label>
+                <label className="app-filter-labelled"><span>{t("to")}</span>
+                  <input className="input" type="date" value={filters.to} onChange={set("to")} aria-label={t("to")} />
+                </label>
+                <label className="app-filter-labelled"><span>{t("department")}</span>
+                  <select className="input" value={filters.department_id} onChange={set("department_id")}
+                    aria-label={t("department")} disabled={scope?.locked && scope.departments.length <= 1}>
+                    <option value="">
+                      {scope?.locked && scope.departments.length ? scope.departments.join(" · ") : t("allDepartments")}
+                    </option>
+                    {departments
+                      .filter((d) => !scope?.locked || scope.departments.includes(d.name))
+                      .map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </label>
+                <label className="app-filter-labelled"><span>{t("voucherKind")}</span>
+                  <select className="input" value={filters.kind} onChange={set("kind")} aria-label={t("voucherKind")}>
+                    <option value="">{t("all")}</option>
+                    <option value="bank">{t("bankVoucher")}</option>
+                    <option value="cash">{t("cashVoucher")}</option>
+                  </select>
+                </label>
+                <label className="app-filter-labelled"><span>{t("voucherType")}</span>
+                  <select className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")} aria-label={t("voucherType")}>
+                    <option value="">{t("allTypes")}</option>
+                    {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+                  </select>
+                </label>
+                <label className="app-filter-labelled"><span>{t("status")}</span>
+                  <select className="input" value={filters.status} onChange={set("status")} aria-label={t("status")}>
+                    <option value="">{t("allStatuses")}</option>
+                    <option value="pending">{t("pending")}</option>
+                    <option value="approved">{t("approved")}</option>
+                    <option value="rejected">{t("rejected")}</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            {result && !error && (
+              <div className="app-report-figures">
+                <div><span>{t("vouchers")}</span><strong className="tnum">{result.summary.count}</strong></div>
+                <div><span>{t("amount")}</span><strong className="tnum">{result.summary.total_text}</strong></div>
+                <div><span>{t("approved")}</span><strong className="tnum">{result.summary.approved_total_text}</strong></div>
+                <div><span>{sw ? "Imetolewa" : "Generated"}</span><strong className="tnum">{formatDate(result.generated_at, locale)}</strong></div>
+              </div>
             )}
-            <button className="btn btn-secondary" onClick={() => exportAs("csv")} disabled={exporting !== null}>
-              {exporting === "csv" ? <Spinner /> : <><Icon name="ph-file-csv" size={15} /> CSV</>}
-            </button>
-          </>
-        } />
 
-      {scope && (
-        <div className="vf-panel" style={{
-          display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap",
-          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
-        }}>
-          <Icon name={scope.locked ? "ph-lock-key" : "ph-eye"} size={17} color="var(--color-accent-600)" />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 11.5, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>
-              {t("reportsYouMayRun")}
-            </div>
-            <div style={{ fontSize: 14.5, fontWeight: 500 }}>{scope.label}</div>
+            {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
+            {loading && !result && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
+
+            {result && !error && (
+              result.rows.length === 0 ? (
+                <EmptyState icon="ph-chart-line" title={t("noResults")} />
+              ) : (
+                <div className="table-wrap" data-loading={loading || undefined}>
+                  <table className="table app-report-table">
+                    <thead>
+                      <tr>{result.headings.map((h) => (
+                        <th key={h} className={isNumeric(h) ? "num" : undefined}>{h}</th>
+                      ))}</tr>
+                    </thead>
+                    <tbody>
+                      {result.rows.map((row, i) => (
+                        <tr key={i}>
+                          {row.map((cell, j) => {
+                            // Formatting is for the screen only. The same rows feed the
+                            // PDF, Excel and CSV exports, which keep their raw values.
+                            const isDate = typeof cell === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(cell);
+                            const isRef = typeof cell === "string" && /^[A-Z]{2,5}-\d{4}-\d+$/.test(cell);
+                            const tight = typeof cell === "number" || isDate || isRef;
+                            return (
+                              <td key={j} className={isNumeric(result.headings[j]) ? "num" : undefined} style={{
+                                fontVariantNumeric: tight ? "tabular-nums" : undefined,
+                                whiteSpace: tight ? "nowrap" : undefined,
+                                fontWeight: isRef ? 600 : undefined,
+                              }}>
+                                {typeof cell === "number"
+                                  ? cell.toLocaleString("en-US", { maximumFractionDigits: 2 })
+                                  : isDate ? formatDate(cell as string, locale) : cell ?? "—"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
           </div>
-          <span className="tag tag-neutral" style={{ fontSize: 12 }}>
-            {kinds.length} {kinds.length === 1 ? "report" : "reports"}
-          </span>
-        </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "var(--space-3)", marginBottom: "var(--space-6)" }}>
-        {kinds.map((kind) => {
-          const on = kind.key === active;
-          return (
-            <button key={kind.key} onClick={() => setActive(kind.key)} aria-pressed={on}
-              style={{
-                textAlign: "left", cursor: "pointer", fontFamily: "var(--font-body)",
-                border: `1px solid ${on ? "var(--color-accent-500)" : "var(--vf-line)"}`,
-                background: on ? "color-mix(in srgb, var(--color-accent-500) 9%, var(--vf-elev-1))" : "var(--vf-elev-1)",
-                color: "var(--color-text)", borderRadius: 14, padding: "var(--space-4)",
-                transition: "border-color .18s ease, background .18s ease",
-              }}>
-              <Icon name={kind.icon} size={22} color="var(--color-accent-600)" />
-              <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 16, marginTop: 6 }}>
-                {locale === "sw" ? kind.title_sw : kind.title}
-              </div>
-              <div style={{ fontSize: 13, color: "var(--color-neutral-700)" }}>
-                {locale === "sw" ? kind.body_sw : kind.body}
-              </div>
-            </button>
-          );
-        })}
+        </section>
       </div>
-
-      <div className="vf-panel" style={{ padding: "var(--space-4)", marginBottom: "var(--space-4)",
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)" }}>
-        <input className="input" type="date" value={filters.from} onChange={set("from")} aria-label={t("from")} />
-        <input className="input" type="date" value={filters.to} onChange={set("to")} aria-label={t("to")} />
-        <select className="input" value={filters.department_id} onChange={set("department_id")}
-          aria-label={t("department")} disabled={scope?.locked && scope.departments.length <= 1}>
-          <option value="">
-            {scope?.locked && scope.departments.length
-              ? scope.departments.join(" · ")
-              : t("allDepartments")}
-          </option>
-          {departments
-            .filter((d) => !scope?.locked || scope.departments.includes(d.name))
-            .map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        <select className="input" value={filters.kind} onChange={set("kind")} aria-label={t("voucherKind")}>
-          <option value="">{t("all")}</option>
-          <option value="bank">{t("bankVoucher")}</option>
-          <option value="cash">{t("cashVoucher")}</option>
-        </select>
-        <select className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")} aria-label={t("voucherType")}>
-          <option value="">{t("allTypes")}</option>
-          {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
-        </select>
-        <select className="input" value={filters.status} onChange={set("status")} aria-label={t("status")}>
-          <option value="">{t("allStatuses")}</option>
-          <option value="pending">{t("pending")}</option>
-          <option value="approved">{t("approved")}</option>
-          <option value="rejected">{t("rejected")}</option>
-        </select>
-      </div>
-
-      {error && <ErrorState message={error} onRetry={load} />}
-      {loading && <LoadingBlock rows={6} />}
-
-      {!loading && result && (
-        <>
-          <div className="vf-report-summary">
-            <div><span>{t("vouchers")}</span><strong className="tnum">{result.summary.count}</strong></div>
-            <div><span>{t("amount")}</span><strong className="tnum">{result.summary.total_text}</strong></div>
-            <div><span>{t("approved")}</span><strong className="tnum">{result.summary.approved_total_text}</strong></div>
-          </div>
-
-          {result.rows.length === 0 ? (
-            <EmptyState icon="ph-chart-line" title={t("noResults")} />
-          ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>{result.headings.map((h) => (
-                    <th key={h} style={{ textAlign: isNumeric(h) ? "right" : "left" }}>{h}</th>
-                  ))}</tr>
-                </thead>
-                <tbody>
-                  {result.rows.map((row, i) => (
-                    <tr key={i}>
-                      {row.map((cell, j) => {
-                        // Formatting is for the screen only. The same rows feed the
-                        // PDF, Excel and CSV exports, which keep their raw values.
-                        const isDate = typeof cell === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(cell);
-                        const isRef = typeof cell === "string" && /^[A-Z]{2,5}-\d{4}-\d+$/.test(cell);
-                        const tight = typeof cell === "number" || isDate || isRef;
-                        return (
-                          <td key={j} style={{
-                            textAlign: isNumeric(result.headings[j]) ? "right" : "left",
-                            fontVariantNumeric: tight ? "tabular-nums" : undefined,
-                            whiteSpace: tight ? "nowrap" : undefined,
-                            fontWeight: isRef ? 500 : undefined,
-                          }}>
-                            {typeof cell === "number"
-                              ? cell.toLocaleString("en-US", { maximumFractionDigits: 2 })
-                              : isDate ? formatDate(cell as string, locale) : cell ?? "—"}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }

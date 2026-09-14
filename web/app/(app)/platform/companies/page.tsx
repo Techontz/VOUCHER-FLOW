@@ -42,12 +42,14 @@ export default function PlatformCompaniesPage() {
   const rows = result?.data ?? [];
 
   return (
-    <div style={{ maxWidth: 1300 }}>
+    <div className="app-page">
       <PageHeader kicker="Platform" title={t("companies")}
         sub="Every tenant on the platform. Data stays sealed inside each company." />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-        <input className="input" placeholder={t("search")} value={filters.q}
+      <section className="vf-panel">
+      <div className="app-toolbar">
+        <div className="app-toolbar-main">
+        <input className="input app-toolbar-search" placeholder={t("search")} value={filters.q}
           onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, q: e.target.value })); }} aria-label={t("search")} />
         <select className="input" value={filters.status}
           onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, status: e.target.value })); }} aria-label={t("status")}>
@@ -55,10 +57,11 @@ export default function PlatformCompaniesPage() {
           <option value="active">Active</option><option value="trial">Trial</option>
           <option value="past_due">Past due</option><option value="suspended">Suspended</option>
         </select>
+        </div>
       </div>
 
-      {error && <ErrorState message={error} onRetry={load} />}
-      {!result && !error && <LoadingBlock rows={6} />}
+      {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
+      {!result && !error && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
       {result && rows.length === 0 && <EmptyState icon="ph-buildings" title={t("noResults")} />}
 
       {rows.length > 0 && (
@@ -79,7 +82,7 @@ export default function PlatformCompaniesPage() {
                     <td>{company.plan?.name ?? "—"}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{company.users_count ?? 0}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{company.vouchers_count ?? 0}</td>
-                    <td><span className={`tag ${STATUS_TAG[company.status] ?? "tag-neutral"}`}>{company.status}</span></td>
+                    <td><span className={`badge ${STATUS_TAG[company.status] ?? "tag-neutral"}`}>{company.status}</span></td>
                     <td style={{ whiteSpace: "nowrap", color: "var(--color-neutral-700)" }}>
                       {formatDate(company.status === "trial" ? company.trial_ends_at : company.current_period_end, locale)}
                     </td>
@@ -104,6 +107,7 @@ export default function PlatformCompaniesPage() {
             total={result?.meta?.total ?? rows.length} onChange={setPage} />
         </>
       )}
+      </section>
     </div>
   );
 }

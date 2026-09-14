@@ -36,7 +36,7 @@ export default function PlatformPaymentsPage() {
   const rows = result?.data ?? [];
 
   return (
-    <div style={{ maxWidth: 1300 }}>
+    <div className="app-page">
       <PageHeader kicker="Platform" title={t("payments")} sub="Every invoice raised across all tenants." />
 
       <div style={{ marginBottom: "var(--space-6)" }}>
@@ -47,8 +47,10 @@ export default function PlatformPaymentsPage() {
         </StatGrid>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-        <input className="input" placeholder={t("search")} value={filters.q}
+      <section className="vf-panel">
+      <div className="app-toolbar">
+        <div className="app-toolbar-main">
+        <input className="input app-toolbar-search" placeholder={t("search")} value={filters.q}
           onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, q: e.target.value })); }} aria-label={t("search")} />
         <select className="input" value={filters.status} onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, status: e.target.value })); }} aria-label={t("status")}>
           <option value="">{t("allStatuses")}</option>
@@ -59,10 +61,11 @@ export default function PlatformPaymentsPage() {
           <option value="">All methods</option>
           <option value="mobile_money">Mobile Money</option><option value="card">Card</option><option value="bank_transfer">Bank transfer</option>
         </select>
+        </div>
       </div>
 
-      {error && <ErrorState message={error} onRetry={load} />}
-      {!result && !error && <LoadingBlock rows={6} />}
+      {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
+      {!result && !error && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
       {result && rows.length === 0 && <EmptyState icon="ph-credit-card" title={t("noResults")} />}
 
       {rows.length > 0 && (
@@ -82,7 +85,7 @@ export default function PlatformPaymentsPage() {
                     <td style={{ color: "var(--color-neutral-700)" }}>{invoice.description}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{invoice.amount_text}</td>
                     <td>{invoice.method_label}</td>
-                    <td><span className={`tag ${invoice.status_tag}`}>{invoice.status}</span></td>
+                    <td><span className={`badge ${invoice.status_tag}`}>{invoice.status}</span></td>
                     <td style={{ whiteSpace: "nowrap", color: "var(--color-neutral-700)" }}>{formatDate(invoice.paid_at ?? invoice.issued_at, locale)}</td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       {invoice.status === "paid" && (
@@ -105,6 +108,7 @@ export default function PlatformPaymentsPage() {
             total={result?.meta?.total ?? rows.length} onChange={setPage} />
         </>
       )}
+      </section>
     </div>
   );
 }

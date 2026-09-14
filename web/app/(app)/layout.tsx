@@ -2,18 +2,69 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { mobileNavFor, navFor } from "@/lib/nav";
-import { Icon, LanguageToggle, Spinner, ThemeToggle } from "@/components/ui";
+import { mobileNavFor, navFor, type NavItem } from "@/lib/nav";
+import type { MessageKey } from "@/lib/i18n";
+import { Icon, Spinner } from "@/components/ui";
+import { VouchFlowMark } from "@/components/login-brand";
+import { Breadcrumb, Dropdown, MenuItem, MenuLabel, MenuSeparator, ThemeSwitch } from "@/components/app-ui";
 import type { Voucher } from "@/lib/types";
 
+/**
+ * The workspace every signed-in screen sits in.
+ *
+ * Sidebar: whose workspace this is, where you can go (grouped by purpose),
+ * and who you are — with the appearance switch always in reach. The top bar
+ * carries only what applies on every page: where you are, search, alerts and
+ * the one action most people come here for.
+ */
+
+type Group = "workspace" | "admin" | "platform";
+
+const GROUP_LABEL: Record<Group, MessageKey> = { workspace: "navWorkspace", admin: "navAdministration", platform: "navPlatform" };
+
+/** Where an entry belongs. Account pages live in the user menu instead. */
+function groupOf(item: NavItem): Group | null {
+  if (item.href === "/notifications" || item.href === "/profile") return null;
+  if (item.href.startsWith("/platform")) return "platform";
+  if (["/employees", "/departments", "/settings", "/branding", "/subscription", "/audit"].includes(item.href)) return "admin";
+  return "workspace";
+}
+
+/** Company settings pages that open inside the Settings area rather than the menu. */
+const SETTINGS_CHILDREN = ["/branding", "/subscription"];
+
+const COLLAPSE_KEY = "vouchflow.sidebar";
+const COLLAPSE_EVENT = "vouchflow:sidebar";
+
+/*
+ * Whether the desktop sidebar is folded to icons: a per-device preference in
+ * localStorage, read as an external store so the server render (always open)
+ * and the first client render agree, and every change re-renders at once.
+ */
+function readCollapsed(): boolean {
+  try { return window.localStorage.getItem(COLLAPSE_KEY) === "1"; } catch { return false; }
+}
+
+function writeCollapsed(value: boolean) {
+  try { window.localStorage.setItem(COLLAPSE_KEY, value ? "1" : "0"); } catch { /* the choice lasts this visit */ }
+  window.dispatchEvent(new Event(COLLAPSE_EVENT));
+}
+
+function subscribeCollapsed(onChange: () => void) {
+  window.addEventListener(COLLAPSE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => { window.removeEventListener(COLLAPSE_EVENT, onChange); window.removeEventListener("storage", onChange); };
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, company, ready, t, unread, signOut } = useApp();
+  const { user, company, ready, t, unread, signOut, locale, setLocale } = useApp();
   const router = useRouter();
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const [pendingCount, setPendingCount] = useState(0);
   const [payCount, setPayCount] = useState(0);
   const [query, setQuery] = useState("");
@@ -25,8 +76,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setDrawer(false); }, [pathname]);
 
+  const toggleCollapsed = () => writeCollapsed(!collapsed);
+
   const items = useMemo(() => (user ? navFor(user.role) : []), [user]);
   const tabs = useMemo(() => (user ? mobileNavFor(user.role) : []), [user]);
+
+  const sidebarItems = useMemo(() => items.filter((item) => {
+    if (groupOf(item) === null) return false;
+    // A company administrator reaches branding and billing through Settings.
+    if (user?.role === "company_admin" && SETTINGS_CHILDREN.includes(item.href)) return false;
+    return true;
+  }), [items, user]);
 
   /**
    * Exactly one entry is ever current, in each menu.
@@ -34,17 +94,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
    * "Create voucher" lives at /vouchers/new, which is a route *beneath*
    * /vouchers — so a plain prefix test lights both rows at once. The deepest
    * href that still covers the current path is the one the user is on.
-   *
-   * The two menus resolve separately, because they hold different sets: the
-   * tab bar has no /vouchers/new slot, so on the create screen it falls back
-   * to /vouchers and still shows where you are rather than going blank.
    */
-  const deepest = (hrefs: string[]) => hrefs
-    .filter((h) => pathname === h || pathname.startsWith(h + "/"))
+  const deepest = (hrefs: string[], path: string) => hrefs
+    .filter((h) => path === h || path.startsWith(h + "/"))
     .sort((a, b) => b.length - a.length)[0] ?? null;
 
-  const currentHref = useMemo(() => deepest(items.map((i) => i.href)), [items, pathname]);
-  const currentTab = useMemo(() => deepest(tabs.map((i) => i.href)), [tabs, pathname]);
+  // Settings children light up Settings in the menu.
+  const menuPath = user?.role === "company_admin" && SETTINGS_CHILDREN.some((h) => pathname.startsWith(h)) ? "/settings" : pathname;
+  const currentHref = useMemo(() => deepest(sidebarItems.map((i) => i.href), menuPath), [sidebarItems, menuPath]);
+  const currentTab = useMemo(() => deepest(tabs.map((i) => i.href), pathname), [tabs, pathname]);
 
   useEffect(() => {
     if (!user) return;
@@ -72,7 +130,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!ready || !user) {
     return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
+      <div className="vf-shell app-booting">
         <Spinner label={t("loading")} />
       </div>
     );
@@ -83,69 +141,142 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       : item.badge === "payments" ? (payCount || null)
       : item.badge === "notifications" ? (unread || null) : null;
 
-  const active = (href: string) => href === currentHref;
-  const activeTab = (href: string) => href === currentTab;
+  const isPlatform = user.role === "super_admin";
+  const workspaceName = isPlatform ? "VouchFlow Platform" : company?.name ?? "VouchFlow";
+  const tenantLine = isPlatform
+    ? t("navPlatform")
+    : [company?.plan?.name, company?.status].filter(Boolean).join(" · ");
 
-  const tenantLine = user.role === "super_admin"
-    ? "Platform"
-    : company?.plan ? `${company.plan.name} · ${company.status}` : company?.status ?? "";
+  const groups = (["workspace", "admin", "platform"] as Group[])
+    .map((group) => ({ group, items: sidebarItems.filter((item) => groupOf(item) === group) }))
+    .filter((g) => g.items.length > 0);
+
+  // Where you are: the menu entry, plus one step deeper for a record or an edit.
+  const current = sidebarItems.find((i) => i.href === currentHref) ?? items.find((i) => i.href === deepest(items.map((x) => x.href), pathname));
+  const crumbs: { label: string; href?: string }[] = [];
+  if (current) {
+    const group = groupOf(current);
+    if (group) crumbs.push({ label: t(GROUP_LABEL[group]) });
+    crumbs.push({ label: t(current.label), href: current.href });
+    if (pathname !== current.href && !SETTINGS_CHILDREN.includes(pathname)) {
+      crumbs.push({ label: pathname.endsWith("/edit") ? t("edit") : t("details") });
+    }
+    if (SETTINGS_CHILDREN.includes(pathname) && user.role === "company_admin") {
+      crumbs.push({ label: t(pathname === "/branding" ? "branding" : "subscription") });
+    }
+  }
+
+  const profileLabel = items.find((i) => i.href === "/profile")?.label ?? "profile";
+  const canCreate = user.role !== "super_admin" && user.role !== "cashier";
 
   return (
-    <div className="vf-shell">
+    <div className="vf-shell" data-collapsed={collapsed ? "true" : undefined}>
       {drawer && <button className="vf-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />}
 
       <aside className="vf-sidebar" data-open={drawer} aria-label="Main navigation">
-        <div className="vf-brand">
-          {/* The square mark, not the lockup: a wordmark crushed into 36px is
-              unreadable, which is exactly why brands ship both. */}
-          <div className="vf-brand-mark" data-has-logo={company?.logo_mark_url ? "true" : undefined}>
-            {company?.logo_mark_url
+        <div className="app-side-head">
+          <Link href="/dashboard" className="app-side-brand" aria-label="VouchFlow">
+            <VouchFlowMark size={24} />
+            <span>VouchFlow</span>
+          </Link>
+          <button type="button" className="app-side-collapse" onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+            <Icon name={collapsed ? "ph-sidebar-simple" : "ph-sidebar-simple"} size={17} />
+          </button>
+          <button type="button" className="app-side-close" onClick={() => setDrawer(false)} aria-label="Close menu">
+            <Icon name="ph-x" size={18} />
+          </button>
+        </div>
+
+        <div className="app-workspace" title={workspaceName}>
+          <div className="app-workspace-mark" data-has-logo={company?.logo_mark_url ? "true" : undefined}>
+            {company?.logo_mark_url && !isPlatform
+              // eslint-disable-next-line @next/next/no-img-element
               ? <img src={company.logo_mark_url} alt="" />
-              : (user.role === "super_admin" ? "V" : (company?.name ?? "V").trim().charAt(0).toUpperCase())}
+              : (isPlatform ? <Icon name="ph-globe-hemisphere-east" size={16} /> : workspaceName.trim().charAt(0).toUpperCase())}
           </div>
-          <div className="vf-brand-text">
-            {/* Two lines before an ellipsis: a tenant's own name is the last
-                thing that should be cut off inside its own workspace. */}
-            <div className="vf-brand-name">{user.role === "super_admin" ? "VouchFlow Platform" : company?.name ?? "VouchFlow"}</div>
-            {tenantLine && <div className="vf-brand-sub">{tenantLine}</div>}
+          <div className="app-workspace-text">
+            <div className="app-workspace-name">{workspaceName}</div>
+            {tenantLine && <div className="app-workspace-sub">{tenantLine}</div>}
           </div>
         </div>
 
-        <nav className="vf-nav">
-          {items.map((item) => {
-            const badge = badgeFor(item);
-            return (
-              <Link key={item.href} href={item.href} className="vf-navitem" aria-current={active(item.href) ? "page" : undefined}>
-                <Icon name={item.icon} />
-                <span className="vf-navitem-label">{t(item.label)}</span>
-                {badge ? <span className="vf-navbadge">{badge}</span> : null}
-              </Link>
-            );
-          })}
+        <nav className="app-nav">
+          {groups.map(({ group, items: groupItems }) => (
+            <div key={group} className="app-nav-group">
+              <div className="app-nav-label">{t(GROUP_LABEL[group])}</div>
+              {groupItems.map((item) => {
+                const badge = badgeFor(item);
+                const active = item.href === currentHref;
+                return (
+                  <Link key={item.href} href={item.href} className="app-nav-item" aria-current={active ? "page" : undefined} data-tip={t(item.label)}>
+                    <Icon name={item.icon} size={17} weight={active ? "fill" : "regular"} />
+                    <span className="app-nav-text">{t(item.label)}</span>
+                    {badge ? <span className="app-nav-badge tnum">{badge > 99 ? "99+" : badge}</span> : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        <div className="vf-user">
-          <div className="vf-avatar" aria-hidden="true">{user.initials}</div>
-          <div className="vf-user-text">
-            <div className="vf-user-name">{user.name}</div>
-            {/* The job title, which is what a colleague would call this person —
-                and never a machine label like "Ceo". */}
-            <div className="vf-user-role">{user.job_title || user.role_label}</div>
-          </div>
-          <button className="btn btn-icon btn-sm" onClick={signOut} title={t("signOut")} aria-label={t("signOut")}>
-            <Icon name="ph-sign-out" size={18} />
-          </button>
+        <div className="app-side-foot">
+          <ThemeSwitch compact={collapsed} />
+          <Dropdown
+            placement="above" align="start" label={user.name}
+            trigger={({ open, toggle, id }) => (
+              <button type="button" className="app-user" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu">
+                <span className="app-avatar" aria-hidden="true">{user.initials}</span>
+                <span className="app-user-text">
+                  <span className="app-user-name">{user.name}</span>
+                  {/* The job title, which is what a colleague would call this person. */}
+                  <span className="app-user-role">{user.job_title || user.role_label}</span>
+                </span>
+                <Icon name="ph-caret-up-down" size={15} />
+              </button>
+            )}
+          >
+            {(close) => (
+              <>
+                <MenuLabel>{user.email}</MenuLabel>
+                <MenuItem icon="ph-user-circle" href="/profile" onSelect={close}>{t(profileLabel)}</MenuItem>
+                <MenuItem icon="ph-bell" href="/notifications" onSelect={close}>
+                  {t("notifications")}{unread > 0 ? ` (${unread})` : ""}
+                </MenuItem>
+                <MenuSeparator />
+                <div className="app-menu-row">
+                  <span>{locale === "sw" ? "Lugha" : "Language"}</span>
+                  <div className="seg seg-sm" role="group" aria-label="Language">
+                    {(["en", "sw"] as const).map((code) => (
+                      <button key={code} type="button" onClick={() => setLocale(code)} aria-selected={locale === code}>{code.toUpperCase()}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="app-menu-row">
+                  <span>{locale === "sw" ? "Mwonekano" : "Appearance"}</span>
+                  <ThemeSwitch compact />
+                </div>
+                <MenuSeparator />
+                <MenuItem icon="ph-sign-out" tone="danger" onSelect={() => { close(); void signOut(); }}>{t("signOut")}</MenuItem>
+              </>
+            )}
+          </Dropdown>
         </div>
       </aside>
 
-      <main className="vf-main">
-        <div className="vf-topbar no-print">
+      <div className="vf-main">
+        <header className="vf-topbar no-print">
           <button className="btn btn-icon vf-menu-btn" onClick={() => setDrawer(true)} aria-label="Open menu">
-            <Icon name="ph-list" size={22} />
+            <Icon name="ph-list" size={20} />
           </button>
 
+          <div className="app-topbar-where">
+            {crumbs.length > 0 && <Breadcrumb items={crumbs} />}
+            <span className="app-topbar-company">{workspaceName}</span>
+          </div>
+
           <div className="vf-search">
-            <Icon name="ph-magnifying-glass" size={17} />
+            <Icon name="ph-magnifying-glass" size={15} />
             <input
               className="input" placeholder={t("searchPh")} value={query} aria-label={t("search")}
               onChange={(e) => setQuery(e.target.value)}
@@ -167,30 +298,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          <div style={{ flex: 1 }} />
-          <div className="vf-topbar-extras"><LanguageToggle /></div>
-          <ThemeToggle />
-          <Link className="btn btn-icon vf-bell" href="/notifications" aria-label={unread > 0 ? `${t("notifications")} (${unread})` : t("notifications")}>
-            <Icon name="ph-bell" size={19} />
-            {unread > 0 && <span className="vf-bell-dot" aria-hidden="true" />}
-          </Link>
-          {user.role !== "super_admin" && user.role !== "cashier" && (
-            <Link className="btn btn-primary vf-topbar-extras" href="/vouchers/new">
-              <Icon name="ph-plus" size={17} /> {t("newVoucher")}
+          <div className="app-topbar-actions">
+            <ThemeToggleButton />
+            <Link className="btn btn-icon vf-bell" href="/notifications" aria-label={unread > 0 ? `${t("notifications")} (${unread})` : t("notifications")}>
+              <Icon name="ph-bell" size={18} />
+              {unread > 0 && <span className="vf-bell-dot" aria-hidden="true" />}
             </Link>
-          )}
-        </div>
+            {canCreate && (
+              <Link className="btn btn-primary app-topbar-create" href="/vouchers/new">
+                <Icon name="ph-plus" size={15} /> <span>{t("newVoucher")}</span>
+              </Link>
+            )}
+          </div>
+        </header>
 
-        <div className="vf-content">{children}</div>
-      </main>
+        <main className="vf-content">{children}</main>
+      </div>
 
       <nav className="vf-tabbar no-print" aria-label="Primary">
         {tabs.map((item) => {
           const badge = badgeFor(item);
+          const active = item.href === currentTab;
           return (
-            <Link key={item.href} href={item.href} aria-current={activeTab(item.href) ? "page" : undefined}>
+            <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}>
               <span className="vf-tab-icon">
-                <Icon name={item.icon} size={22} weight={activeTab(item.href) ? "fill" : "regular"} />
+                <Icon name={item.icon} size={21} weight={active ? "fill" : "regular"} />
                 {badge ? <span className="vf-tab-badge">{badge > 99 ? "99+" : badge}</span> : null}
               </span>
               <span className="vf-tab-label">{t(item.short ?? item.label)}</span>
@@ -199,5 +331,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         })}
       </nav>
     </div>
+  );
+}
+
+/** A one-tap appearance switch for the top bar, labelled for what it will do. */
+function ThemeToggleButton() {
+  const { theme, toggleTheme, locale } = useApp();
+  const sw = locale === "sw";
+  const label = theme === "light" ? (sw ? "Badili kuwa giza" : "Switch to dark mode") : (sw ? "Badili kuwa mwanga" : "Switch to light mode");
+  return (
+    <button type="button" className="btn btn-icon" onClick={toggleTheme} aria-label={label} title={label}>
+      <Icon name={theme === "light" ? "ph-moon" : "ph-sun"} size={18} />
+    </button>
   );
 }

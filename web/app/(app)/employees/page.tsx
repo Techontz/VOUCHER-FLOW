@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDate } from "@/lib/format";
-import { Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, PageHeader, Pagination, Spinner } from "@/components/ui";
+import { Dialog, EmptyState, Note, ErrorState, Field, Icon, LoadingBlock, Pagination, Spinner } from "@/components/ui";
+import { Dropdown, MenuItem, MenuSeparator, SearchInput, SettingsLayout } from "@/components/app-ui";
 import type { Department, Paginated, User } from "@/lib/types";
 
 const ROLES = [
@@ -32,6 +33,7 @@ export default function EmployeesPage() {
   const [form, setForm] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<ApiError | null>(null);
+  const [removing, setRemoving] = useState<User | null>(null);
 
   useEffect(() => {
     api.get<{ data: Department[] }>("/departments").then((r) => setDepartments(r.data)).catch(() => undefined);
@@ -111,95 +113,117 @@ export default function EmployeesPage() {
   const rows = result?.data ?? [];
   const fe = (name: string) => formError?.field(name);
 
+  const statusTone = (status: string) => status === "active" ? "tone-ok" : status === "invited" ? "tone-info" : "tone-bad";
+
   return (
-    <div style={{ maxWidth: 1200 }}>
-      <PageHeader kicker={t("settings")} title={t("employees")}
-        sub="People in this company, their role and what they may act on."
-        actions={<button className="btn btn-primary" onClick={openCreate}><Icon name="ph-user-plus" size={15} /> {t("inviteUser")}</button>} />
+    <SettingsLayout title={t("employees")}
+      sub="People in this company, their role and what they may act on."
+      actions={<button className="btn btn-primary" onClick={openCreate}><Icon name="ph-user-plus" size={15} /> {t("inviteUser")}</button>}>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-        <input className="input" placeholder={t("search")} value={filters.q} onChange={set("q")} aria-label={t("search")} />
-        <select className="input" value={filters.role} onChange={set("role")} aria-label={t("role")}>
-          <option value="">All roles</option>
-          {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-        </select>
-        <select className="input" value={filters.status} onChange={set("status")} aria-label={t("status")}>
-          <option value="">{t("allStatuses")}</option>
-          <option value="active">{t("active")}</option>
-          <option value="invited">{t("invited")}</option>
-          <option value="suspended">{t("suspended")}</option>
-        </select>
-        <select className="input" value={filters.department_id} onChange={set("department_id")} aria-label={t("department")}>
-          <option value="">{t("allDepartments")}</option>
-          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-      </div>
-
-      {error && <ErrorState message={error} onRetry={load} />}
-      {!result && !error && <LoadingBlock rows={6} />}
-      {result && rows.length === 0 && <EmptyState icon="ph-users-three" title={t("noResults")} />}
-
-      {rows.length > 0 && (
-        <>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t("fullName")}</th><th>{t("employeeId")}</th><th>{t("department")}</th>
-                  <th>{t("role")}</th><th>{t("status")}</th><th style={{ textAlign: "right" }}>{t("vouchers")}</th>
-                  <th>{t("joined")}</th><th />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((user) => (
-                  <tr key={user.id}>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                        <span style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-accent-200)", color: "var(--color-accent-800)", display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 600, flex: "none" }}>
-                          {user.initials}
-                        </span>
-                        <span>
-                          <span style={{ display: "block", fontWeight: 500 }}>{user.name}</span>
-                          <span style={{ display: "block", fontSize: 12.5, color: "var(--color-neutral-600)" }}>{user.email}</span>
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{ fontVariantNumeric: "tabular-nums" }}>{user.employee_code ?? "—"}</td>
-                    <td>{user.department?.name ?? "—"}</td>
-                    <td>{user.role_label}</td>
-                    <td>
-                      <span className={`tag ${user.status === "active" ? "tag-accent" : user.status === "invited" ? "tag-outline" : "tag-accent-2"}`}>
-                        {user.status}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{user.voucher_count ?? 0}</td>
-                    <td style={{ whiteSpace: "nowrap", color: "var(--color-neutral-700)" }}>{formatDate(user.joined_at, locale)}</td>
-                    <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(user)} aria-label={`Edit ${user.name}`}>
-                        <Icon name="ph-pencil-simple" size={14} />
-                      </button>
-                      {user.status !== "suspended" ? (
-                        <button className="btn btn-ghost btn-sm" onClick={() => setStatus(user, "suspended")} title={t("suspend")}>
-                          <Icon name="ph-prohibit" size={14} />
-                        </button>
-                      ) : (
-                        <button className="btn btn-ghost btn-sm" onClick={() => setStatus(user, "active")} title={t("activate")}>
-                          <Icon name="ph-check-circle" size={14} />
-                        </button>
-                      )}
-                      <button className="btn btn-ghost btn-sm" onClick={() => remove(user)} title={t("delete")} style={{ color: "var(--color-accent-2-700)" }}>
-                        <Icon name="ph-trash" size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <section className="vf-panel">
+        <div className="app-toolbar">
+          <div className="app-toolbar-main">
+            <SearchInput value={filters.q} onChange={(q) => { setPage(1); setFilters((f) => ({ ...f, q })); }} placeholder={t("search")} />
+            <select className="input" value={filters.role} onChange={set("role")} aria-label={t("role")}>
+              <option value="">All roles</option>
+              {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            <select className="input" value={filters.status} onChange={set("status")} aria-label={t("status")}>
+              <option value="">{t("allStatuses")}</option>
+              <option value="active">{t("active")}</option>
+              <option value="invited">{t("invited")}</option>
+              <option value="suspended">{t("suspended")}</option>
+            </select>
+            <select className="input" value={filters.department_id} onChange={set("department_id")} aria-label={t("department")}>
+              <option value="">{t("allDepartments")}</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
           </div>
-          <Pagination page={result?.meta?.current_page ?? 1} lastPage={result?.meta?.last_page ?? 1}
-            total={result?.meta?.total ?? rows.length} onChange={setPage} />
-        </>
-      )}
+          {result?.meta?.total != null && <div className="app-toolbar-end"><span className="app-result-count">{result.meta.total} {t("users").toLowerCase()}</span></div>}
+        </div>
+
+        {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
+        {!result && !error && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
+        {result && rows.length === 0 && <EmptyState icon="ph-users-three" title={t("noResults")} />}
+
+        {rows.length > 0 && (
+          <>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t("fullName")}</th><th>{t("employeeId")}</th><th>{t("department")}</th>
+                    <th>{t("role")}</th><th>{t("status")}</th><th className="num">{t("vouchers")}</th>
+                    <th>{t("joined")}</th><th aria-label={t("actions")} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((user) => (
+                    <tr key={user.id}>
+                      <td>
+                        <div className="app-person">
+                          <span className="app-avatar" aria-hidden="true">{user.initials}</span>
+                          <span className="app-person-text">
+                            <strong>{user.name}</strong>
+                            <span>{user.email}</span>
+                          </span>
+                        </div>
+                      </td>
+                      <td className="tnum">{user.employee_code ?? "—"}</td>
+                      <td>{user.department?.name ?? "—"}</td>
+                      <td>
+                        <div>{user.role_label}</div>
+                        {user.job_title && <div className="app-cell-sub">{user.job_title}</div>}
+                      </td>
+                      <td><span className={`badge ${statusTone(user.status)}`}>{user.status}</span></td>
+                      <td className="num">{user.voucher_count ?? 0}</td>
+                      <td className="text-muted" style={{ whiteSpace: "nowrap" }}>{formatDate(user.joined_at, locale)}</td>
+                      <td className="app-row-actions">
+                        <Dropdown label={user.name}
+                          trigger={({ open, toggle, id }) => (
+                            <button type="button" className="btn btn-icon btn-sm" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu" aria-label={`${t("actions")}: ${user.name}`}>
+                              <Icon name="ph-dots-three" size={16} />
+                            </button>
+                          )}>
+                          {(close) => (
+                            <>
+                              <MenuItem icon="ph-pencil-simple" onSelect={() => { close(); openEdit(user); }}>{t("edit")}</MenuItem>
+                              {user.status !== "suspended"
+                                ? <MenuItem icon="ph-prohibit" onSelect={() => { close(); void setStatus(user, "suspended"); }}>{t("suspend")}</MenuItem>
+                                : <MenuItem icon="ph-check-circle" onSelect={() => { close(); void setStatus(user, "active"); }}>{t("activate")}</MenuItem>}
+                              <MenuSeparator />
+                              <MenuItem icon="ph-trash" tone="danger" onSelect={() => { close(); setRemoving(user); }}>{t("delete")}</MenuItem>
+                            </>
+                          )}
+                        </Dropdown>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={result?.meta?.current_page ?? 1} lastPage={result?.meta?.last_page ?? 1}
+              total={result?.meta?.total ?? rows.length} onChange={setPage} />
+          </>
+        )}
+      </section>
+
+      <Dialog
+        open={!!removing}
+        icon="ph-trash" tone="bad"
+        title={`${t("delete")} ${removing?.name ?? ""}?`}
+        sub="They lose access immediately. Vouchers they raised or acted on stay on the record."
+        summary={removing ? [{ label: t("email"), value: removing.email }, { label: t("role"), value: removing.role_label }] : undefined}
+        onClose={() => setRemoving(null)}
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setRemoving(null)}>{t("cancel")}</button>
+            <button className="btn btn-danger-solid" onClick={() => { const u = removing; setRemoving(null); if (u) void remove(u); }}>
+              <Icon name="ph-trash" size={15} /> {t("delete")}
+            </button>
+          </>
+        }
+      />
 
       <Dialog
         open={dialog !== null}
@@ -241,12 +265,10 @@ export default function EmployeesPage() {
           </div>
           <Field label={t("jobTitle")} htmlFor="e-title"><input id="e-title" className="input" value={form.job_title} onChange={setField("job_title")} /></Field>
           {dialog === "create" && (
-            <div style={{ fontSize: 13.5, color: "var(--color-neutral-600)" }}>
-              A temporary password is generated and shown once. The user is asked to sign in with it.
-            </div>
+            <Note>A temporary password is generated and shown once. The user is asked to sign in with it.</Note>
           )}
         </div>
       </Dialog>
-    </div>
+    </SettingsLayout>
   );
 }

@@ -12,19 +12,23 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0b0e14",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e1116" },
+  ],
 };
 
 /**
- * Applied before the first paint, so a returning visitor who chose light never
- * sees a dark frame flash first (and vice versa). Dark is the default when
- * nothing has been stored.
+ * Applied before the first paint, so a returning visitor who chose dark never
+ * sees a light frame flash first (and vice versa). Light is the default when
+ * nothing has been stored — the operating system's preference is deliberately
+ * not consulted.
  */
-const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem("vouchflow.theme");document.documentElement.dataset.theme=(t==="light"||t==="dark")?t:"dark";}catch(e){document.documentElement.dataset.theme="dark";}})();`;
+const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem("vouchflow.theme");document.documentElement.dataset.theme=(t==="light"||t==="dark")?t:"light";}catch(e){document.documentElement.dataset.theme="light";}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" data-theme="light" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />

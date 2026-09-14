@@ -69,8 +69,8 @@ export default function PlatformCompanyPage() {
   const c = detail.data;
 
   return (
-    <div style={{ maxWidth: 1100 }}>
-      <Link className="btn btn-ghost btn-sm" href="/platform/companies" style={{ marginBottom: 6 }}>
+    <div className="app-page">
+      <Link className="vf-back" href="/platform/companies">
         <Icon name="ph-arrow-left" size={14} /> {t("companies")}
       </Link>
 
@@ -110,7 +110,7 @@ export default function PlatformCompanyPage() {
                   <tr key={invoice.id}>
                     <td style={{ fontVariantNumeric: "tabular-nums" }}>{invoice.number}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{invoice.amount_text}</td>
-                    <td><span className={`tag ${invoice.status_tag}`}>{invoice.status}</span></td>
+                    <td><span className={`badge ${invoice.status_tag}`}>{invoice.status}</span></td>
                     <td style={{ whiteSpace: "nowrap" }}>{formatDate(invoice.paid_at ?? invoice.issued_at, locale)}</td>
                   </tr>
                 ))}
@@ -137,7 +137,7 @@ export default function PlatformCompanyPage() {
                   <div style={{ fontSize: 14.5, fontWeight: 500 }}>{admin.name}</div>
                   <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)" }}>{admin.email}</div>
                 </div>
-                <span className={`tag ${admin.status === "active" ? "tag-accent" : "tag-neutral"}`}>{admin.status}</span>
+                <span className={`badge ${admin.status === "active" ? "tag-accent" : "tag-neutral"}`}>{admin.status}</span>
               </div>
             ))}
           </div>

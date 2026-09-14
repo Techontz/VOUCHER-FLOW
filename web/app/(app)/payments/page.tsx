@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { compactMoney } from "@/lib/format";
-import { EmptyState, ErrorState, Icon, LoadingBlock, Note, PageHeader, SectionTitle, StatBlock, StatGrid } from "@/components/ui";
+import { money } from "@/lib/format";
+import { EmptyState, ErrorState, Icon, LoadingBlock, PageHeader } from "@/components/ui";
+import { Figure, FigureStrip } from "@/components/app-ui";
 import { VoucherList, VoucherTable } from "@/components/voucher-bits";
 import type { Paginated, Voucher } from "@/lib/types";
 
@@ -47,56 +48,56 @@ export default function PaymentsPage() {
   const shown = filter === "bank" ? bank : filter === "cash" ? cash : due;
 
   return (
-    <div className="vf-dashboard">
+    <div className="app-page">
       <PageHeader
-        kicker={t("paymentQueue")}
         title={`${due.length} ${due.length === 1 ? t("voucherWord") : t("vouchersWord")} ${t("awaitingPayment").toLowerCase()}`}
         sub={t("payNote")}
-        actions={<Link className="btn btn-secondary" href="/vouchers"><Icon name="ph-receipt" size={17} /> {t("voucherRegister")}</Link>}
+        actions={<Link className="btn btn-secondary" href="/vouchers"><Icon name="ph-receipt" size={15} /> {t("voucherRegister")}</Link>}
       />
 
-      <section className="vf-dash-section">
-        <StatGrid>
-          <StatBlock label={t("dueToday")} value={String(due.length)} sub={compactMoney(total(due), company?.currency)} icon="ph-wallet" tone="info" />
-          <StatBlock label={t("bankTransfers")} value={compactMoney(total(bank), company?.currency)} sub={`${bank.length} ${t("bankVoucher").toLowerCase()}`} icon="ph-bank" />
-          <StatBlock label={t("cashDue")} value={compactMoney(total(cash), company?.currency)} sub={`${cash.length} ${t("cashVoucher").toLowerCase()}`} icon="ph-money" />
-          <StatBlock label={t("paidAct")} value={String(paid.length)} sub={compactMoney(total(paid), company?.currency)} icon="ph-check-circle" tone="ok" />
-        </StatGrid>
-      </section>
+      <div className="app-section">
+        <FigureStrip>
+          <Figure label={t("dueToday")} value={money(total(due), company?.currency)} sub={`${due.length} ${due.length === 1 ? t("voucherWord") : t("vouchersWord")}`} tone={due.length ? "info" : undefined} />
+          <Figure label={t("bankTransfers")} value={money(total(bank), company?.currency)} sub={`${bank.length} ${t("bankVoucher").toLowerCase()}`} />
+          <Figure label={t("cashDue")} value={money(total(cash), company?.currency)} sub={`${cash.length} ${t("cashVoucher").toLowerCase()}`} />
+          <Figure label={t("paidAct")} value={money(total(paid), company?.currency)} sub={`${paid.length} ${t("paymentHistoryH").toLowerCase()}`} tone="ok" />
+        </FigureStrip>
+      </div>
 
-      <section className="vf-dash-section">
-        <SectionTitle
-          count={shown.length}
-          actions={
+      <div className="app-stack">
+        <section className="vf-panel" aria-labelledby="due-title">
+          <div className="vf-panel-head">
+            <div className="vf-panel-head-main app-panel-title">
+              <h2 id="due-title">{t("awaitingPayment")}</h2>
+              <span className="vf-count">{shown.length}</span>
+            </div>
             <div className="seg seg-sm" role="tablist" aria-label={t("voucherFormat")}>
               {([["all", t("all")], ["bank", t("bank")], ["cash", t("cash")]] as const).map(([key, label]) => (
                 <button key={key} type="button" role="tab" aria-selected={filter === key} onClick={() => setFilter(key)}>{label}</button>
               ))}
             </div>
-          }
-        >
-          {t("awaitingPayment")}
-        </SectionTitle>
-
-        {shown.length > 0 ? (
-          <>
-            <VoucherList vouchers={shown} />
-            <div style={{ marginTop: 12 }}><Note>{t("approveNextNote")}</Note></div>
-          </>
-        ) : (
-          <div className="vf-panel">
+          </div>
+          {shown.length > 0 ? (
+            <>
+              <VoucherList vouchers={shown} bare />
+              <div className="app-panel-foot"><Icon name="ph-info" size={15} /><span>{t("approveNextNote")}</span></div>
+            </>
+          ) : (
             <EmptyState tone="ok" icon="ph-check-circle" title={t("nothingAwaiting")} body={t("nothingAwaitingBody")}
               action={<Link className="btn btn-secondary" href="/vouchers">{t("voucherRegister")}</Link>} />
-          </div>
-        )}
-      </section>
-
-      {paid.length > 0 && (
-        <section className="vf-dash-section">
-          <SectionTitle>{t("paymentHistoryH")}</SectionTitle>
-          <VoucherTable vouchers={paid} />
+          )}
         </section>
-      )}
+
+        {paid.length > 0 && (
+          <section className="vf-panel" aria-labelledby="history-title">
+            <div className="vf-panel-head">
+              <div className="vf-panel-head-main app-panel-title"><h2 id="history-title">{t("paymentHistoryH")}</h2><span className="vf-count">{paid.length}</span></div>
+              <Link className="btn btn-ghost btn-sm" href="/reports">{t("reports")} <Icon name="ph-arrow-right" size={13} /></Link>
+            </div>
+            <VoucherTable vouchers={paid} bare />
+          </section>
+        )}
+      </div>
     </div>
   );
 }

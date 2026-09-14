@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, download, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { ACCEPT_ATTRIBUTE, attachmentForm } from "@/lib/attachments";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, personName } from "@/lib/format";
 import {
   Dialog, Disclosure, EmptyState, Field, Icon, Note, Spinner, type SummaryRow,
 } from "@/components/ui";
@@ -242,48 +242,53 @@ export default function VoucherDetailPage() {
 
   return (
     <div className="vf-voucher">
-      {/* ── header ── */}
+      {/* ── header: the document's identity, its figure, and what can be done with it ── */}
       <header className="vf-voucher-head">
         <Link className="vf-back no-print" href="/vouchers">
-          <Icon name="ph-arrow-left" size={15} /> {t("register")}
+          <Icon name="ph-arrow-left" size={14} /> {t("register")}
         </Link>
 
-        <div className="vf-voucher-head-row">
-          <div className="vf-voucher-head-main">
+        <div className="app-doc-head">
+          <div className="app-doc-head-main">
             <div className="vf-voucher-kicker">
-              <span className="vf-eyebrow">{voucher.voucher_type?.label ?? t("voucher")}</span>
+              <span className="app-doc-number tnum">{voucher.number}</span>
+              <span className="app-doc-type">{voucher.voucher_type?.label ?? t("voucher")}</span>
               <KindChip kind={voucher.kind} />
+              <StatusBadge voucher={voucher} />
             </div>
             <h1 className="vf-voucher-title">{voucher.purpose}</h1>
-            <div className="vf-voucher-meta">
-              <span className="tnum">{voucher.number}</span>
-              {voucher.department?.name && <span>{voucher.department.name}</span>}
-              <span>{formatDate(voucher.voucher_date, locale)}</span>
-            </div>
           </div>
-
-          <div className="vf-voucher-head-side">
-            <StatusBadge voucher={voucher} large />
-            <div className="vf-voucher-amount tnum">{voucher.amount_text}</div>
+          <div className="app-doc-amount">
+            <span className="app-doc-amount-label">{t("amount")}</span>
+            <span className="vf-voucher-amount tnum">{voucher.amount_text}</span>
+            {voucher.amount_in_words && <span className="app-doc-words">{voucher.amount_in_words}</span>}
           </div>
         </div>
+
+        <dl className="app-doc-facts">
+          <div><dt>{t("payee")}</dt><dd>{voucher.payee}</dd></div>
+          <div><dt>{t("requestedBy")}</dt><dd>{voucher.requester?.name ?? "—"}</dd></div>
+          <div><dt>{t("department")}</dt><dd>{voucher.department?.name ?? "—"}</dd></div>
+          <div><dt>{t("date")}</dt><dd className="tnum">{formatDate(voucher.voucher_date, locale)}</dd></div>
+          <div><dt>{t("paymentMethod")}</dt><dd>{voucher.payment_method ?? "—"}</dd></div>
+        </dl>
 
         <div className="vf-voucher-tools no-print">
           <DocumentActions voucher={voucher} />
           {a?.edit && (
             <button className="btn btn-secondary btn-sm" onClick={() => router.push(`/vouchers/${voucher.id}/edit`)}>
-              <Icon name="ph-pencil-simple" size={15} /> {t("edit")}
+              <Icon name="ph-pencil-simple" size={14} /> {t("edit")}
             </button>
           )}
           <div style={{ flex: 1 }} />
           {a?.cancel && (
             <button className="btn btn-ghost btn-sm vf-text-bad" onClick={() => openDialog("cancel")}>
-              <Icon name="ph-prohibit" size={15} /> {t("cancelVoucher")}
+              <Icon name="ph-prohibit" size={14} /> {t("cancelVoucher")}
             </button>
           )}
           {a?.delete && (
             <button className="btn btn-ghost btn-sm vf-text-bad" onClick={() => openDialog("delete")}>
-              <Icon name="ph-trash" size={15} /> {t("delete")}
+              <Icon name="ph-trash" size={14} /> {t("delete")}
             </button>
           )}
         </div>
@@ -370,16 +375,20 @@ export default function VoucherDetailPage() {
         <div className="vf-voucher-main">
           <section className="vf-panel no-print">
             <div className="vf-panel-head"><h2>{t("requestDetails")}</h2></div>
-            <div className="vf-panel-pad" style={{ paddingTop: 4, paddingBottom: 8 }}>
+            <div className="app-detail-grid">
               <dl className="vf-dl">
                 <Row label={t("payee")} value={voucher.payee} />
                 {voucher.description && <Row label={t("description")} value={voucher.description} />}
                 <Row label={t("requestedBy")} value={[voucher.requester?.name, voucher.requester?.job_title].filter(Boolean).join(" · ")} />
                 <Row label={t("department")} value={[voucher.department?.name, voucher.cost_centre].filter(Boolean).join(" · ")} />
                 <Row label={t("voucherType")} value={voucher.voucher_type?.label} />
+                {voucher.category && <Row label={t("category")} value={voucher.category} />}
+                <Row label={t("requestedOn")} value={formatDate(voucher.voucher_date, locale)} />
+                {voucher.notes_to_approver && <Row label={t("notes")} value={voucher.notes_to_approver} />}
+              </dl>
+              <dl className="vf-dl">
                 <Row label={t("voucherFormat")} value={isCash ? t("cash") : t("bank")} />
                 <Row label={t("paymentMethod")} value={voucher.payment_method} />
-                {voucher.category && <Row label={t("category")} value={voucher.category} />}
                 {voucher.account_ref && <Row label={t("accountRef")} value={voucher.account_ref} mono />}
 
                 {!isCash && (voucher.payee_bank || voucher.payee_account_number) && (
@@ -391,12 +400,9 @@ export default function VoucherDetailPage() {
                 )}
                 {isCash && voucher.cash_float && <Row label={t("payFrom")} value={voucher.cash_float} />}
 
-                <Row label={t("requestedOn")} value={formatDate(voucher.voucher_date, locale)} />
-                {voucher.notes_to_approver && <Row label={t("notes")} value={voucher.notes_to_approver} />}
-
                 {voucher.status === "paid" && (
                   <>
-                    <Row label={t("paidByOn")} value={[voucher.paid_by, formatDateTime(voucher.paid_at, locale)].filter(Boolean).join(" · ")} />
+                    <Row label={t("paidByOn")} value={[personName(voucher.paid_by), formatDateTime(voucher.paid_at, locale)].filter(Boolean).join(" · ")} />
                     {voucher.payment_reference && <Row label={t("paymentRef")} value={voucher.payment_reference} mono />}
                     {voucher.received_by && <Row label={t("receivedBy")} value={voucher.received_by} />}
                   </>
@@ -408,7 +414,7 @@ export default function VoucherDetailPage() {
           {/* ── attachments ── */}
           <section className="vf-panel no-print">
             <div className="vf-panel-head">
-              <h2>{t("attachments")}{voucher.attachments && voucher.attachments.length > 0 && <span className="vf-count" style={{ marginLeft: 8 }}>{voucher.attachments.length}</span>}</h2>
+              <h2 className="app-panel-title">{t("attachments")}{voucher.attachments && voucher.attachments.length > 0 && <span className="vf-count">{voucher.attachments.length}</span>}</h2>
               {a?.edit && (
                 <label className={`btn btn-secondary btn-sm${uploading ? " is-busy" : ""}`}>
                   {uploading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <Icon name="ph-paperclip" size={15} />}
@@ -435,13 +441,13 @@ export default function VoucherDetailPage() {
                           <span className="vf-file-name">{file.name}</span>
                           <span className="vf-file-size">{file.size}</span>
                         </span>
-                        <Icon name="ph-arrow-square-out" size={16} style={{ color: "var(--color-neutral-500)" }} />
+                        <Icon name="ph-arrow-square-out" size={15} style={{ color: "var(--text-faint)" }} />
                       </button>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-muted" style={{ margin: 0 }}>{t("noneAttached")}</p>
+                <p className="app-muted-line"><Icon name="ph-paperclip" size={15} /> {t("noneAttached")}</p>
               )}
             </div>
           </section>
@@ -449,7 +455,7 @@ export default function VoucherDetailPage() {
           {/* ── discussion ── */}
           <section className="vf-panel no-print">
             <div className="vf-panel-head">
-              <h2>{t("comments")}{voucher.comments && voucher.comments.length > 0 && <span className="vf-count" style={{ marginLeft: 8 }}>{voucher.comments.length}</span>}</h2>
+              <h2 className="app-panel-title">{t("comments")}{voucher.comments && voucher.comments.length > 0 && <span className="vf-count">{voucher.comments.length}</span>}</h2>
             </div>
             <div className="vf-panel-pad">
               {voucher.comments && voucher.comments.length > 0 && (
@@ -500,7 +506,7 @@ export default function VoucherDetailPage() {
               {voucher.submitted_at && <Row label="Submitted" value={formatDateTime(voucher.submitted_at, locale)} mono />}
               {voucher.approved_at && <Row label="Approved" value={formatDateTime(voucher.approved_at, locale)} mono />}
               {voucher.rejected_at && <Row label="Rejected" value={formatDateTime(voucher.rejected_at, locale)} mono />}
-              {voucher.paid_at && <Row label="Paid" value={`${formatDateTime(voucher.paid_at, locale)} · ${voucher.paid_by ?? ""}`} mono />}
+              {voucher.paid_at && <Row label="Paid" value={`${formatDateTime(voucher.paid_at, locale)} · ${personName(voucher.paid_by) ?? ""}`} mono />}
               {voucher.verification_code && <Row label={t("verificationCode")} value={voucher.verification_code} mono />}
             </dl>
           </Disclosure>
@@ -703,7 +709,7 @@ export default function VoucherDetailPage() {
         summary={paidReceipt ? [
           { label: t("voucher"), value: paidReceipt.number },
           { label: t("amount"), value: <strong>{paidReceipt.amount_text}</strong> },
-          { label: t("paidByOn"), value: paidReceipt.paid_by ?? user?.name ?? "—" },
+          { label: t("paidByOn"), value: personName(paidReceipt.paid_by) ?? user?.name ?? "—" },
           { label: t("dateTime"), value: formatDateTime(paidReceipt.paid_at, locale) },
           ...(paidReceipt.payment_reference ? [{ label: t("paymentRef"), value: paidReceipt.payment_reference }] : []),
         ] : []}

@@ -710,6 +710,9 @@ const D = {
   fileWrongType: ["only PDF, JPG, PNG, WEBP or HEIC files can be attached", "faili za PDF, JPG, PNG, WEBP au HEIC pekee"],
   fileTooLarge: ["larger than", "kubwa kuliko"],
   fileTooMany: ["no more than 10 files per voucher at a time", "si zaidi ya faili 10 kwa wakati mmoja"],
+  navWorkspace: ["Workspace", "Kazi"],
+  navAdministration: ["Administration", "Utawala"],
+  navPlatform: ["Platform", "Jukwaa"],
   loginFooter: ["Vouchers, signatures and payments — on the record.", "Vocha, saini na malipo — yote kwenye kumbukumbu."],
 } as const satisfies Record<string, Entry>;
 

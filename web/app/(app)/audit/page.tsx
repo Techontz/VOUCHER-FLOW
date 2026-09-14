@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDateTime } from "@/lib/format";
-import { EmptyState, ErrorState, LoadingBlock, PageHeader, Pagination } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingBlock, Pagination } from "@/components/ui";
+import { SearchInput, SettingsLayout } from "@/components/app-ui";
 import type { AuditEntry, Paginated } from "@/lib/types";
 
 export default function AuditPage() {
@@ -39,63 +40,60 @@ export default function AuditPage() {
   const rows = result?.data ?? [];
 
   return (
-    <div style={{ maxWidth: 1200 }}>
-      <PageHeader kicker={t("onRecord")} title={t("auditLogs")}
-        sub="Who did what, when and from which device. Entries are append-only." />
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-        <input className="input" placeholder={t("search")} value={filters.q} onChange={set("q")} aria-label={t("search")} />
-        <select className="input" value={filters.action} onChange={set("action")} aria-label={t("actions")}>
-          <option value="">{t("allActions")}</option>
-          {actions.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <input className="input" type="date" value={filters.from} onChange={set("from")} aria-label={t("from")} />
-        <input className="input" type="date" value={filters.to} onChange={set("to")} aria-label={t("to")} />
-      </div>
-
-      {error && <ErrorState message={error} onRetry={load} />}
-      {!result && !error && <LoadingBlock rows={6} />}
-
-      {result && rows.length === 0 && <EmptyState icon="ph-scroll" title={t("noResults")} />}
-
-      {rows.length > 0 && (
-        <>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t("people")}</th><th>{t("actions")}</th><th>Change</th><th>{t("date")}</th><th>Device</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--color-accent-200)", color: "var(--color-accent-800)", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 600, flex: "none" }}>
-                          {row.actor.initials}
-                        </span>
-                        <span>
-                          <span style={{ display: "block" }}>{row.actor.name}</span>
-                          {row.company && <span style={{ display: "block", fontSize: 12, color: "var(--color-neutral-600)" }}>{row.company}</span>}
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{ minWidth: 220 }}>{row.description}</td>
-                    <td style={{ color: "var(--color-neutral-700)", fontSize: 13 }}>{row.change_summary ?? "—"}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>{formatDateTime(row.created_at, locale)}</td>
-                    <td style={{ fontSize: 12.5, color: "var(--color-neutral-600)", maxWidth: 220 }}>
-                      {row.ip}{row.user_agent ? ` · ${row.user_agent.slice(0, 40)}` : ""}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <SettingsLayout title={t("auditLogs")} sub="Who did what, when and from which device. Entries are append-only.">
+      <section className="vf-panel">
+        <div className="app-toolbar">
+          <div className="app-toolbar-main">
+            <SearchInput value={filters.q} onChange={(q) => { setPage(1); setFilters((f) => ({ ...f, q })); }} placeholder={t("search")} />
+            <select className="input" value={filters.action} onChange={set("action")} aria-label={t("actions")}>
+              <option value="">{t("allActions")}</option>
+              {actions.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <input className="input app-date" type="date" value={filters.from} onChange={set("from")} aria-label={t("from")} />
+            <input className="input app-date" type="date" value={filters.to} onChange={set("to")} aria-label={t("to")} />
           </div>
-          <Pagination page={result?.meta?.current_page ?? 1} lastPage={result?.meta?.last_page ?? 1}
-            total={result?.meta?.total ?? rows.length} onChange={setPage} />
-        </>
-      )}
-    </div>
+          {result?.meta?.total != null && <div className="app-toolbar-end"><span className="app-result-count tnum">{result.meta.total}</span></div>}
+        </div>
+
+        {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
+        {!result && !error && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
+        {result && rows.length === 0 && <EmptyState icon="ph-scroll" title={t("noResults")} />}
+
+        {rows.length > 0 && (
+          <>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr><th>{t("people")}</th><th>{t("actions")}</th><th>Change</th><th>{t("date")}</th><th>Device</th></tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id}>
+                      <td>
+                        <div className="app-person">
+                          <span className="app-avatar" aria-hidden="true">{row.actor.initials}</span>
+                          <span className="app-person-text">
+                            <strong>{row.actor.name}</strong>
+                            {row.company && <span>{row.company}</span>}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ minWidth: 220 }}>{row.description}</td>
+                      <td className="app-cell-sub" style={{ fontSize: 13 }}>{row.change_summary ?? "—"}</td>
+                      <td className="tnum" style={{ whiteSpace: "nowrap" }}>{formatDateTime(row.created_at, locale)}</td>
+                      <td className="app-cell-sub" style={{ maxWidth: 220 }}>
+                        {row.ip}{row.user_agent ? ` · ${row.user_agent.slice(0, 40)}` : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={result?.meta?.current_page ?? 1} lastPage={result?.meta?.last_page ?? 1}
+              total={result?.meta?.total ?? rows.length} onChange={setPage} />
+          </>
+        )}
+      </section>
+    </SettingsLayout>
   );
 }

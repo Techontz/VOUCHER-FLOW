@@ -76,12 +76,12 @@ export default function PlatformPlansPage() {
   if (!plans) return <LoadingBlock rows={5} />;
 
   return (
-    <div style={{ maxWidth: 1200 }}>
+    <div className="app-page">
       <PageHeader kicker="Platform" title={t("plansSubs")}
         sub="Limits defined here are enforced across every tenant on the plan."
         actions={<button className="btn btn-primary" onClick={openCreate}><Icon name="ph-plus" size={15} /> {t("add")}</button>} />
 
-      <div className="table-wrap">
+      <div className="table-wrap app-framed">
         <table className="table">
           <thead>
             <tr><th>{t("plan")}</th><th style={{ textAlign: "right" }}>{t("price")}</th><th>Cycle</th>
@@ -105,7 +105,7 @@ export default function PlatformPlansPage() {
                 <td style={{ textAlign: "right" }}>{plan.max_approval_levels ?? "∞"}</td>
                 <td style={{ textAlign: "right" }}>{plan.storage_mb ? `${plan.storage_mb} MB` : "∞"}</td>
                 <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{plan.companies_count ?? 0}</td>
-                <td><span className={`tag ${plan.is_active ? "tag-accent" : "tag-neutral"}`}>{plan.is_active ? t("active") : "Inactive"}</span></td>
+                <td><span className={`badge ${plan.is_active ? "tag-accent" : "tag-neutral"}`}>{plan.is_active ? t("active") : "Inactive"}</span></td>
                 <td style={{ textAlign: "right" }}>
                   <button className="btn btn-ghost btn-sm" onClick={() => openEdit(plan)} aria-label={`Edit ${plan.name}`}>
                     <Icon name="ph-pencil-simple" size={14} />

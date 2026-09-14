@@ -1,6 +1,9 @@
 /* The design system. One file now — the structural base and the skin that
    used to be layered over it defined the same components twice. */
 @import "../styles/vouchflow.css";
+/* The signed-in application: scoped to .vf-shell, so it cannot reach the
+   public site, sign-in or registration. */
+@import "../styles/app.css";
 
 /* ── Print ────────────────────────────────────────────────────────────────
    Paper is white whatever the screen was showing. Server-generated PDFs stay

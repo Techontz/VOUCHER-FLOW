@@ -103,3 +103,9 @@ const STATUS_TAGS: Record<string, string> = {
 export function statusTag(status: string): string {
   return STATUS_TAGS[status] ?? "tag-neutral";
 }
+
+/** A person's display name, whether the API sent the person or just a name. */
+export function personName(person: string | { name: string } | null | undefined): string | null {
+  if (!person) return null;
+  return typeof person === "string" ? person : person.name ?? null;
+}

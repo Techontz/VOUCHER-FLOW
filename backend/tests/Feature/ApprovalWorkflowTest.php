@@ -249,6 +249,75 @@ class ApprovalWorkflowTest extends TestCase
         $this->assertSame('Finance verification', $timeline[2]['name']);
     }
 
+    /**
+     * The timeline has to tell the truth at the two moments people check it
+     * most: approved and waiting on the money, and paid. It used to call an
+     * approved voucher complete before any money moved, and to fall back to
+     * "not started" on every step once the voucher was paid.
+     */
+    public function test_the_timeline_follows_a_voucher_through_approval_and_payment(): void
+    {
+        $t = $this->makeTenant('Acme Trading');
+        $voucher = $this->makeVoucher($t);
+
+        $this->actingAs($t['employee'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/submit")->assertOk();
+        $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/sign", ['signature' => self::SIGNATURE])->assertOk();
+        $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/submit-signed")->assertOk();
+        $this->actingAs($t['ceo'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/approve", ['comment' => 'Cleared.'])->assertOk();
+
+        $approved = $this->actingAs($t['admin'], 'sanctum')->getJson("/api/vouchers/{$voucher->id}")->json('data.timeline');
+        $states = array_column($approved, 'state');
+        $payment = collect($approved)->firstWhere('name', 'Payment');
+
+        $this->assertSame(['done', 'done', 'done', 'current', 'pending'], $states, 'Approved: the chain is done, payment is next, nothing is complete yet.');
+        $this->assertSame('Awaiting payment', $payment['act']);
+        $this->assertSame('Not completed', end($approved)['act']);
+
+        $this->actingAs($t['cashier'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/pay", ['payment_reference' => 'CRDB-TRX-4410'])
+            ->assertOk();
+
+        $detail = $this->actingAs($t['admin'], 'sanctum')->getJson("/api/vouchers/{$voucher->id}")->assertOk();
+        $paid = $detail->json('data.timeline');
+        $payment = collect($paid)->firstWhere('name', 'Payment');
+
+        $this->assertSame(['done', 'done', 'done', 'done', 'done'], array_column($paid, 'state'), 'Paid: every step and the voucher are complete.');
+        $this->assertSame('Paid', $payment['act']);
+        $this->assertSame($t['cashier']->name, $payment['person']);
+        $this->assertNotNull($payment['when']);
+        $this->assertSame('Voucher completed', end($paid)['act']);
+
+        // And the voucher itself names who paid it.
+        $this->assertSame($t['cashier']->name, $detail->json('data.paid_by.name'));
+    }
+
+    /**
+     * One person approves and pays. Approving finishes the decision, but the
+     * voucher is not complete until that same person has paid it.
+     */
+    public function test_an_approve_and_pay_step_completes_only_once_paid(): void
+    {
+        $t = $this->makeTenant('Baobab Solutions', preset: 'single');
+        $voucher = $this->makeVoucher($t);
+
+        $this->actingAs($t['employee'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/submit")->assertOk();
+        $this->actingAs($t['manager'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/approve", ['signature' => self::SIGNATURE])
+            ->assertOk();
+
+        $timeline = $this->actingAs($t['admin'], 'sanctum')->getJson("/api/vouchers/{$voucher->id}")->json('data.timeline');
+        $this->assertSame('done', $timeline[1]['state'], 'The decision is taken.');
+        $this->assertSame('pending', end($timeline)['state'], 'But nothing has been paid yet.');
+
+        $this->actingAs($t['manager'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/pay", ['payment_reference' => 'TRX-SINGLE-1'])
+            ->assertOk();
+
+        $timeline = $this->actingAs($t['admin'], 'sanctum')->getJson("/api/vouchers/{$voucher->id}")->json('data.timeline');
+        $this->assertSame('done', end($timeline)['state']);
+        $this->assertSame('Voucher completed', end($timeline)['act']);
+    }
+
     public function test_an_administrator_can_reshape_the_route(): void
     {
         $t = $this->makeTenant('Acme Trading');

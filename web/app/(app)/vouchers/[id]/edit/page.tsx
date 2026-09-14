@@ -7,6 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { dateInputValue } from "@/lib/format";
 import { EmptyState, Field, Icon, LoadingBlock, PageHeader, Spinner } from "@/components/ui";
+import { FormSection } from "@/components/app-ui";
 import type { Department, Voucher, VoucherType } from "@/lib/types";
 
 const METHODS = ["Bank Transfer", "Mobile Money", "Cash", "Cheque"];
@@ -98,83 +99,93 @@ export default function EditVoucherPage() {
   const fe = (name: string) => formError?.field(name);
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      <Link className="btn btn-ghost btn-sm" href={`/vouchers/${voucher.id}`} style={{ marginBottom: 6 }}>
+    <div className="app-page app-edit">
+      <Link className="vf-back" href={`/vouchers/${voucher.id}`}>
         <Icon name="ph-arrow-left" size={14} /> {voucher.number}
       </Link>
 
-      <PageHeader kicker={`${t("edit")} · ${voucher.status_label}`} title={voucher.number}
-        actions={
-          <>
-            <button className="btn btn-secondary" onClick={() => save("save")} disabled={busy !== null}>
+      <PageHeader kicker={`${t("edit")} · ${voucher.status_label}`} title={voucher.purpose || voucher.number} sub={voucher.number} />
+
+      <form className="vf-panel app-edit-form" onSubmit={(e) => { e.preventDefault(); save("save"); }} noValidate>
+        <div className="vf-panel-pad">
+          <FormSection title={t("voucherType")} description={t("detailsSub")}>
+            <div className="vf-form-row">
+              <Field label={t("voucherType")} htmlFor="e-type">
+                <select id="e-type" className="input" value={form.voucher_type_id}
+                  onChange={(e) => setForm((f) => ({ ...f, voucher_type_id: Number(e.target.value) }))}>
+                  {types.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+                </select>
+              </Field>
+              <Field label={t("date")} htmlFor="e-date">
+                <input id="e-date" className="input" type="date" value={form.voucher_date} onChange={set("voucher_date")} />
+              </Field>
+            </div>
+            <div className="vf-form-row">
+              <Field label={t("department")} htmlFor="e-dept">
+                <select id="e-dept" className="input" value={form.department_id} onChange={set("department_id")}>
+                  <option value="">—</option>
+                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </Field>
+              <Field label={t("expenseCategory")} htmlFor="e-cat">
+                <select id="e-cat" className="input" value={form.category} onChange={set("category")}>
+                  {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </Field>
+            </div>
+          </FormSection>
+
+          <FormSection title={t("details")}>
+            <Field label={t("payee")} htmlFor="e-payee" error={fe("payee")} required>
+              <input id="e-payee" className="input" value={form.payee} onChange={set("payee")} required aria-invalid={!!fe("payee")} />
+            </Field>
+            <Field label={t("paymentPurpose")} htmlFor="e-purpose" error={fe("purpose")} required>
+              <input id="e-purpose" className="input" value={form.purpose} onChange={set("purpose")} required aria-invalid={!!fe("purpose")} />
+            </Field>
+            <Field label={t("description")} htmlFor="e-desc">
+              <textarea id="e-desc" className="input" value={form.description} onChange={set("description")} />
+            </Field>
+          </FormSection>
+
+          <FormSection title={t("payment")} description={t("paymentSubBank")}>
+            <div className="app-edit-amount">
+              <Field label={t("amount")} htmlFor="e-amount" error={fe("amount")} required>
+                <input id="e-amount" className="input tnum" inputMode="decimal" value={form.amount} onChange={set("amount")} required aria-invalid={!!fe("amount")} />
+              </Field>
+              <Field label={t("currency")} htmlFor="e-currency">
+                <select id="e-currency" className="input" value={form.currency} onChange={set("currency")}>
+                  <option>TZS</option><option>USD</option><option>KES</option><option>EUR</option>
+                </select>
+              </Field>
+              <Field label={t("paymentMethod")} htmlFor="e-method">
+                <select id="e-method" className="input" value={form.payment_method} onChange={set("payment_method")}>
+                  {METHODS.map((m) => <option key={m}>{m}</option>)}
+                </select>
+              </Field>
+            </div>
+            <Field label={t("accountRef")} htmlFor="e-ref">
+              <input id="e-ref" className="input" value={form.account_ref} onChange={set("account_ref")} />
+            </Field>
+          </FormSection>
+
+          <FormSection title={t("notesApprover")}>
+            <Field label={t("notesApprover")} htmlFor="e-notes" hint={t("optional")}>
+              <textarea id="e-notes" className="input" value={form.notes_to_approver} onChange={set("notes_to_approver")} />
+            </Field>
+          </FormSection>
+        </div>
+
+        <div className="app-form-foot">
+          <Link className="btn btn-ghost" href={`/vouchers/${voucher.id}`}>{t("cancel")}</Link>
+          <div className="app-form-foot-end">
+            <button type="button" className="btn btn-secondary" onClick={() => save("save")} disabled={busy !== null}>
               {busy === "save" ? <Spinner /> : t("saveChanges")}
             </button>
-            <button className="btn btn-primary" onClick={() => save("submit")} disabled={busy !== null}>
-              {busy === "submit" ? <Spinner /> : t("submitApproval")}
+            <button type="button" className="btn btn-primary" onClick={() => save("submit")} disabled={busy !== null}>
+              {busy === "submit" ? <Spinner /> : <><Icon name="ph-paper-plane-tilt" size={15} /> {t("submitApproval")}</>}
             </button>
-          </>
-        } />
-
-      <form onSubmit={(e) => { e.preventDefault(); save("save"); }} style={{ display: "grid", gap: "var(--space-3)" }} noValidate>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }}>
-          <Field label={t("voucherType")} htmlFor="e-type">
-            <select id="e-type" className="input" value={form.voucher_type_id}
-              onChange={(e) => setForm((f) => ({ ...f, voucher_type_id: Number(e.target.value) }))}>
-              {types.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
-            </select>
-          </Field>
-          <Field label={t("date")} htmlFor="e-date">
-            <input id="e-date" className="input" type="date" value={form.voucher_date} onChange={set("voucher_date")} />
-          </Field>
+          </div>
         </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }}>
-          <Field label={t("department")} htmlFor="e-dept">
-            <select id="e-dept" className="input" value={form.department_id} onChange={set("department_id")}>
-              <option value="">—</option>
-              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-          </Field>
-          <Field label={t("expenseCategory")} htmlFor="e-cat">
-            <select id="e-cat" className="input" value={form.category} onChange={set("category")}>
-              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </Field>
-        </div>
-
-        <Field label={t("payee")} htmlFor="e-payee" error={fe("payee")} required>
-          <input id="e-payee" className="input" value={form.payee} onChange={set("payee")} required />
-        </Field>
-        <Field label={t("paymentPurpose")} htmlFor="e-purpose" error={fe("purpose")} required>
-          <input id="e-purpose" className="input" value={form.purpose} onChange={set("purpose")} required />
-        </Field>
-        <Field label={t("description")} htmlFor="e-desc">
-          <textarea id="e-desc" className="input" value={form.description} onChange={set("description")} style={{ minHeight: 96 }} />
-        </Field>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1.3fr .7fr 1fr", gap: "var(--space-3)" }}>
-          <Field label={t("amount")} htmlFor="e-amount" error={fe("amount")} required>
-            <input id="e-amount" className="input" inputMode="decimal" value={form.amount} onChange={set("amount")}
-              style={{ fontVariantNumeric: "tabular-nums" }} required />
-          </Field>
-          <Field label={t("currency")} htmlFor="e-currency">
-            <select id="e-currency" className="input" value={form.currency} onChange={set("currency")}>
-              <option>TZS</option><option>USD</option><option>KES</option><option>EUR</option>
-            </select>
-          </Field>
-          <Field label={t("paymentMethod")} htmlFor="e-method">
-            <select id="e-method" className="input" value={form.payment_method} onChange={set("payment_method")}>
-              {METHODS.map((m) => <option key={m}>{m}</option>)}
-            </select>
-          </Field>
-        </div>
-
-        <Field label={t("accountRef")} htmlFor="e-ref">
-          <input id="e-ref" className="input" value={form.account_ref} onChange={set("account_ref")} />
-        </Field>
-        <Field label={t("notesApprover")} htmlFor="e-notes">
-          <textarea id="e-notes" className="input" value={form.notes_to_approver} onChange={set("notes_to_approver")} style={{ minHeight: 68 }} />
-        </Field>
       </form>
     </div>
   );

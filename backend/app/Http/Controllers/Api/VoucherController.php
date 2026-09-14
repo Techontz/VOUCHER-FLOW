@@ -86,7 +86,7 @@ class VoucherController extends Controller
         $this->authorizeView($request, $voucher);
 
         $voucher->load([
-            'requester.department', 'department.hod', 'department.manager', 'voucherType',
+            'requester.department', 'department.hod', 'department.manager', 'voucherType', 'paidBy',
             'workflow.steps.assignedUser', 'approvals.actor', 'attachments.uploader', 'comments.user.department',
         ])->loadCount(['attachments', 'comments']);
 

@@ -22,16 +22,28 @@ class TimelineBuilder
         $steps = $this->engine->applicableSteps($voucher);
         $approvals = $voucher->relationLoaded('approvals') ? $voucher->approvals : $voucher->approvals()->get();
 
-        $completed = $voucher->status === Voucher::STATUS_APPROVED;
+        // Two different milestones. The approval chain is finished once a voucher
+        // is approved — and stays finished once it is paid. The voucher itself is
+        // only complete when the money has moved, if the route has a step for it.
+        $paid = $voucher->status === Voucher::STATUS_PAID;
+        $completed = $voucher->status === Voucher::STATUS_APPROVED || $paid;
         $rejected = $voucher->status === Voucher::STATUS_REJECTED;
         $returned = $voucher->status === Voucher::STATUS_CHANGES_REQUESTED;
         $currentPosition = $voucher->current_step_position;
+        $someoneCanPay = collect($steps)->contains(fn (WorkflowStep $s) => (bool) $s->can_pay);
+        $finished = $paid || ($completed && ! $someoneCanPay);
 
         $rows = [];
 
         foreach ($steps as $step) {
-            $atThis = $currentPosition === $step->position && ! $completed && ! $rejected;
-            $done = $completed || ($currentPosition !== null && $step->position < $currentPosition) || ($rejected && $this->hasAction($approvals, $step, ['approved', 'signed', 'forwarded']));
+            if ($step->isPaymentStep()) {
+                // Releasing money follows the decision: waiting once approved, done once paid.
+                $atThis = $completed && ! $paid;
+                $done = $paid;
+            } else {
+                $atThis = $currentPosition === $step->position && ! $completed && ! $rejected;
+                $done = $completed || ($currentPosition !== null && $step->position < $currentPosition) || ($rejected && $this->hasAction($approvals, $step, ['approved', 'signed', 'forwarded']));
+            }
 
             $stepEvents = $approvals->filter(fn (VoucherApproval $a) => $a->step_position === $step->position)->values();
             $terminalEvent = $stepEvents->last(fn (VoucherApproval $a) => in_array($a->action, ['rejected', 'changes_requested'], true));
@@ -69,17 +81,17 @@ class TimelineBuilder
             'sub' => 'System',
             'sub_sw' => 'Mfumo',
             'person' => 'VouchFlow',
-            'act' => $completed ? 'Voucher completed' : ($rejected ? 'Closed as rejected' : ($returned ? 'Returned to requester' : 'Not completed')),
-            'act_sw' => $completed ? 'Vocha imekamilika' : ($rejected ? 'Imefungwa kama iliyokataliwa' : ($returned ? 'Imerudishwa kwa mwombaji' : 'Haijakamilika')),
-            'when' => $completed ? $voucher->approved_at?->toIso8601String() : ($rejected ? $voucher->rejected_at?->toIso8601String() : null),
-            'comment' => $completed && $voucher->verification_code
+            'act' => $finished ? 'Voucher completed' : ($rejected ? 'Closed as rejected' : ($returned ? 'Returned to requester' : 'Not completed')),
+            'act_sw' => $finished ? 'Vocha imekamilika' : ($rejected ? 'Imefungwa kama iliyokataliwa' : ($returned ? 'Imerudishwa kwa mwombaji' : 'Haijakamilika')),
+            'when' => $finished ? ($paid ? $voucher->paid_at : $voucher->approved_at)?->toIso8601String() : ($rejected ? $voucher->rejected_at?->toIso8601String() : null),
+            'comment' => $finished && $voucher->verification_code
                 ? "Approval ID {$voucher->verification_code} · PDF generated with all captured marks."
                 : null,
             'signature' => null,
             'capabilities' => ['print' => true, 'download' => true],
             'capability_text' => 'Print · Download PDF · Share',
-            'state' => $completed ? 'done' : ($rejected ? 'rejected' : 'pending'),
-            'icon' => $completed ? 'ph-seal-check' : ($rejected ? 'ph-x-circle' : 'ph-circle-dashed'),
+            'state' => $finished ? 'done' : ($rejected ? 'rejected' : 'pending'),
+            'icon' => $finished ? 'ph-seal-check' : ($rejected ? 'ph-x-circle' : 'ph-circle-dashed'),
         ];
 
         return $rows;
@@ -117,6 +129,17 @@ class TimelineBuilder
         $changesEvent = $events->last(fn (VoucherApproval $a) => $a->action === 'changes_requested');
         if ($changesEvent) {
             return ['Changes requested', 'Mabadiliko yameombwa', $changesEvent->acted_at?->toIso8601String(), $changesEvent->comment];
+        }
+
+        $paidEvent = $events->last(fn (VoucherApproval $a) => $a->action === 'paid');
+        if ($paidEvent) {
+            $reference = $voucher->payment_reference ? "Reference {$voucher->payment_reference}." : null;
+
+            return ['Paid', 'Imelipwa', $paidEvent->acted_at?->toIso8601String(), $paidEvent->comment ?: $reference];
+        }
+
+        if ($step->isPaymentStep() && $atThis) {
+            return ['Awaiting payment', 'Inasubiri malipo', null, null];
         }
 
         $approveEvent = $events->last(fn (VoucherApproval $a) => $a->action === 'approved');

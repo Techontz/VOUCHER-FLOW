@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { money } from "@/lib/format";
-import { Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, PageHeader, Spinner } from "@/components/ui";
+import { Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, Spinner } from "@/components/ui";
+import { SettingsLayout } from "@/components/app-ui";
 import type { Department } from "@/lib/types";
 
 interface DirectoryUser { id: number; name: string; role: string }
@@ -74,63 +75,78 @@ export default function DepartmentsPage() {
     } catch (err) { reportError(err, "Could not delete the department"); }
   }
 
+  const [removing, setRemoving] = useState<Department | null>(null);
   const setField = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
   const fe = (name: string) => formError?.field(name);
 
   return (
-    <div style={{ maxWidth: 1100 }}>
-      <PageHeader kicker={t("settings")} title={t("departments")}
-        sub="Each department names a head and an approving manager. Workflow steps resolve their actor from these."
-        actions={<button className="btn btn-primary" onClick={openCreate}><Icon name="ph-plus-circle" size={15} /> {t("addDepartment")}</button>} />
+    <SettingsLayout title={t("departments")}
+      sub="Each department names a head and an approving manager. Workflow steps resolve their actor from these."
+      actions={<button className="btn btn-primary" onClick={openCreate}><Icon name="ph-plus" size={15} /> {t("addDepartment")}</button>}>
 
-      {error && <ErrorState message={error} onRetry={load} />}
-      {!rows && !error && <LoadingBlock rows={5} />}
-      {rows && rows.length === 0 && (
-        <EmptyState icon="ph-buildings" title="No departments yet"
-          body="Create your first department so vouchers can be routed to the right head."
-          action={<button className="btn btn-primary" onClick={openCreate}>{t("addDepartment")}</button>} />
-      )}
+      <section className="vf-panel">
+        {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
+        {!rows && !error && <div className="vf-panel-pad"><LoadingBlock rows={5} /></div>}
+        {rows && rows.length === 0 && (
+          <EmptyState icon="ph-tree-structure" title="No departments yet"
+            body="Create your first department so vouchers can be routed to the right head."
+            action={<button className="btn btn-primary" onClick={openCreate}>{t("addDepartment")}</button>} />
+        )}
 
-      {rows && rows.length > 0 && (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>{t("department")}</th><th>{t("headOfDept")}</th><th>{t("approvingManager")}</th>
-                <th style={{ textAlign: "right" }}>{t("people")}</th>
-                <th style={{ textAlign: "right" }}>{t("vouchers")}</th>
-                <th style={{ textAlign: "right" }}>{t("spendQuarter")}</th><th />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((dept) => (
-                <tr key={dept.id}>
-                  <td>
-                    <span style={{ fontWeight: 500 }}>{dept.name}</span>
-                    {dept.cost_centre && <span style={{ display: "block", fontSize: 12.5, color: "var(--color-neutral-600)" }}>{dept.cost_centre}</span>}
-                  </td>
-                  <td>{dept.hod?.name ?? <span style={{ color: "var(--color-accent-2-700)" }}>Not assigned</span>}</td>
-                  <td>{dept.manager?.name ?? <span style={{ color: "var(--color-accent-2-700)" }}>Not assigned</span>}</td>
-                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{dept.users_count ?? 0}</td>
-                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{dept.vouchers_count ?? 0}</td>
-                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                    {money(dept.spend ?? 0, company?.currency)}
-                  </td>
-                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(dept)} aria-label={`Edit ${dept.name}`}>
-                      <Icon name="ph-pencil-simple" size={14} />
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => remove(dept)} aria-label={`Delete ${dept.name}`} style={{ color: "var(--color-accent-2-700)" }}>
-                      <Icon name="ph-trash" size={14} />
-                    </button>
-                  </td>
+        {rows && rows.length > 0 && (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>{t("department")}</th><th>{t("headOfDept")}</th><th>{t("approvingManager")}</th>
+                  <th className="num">{t("people")}</th>
+                  <th className="num">{t("vouchers")}</th>
+                  <th className="num">{t("spendQuarter")}</th><th aria-label={t("actions")} />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {rows.map((dept) => (
+                  <tr key={dept.id}>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{dept.name}</div>
+                      {dept.cost_centre && <div className="app-cell-sub">{dept.cost_centre}</div>}
+                    </td>
+                    <td>{dept.hod?.name ?? <span className="badge tone-warn">Not assigned</span>}</td>
+                    <td>{dept.manager?.name ?? <span className="badge tone-warn">Not assigned</span>}</td>
+                    <td className="num">{dept.users_count ?? 0}</td>
+                    <td className="num">{dept.vouchers_count ?? 0}</td>
+                    <td className="num" style={{ whiteSpace: "nowrap", fontWeight: 600 }}>{money(dept.spend ?? 0, company?.currency)}</td>
+                    <td className="app-row-actions">
+                      <button className="btn btn-ghost btn-sm btn-icon" onClick={() => openEdit(dept)} aria-label={`Edit ${dept.name}`} title={t("edit")}>
+                        <Icon name="ph-pencil-simple" size={14} />
+                      </button>
+                      <button className="btn btn-ghost btn-sm btn-icon vf-text-bad" onClick={() => setRemoving(dept)} aria-label={`Delete ${dept.name}`} title={t("delete")}>
+                        <Icon name="ph-trash" size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <Dialog
+        open={!!removing} icon="ph-trash" tone="bad"
+        title={`${t("delete")} ${removing?.name ?? ""}?`}
+        sub="Vouchers already raised in this department keep their record."
+        onClose={() => setRemoving(null)}
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setRemoving(null)}>{t("cancel")}</button>
+            <button className="btn btn-danger-solid" onClick={() => { const d = removing; setRemoving(null); if (d) void remove(d); }}>
+              <Icon name="ph-trash" size={15} /> {t("delete")}
+            </button>
+          </>
+        }
+      />
 
       <Dialog open={dialog} title={editing ? t("edit") : t("addDepartment")} onClose={() => setDialog(false)}
         actions={
@@ -161,6 +177,6 @@ export default function DepartmentsPage() {
           </Field>
         </div>
       </Dialog>
-    </div>
+    </SettingsLayout>
   );
 }

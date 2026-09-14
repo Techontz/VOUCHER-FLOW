@@ -54,7 +54,7 @@ class AuthAndOnboardingTest extends TestCase
         });
     }
 
-    public function test_new_accounts_start_on_the_dark_theme(): void
+    public function test_new_accounts_start_on_the_light_theme(): void
     {
         $this->seed(PlanSeeder::class);
 
@@ -65,11 +65,11 @@ class AuthAndOnboardingTest extends TestCase
             'email' => 'amina@northwind.test',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
-        ])->assertCreated()->assertJsonPath('user.theme', 'dark');
+        ])->assertCreated()->assertJsonPath('user.theme', 'light');
 
-        $this->assertSame('dark', Company::where('name', 'Northwind Traders')->firstOrFail()->theme);
+        $this->assertSame('light', Company::where('name', 'Northwind Traders')->firstOrFail()->theme);
 
-        // An invited colleague starts dark too.
+        // An invited colleague starts light too.
         $admin = User::where('email', 'amina@northwind.test')->firstOrFail();
 
         $this->actingAs($admin, 'sanctum')
@@ -79,25 +79,25 @@ class AuthAndOnboardingTest extends TestCase
                 'role' => 'employee',
             ])
             ->assertCreated()
-            ->assertJsonPath('data.theme', 'dark');
+            ->assertJsonPath('data.theme', 'light');
     }
 
-    public function test_light_remains_a_choice_that_is_remembered(): void
+    public function test_dark_remains_a_choice_that_is_remembered(): void
     {
         $t = $this->makeTenant('Acme Trading');
 
         $this->actingAs($t['employee'], 'sanctum')
-            ->putJson('/api/profile', ['theme' => 'light'])
+            ->putJson('/api/profile', ['theme' => 'dark'])
             ->assertOk()
-            ->assertJsonPath('data.theme', 'light');
+            ->assertJsonPath('data.theme', 'dark');
 
-        $this->assertSame('light', $t['employee']->fresh()->theme);
+        $this->assertSame('dark', $t['employee']->fresh()->theme);
 
-        // The choice comes back on the next sign-in rather than reverting to dark.
+        // The choice comes back on the next sign-in rather than reverting to light.
         $this->postJson('/api/auth/login', [
             'email' => $t['employee']->email,
             'password' => 'Password123!',
-        ])->assertOk()->assertJsonPath('user.theme', 'light');
+        ])->assertOk()->assertJsonPath('user.theme', 'dark');
     }
 
     public function test_the_same_address_can_belong_to_two_companies(): void

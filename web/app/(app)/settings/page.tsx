@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import {
-  Banner, Choice, Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, Note, PageHeader, SectionTitle, Spinner,
+  Choice, Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, Note, Spinner,
 } from "@/components/ui";
+import { FormSection, SettingsLayout } from "@/components/app-ui";
 import { invalidateWorkflows } from "@/lib/use-workflows";
 import { workflowPayload } from "@/lib/workflow-payload";
 import type { Company, Workflow, WorkflowStep, VoucherType } from "@/lib/types";
@@ -25,25 +26,29 @@ const ROLE_OPTIONS = [
 ];
 
 export default function SettingsPage() {
-  const { t, company, refresh, toast, reportError } = useApp();
+  const { t } = useApp();
   const [tab, setTab] = useState<Tab>("workflow");
 
+  // The section lives in the address (#workflow, #types, #company), so the
+  // settings menu can link straight to it and a refresh keeps your place.
+  useEffect(() => {
+    const read = () => {
+      const hash = window.location.hash.replace("#", "");
+      setTab(hash === "types" || hash === "company" ? hash : "workflow");
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+
+  const heading = tab === "workflow" ? t("approvalWorkflow") : tab === "types" ? t("voucherSettings") : t("companyProfile");
+
   return (
-    <div className="vf-dashboard">
-      <PageHeader kicker={t("settings")} title={t("settings")} sub={t("wfIntro")} />
-
-      <div className="seg vf-tabs" role="tablist">
-        {([["workflow", t("approvalWorkflow"), "ph-flow-arrow"], ["types", t("voucherSettings"), "ph-receipt"], ["company", t("companyProfile"), "ph-buildings"]] as const).map(([key, label, icon]) => (
-          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key as Tab)}>
-            <Icon name={icon} size={16} /> {label}
-          </button>
-        ))}
-      </div>
-
+    <SettingsLayout title={heading} sub={tab === "workflow" ? t("wfIntro") : undefined}>
       {tab === "workflow" && <WorkflowBuilder />}
       {tab === "types" && <VoucherTypes />}
       {tab === "company" && <CompanyProfile />}
-    </div>
+    </SettingsLayout>
   );
 }
 
@@ -364,6 +369,49 @@ function WorkflowBuilder() {
         </li>
       </ol>
 
+      {/* ── the same permissions, as a matrix: every step against every capability ── */}
+      <section className="vf-panel app-wf-matrix">
+        <div className="vf-panel-head">
+          <div className="vf-panel-head-main">
+            <h2>{t("permittedHere")}</h2>
+            <div className="vf-panel-sub">Sign and approve are separate permissions. Pay releases money and never approves.</div>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Step</th>
+                {CAPS.map((cap) => <th key={cap.key} className="app-wf-cap-col"><Icon name={cap.icon} size={14} /> {cap.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {steps.map((step, index) => {
+                const request = index === 0;
+                return (
+                  <tr key={step.id ?? `m-${index}`}>
+                    <td>
+                      <div className="app-wf-step"><span className="vf-flow-num">{index + 1}</span><span>{step.name}</span></div>
+                    </td>
+                    {CAPS.map((cap) => {
+                      const on = Boolean(step[cap.key]);
+                      const locked = request && cap.key !== "can_print" && cap.key !== "can_download";
+                      return (
+                        <td key={cap.key} className="app-wf-cap-col">
+                          <input type="checkbox" checked={on} disabled={locked}
+                            aria-label={`${step.name}: ${cap.label}`}
+                            onChange={() => patch(index, { [cap.key]: !on } as Partial<WorkflowStep>)} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <div style={{ marginTop: 16 }}>
         <Note>{t("isolationNote").replace("this company", company?.name ?? "this company")}</Note>
       </div>
@@ -460,15 +508,16 @@ function VoucherTypes() {
   if (!types) return <LoadingBlock rows={4} />;
 
   return (
-    <div>
-      <SectionTitle actions={<button className="btn btn-primary btn-sm" onClick={openCreate}><Icon name="ph-plus" size={14} /> {t("add")}</button>}>
-        {t("voucherSettings")}
-      </SectionTitle>
+    <section className="vf-panel">
+      <div className="vf-panel-head">
+        <div className="vf-panel-head-main app-panel-title"><h2>{t("voucherSettings")}</h2><span className="vf-count">{types.length}</span></div>
+        <button className="btn btn-primary btn-sm" onClick={openCreate}><Icon name="ph-plus" size={14} /> {t("add")}</button>
+      </div>
 
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>Type</th><th>Code</th><th>Prefix</th><th>Next number</th><th style={{ textAlign: "right" }}>{t("vouchers")}</th><th>{t("status")}</th><th /></tr>
+            <tr><th>Type</th><th>Code</th><th>Prefix</th><th>Next number</th><th className="num">{t("vouchers")}</th><th>{t("status")}</th><th /></tr>
           </thead>
           <tbody>
             {types.map((type) => (
@@ -478,7 +527,7 @@ function VoucherTypes() {
                 <td>{type.prefix}</td>
                 <td style={{ fontVariantNumeric: "tabular-nums" }}>{type.next_number_preview}</td>
                 <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{type.vouchers_count ?? 0}</td>
-                <td><span className={`tag ${type.is_active ? "tag-accent" : "tag-neutral"}`}>{type.is_active ? t("active") : "Inactive"}</span></td>
+                <td><span className={`badge ${type.is_active ? "tone-ok" : "tone-neutral"}`}>{type.is_active ? t("active") : "Inactive"}</span></td>
                 <td style={{ textAlign: "right" }}>
                   <button className="btn btn-ghost btn-sm" onClick={() => openEdit(type)} aria-label={`Edit ${type.name}`}>
                     <Icon name="ph-pencil-simple" size={14} />
@@ -529,7 +578,7 @@ function VoucherTypes() {
           </label>
         </div>
       </Dialog>
-    </div>
+    </section>
   );
 }
 
@@ -566,32 +615,43 @@ function CompanyProfile() {
   if (!company) return <LoadingBlock rows={4} />;
 
   return (
-    <form onSubmit={save} style={{ display: "grid", gap: "var(--space-3)", maxWidth: 620 }}>
-      <Field label={t("companyName")} htmlFor="c-name" required>
-        <input id="c-name" className="input" value={form.name} onChange={set("name")} required />
-      </Field>
-      <Field label="Legal name" htmlFor="c-legal"><input id="c-legal" className="input" value={form.legal_name} onChange={set("legal_name")} /></Field>
-      <Field label={t("businessEmail")} htmlFor="c-email" required>
-        <input id="c-email" className="input" type="email" value={form.email} onChange={set("email")} required />
-      </Field>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }}>
-        <Field label={t("phone")} htmlFor="c-phone"><input id="c-phone" className="input" value={form.phone} onChange={set("phone")} /></Field>
-        <Field label={t("website")} htmlFor="c-web"><input id="c-web" className="input" value={form.website} onChange={set("website")} /></Field>
+    <form onSubmit={save} className="vf-panel">
+      <div className="vf-panel-pad">
+        <FormSection title={t("companyProfile")} description="The name and legal identity printed on every voucher.">
+          <Field label={t("companyName")} htmlFor="c-name" required>
+            <input id="c-name" className="input" value={form.name} onChange={set("name")} required />
+          </Field>
+          <Field label="Legal name" htmlFor="c-legal"><input id="c-legal" className="input" value={form.legal_name} onChange={set("legal_name")} /></Field>
+        </FormSection>
+        <FormSection title={t("phone")} description="How people reach the company.">
+          <Field label={t("businessEmail")} htmlFor="c-email" required>
+            <input id="c-email" className="input" type="email" value={form.email} onChange={set("email")} required />
+          </Field>
+          <div className="vf-form-row">
+            <Field label={t("phone")} htmlFor="c-phone"><input id="c-phone" className="input" value={form.phone} onChange={set("phone")} /></Field>
+            <Field label={t("website")} htmlFor="c-web"><input id="c-web" className="input" value={form.website} onChange={set("website")} /></Field>
+          </div>
+          <Field label={t("address")} htmlFor="c-address"><input id="c-address" className="input" value={form.address} onChange={set("address")} /></Field>
+        </FormSection>
+        <FormSection title={t("currency")} description="Defaults for new vouchers.">
+          <div className="vf-form-row">
+            <Field label={t("currency")} htmlFor="c-currency">
+              <select id="c-currency" className="input" value={form.currency} onChange={set("currency")}>
+                <option>TZS</option><option>KES</option><option>USD</option><option>EUR</option>
+              </select>
+            </Field>
+            <Field label={t("language")} htmlFor="c-locale">
+              <select id="c-locale" className="input" value={form.locale} onChange={set("locale")}>
+                <option value="en">English</option><option value="sw">Kiswahili</option>
+              </select>
+            </Field>
+          </div>
+        </FormSection>
       </div>
-      <Field label={t("address")} htmlFor="c-address"><input id="c-address" className="input" value={form.address} onChange={set("address")} /></Field>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-3)" }}>
-        <Field label={t("currency")} htmlFor="c-currency">
-          <select id="c-currency" className="input" value={form.currency} onChange={set("currency")}>
-            <option>TZS</option><option>KES</option><option>USD</option><option>EUR</option>
-          </select>
-        </Field>
-        <Field label={t("language")} htmlFor="c-locale">
-          <select id="c-locale" className="input" value={form.locale} onChange={set("locale")}>
-            <option value="en">English</option><option value="sw">Kiswahili</option>
-          </select>
-        </Field>
+      <div className="app-form-foot">
+        <span className="field-hint">{company.name}</span>
+        <div className="app-form-foot-end"><button className="btn btn-primary" disabled={busy}>{busy ? <Spinner /> : t("saveChanges")}</button></div>
       </div>
-      <div><button className="btn btn-primary" disabled={busy}>{busy ? <Spinner /> : t("saveChanges")}</button></div>
     </form>
   );
 }

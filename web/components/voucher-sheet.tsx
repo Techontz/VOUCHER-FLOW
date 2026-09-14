@@ -1,7 +1,7 @@
 "use client";
 
 import { useApp } from "@/lib/app-context";
-import { formatDate, formatDateTime, money } from "@/lib/format";
+import { formatDate, formatDateTime, money, personName } from "@/lib/format";
 import { AuthorisationBlock, DocumentStatusMark } from "@/components/stamps";
 import type { Company, TimelineRow, Voucher } from "@/lib/types";
 
@@ -377,7 +377,7 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
         />
         <AuthorisationBlock
           caption={isCash ? t("paidReceivedBy") : t("paidBy")}
-          name={payRow?.person ?? voucher.paid_by}
+          name={payRow?.person ?? personName(voucher.paid_by)}
           title={payRow?.person_title}
           date={when(payRow) ?? (voucher.paid_at ? formatDateTime(voucher.paid_at, locale) : null)}
           signature={payRow?.signature}

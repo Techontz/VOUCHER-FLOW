@@ -50,44 +50,39 @@ export default function NotificationsPage() {
   const labels: Record<string, string> = { today: t("today"), yesterday: t("yesterday"), earlier: t("earlier") };
 
   return (
-    <div style={{ maxWidth: 820 }}>
+    <div className="app-page app-inbox">
       <PageHeader
-        kicker={t("notifications")}
-        title={unread > 0 ? `${unread} unread` : t("noNotifications")}
+        title={t("notifications")}
+        sub={unread > 0 ? `${unread} unread` : t("noNotifications")}
         actions={unread > 0 ? <button className="btn btn-secondary" onClick={markAll}><Icon name="ph-checks" size={15} /> {t("markAllRead")}</button> : undefined}
       />
 
-      {items.length === 0 ? (
-        <EmptyState icon="ph-bell-slash" title={t("noNotifications")} body="New approvals, decisions and billing events appear here." />
-      ) : (
-        groups.map((group) => (
-          <section key={group.key} style={{ marginBottom: "var(--space-6)" }}>
-            <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: "var(--space-2)" }}>
-              {labels[group.key]}
+      <section className="vf-panel">
+        {items.length === 0 ? (
+          <EmptyState icon="ph-bell-slash" title={t("noNotifications")} body="New approvals, decisions and billing events appear here." />
+        ) : (
+          groups.map((group) => (
+            <div key={group.key} className="app-inbox-group">
+              <div className="app-inbox-day">{labels[group.key]}</div>
+              <ul className="app-inbox-list">
+                {group.items.map((item) => (
+                  <li key={item.id}>
+                    <button type="button" onClick={() => open(item)} className="app-inbox-item" data-unread={item.is_unread || undefined}>
+                      <span className="app-inbox-icon"><Icon name={item.icon} size={17} /></span>
+                      <span className="app-inbox-text">
+                        <strong>{item.title}</strong>
+                        {item.body && <span>{item.body}</span>}
+                      </span>
+                      <span className="app-inbox-when">{relativeTime(item.created_at, locale)}</span>
+                      {item.is_unread && <span className="app-inbox-dot" aria-label="Unread" />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div style={{ display: "grid", gap: 4 }}>
-              {group.items.map((item) => (
-                <button key={item.id} onClick={() => open(item)}
-                  style={{
-                    display: "flex", gap: "var(--space-3)", textAlign: "left", width: "100%",
-                    border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)",
-                    background: item.is_unread ? "var(--color-accent-100)" : "transparent",
-                    padding: "var(--space-3)", cursor: "pointer", fontFamily: "var(--font-body)", color: "var(--color-text)",
-                  }}>
-                  <Icon name={item.icon} size={22} color="var(--color-accent-700)" />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: item.is_unread ? 600 : 400, fontSize: 15 }}>{item.title}</div>
-                    {item.body && <div style={{ fontSize: 14, color: "var(--color-neutral-700)" }}>{item.body}</div>}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)", whiteSpace: "nowrap" }}>
-                    {relativeTime(item.created_at, locale)}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-        ))
-      )}
+          ))
+        )}
+      </section>
     </div>
   );
 }

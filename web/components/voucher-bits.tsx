@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { API_MODE, download, printBlob, saveBlob } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
@@ -189,13 +190,13 @@ export function VoucherRow({
 
 /** A panel of voucher rows, with each voucher's route derived from its workflow. */
 export function VoucherList({
-  vouchers, showCta = true, withProgress = true,
-}: { vouchers: Voucher[]; showCta?: boolean; withProgress?: boolean }) {
+  vouchers, showCta = true, withProgress = true, bare = false,
+}: { vouchers: Voucher[]; showCta?: boolean; withProgress?: boolean; /** Rows only, for a list that already sits inside a panel. */ bare?: boolean }) {
   const workflows = useWorkflows();
   const { locale } = useApp();
 
   return (
-    <div className="vf-panel vf-list">
+    <div className={bare ? "vf-list" : "vf-panel vf-list"}>
       {vouchers.map((voucher) => (
         <VoucherRow
           key={voucher.id}
@@ -217,53 +218,54 @@ export function VoucherCard({ voucher, showActions = true }: { voucher: Voucher;
  * The voucher register. A table where there is room to compare columns; the
  * same vouchers as rows on a phone, where a seven-column table is unusable.
  */
-export function VoucherTable({ vouchers }: { vouchers: Voucher[] }) {
+export function VoucherTable({ vouchers, bare = false }: { vouchers: Voucher[]; /** Inside a panel that already draws the frame. */ bare?: boolean }) {
   const { t, locale } = useApp();
+  const router = useRouter();
+
+  const table = (
+    <div className="table-wrap">
+      <table className="table app-voucher-table">
+        <thead>
+          <tr>
+            <th>{t("voucher")}</th>
+            <th>{t("purpose")}</th>
+            <th>{t("payee")}</th>
+            <th className="num">{t("amount")}</th>
+            <th>{t("status")}</th>
+            <th>{t("date")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {vouchers.map((voucher) => (
+            <tr key={voucher.id} className="is-clickable"
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("a, button")) return;
+                router.push(`/vouchers/${voucher.id}`);
+              }}>
+              <td className="app-vt-number">
+                <Link href={`/vouchers/${voucher.id}`} className="tnum">{voucher.number}</Link>
+                <KindChip kind={voucher.kind} />
+              </td>
+              <td className="app-vt-purpose">
+                <div className="app-vt-title">{voucher.purpose}</div>
+                <div className="app-vt-meta">{[voucher.requester?.name, voucher.department?.name].filter(Boolean).join(" · ")}</div>
+              </td>
+              <td className="app-vt-payee">{voucher.payee}</td>
+              <td className="num app-vt-amount">{voucher.amount_text}</td>
+              <td><StatusBadge voucher={voucher} /></td>
+              <td className="app-vt-date">{formatDate(voucher.voucher_date, locale)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <>
-      <div className="vf-panel vf-only-wide" style={{ overflow: "hidden" }}>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>{t("voucher")}</th>
-                <th>{t("purpose")}</th>
-                <th>{t("payee")}</th>
-                <th style={{ textAlign: "right" }}>{t("amount")}</th>
-                <th>{t("status")}</th>
-                <th>{t("date")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vouchers.map((voucher) => (
-                <tr key={voucher.id} className="is-clickable"
-                  onClick={(e) => {
-                    if ((e.target as HTMLElement).closest("a, button")) return;
-                    window.location.href = `/vouchers/${voucher.id}`;
-                  }}>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <div style={{ display: "grid", gap: 4 }}>
-                      <Link href={`/vouchers/${voucher.id}`} className="tnum" style={{ fontWeight: 500 }}>{voucher.number}</Link>
-                      <KindChip kind={voucher.kind} />
-                    </div>
-                  </td>
-                  <td style={{ minWidth: 200 }}>
-                    <div style={{ fontWeight: 500 }}>{voucher.purpose}</div>
-                    {voucher.requester?.name && <div className="text-muted" style={{ fontSize: "var(--text-sm)" }}>{voucher.requester.name}</div>}
-                  </td>
-                  <td className="text-muted">{voucher.payee}</td>
-                  <td className="tnum" style={{ textAlign: "right", whiteSpace: "nowrap", fontWeight: 600 }}>{voucher.amount_text}</td>
-                  <td><StatusBadge voucher={voucher} /></td>
-                  <td className="text-muted" style={{ whiteSpace: "nowrap" }}>{formatDate(voucher.voucher_date, locale)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {bare ? <div className="vf-only-wide">{table}</div> : <div className="vf-panel vf-only-wide" style={{ overflow: "hidden" }}>{table}</div>}
       <div className="vf-only-narrow">
-        <VoucherList vouchers={vouchers} showCta={false} withProgress={false} />
+        <VoucherList vouchers={vouchers} showCta={false} withProgress={false} bare={bare} />
       </div>
     </>
   );

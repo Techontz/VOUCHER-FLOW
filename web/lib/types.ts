@@ -263,7 +263,11 @@ export interface Voucher {
   rejected_at: string | null;
   paid_at: string | null;
   payment_reference: string | null;
-  paid_by: string | null;
+  /**
+   * Who released the money. The API sends the person ({ id, name, job_title });
+   * the local fixture sends a plain name. Read it with personName().
+   */
+  paid_by: string | { id: number; name: string; job_title: string | null } | null;
   /* Particulars that belong to one format only. */
   payee_bank: string | null;
   payee_account_name: string | null;

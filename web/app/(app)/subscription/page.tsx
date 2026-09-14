@@ -4,9 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDate, formatDateTime, money } from "@/lib/format";
-import {
-  Banner, Dialog, ErrorState, Field, Icon, LoadingBlock, PageHeader, SectionTitle, Spinner, StatBlock, StatGrid,
-} from "@/components/ui";
+import { Banner, EmptyState, Meter, Dialog, ErrorState, Field, Icon, LoadingBlock, Spinner } from "@/components/ui";
+import { Figure, FigureStrip, SettingsLayout } from "@/components/app-ui";
 import type { Invoice, Paginated, Plan, Subscription, Usage } from "@/lib/types";
 
 interface Payload {
@@ -93,12 +92,11 @@ export default function SubscriptionPage() {
   const metrics = [usage.users, usage.vouchers_this_month, usage.departments, usage.storage];
 
   return (
-    <div style={{ maxWidth: 1080 }}>
-      <PageHeader kicker={t("subscription")} title={payload.plan?.name ?? "No plan"}
-        sub={payload.subscription
-          ? `${payload.subscription.billing_cycle === "annual" ? "Annual" : "Monthly"} · ${money(payload.subscription.amount, payload.subscription.currency)}`
-          : undefined}
-        actions={<button className="btn btn-primary" onClick={() => setPlanDialog(true)}><Icon name="ph-crown-simple" size={15} /> {t("changePlan")}</button>} />
+    <SettingsLayout title={t("subscription")}
+      sub={payload.subscription
+        ? `${payload.plan?.name ?? ""} · ${payload.subscription.billing_cycle === "annual" ? "Annual" : "Monthly"} · ${money(payload.subscription.amount, payload.subscription.currency)}`
+        : payload.plan?.name ?? "No plan"}
+      actions={<button className="btn btn-primary" onClick={() => setPlanDialog(true)}><Icon name="ph-crown-simple" size={15} /> {t("changePlan")}</button>}>
 
       {payload.is_expired && (
         <Banner tone="danger" icon="ph-warning-circle" title={t("expired")}>{t("expiredBody")}</Banner>
@@ -110,81 +108,72 @@ export default function SubscriptionPage() {
         </Banner>
       )}
 
-      <section style={{ marginBottom: "var(--space-8)" }}>
-        <SectionTitle>{t("usageThisPeriod")}</SectionTitle>
-        <div style={{ display: "grid", gap: "var(--space-3)" }}>
-          {metrics.map((metric) => (
-            <div key={metric.label}>
-              <div style={{ display: "flex", gap: "var(--space-2)", fontSize: 14.5, alignItems: "baseline" }}>
-                <span style={{ flex: 1 }}>{metric.label}</span>
-                <span style={{ fontVariantNumeric: "tabular-nums", color: metric.exceeded ? "var(--color-accent-2-700)" : "var(--color-neutral-700)" }}>
-                  {metric.used.toLocaleString()}{metric.unit && ` ${metric.unit}`} {t("of")} {metric.unlimited ? "unlimited" : `${metric.limit?.toLocaleString()}${metric.unit ? ` ${metric.unit}` : ""}`}
-                </span>
-              </div>
-              <div style={{ height: 6, background: "var(--color-neutral-200)", marginTop: 4 }}>
-                <div style={{
-                  height: "100%", width: `${metric.percent ?? 4}%`,
-                  background: metric.exceeded ? "var(--color-accent-2-500)" : "var(--color-accent-500)",
-                }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section style={{ marginBottom: "var(--space-8)" }}>
-        <StatGrid>
-          <StatBlock label={t("currentPlan")} value={payload.plan?.name ?? "—"} sub={company.status} />
-          <StatBlock label={company.status === "trial" ? t("trialEnds") : t("renewsOn")}
+      <div className="app-stack">
+        <FigureStrip>
+          <Figure label={t("currentPlan")} value={payload.plan?.name ?? "—"} sub={company.status} />
+          <Figure label={company.status === "trial" ? t("trialEnds") : t("renewsOn")}
             value={formatDate(company.status === "trial" ? company.trial_ends_at : company.current_period_end, locale)}
-            sub={payload.days_remaining !== null ? `${payload.days_remaining} days` : ""} />
-          <StatBlock label={t("seats")} value={`${usage.users.used} / ${usage.users.unlimited ? "∞" : usage.users.limit}`} sub={t("seatsUsed")} />
-        </StatGrid>
-        <label className="switch" style={{ marginTop: "var(--space-4)" }}>
-          <input type="checkbox" checked={payload.auto_renew} onChange={(e) => toggleAutoRenew(e.target.checked)} />
-          <span className="track" />
-          {t("autoRenew")}
-        </label>
-      </section>
+            sub={payload.days_remaining !== null ? `${payload.days_remaining} days` : undefined} />
+          <Figure label={t("seats")} value={`${usage.users.used} / ${usage.users.unlimited ? "∞" : usage.users.limit}`} sub={t("seatsUsed")} />
+        </FigureStrip>
 
-      <section>
-        <SectionTitle>{t("billingHistory")}</SectionTitle>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr><th>{t("invoice")}</th><th>{t("plan")}</th><th style={{ textAlign: "right" }}>{t("amount")}</th>
-                <th>{t("method")}</th><th>{t("status")}</th><th>{t("date")}</th><th /></tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id}>
-                  <td style={{ fontVariantNumeric: "tabular-nums" }}>{invoice.number}</td>
-                  <td>{invoice.description}</td>
-                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{invoice.amount_text}</td>
-                  <td>{invoice.method_label}</td>
-                  <td>
-                    <span className={`tag ${invoice.status_tag}`}>{invoice.status}</span>
-                    {invoice.failure_reason && <div style={{ fontSize: 12, color: "var(--color-accent-2-700)" }}>{invoice.failure_reason}</div>}
-                  </td>
-                  <td style={{ whiteSpace: "nowrap", color: "var(--color-neutral-700)" }}>
-                    {formatDate(invoice.paid_at ?? invoice.issued_at, locale)}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {(invoice.status === "pending" || invoice.status === "failed") && (
-                      <button className="btn btn-primary btn-sm" onClick={() => setPayDialog(invoice)}>{t("payNow")}</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {invoices.length === 0 && (
-                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--color-neutral-600)", padding: "var(--space-6)" }}>
-                  No invoices yet.
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        <section className="vf-panel">
+          <div className="vf-panel-head">
+            <div className="vf-panel-head-main"><h2>{t("usageThisPeriod")}</h2></div>
+            <label className="switch">
+              <input type="checkbox" checked={payload.auto_renew} onChange={(e) => toggleAutoRenew(e.target.checked)} />
+              <span className="track" />
+              {t("autoRenew")}
+            </label>
+          </div>
+          <div className="vf-panel-pad app-bars">
+            {metrics.map((metric) => (
+              <div key={metric.label} className="app-bar-row">
+                <div className="app-bar-top">
+                  <span className="app-bar-name">{metric.label}</span>
+                  <span className="app-bar-value tnum" style={{ color: metric.exceeded ? "var(--danger)" : undefined, minWidth: 0 }}>
+                    {metric.used.toLocaleString()}{metric.unit && ` ${metric.unit}`} {t("of")} {metric.unlimited ? "unlimited" : `${metric.limit?.toLocaleString()}${metric.unit ? ` ${metric.unit}` : ""}`}
+                  </span>
+                </div>
+                <Meter percent={metric.percent ?? 4} exceeded={metric.exceeded} />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="vf-panel">
+          <div className="vf-panel-head"><div className="vf-panel-head-main app-panel-title"><h2>{t("billingHistory")}</h2><span className="vf-count">{invoices.length}</span></div></div>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr><th>{t("invoice")}</th><th>{t("plan")}</th><th className="num">{t("amount")}</th>
+                  <th>{t("method")}</th><th>{t("status")}</th><th>{t("date")}</th><th /></tr>
+              </thead>
+              <tbody>
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id}>
+                    <td className="tnum" style={{ fontWeight: 500 }}>{invoice.number}</td>
+                    <td>{invoice.description}</td>
+                    <td className="num" style={{ whiteSpace: "nowrap", fontWeight: 600 }}>{invoice.amount_text}</td>
+                    <td>{invoice.method_label}</td>
+                    <td>
+                      <span className={`badge ${invoice.status === "paid" ? "tone-ok" : invoice.status === "failed" ? "tone-bad" : invoice.status === "pending" ? "tone-warn" : "tone-neutral"}`}>{invoice.status}</span>
+                      {invoice.failure_reason && <div className="app-cell-sub" style={{ color: "var(--danger)" }}>{invoice.failure_reason}</div>}
+                    </td>
+                    <td className="text-muted" style={{ whiteSpace: "nowrap" }}>{formatDate(invoice.paid_at ?? invoice.issued_at, locale)}</td>
+                    <td className="app-row-actions">
+                      {(invoice.status === "pending" || invoice.status === "failed") && (
+                        <button className="btn btn-primary btn-sm" onClick={() => setPayDialog(invoice)}>{t("payNow")}</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {invoices.length === 0 && <EmptyState icon="ph-receipt" title="No invoices yet." />}
+        </section>
+      </div>
 
       <Dialog open={planDialog} title={t("changePlan")} onClose={() => setPlanDialog(false)} wide
         actions={<>
@@ -257,6 +246,6 @@ export default function SubscriptionPage() {
           </div>
         )}
       </Dialog>
-    </div>
+    </SettingsLayout>
   );
 }

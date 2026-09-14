@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { Field, Icon, Note, PageHeader, Panel, SectionTitle, Spinner } from "@/components/ui";
+import { Field, Icon, Note, Panel, Spinner } from "@/components/ui";
+import { SettingsLayout } from "@/components/app-ui";
 import { VoucherSheet } from "@/components/voucher-sheet";
 import type { Voucher } from "@/lib/types";
 
@@ -112,20 +113,17 @@ export default function BrandingPage() {
   const previewCompany = company ? { ...company, ...form } : null;
 
   return (
-    <div style={{ maxWidth: 1300 }}>
-      <PageHeader
-        kicker={t("branding")}
-        title={t("branding")}
-        sub="Your logo, letterhead and banking details are applied to the interface and printed on every voucher this company issues."
-        actions={
-          <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {busy ? <Spinner /> : t("saveChanges")}
-          </button>
-        }
-      />
-
-      <div className="vf-split">
-        <form onSubmit={save} style={{ display: "grid", gap: "var(--space-4)" }}>
+    <SettingsLayout
+      title={t("branding")}
+      sub="Your logo, letterhead and banking details are applied to the interface and printed on every voucher this company issues."
+      actions={
+        <button className="btn btn-primary" onClick={save} disabled={busy}>
+          {busy ? <Spinner /> : t("saveChanges")}
+        </button>
+      }
+    >
+      <div className="app-branding-grid">
+        <form onSubmit={save} className="app-stack">
           {/* ── identity ── */}
           <Panel title={t("companyDetails")}>
             <div style={{ display: "grid", gap: "var(--space-3)" }}>
@@ -191,7 +189,7 @@ export default function BrandingPage() {
                 <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
                   <input id="b-colour" type="color" value={form.primary_color}
                     onChange={set("primary_color")}
-                    style={{ width: 54, height: 42, padding: 3, borderRadius: 10, border: "1px solid var(--vf-line)", background: "var(--vf-elev-2)" }} />
+                    className="app-color-swatch" />
                   <input className="input" value={form.primary_color} onChange={set("primary_color")}
                     style={{ maxWidth: 140, fontVariantNumeric: "tabular-nums" }} />
                 </div>
@@ -236,8 +234,8 @@ export default function BrandingPage() {
         </form>
 
         {/* ── live specimen ── */}
-        <div className="vf-sticky">
-          <SectionTitle>{t("livePreview")}</SectionTitle>
+        <div className="app-branding-preview">
+          <div className="app-preview-label"><Icon name="ph-eye" size={14} /> {t("livePreview")}</div>
           <div className="vf-document-frame">
             <VoucherSheet voucher={specimen} company={previewCompany} />
           </div>
@@ -246,7 +244,7 @@ export default function BrandingPage() {
           </div>
         </div>
       </div>
-    </div>
+    </SettingsLayout>
   );
 }
 
@@ -265,11 +263,9 @@ function LogoField({
       <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--color-neutral-700)", marginBottom: 6 }}>
         {label}
       </div>
-      <div style={{
-        display: "grid", placeItems: "center", padding: "var(--space-3)",
-        border: "1px dashed var(--vf-line-strong)", borderRadius: 12,
-        background: "#fff", minHeight: 82, ...boxStyle,
-      }}>
+      {/* Paper-white in both themes: a logo is artwork for the printed page,
+          and a dark logo on a dark well would be invisible. */}
+      <div className="app-logo-well" data-paper="true" style={boxStyle}>
         {value
           ? <img src={value} alt="" style={{ maxHeight: 56, maxWidth: "100%", objectFit: "contain" }} />
           : <Icon name="ph-image" size={24} color="#b8c0d0" />}

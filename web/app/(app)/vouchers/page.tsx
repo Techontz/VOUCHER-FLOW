@@ -63,116 +63,107 @@ export default function VouchersPage() {
 
   const hasFilters = Object.values(filters).some(Boolean);
   const rows = result?.data ?? [];
+  const isEmployee = user?.role === "employee";
+  const activeFilters = [filters.kind, filters.department_id, filters.voucher_type_id, filters.from, filters.to].filter(Boolean).length;
 
   return (
-    <div style={{ maxWidth: 1200 }}>
+    <div className="app-page">
       <PageHeader
-        kicker={user?.role === "employee" ? t("myVouchers") : t("register")}
-        title={user?.role === "employee" ? t("myVouchers") : t("voucherRegister")}
-        sub={user?.role === "employee" ? "You see only your own vouchers." : undefined}
+        title={isEmployee ? t("myVouchers") : t("voucherRegister")}
+        sub={isEmployee ? "You see only your own vouchers." : undefined}
         actions={user?.role !== "cashier" && user?.role !== "super_admin"
-          ? <Link className="btn btn-primary" href="/vouchers/new"><Icon name="ph-plus-circle" size={15} /> {t("createVoucher")}</Link>
+          ? <Link className="btn btn-primary" href="/vouchers/new"><Icon name="ph-plus" size={15} /> {t("createVoucher")}</Link>
           : undefined}
       />
 
-      <div className="vf-panel" style={{ padding: "var(--space-4)", marginBottom: "var(--space-4)" }}>
-        <div style={{ position: "relative", marginBottom: showFilters ? "var(--space-3)" : 0 }}>
-          <Icon name="ph-magnifying-glass" size={16}
-            style={{ position: "absolute", left: 11, top: 12, color: "var(--color-neutral-600)" }} />
-          <input className="input" placeholder={t("searchPh")} value={filters.q} onChange={set("q")}
-            aria-label={t("search")} style={{ paddingLeft: 34 }} />
-        </div>
-
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm vf-filter-toggle"
-          aria-expanded={showFilters}
-          onClick={() => setShowFilters((v) => !v)}
-          style={{ marginTop: "var(--space-2)" }}
-        >
-          <Icon name={showFilters ? "ph-caret-up" : "ph-sliders-horizontal"} size={14} />
-          {t("filters")}
-          {hasFilters && !showFilters ? " ·" : ""}
-        </button>
-
-        <div hidden={!showFilters} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)" }}>
-          <FilterField label={t("status")} htmlFor="f-status">
-            <select id="f-status" className="input" value={filters.status} onChange={set("status")}>
-              {STATUSES.map((s) => <option key={s.value} value={s.value}>{t(s.key as never)}</option>)}
-            </select>
-          </FilterField>
-
-          <FilterField label={t("voucherKind")} htmlFor="f-kind">
-            <select id="f-kind" className="input" value={filters.kind} onChange={set("kind")}>
-              <option value="">{t("all")}</option>
-              <option value="bank">{t("bankVoucher")}</option>
-              <option value="cash">{t("cashVoucher")}</option>
-            </select>
-          </FilterField>
-
-          {departments.length > 0 && (
-            <FilterField label={t("department")} htmlFor="f-dept">
-              <select id="f-dept" className="input" value={filters.department_id} onChange={set("department_id")}>
-                <option value="">{t("allDepartments")}</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </FilterField>
-          )}
-
-          <FilterField label={t("voucherType")} htmlFor="f-type">
-            <select id="f-type" className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")}>
-              <option value="">{t("allTypes")}</option>
-              {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
-            </select>
-          </FilterField>
-
-          <FilterField label={t("from")} htmlFor="f-from">
-            <input id="f-from" className="input" type="date" value={filters.from} onChange={set("from")} />
-          </FilterField>
-
-          <FilterField label={t("to")} htmlFor="f-to">
-            <input id="f-to" className="input" type="date" value={filters.to} onChange={set("to")} />
-          </FilterField>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-3)", marginBottom: "var(--space-2)", flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13.5, color: "var(--color-neutral-700)" }}>
-          {t("showing")} {rows.length} {t("of")} {result?.meta?.total ?? 0}
-          {result?.meta?.total_amount != null && ` · ${money(result.meta.total_amount, result.meta.currency ?? company?.currency)}`}
-        </div>
-        <div style={{ flex: 1 }} />
-        {hasFilters && (
-          <button className="btn btn-ghost btn-sm" onClick={() => { setFilters({ ...BLANK }); setPage(1); }}>
-            <Icon name="ph-x" size={13} /> {t("clearFilters")}
+      <div className="app-tabs" role="tablist" aria-label={t("status")}>
+        {STATUSES.map((s) => (
+          <button key={s.value} type="button" role="tab" aria-selected={filters.status === s.value}
+            onClick={() => { setPage(1); setFilters((f) => ({ ...f, status: s.value })); }}>
+            {s.value === "" ? t("all") : t(s.key as never)}
+            {filters.status === s.value && result?.meta?.total != null && <span className="app-tabs-count">{result.meta.total}</span>}
           </button>
-        )}
+        ))}
       </div>
 
-      {error && <ErrorState message={error} onRetry={load} />}
-      {loading && !result && <LoadingBlock rows={6} />}
+      <section className="vf-panel app-register">
+        <div className="app-toolbar">
+          <div className="app-toolbar-main">
+            <label className="app-search">
+              <Icon name="ph-magnifying-glass" size={15} />
+              <input className="input" placeholder={t("searchPh")} value={filters.q} onChange={set("q")} aria-label={t("search")} />
+            </label>
+            <button type="button" className="btn btn-secondary btn-sm vf-filter-toggle" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
+              <Icon name="ph-sliders-horizontal" size={14} /> {t("filters")}{activeFilters ? ` · ${activeFilters}` : ""}
+            </button>
+            <div className="app-filters" hidden={!showFilters}>
+              <FilterField label={t("voucherKind")} htmlFor="f-kind">
+                <select id="f-kind" className="input" value={filters.kind} onChange={set("kind")}>
+                  <option value="">{t("all")}</option>
+                  <option value="bank">{t("bankVoucher")}</option>
+                  <option value="cash">{t("cashVoucher")}</option>
+                </select>
+              </FilterField>
+              {departments.length > 0 && (
+                <FilterField label={t("department")} htmlFor="f-dept">
+                  <select id="f-dept" className="input" value={filters.department_id} onChange={set("department_id")}>
+                    <option value="">{t("allDepartments")}</option>
+                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </FilterField>
+              )}
+              <FilterField label={t("voucherType")} htmlFor="f-type">
+                <select id="f-type" className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")}>
+                  <option value="">{t("allTypes")}</option>
+                  {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+                </select>
+              </FilterField>
+              <FilterField label={t("from")} htmlFor="f-from">
+                <input id="f-from" className="input" type="date" value={filters.from} onChange={set("from")} />
+              </FilterField>
+              <FilterField label={t("to")} htmlFor="f-to">
+                <input id="f-to" className="input" type="date" value={filters.to} onChange={set("to")} />
+              </FilterField>
+            </div>
+          </div>
+          <div className="app-toolbar-end">
+            <span className="app-result-count tnum">
+              {t("showing")} {rows.length} {t("of")} {result?.meta?.total ?? 0}
+              {result?.meta?.total_amount != null && <> · <strong>{money(result.meta.total_amount, result.meta.currency ?? company?.currency)}</strong></>}
+            </span>
+            {hasFilters && (
+              <button className="btn btn-ghost btn-sm" onClick={() => { setFilters({ ...BLANK }); setPage(1); }}>
+                <Icon name="ph-x" size={13} /> {t("clearFilters")}
+              </button>
+            )}
+          </div>
+        </div>
 
-      {!loading && rows.length === 0 && !error && (
-        <EmptyState
-          title={hasFilters ? t("noResults") : t("noVouchersYet")}
-          body={hasFilters ? undefined : t("noVouchersBody")}
-          action={hasFilters
-            ? <button className="btn btn-secondary" onClick={() => setFilters({ ...BLANK })}>{t("clearFilters")}</button>
-            : <Link className="btn btn-primary" href="/vouchers/new">{t("createVoucher")}</Link>}
-        />
-      )}
+        {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
+        {loading && !result && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
 
-      {rows.length > 0 && (
-        <>
-          <VoucherTable vouchers={rows} />
-          <Pagination
-            page={result?.meta?.current_page ?? 1}
-            lastPage={result?.meta?.last_page ?? 1}
-            total={result?.meta?.total ?? rows.length}
-            onChange={setPage}
+        {!loading && rows.length === 0 && !error && (
+          <EmptyState
+            title={hasFilters ? t("noResults") : t("noVouchersYet")}
+            body={hasFilters ? undefined : t("noVouchersBody")}
+            action={hasFilters
+              ? <button className="btn btn-secondary" onClick={() => setFilters({ ...BLANK })}>{t("clearFilters")}</button>
+              : <Link className="btn btn-primary" href="/vouchers/new">{t("createVoucher")}</Link>}
           />
-        </>
-      )}
+        )}
+
+        {rows.length > 0 && (
+          <div data-loading={loading || undefined} className="app-register-body">
+            <VoucherTable vouchers={rows} bare />
+            <Pagination
+              page={result?.meta?.current_page ?? 1}
+              lastPage={result?.meta?.last_page ?? 1}
+              total={result?.meta?.total ?? rows.length}
+              onChange={setPage}
+            />
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -180,11 +171,8 @@ export default function VouchersPage() {
 /** A labelled filter control — the bare selects read as unlabelled otherwise. */
 function FilterField({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
-    <div>
-      <label htmlFor={htmlFor} style={{
-        display: "block", fontSize: 11.5, letterSpacing: ".08em", textTransform: "uppercase",
-        color: "var(--color-neutral-600)", marginBottom: 4,
-      }}>{label}</label>
+    <div className="app-filter">
+      <label htmlFor={htmlFor} className="sr-only">{label}</label>
       {children}
     </div>
   );

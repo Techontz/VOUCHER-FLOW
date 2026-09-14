@@ -45,11 +45,13 @@ export default function PlatformUsersPage() {
   const rows = result?.data ?? [];
 
   return (
-    <div style={{ maxWidth: 1200 }}>
+    <div className="app-page">
       <PageHeader kicker="Platform" title={t("users")} sub="Every account across all tenants." />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-        <input className="input" placeholder={t("search")} value={filters.q}
+      <section className="vf-panel">
+      <div className="app-toolbar">
+        <div className="app-toolbar-main">
+        <input className="input app-toolbar-search" placeholder={t("search")} value={filters.q}
           onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, q: e.target.value })); }} aria-label={t("search")} />
         <select className="input" value={filters.role} onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, role: e.target.value })); }} aria-label={t("role")}>
           <option value="">All roles</option>
@@ -61,10 +63,11 @@ export default function PlatformUsersPage() {
           <option value="">{t("allStatuses")}</option>
           <option value="active">{t("active")}</option><option value="invited">{t("invited")}</option><option value="suspended">{t("suspended")}</option>
         </select>
+        </div>
       </div>
 
-      {error && <ErrorState message={error} onRetry={load} />}
-      {!result && !error && <LoadingBlock rows={6} />}
+      {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
+      {!result && !error && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
       {result && rows.length === 0 && <EmptyState icon="ph-users-three" title={t("noResults")} />}
 
       {rows.length > 0 && (
@@ -85,7 +88,7 @@ export default function PlatformUsersPage() {
                     <td>{user.company_id ? companyNames[user.company_id] ?? "—" : <span className="badge tone-info">Platform</span>}</td>
                     <td>{user.role_label}</td>
                     <td>
-                      <span className={`tag ${user.status === "active" ? "tag-accent" : user.status === "invited" ? "tag-outline" : "tag-accent-2"}`}>
+                      <span className={`badge ${user.status === "active" ? "tag-accent" : user.status === "invited" ? "tag-outline" : "tag-accent-2"}`}>
                         {user.status}
                       </span>
                     </td>
@@ -110,6 +113,7 @@ export default function PlatformUsersPage() {
             total={result?.meta?.total ?? rows.length} onChange={setPage} />
         </>
       )}
+      </section>
     </div>
   );
 }
