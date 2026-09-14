@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { AuthFrame } from "@/components/auth-frame";
-import { Field, Icon, Spinner } from "@/components/ui";
+import { LoginBrand } from "@/components/login-brand";
+import { Icon, LanguageToggle, Spinner, ThemeToggle } from "@/components/ui";
 
 /**
  * Whether to offer the seeded demo accounts.
@@ -61,7 +61,9 @@ export default function LoginPage() {
   const { t, signIn, user, ready } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [reveal, setReveal] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
 
   const pickDemo = (demoEmail: string) => {
     setEmail(demoEmail);
@@ -79,6 +81,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await signIn(email, password);
+      setDone(true);
       router.push("/dashboard");
     } catch (err) {
       setError(err as Error);
@@ -87,52 +90,109 @@ export default function LoginPage() {
   }
 
   const fieldError = (name: string) => (error instanceof ApiError ? error.field(name) : undefined);
+  const emailError = fieldError("email");
+  const passwordError = fieldError("password");
 
   return (
-    <AuthFrame
-      kicker="VouchFlow"
-      title={t("login")}
-      sub={t("heroSub")}
-      footer={<>{t("noAccountYet")} <Link href="/register">{t("registerCompany")}</Link></>}
-      aside={SHOW_DEMO_ACCOUNTS ? <DemoAccounts selected={email} onPick={pickDemo} /> : undefined}
-    >
-      <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-3)" }} noValidate>
-        {error && !fieldError("email") && (
-          <div role="alert" style={{ border: "1px solid var(--color-accent-2-400)", background: "var(--color-accent-2-100)", color: "var(--color-accent-2-800)", borderRadius: "var(--radius-md)", padding: "10px var(--space-3)", fontSize: 14 }}>
-            {error.message}
-          </div>
-        )}
+    <div className="vf-login">
+      <LoginBrand />
 
-        <Field label={t("emailOrPhone")} htmlFor="email" error={fieldError("email")} required>
-          <input
-id="email" type="email" className="input" value={email} autoComplete="username" required
-            aria-invalid={!!fieldError("email")}
-            onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com"
-          />
-        </Field>
-
-        <Field label={t("password")} htmlFor="password" error={fieldError("password")} required>
-          <input
-            id="password" className="input" type="password" value={password} autoComplete="current-password" required
-            onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
-          />
-        </Field>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
-          <label className="radio" style={{ fontSize: 14 }}>
-            <input type="checkbox" defaultChecked />
-            <span className="dot" />
-            {t("rememberMe")}
-          </label>
-          <div style={{ flex: 1 }} />
-          <Link href="/verify?purpose=password_reset" style={{ fontSize: 14 }}>{t("forgotPassword")}</Link>
+      <main className="vf-login-panel">
+        <div className="vf-login-tools">
+          <LanguageToggle />
+          <ThemeToggle />
         </div>
 
-        <button className="btn btn-primary btn-block" disabled={busy} type="submit">
-          {busy ? <Spinner label={t("loading")} /> : <><Icon name="ph-sign-in" size={16} /> {t("login")}</>}
-        </button>
-      </form>
-    </AuthFrame>
+        <div className="vf-login-body">
+          <header className="vf-login-head">
+            <h1>{t("loginWelcome")}</h1>
+            <p>{t("loginSub")}</p>
+          </header>
+
+          <form onSubmit={submit} className="vf-login-form" noValidate aria-busy={busy}>
+            {error && !emailError && !passwordError && (
+              <div role="alert" className="vf-alert tone-bad vf-login-alert">
+                <Icon name="ph-warning-circle" size={20} style={{ flex: "none" }} />
+                <div className="vf-alert-text">{error.message}</div>
+              </div>
+            )}
+
+            {done && (
+              <div role="status" className="vf-alert tone-ok vf-login-alert">
+                <Icon name="ph-check-circle" size={20} style={{ flex: "none" }} />
+                <div className="vf-alert-text">{t("signedInOpening")}</div>
+              </div>
+            )}
+
+            <div className="field">
+              <label htmlFor="email">{t("emailAddress")}</label>
+              <input
+                id="email" type="email" inputMode="email" className="input vf-login-input" value={email}
+                autoComplete="username" autoCapitalize="none" spellCheck={false} required
+                aria-invalid={!!emailError} aria-describedby={emailError ? "email-error" : undefined}
+                onChange={(e) => setEmail(e.target.value)} placeholder={t("emailPh")}
+              />
+              {emailError && (
+                <div className="field-error" id="email-error"><Icon name="ph-warning-circle" size={15} /> {emailError}</div>
+              )}
+            </div>
+
+            <div className="field">
+              <div className="vf-login-label-row">
+                <label htmlFor="password">{t("password")}</label>
+                <Link href="/verify?purpose=password_reset">{t("forgotPassword")}</Link>
+              </div>
+              <div className="vf-login-password">
+                <input
+                  id="password" className="input vf-login-input" type={reveal ? "text" : "password"} value={password}
+                  autoComplete="current-password" required
+                  aria-invalid={!!passwordError} aria-describedby={passwordError ? "password-error" : undefined}
+                  onChange={(e) => setPassword(e.target.value)} placeholder={t("passwordPh")}
+                />
+                <button
+                  type="button" className="vf-login-reveal" onClick={() => setReveal((v) => !v)}
+                  aria-label={reveal ? t("hidePassword") : t("showPassword")} aria-pressed={reveal}
+                  title={reveal ? t("hidePassword") : t("showPassword")}
+                >
+                  <Icon name={reveal ? "ph-eye-slash" : "ph-eye"} size={19} />
+                </button>
+              </div>
+              {passwordError && (
+                <div className="field-error" id="password-error"><Icon name="ph-warning-circle" size={15} /> {passwordError}</div>
+              )}
+            </div>
+
+            <label className="radio vf-login-remember">
+              <input type="checkbox" defaultChecked />
+              <span className="dot" />
+              {t("rememberMe")}
+            </label>
+
+            <button className="btn btn-primary btn-lg vf-login-submit" disabled={busy} type="submit">
+              {done ? (
+                <><Icon name="ph-check" size={18} /> {t("signIn")}</>
+              ) : busy ? (
+                <Spinner label={t("signingIn")} />
+              ) : (
+                <>{t("signIn")} <Icon name="ph-arrow-right" size={18} /></>
+              )}
+            </button>
+          </form>
+
+          <div className="vf-login-alt">
+            <p>{t("newToVouchflow")} <Link href="/register">{t("registerCompany")}</Link></p>
+            <p className="vf-login-alt-note">{t("staffAccountsNote")}</p>
+          </div>
+
+          {SHOW_DEMO_ACCOUNTS && <DemoAccounts selected={email} onPick={pickDemo} />}
+        </div>
+
+        <footer className="vf-login-foot">
+          <Icon name="ph-shield-check" size={15} />
+          <span><strong>VouchFlow</strong> · {t("loginFooter")}</span>
+        </footer>
+      </main>
+    </div>
   );
 }
 
@@ -148,7 +208,7 @@ function DemoAccounts({ selected, onPick }: { selected: string; onPick: (email: 
   const { t } = useApp();
 
   return (
-    <div className="vf-panel" style={{ padding: "var(--space-4)" }}>
+    <div className="vf-panel vf-login-demo">
       <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
         {t("demoSignInAs")}
       </div>
