@@ -2,40 +2,51 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useApp } from "@/lib/app-context";
 import { LanguageToggle, ThemeToggle } from "@/components/ui";
 
-/** Shared editorial frame for the public authentication screens. */
+/**
+ * The frame for sign-in, registration and verification.
+ *
+ * One focused card, centred, with nothing competing for attention — the only
+ * job on these screens is to get someone in, or set a company up. When a page
+ * passes an aside (the demo accounts, in development only) it sits beside the
+ * card rather than above it.
+ */
 export function AuthFrame({
   kicker, title, sub, children, aside, footer,
 }: { kicker: string; title: string; sub?: string; children: ReactNode; aside?: ReactNode; footer?: ReactNode }) {
-  const { t } = useApp();
-
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <nav style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-4) var(--space-6)", flexWrap: "wrap" }}>
-        <Link href="/" style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22, color: "var(--color-text)", textDecoration: "none" }}>
+    <div className="vf-auth">
+      <header className="vf-auth-bar">
+        <Link href="/" className="vf-auth-brand" aria-label="VouchFlow home">
+          <span className="vf-auth-mark" aria-hidden="true">V</span>
           VouchFlow
         </Link>
-        <div style={{ flex: 1 }} />
-        <LanguageToggle />
-        <ThemeToggle />
-      </nav>
-
-      <div style={{
-        flex: 1, display: "grid", gridTemplateColumns: aside ? "repeat(auto-fit, minmax(320px, 1fr))" : "1fr",
-        gap: "var(--space-8)", maxWidth: aside ? 1080 : 520, width: "100%", margin: "0 auto",
-        padding: "var(--space-6) var(--space-4) var(--space-8)", alignItems: "start",
-      }}>
-        <div style={{ width: "100%" }}>
-          <div style={{ fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>{kicker}</div>
-          <h1 style={{ fontSize: "clamp(28px, 4vw, 40px)", letterSpacing: "-.02em", margin: "8px 0 6px" }}>{title}</h1>
-          {sub && <p style={{ color: "var(--color-neutral-700)", fontSize: 16, margin: "0 0 var(--space-6)", maxWidth: "52ch" }}>{sub}</p>}
-          {children}
-          {footer && <div style={{ marginTop: "var(--space-4)", fontSize: 14.5, color: "var(--color-neutral-700)" }}>{footer}</div>}
+        <div className="vf-auth-bar-tools">
+          <LanguageToggle />
+          <ThemeToggle />
         </div>
-        {aside}
-      </div>
+      </header>
+
+      <main className="vf-auth-main" data-has-aside={aside ? "true" : undefined}>
+        <section className="vf-auth-card vf-rise">
+          {kicker && <div className="vf-eyebrow">{kicker}</div>}
+          <h1 className="vf-auth-title">{title}</h1>
+          {sub && <p className="vf-auth-sub">{sub}</p>}
+          <div className="vf-auth-body">{children}</div>
+          {footer && <div className="vf-auth-footer">{footer}</div>}
+        </section>
+        {aside && <div className="vf-auth-aside">{aside}</div>}
+      </main>
+
+      <footer className="vf-auth-legal">
+        <Icon />
+        Vouchers, signatures and payments — every company isolated, every action on the record.
+      </footer>
     </div>
   );
+}
+
+function Icon() {
+  return <i className="ph ph-shield-check" aria-hidden="true" style={{ fontSize: 15 }} />;
 }

@@ -13,6 +13,15 @@ export default function PlatformUsersPage() {
   const [filters, setFilters] = useState({ q: "", role: "", status: "" });
   const [result, setResult] = useState<Paginated<User> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The user listing carries company_id only; name it from the companies list,
+  // which the platform operator can already read, rather than showing "#1".
+  const [companyNames, setCompanyNames] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    api.get<{ data: { id: number; name: string }[] }>("/platform/companies", { per_page: 500 })
+      .then((r) => setCompanyNames(Object.fromEntries(r.data.map((c) => [c.id, c.name]))))
+      .catch(() => undefined);
+  }, []);
 
   const load = useCallback(() => {
     setError(null);
@@ -73,7 +82,7 @@ export default function PlatformUsersPage() {
                       <span style={{ fontWeight: 500 }}>{user.name}</span>
                       <span style={{ display: "block", fontSize: 12.5, color: "var(--color-neutral-600)" }}>{user.email}</span>
                     </td>
-                    <td>{user.company_id ? (user as any).company?.name ?? `#${user.company_id}` : "Platform"}</td>
+                    <td>{user.company_id ? companyNames[user.company_id] ?? "—" : <span className="badge tone-info">Platform</span>}</td>
                     <td>{user.role_label}</td>
                     <td>
                       <span className={`tag ${user.status === "active" ? "tag-accent" : user.status === "invited" ? "tag-outline" : "tag-accent-2"}`}>

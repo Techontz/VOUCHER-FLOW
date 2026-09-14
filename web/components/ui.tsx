@@ -3,48 +3,63 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/lib/app-context";
 
+/*
+ * VouchFlow's shared primitives.
+ *
+ * Every export here keeps the props it had before the redesign, so the screens
+ * that use them move onto the new design system without being touched. New,
+ * optional props (tone, icon, summary, href …) are additive.
+ *
+ * Visual treatment lives in styles/vouchflow.css, not in inline styles. A
+ * component that needs a colour asks for a tone, and the tone decides.
+ */
+
+export type Tone = "neutral" | "info" | "warn" | "ok" | "bad";
+
 /* ────────────────────────────────────────────────────────── icon ────────── */
 
-/** Phosphor duotone, loaded from the stylesheet in the root layout. */
-export function Icon({ name, size = 18, color, style }: { name: string; size?: number; color?: string; style?: React.CSSProperties }) {
-  return <i className={`ph-duotone ${name}`} aria-hidden="true" style={{ fontSize: size, color, lineHeight: 1, ...style }} />;
+/**
+ * Phosphor, regular weight by default. Duotone read as decorative against a
+ * finance screen; a single stroke weight is calmer and scans faster. `fill` is
+ * for the few places that want emphasis — a completed step, a success toast.
+ */
+export function Icon({
+  name, size = 18, color, style, weight = "regular",
+}: { name: string; size?: number; color?: string; style?: React.CSSProperties; weight?: "regular" | "fill" }) {
+  const base = weight === "fill" ? "ph-fill" : "ph";
+  return <i className={`${base} ${name}`} aria-hidden="true" style={{ fontSize: size, color, lineHeight: 1, ...style }} />;
 }
 
 /* ───────────────────────────────────────────────────────── layout ───────── */
 
 export function PageHeader({
-  kicker, title, sub, actions,
-}: { kicker?: string; title: ReactNode; sub?: ReactNode; actions?: ReactNode }) {
+  kicker, title, sub, actions, back,
+}: { kicker?: string; title: ReactNode; sub?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-4)", flexWrap: "wrap", marginBottom: "var(--space-6)" }}>
-      <div style={{ minWidth: 0, flex: "1 1 320px" }}>
-        {kicker && (
-          <div style={{ fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--color-neutral-600)" }}>
-            {kicker}
-          </div>
-        )}
-        <h1 style={{ fontSize: "clamp(26px, 3.4vw, 38px)", letterSpacing: "-.018em", margin: "8px 0 0" }}>{title}</h1>
-        {sub && <p style={{ color: "var(--color-neutral-700)", fontSize: 16, margin: "6px 0 0", maxWidth: "68ch" }}>{sub}</p>}
+    <header className="vf-pagehead">
+      <div className="vf-pagehead-main">
+        {back}
+        {kicker && <div className="vf-eyebrow">{kicker}</div>}
+        <h1 className="vf-pagehead-title">{title}</h1>
+        {sub && <p className="vf-pagehead-sub">{sub}</p>}
       </div>
-      {actions && <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>{actions}</div>}
-    </div>
+      {actions && <div className="vf-pagehead-actions">{actions}</div>}
+    </header>
   );
 }
 
-export function SectionTitle({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
+export function SectionTitle({ children, actions, count }: { children: ReactNode; actions?: ReactNode; count?: number | null }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-3)", flexWrap: "wrap", margin: "0 0 var(--space-3)" }}>
-      <h2 style={{ fontSize: 22, margin: 0 }}>{children}</h2>
-      <div style={{ flex: 1 }} />
-      {actions}
+    <div className="vf-sectiontitle">
+      <h2>
+        {children}
+        {count != null && <span className="vf-count">{count}</span>}
+      </h2>
+      {actions && <div className="vf-sectiontitle-actions">{actions}</div>}
     </div>
   );
 }
 
-/**
- * The v2 statistic card: gradient wash, iconed label, tabular value and an
- * optional trend chip. Replaces the broadsheet rule-topped block.
- */
 export interface Kpi {
   label: string;
   value: string;
@@ -52,28 +67,36 @@ export interface Kpi {
   icon?: string;
   trend?: string | null;
   up?: boolean | null;
+  /** Colours the icon chip. Leave neutral unless the number is a call to act. */
+  tone?: Tone;
+  /** Makes the whole card a link to the list behind the number. */
+  href?: string;
 }
 
-export function StatBlock({ label, value, sub, icon = "ph-chart-bar", trend, up }: Kpi) {
-  return (
-    <div className="vf-kpi">
+export function StatBlock({ label, value, sub, icon = "ph-chart-bar", trend, up, tone = "neutral", href }: Kpi) {
+  const body = (
+    <>
       <div className="vf-kpi-top">
-        <span className="vf-kpi-icon"><Icon name={icon} size={15} /></span>
         <span className="vf-kpi-label">{label}</span>
+        <span className={`vf-kpi-icon tone-${tone}`}><Icon name={icon} /></span>
       </div>
       <div className="vf-kpi-value">{value}</div>
       {(trend || sub) && (
         <div className="vf-kpi-foot">
           {trend && (
             <span className={`vf-trend ${up ? "vf-trend-up" : "vf-trend-down"}`}>
-              <Icon name={up ? "ph-trend-up" : "ph-trend-down"} size={12} />{trend}
+              <Icon name={up ? "ph-trend-up" : "ph-trend-down"} size={13} /> {trend}
             </span>
           )}
           {sub && <span className="vf-kpi-sub">{sub}</span>}
         </div>
       )}
-    </div>
+    </>
   );
+
+  return href
+    ? <a className="vf-kpi" href={href}>{body}</a>
+    : <div className="vf-kpi">{body}</div>;
 }
 
 export function StatGrid({ children }: { children: ReactNode }) {
@@ -89,7 +112,6 @@ export function KpiRow({ stats }: { stats: Kpi[] }) {
   );
 }
 
-/** The elevated surface almost every block sits on. */
 export function Panel({
   title, sub, actions, children, pad = true, style,
 }: { title?: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode; pad?: boolean; style?: React.CSSProperties }) {
@@ -97,11 +119,11 @@ export function Panel({
     <section className="vf-panel" style={style}>
       {(title || actions) && (
         <div className="vf-panel-head">
-          <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+          <div className="vf-panel-head-main">
             {title && <h2>{title}</h2>}
-            {sub && <div style={{ fontSize: 13, color: "var(--color-neutral-600)", marginTop: 3 }}>{sub}</div>}
+            {sub && <div className="vf-panel-sub">{sub}</div>}
           </div>
-          {actions && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{actions}</div>}
+          {actions && <div className="vf-panel-actions">{actions}</div>}
         </div>
       )}
       <div className={pad ? "vf-panel-pad" : undefined}>{children}</div>
@@ -109,9 +131,14 @@ export function Panel({
   );
 }
 
-/** Soft rule-led callout for scope, isolation and workflow notes. */
+/** A quiet callout for scope, isolation and workflow notes. */
 export function Note({ children, tone }: { children: ReactNode; tone?: "warn" }) {
-  return <div className={`vf-note${tone === "warn" ? " vf-note-warn" : ""}`}>{children}</div>;
+  return (
+    <div className={`vf-note${tone === "warn" ? " vf-note-warn" : ""}`}>
+      <Icon name={tone === "warn" ? "ph-warning" : "ph-info"} size={17} style={{ marginTop: 1, flex: "none" }} />
+      <div>{children}</div>
+    </div>
+  );
 }
 
 /** A large selectable option card — voucher format, plan, payment method. */
@@ -120,13 +147,14 @@ export function Choice({
 }: { selected: boolean; onSelect: () => void; icon: string; label: string; sub?: string }) {
   return (
     <button type="button" className="vf-choice" aria-pressed={selected} onClick={onSelect}>
-      <span className="vf-choice-icon"><Icon name={icon} size={18} /></span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontWeight: 600, fontSize: 15 }}>{label}</span>
-        {sub && <span style={{ display: "block", fontSize: 13, color: "var(--color-neutral-600)", marginTop: 2 }}>{sub}</span>}
+      <span className="vf-choice-icon"><Icon name={icon} size={20} /></span>
+      <span className="vf-choice-text">
+        <span className="vf-choice-label">{label}</span>
+        {sub && <span className="vf-choice-sub">{sub}</span>}
       </span>
-      <Icon name={selected ? "ph-check-circle" : "ph-circle"} size={18}
-        color={selected ? "var(--color-accent-600)" : "var(--color-neutral-500)"} />
+      <span className="vf-choice-check" aria-hidden="true">
+        <Icon name={selected ? "ph-check-circle" : "ph-circle"} size={20} weight={selected ? "fill" : "regular"} />
+      </span>
     </button>
   );
 }
@@ -148,51 +176,54 @@ export function Field({
     <div className="field">
       <label htmlFor={htmlFor}>
         {label}
-        {required && <span style={{ color: "var(--color-accent-2-700)" }} aria-hidden="true"> *</span>}
+        {required && <span className="vf-required" aria-hidden="true"> *</span>}
       </label>
       {children}
-      {hint && !error && <div style={{ fontSize: 12, color: "var(--color-neutral-600)", marginTop: 4 }}>{hint}</div>}
-      {error && <div className="field-error" role="alert">{error}</div>}
+      {hint && !error && <div className="field-hint">{hint}</div>}
+      {error && (
+        <div className="field-error" role="alert">
+          <Icon name="ph-warning-circle" size={15} /> {error}
+        </div>
+      )}
     </div>
   );
 }
 
 export function Tag({ kind = "tag-neutral", children }: { kind?: string; children: ReactNode }) {
-  return <span className={`tag ${kind}`}>{children}</span>;
+  return <span className={`badge ${kind}`}>{children}</span>;
 }
 
 export function Spinner({ label }: { label?: string }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+    <span className="vf-spinner-row">
       <span className="spinner" aria-hidden="true" />
       {label && <span>{label}</span>}
     </span>
   );
 }
 
+/** Placeholder rows shaped like the content they stand in for. */
 export function LoadingBlock({ rows = 4 }: { rows?: number }) {
   return (
-    <div style={{ display: "grid", gap: 10 }} aria-busy="true" aria-live="polite">
+    <div className="vf-loading" aria-busy="true" aria-live="polite">
       <span className="sr-only">Loading</span>
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="skeleton" style={{ height: i === 0 ? 30 : 54 }} />
+      <div className="skeleton" style={{ height: 26, width: "38%" }} />
+      {Array.from({ length: Math.max(1, rows - 1) }).map((_, i) => (
+        <div key={i} className="skeleton" style={{ height: 58 }} />
       ))}
     </div>
   );
 }
 
 export function EmptyState({
-  icon = "ph-tray", title, body, action,
-}: { icon?: string; title: string; body?: string; action?: ReactNode }) {
+  icon = "ph-tray", title, body, action, tone,
+}: { icon?: string; title: string; body?: string; action?: ReactNode; tone?: "ok" | "bad" }) {
   return (
-    <div style={{
-      border: "1px dashed var(--vf-line-strong)", borderRadius: 16,
-      background: "var(--vf-elev-1)", padding: "var(--space-8) var(--space-4)", textAlign: "center",
-    }}>
-      <Icon name={icon} size={30} color="var(--color-neutral-500)" />
-      <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 19, marginTop: 10 }}>{title}</div>
-      {body && <p style={{ color: "var(--color-neutral-700)", maxWidth: "46ch", margin: "6px auto 0", fontSize: 15 }}>{body}</p>}
-      {action && <div style={{ marginTop: "var(--space-4)" }}>{action}</div>}
+    <div className="vf-empty">
+      <div className={`vf-empty-icon${tone ? ` tone-${tone}` : ""}`}><Icon name={icon} size={24} /></div>
+      <div className="vf-empty-title">{title}</div>
+      {body && <p className="vf-empty-body">{body}</p>}
+      {action && <div className="vf-empty-actions">{action}</div>}
     </div>
   );
 }
@@ -200,13 +231,9 @@ export function EmptyState({
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   const { t } = useApp();
   return (
-    <div role="alert" style={{
-      border: "1px solid var(--color-accent-2-400)", background: "var(--color-accent-2-100)",
-      color: "var(--color-accent-2-800)", borderRadius: "var(--radius-md)", padding: "var(--space-3) var(--space-4)",
-      display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap",
-    }}>
-      <Icon name="ph-warning-circle" size={20} />
-      <span style={{ flex: 1, minWidth: 200 }}>{message}</span>
+    <div role="alert" className="vf-alert tone-bad">
+      <Icon name="ph-warning-circle" size={20} style={{ flex: "none" }} />
+      <span className="vf-alert-text">{message}</span>
       {onRetry && <button className="btn btn-secondary btn-sm" onClick={onRetry}>{t("retry")}</button>}
     </div>
   );
@@ -215,23 +242,13 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 export function Banner({
   tone = "accent", icon, title, children, action,
 }: { tone?: "accent" | "warn" | "danger"; icon?: string; title?: string; children?: ReactNode; action?: ReactNode }) {
-  const palette = {
-    accent: { border: "var(--color-accent-400)", bg: "var(--color-accent-100)", fg: "var(--color-accent-800)" },
-    warn: { border: "color-mix(in srgb, var(--vf-warn) 45%, transparent)", bg: "color-mix(in srgb, var(--vf-warn) 12%, transparent)", fg: "var(--color-text)" },
-    danger: { border: "var(--color-accent-2-400)", bg: "var(--color-accent-2-100)", fg: "var(--color-accent-2-800)" },
-  }[tone];
-
+  const mapped = tone === "warn" ? "warn" : tone === "danger" ? "bad" : "info";
   return (
-    <div style={{
-      border: `1px solid ${palette.border}`, background: palette.bg, color: palette.fg,
-      borderRadius: "var(--radius-md)", padding: "var(--space-3) var(--space-4)",
-      display: "flex", gap: "var(--space-3)", alignItems: "flex-start", flexWrap: "wrap",
-      marginBottom: "var(--space-4)",
-    }}>
-      {icon && <Icon name={icon} size={20} />}
-      <div style={{ flex: 1, minWidth: 220 }}>
-        {title && <div style={{ fontWeight: 600 }}>{title}</div>}
-        {children && <div style={{ fontSize: 14.5 }}>{children}</div>}
+    <div className={`vf-alert tone-${mapped}`} style={{ marginBottom: "var(--space-4)" }}>
+      {icon && <Icon name={icon} size={20} style={{ flex: "none", marginTop: 1 }} />}
+      <div className="vf-alert-text">
+        {title && <div className="vf-alert-title">{title}</div>}
+        {children && <div>{children}</div>}
       </div>
       {action}
     </div>
@@ -240,24 +257,52 @@ export function Banner({
 
 /* ───────────────────────────────────────────────────────── dialog ───────── */
 
+export interface SummaryRow {
+  label: string;
+  value: ReactNode;
+}
+
+/**
+ * A modal dialog, and the confirmation pattern for consequential actions.
+ *
+ * Give it an `icon` and a `tone` and it opens with a mark that says what kind
+ * of act this is; give it a `summary` and it restates exactly what is being
+ * acted on — voucher, amount, method — so nobody approves the wrong thing.
+ */
 export function Dialog({
-  open, title, onClose, children, actions, wide,
-}: { open: boolean; title: string; onClose: () => void; children: ReactNode; actions?: ReactNode; wide?: boolean }) {
+  open, title, onClose, children, actions, wide, sub, icon, tone = "info", summary, busy,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children?: ReactNode;
+  actions?: ReactNode;
+  wide?: boolean;
+  sub?: ReactNode;
+  icon?: string;
+  tone?: Tone;
+  summary?: SummaryRow[];
+  /** While an action is in flight, closing would orphan it. */
+  busy?: boolean;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const safeClose = busy ? () => undefined : onClose;
 
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !busy) onClose();
     };
     document.addEventListener("keydown", onKey);
-    // Move focus into the dialog so keyboard users are not left behind it.
+    // Focus the first real control, not the close button — keyboard users land
+    // where the decision is.
     const timer = window.setTimeout(() => {
-      ref.current?.querySelector<HTMLElement>(
-        "input, textarea, select, button:not([disabled]), canvas, [tabindex]",
-      )?.focus();
-    }, 30);
+      const root = ref.current;
+      const target = root?.querySelector<HTMLElement>(".dialog-body input, .dialog-body textarea, .dialog-body select, .dialog-body canvas")
+        ?? root?.querySelector<HTMLElement>(".dialog-actions .btn-secondary, .dialog-actions button:not([disabled])");
+      target?.focus();
+    }, 40);
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
     return () => {
@@ -265,7 +310,7 @@ export function Dialog({
       window.clearTimeout(timer);
       document.body.style.overflow = overflow;
     };
-  }, [open, onClose]);
+  }, [open, onClose, busy]);
 
   if (!open) return null;
 
@@ -273,17 +318,33 @@ export function Dialog({
     <div
       className="dialog-backdrop"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) safeClose();
       }}
     >
       <div ref={ref} className={`dialog${wide ? " dialog-wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}>
-          <div id={titleId} className="dialog-title" style={{ flex: 1 }}>{title}</div>
-          <button className="btn btn-icon" onClick={onClose} aria-label="Close dialog">
-            <Icon name="ph-x" />
-          </button>
+        <div className="dialog-head">
+          <div className="dialog-head-row">
+            <div style={{ minWidth: 0, flex: 1 }}>
+              {icon && <div className={`dialog-icon tone-${tone}`}><Icon name={icon} size={22} /></div>}
+              <div id={titleId} className="dialog-title">{title}</div>
+              {sub && <div className="dialog-sub">{sub}</div>}
+            </div>
+            <button className="btn btn-icon btn-sm dialog-close" onClick={safeClose} aria-label="Close dialog" disabled={busy}>
+              <Icon name="ph-x" size={16} />
+            </button>
+          </div>
+          {summary && summary.length > 0 && (
+            <dl className="dialog-summary">
+              {summary.map((row) => (
+                <div key={row.label} className="dialog-summary-row">
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </div>
-        <div className="dialog-body" style={{ opacity: 1 }}>{children}</div>
+        {children ? <div className="dialog-body">{children}</div> : <div style={{ height: 20 }} />}
         {actions && <div className="dialog-actions">{actions}</div>}
       </div>
     </div>
@@ -296,33 +357,20 @@ export function Toasts() {
   const { toasts, dismissToast } = useApp();
 
   return (
-    <div
-      aria-live="polite"
-      style={{
-        position: "fixed", right: "var(--space-4)", bottom: "var(--space-4)", zIndex: 200,
-        display: "flex", flexDirection: "column", gap: "var(--space-2)", maxWidth: "min(380px, calc(100vw - 40px))",
-      }}
-    >
+    <div className="vf-toasts" aria-live="polite">
       {toasts.map((item) => {
-        const colour = item.kind === "ok" ? "var(--color-accent-500)"
-          : item.kind === "warn" ? "var(--color-process-yellow)" : "var(--color-accent-2-500)";
-        const icon = item.kind === "ok" ? "ph-check-circle" : item.kind === "warn" ? "ph-clock" : "ph-x-circle";
+        const tone = item.kind === "ok" ? "ok" : item.kind === "warn" ? "warn" : "bad";
+        const icon = item.kind === "ok" ? "ph-check-circle" : item.kind === "warn" ? "ph-info" : "ph-warning-circle";
 
         return (
-          <div key={item.id} style={{
-            display: "flex", gap: "var(--space-2)", alignItems: "flex-start",
-            background: "var(--vf-elev-2)", border: "1px solid var(--vf-line)",
-            borderLeft: `3px solid ${colour}`, borderRadius: 14,
-            boxShadow: "var(--shadow-lg)", padding: "var(--space-3)",
-            animation: "vf-toast .18s ease-out",
-          }}>
-            <Icon name={icon} size={20} color={colour} />
+          <div key={item.id} className={`vf-toast tone-${tone}`} role={tone === "bad" ? "alert" : "status"}>
+            <Icon name={icon} size={20} weight="fill" style={{ flex: "none" }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14.5 }}>{item.title}</div>
-              {item.body && <div style={{ fontSize: 13.5, color: "var(--color-neutral-700)" }}>{item.body}</div>}
+              <div className="vf-toast-title">{item.title}</div>
+              {item.body && <div className="vf-toast-body">{item.body}</div>}
             </div>
-            <button className="btn btn-icon" style={{ width: 24, height: 24 }} onClick={() => dismissToast(item.id)} aria-label="Dismiss">
-              <Icon name="ph-x" size={13} />
+            <button className="btn btn-icon btn-sm" onClick={() => dismissToast(item.id)} aria-label="Dismiss">
+              <Icon name="ph-x" size={14} />
             </button>
           </div>
         );
@@ -337,19 +385,9 @@ export function LanguageToggle() {
   const { locale, setLocale } = useApp();
 
   return (
-    <div className="seg" role="group" aria-label="Language" style={{ flex: "none" }}>
+    <div className="seg seg-sm" role="group" aria-label="Language">
       {(["en", "sw"] as const).map((code) => (
-        <button
-          key={code}
-          onClick={() => setLocale(code)}
-          aria-pressed={locale === code}
-          style={{
-            border: 0, cursor: "pointer", fontFamily: "var(--font-body)", fontSize: 12.5, fontWeight: 500,
-            padding: "6px 11px", minWidth: 40,
-            background: locale === code ? "var(--color-accent-500)" : "transparent",
-            color: locale === code ? "#08222c" : "inherit",
-          }}
-        >
+        <button key={code} type="button" onClick={() => setLocale(code)} aria-selected={locale === code}>
           {code.toUpperCase()}
         </button>
       ))}
@@ -360,8 +398,10 @@ export function LanguageToggle() {
 export function ThemeToggle() {
   const { theme, toggleTheme } = useApp();
   return (
-    <button className="btn btn-icon" onClick={toggleTheme} aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"} title="Theme">
-      <Icon name={theme === "light" ? "ph-moon" : "ph-sun"} />
+    <button className="btn btn-icon" onClick={toggleTheme}
+      aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+      title={theme === "light" ? "Dark theme" : "Light theme"}>
+      <Icon name={theme === "light" ? "ph-moon" : "ph-sun"} size={19} />
     </button>
   );
 }
@@ -373,28 +413,27 @@ export function Pagination({
   if (lastPage <= 1) return null;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginTop: "var(--space-4)", flexWrap: "wrap" }}>
-      <div style={{ fontSize: 13.5, color: "var(--color-neutral-700)" }}>
+    <nav className="vf-pagination" aria-label="Pagination">
+      <div className="vf-pagination-info">
         {t("showing")} {total} · {t("page")} {page} {t("of")} {lastPage}
       </div>
-      <div style={{ flex: 1 }} />
-      <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-        <Icon name="ph-caret-left" size={14} /> {t("back")}
-      </button>
-      <button className="btn btn-secondary btn-sm" disabled={page >= lastPage} onClick={() => onChange(page + 1)}>
-        {t("next")} <Icon name="ph-caret-right" size={14} />
-      </button>
-    </div>
+      <div className="vf-pagination-controls">
+        <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+          <Icon name="ph-caret-left" size={14} /> {t("back")}
+        </button>
+        <button className="btn btn-secondary btn-sm" disabled={page >= lastPage} onClick={() => onChange(page + 1)}>
+          {t("next")} <Icon name="ph-caret-right" size={14} />
+        </button>
+      </div>
+    </nav>
   );
 }
 
 /**
  * A collapsible secondary section.
  *
- * Attachments, comments, the timeline and the audit trail matter, but they are
- * not the voucher — giving each a permanent slab pushes the document itself off
- * the screen. They live here instead: one line each until asked for, and never
- * printed.
+ * Attachments, comments and the audit trail matter, but they are not the
+ * decision. They sit here, one line each until asked for, and never print.
  */
 export function Disclosure({
   title, count, icon, children, defaultOpen = false,
@@ -406,33 +445,17 @@ export function Disclosure({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const id = useId();
 
   return (
-    <section className="vf-panel no-print" style={{ overflow: "hidden" }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        style={{
-          display: "flex", alignItems: "center", gap: 10, width: "100%",
-          border: 0, background: "transparent", cursor: "pointer",
-          padding: "13px var(--space-4)", textAlign: "left",
-          fontFamily: "var(--font-body)", color: "var(--color-text)",
-        }}
-      >
-        {icon && <Icon name={icon} size={17} color="var(--color-neutral-600)" />}
-        <span style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>{title}</span>
-        {count != null && count > 0 && (
-          <span style={{
-            fontSize: 12, fontWeight: 600, minWidth: 20, textAlign: "center",
-            padding: "1px 7px", borderRadius: 999,
-            background: "var(--vf-elev-3)", color: "var(--color-neutral-700)",
-          }}>{count}</span>
-        )}
-        <Icon name={open ? "ph-caret-up" : "ph-caret-down"} size={15} color="var(--color-neutral-600)" />
+    <section className="vf-panel vf-disclosure no-print">
+      <button type="button" className="vf-disclosure-head" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls={id}>
+        {icon && <Icon name={icon} size={18} style={{ color: "var(--color-neutral-600)" }} />}
+        <span className="vf-disclosure-title">{title}</span>
+        {count != null && count > 0 && <span className="vf-count">{count}</span>}
+        <Icon name="ph-caret-down" size={16} style={{ color: "var(--color-neutral-600)", transform: open ? "rotate(180deg)" : "none", transition: "transform var(--dur) var(--ease-out)" }} />
       </button>
-
-      <div hidden={!open} style={{ padding: "0 var(--space-4) var(--space-4)" }}>
+      <div id={id} hidden={!open} className="vf-disclosure-body">
         {children}
       </div>
     </section>

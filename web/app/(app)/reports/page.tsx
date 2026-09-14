@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, API_MODE, download, saveBlob } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
+import { formatDate } from "@/lib/format";
 import { EmptyState, ErrorState, Icon, LoadingBlock, Note, PageHeader, Panel, Spinner } from "@/components/ui";
 import type { Department, VoucherType } from "@/lib/types";
 
@@ -197,10 +198,10 @@ export default function ReportsPage() {
 
       {!loading && result && (
         <>
-          <div style={{ display: "flex", gap: "var(--space-6)", flexWrap: "wrap", marginBottom: "var(--space-3)", fontSize: 14.5 }}>
-            <span><strong>{result.summary.count}</strong> {t("vouchers")}</span>
-            <span>{t("amount")}: <strong>{result.summary.total_text}</strong></span>
-            <span>{t("approved")}: <strong>{result.summary.approved_total_text}</strong></span>
+          <div className="vf-report-summary">
+            <div><span>{t("vouchers")}</span><strong className="tnum">{result.summary.count}</strong></div>
+            <div><span>{t("amount")}</span><strong className="tnum">{result.summary.total_text}</strong></div>
+            <div><span>{t("approved")}</span><strong className="tnum">{result.summary.approved_total_text}</strong></div>
           </div>
 
           {result.rows.length === 0 ? (
@@ -216,15 +217,25 @@ export default function ReportsPage() {
                 <tbody>
                   {result.rows.map((row, i) => (
                     <tr key={i}>
-                      {row.map((cell, j) => (
-                        <td key={j} style={{
-                          textAlign: isNumeric(result.headings[j]) ? "right" : "left",
-                          fontVariantNumeric: typeof cell === "number" ? "tabular-nums" : undefined,
-                          whiteSpace: typeof cell === "number" ? "nowrap" : undefined,
-                        }}>
-                          {typeof cell === "number" ? cell.toLocaleString("en-US", { maximumFractionDigits: 2 }) : cell ?? "—"}
-                        </td>
-                      ))}
+                      {row.map((cell, j) => {
+                        // Formatting is for the screen only. The same rows feed the
+                        // PDF, Excel and CSV exports, which keep their raw values.
+                        const isDate = typeof cell === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(cell);
+                        const isRef = typeof cell === "string" && /^[A-Z]{2,5}-\d{4}-\d+$/.test(cell);
+                        const tight = typeof cell === "number" || isDate || isRef;
+                        return (
+                          <td key={j} style={{
+                            textAlign: isNumeric(result.headings[j]) ? "right" : "left",
+                            fontVariantNumeric: tight ? "tabular-nums" : undefined,
+                            whiteSpace: tight ? "nowrap" : undefined,
+                            fontWeight: isRef ? 500 : undefined,
+                          }}>
+                            {typeof cell === "number"
+                              ? cell.toLocaleString("en-US", { maximumFractionDigits: 2 })
+                              : isDate ? formatDate(cell as string, locale) : cell ?? "—"}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

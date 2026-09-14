@@ -11,5 +11,10 @@
     "allowImportingTsExtensions": false,
     "verbatimModuleSyntax": false
   },
-  "include": ["lib/mock/**/*.ts", "lib/types.ts"]
+  "include": [
+    "lib/mock/**/*.ts",
+    "lib/types.ts",
+    "lib/progress.ts",
+    "lib/workflow-payload.ts"
+  ]
 }

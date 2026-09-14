@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import {
-  Banner, Dialog, ErrorState, Field, Icon, LoadingBlock, Note, PageHeader, SectionTitle, Spinner,
+  Banner, Choice, Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, Note, PageHeader, SectionTitle, Spinner,
 } from "@/components/ui";
+import { invalidateWorkflows } from "@/lib/use-workflows";
+import { workflowPayload } from "@/lib/workflow-payload";
 import type { Company, Workflow, WorkflowStep, VoucherType } from "@/lib/types";
 
 type Tab = "workflow" | "types" | "company";
@@ -22,32 +24,18 @@ const ROLE_OPTIONS = [
   { value: "custom", label: "Custom approver" },
 ];
 
-const CAPS: { key: keyof WorkflowStep; label: string }[] = [
-  { key: "can_sign", label: "Sign" },
-  { key: "can_approve", label: "Approve" },
-  { key: "can_reject", label: "Reject" },
-  { key: "can_request_changes", label: "Request changes" },
-  { key: "can_pay", label: "Record payment" },
-  { key: "can_print", label: "Print / PDF" },
-];
-
 export default function SettingsPage() {
   const { t, company, refresh, toast, reportError } = useApp();
   const [tab, setTab] = useState<Tab>("workflow");
 
   return (
-    <div style={{ maxWidth: 1080 }}>
+    <div className="vf-dashboard">
       <PageHeader kicker={t("settings")} title={t("settings")} sub={t("wfIntro")} />
 
-      <div className="seg" style={{ marginBottom: "var(--space-6)", flexWrap: "wrap" }} role="tablist">
-        {([["workflow", t("approvalWorkflow")], ["types", t("voucherSettings")], ["company", t("companyProfile")]] as const).map(([key, label]) => (
-          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key as Tab)}
-            style={{
-              border: 0, padding: "8px 14px", fontSize: 13.5, cursor: "pointer", fontFamily: "var(--font-body)",
-              background: tab === key ? "var(--color-accent)" : "transparent",
-              color: tab === key ? "var(--color-bg)" : "var(--color-text)",
-            }}>
-            {label}
+      <div className="seg vf-tabs" role="tablist">
+        {([["workflow", t("approvalWorkflow"), "ph-flow-arrow"], ["types", t("voucherSettings"), "ph-receipt"], ["company", t("companyProfile"), "ph-buildings"]] as const).map(([key, label, icon]) => (
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key as Tab)}>
+            <Icon name={icon} size={16} /> {label}
           </button>
         ))}
       </div>
@@ -61,6 +49,25 @@ export default function SettingsPage() {
 
 /* ─────────────────────────────────────────────── workflow builder ───────── */
 
+/*
+ * What a step may do. Every flag the backend stores is listed — and, just as
+ * important, every flag is SENT on save. The previous builder omitted can_pay
+ * from its payload; the API defaults a missing flag to false, so saving any
+ * workflow silently removed the payment capability from every step and left
+ * the company with nobody able to pay a voucher.
+ */
+const CAPS: { key: CapKey; label: string; icon: string }[] = [
+  { key: "can_sign", label: "Sign", icon: "ph-signature" },
+  { key: "can_approve", label: "Approve", icon: "ph-seal-check" },
+  { key: "can_reject", label: "Reject", icon: "ph-x-circle" },
+  { key: "can_request_changes", label: "Request changes", icon: "ph-arrow-u-up-left" },
+  { key: "can_pay", label: "Pay", icon: "ph-wallet" },
+  { key: "can_print", label: "Print", icon: "ph-printer" },
+  { key: "can_download", label: "Download", icon: "ph-download-simple" },
+];
+
+type CapKey = "can_sign" | "can_approve" | "can_reject" | "can_request_changes" | "can_pay" | "can_print" | "can_download";
+
 function WorkflowBuilder() {
   const { t, company, toast, reportError } = useApp();
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
@@ -71,18 +78,28 @@ function WorkflowBuilder() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [presetDialog, setPresetDialog] = useState(false);
+  const [chosenPreset, setChosenPreset] = useState<string | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [pendingSwitch, setPendingSwitch] = useState<Workflow | null>(null);
 
-  const load = useCallback(() => {
+  const pick = useCallback((wf: Workflow | null) => {
+    setCurrent(wf);
+    setSteps(wf ? wf.steps.map((s) => ({ ...s })) : []);
+    setDirty(false);
+    setOpen(null);
+  }, []);
+
+  const load = useCallback((keepId?: number) => {
     setError(null);
     api.get<{ data: Workflow[] }>("/workflows")
       .then((r) => {
         setWorkflows(r.data);
-        const def = r.data.find((w) => w.is_default) ?? r.data[0] ?? null;
-        setCurrent(def);
-        setSteps(def ? def.steps.map((s) => ({ ...s })) : []);
+        const keep = keepId ? r.data.find((w) => w.id === keepId) : null;
+        pick(keep ?? r.data.find((w) => w.is_default) ?? r.data[0] ?? null);
       })
       .catch((err) => setError(err.message));
-  }, []);
+  }, [pick]);
 
   useEffect(() => {
     load();
@@ -92,6 +109,7 @@ function WorkflowBuilder() {
 
   function patch(index: number, changes: Partial<WorkflowStep>) {
     setSteps((list) => list.map((step, i) => (i === index ? { ...step, ...changes } : step)));
+    setDirty(true);
   }
 
   function move(index: number, direction: -1 | 1) {
@@ -103,6 +121,8 @@ function WorkflowBuilder() {
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+    setOpen(target);
+    setDirty(true);
   }
 
   function addStep() {
@@ -113,30 +133,24 @@ function WorkflowBuilder() {
       can_print: true, can_download: true, requires_signature: false,
       min_amount: null, max_amount: null, is_request_step: false,
     }]);
+    setOpen(steps.length);
+    setDirty(true);
+  }
+
+  function removeStep(index: number) {
+    setSteps((l) => l.filter((_, i) => i !== index));
+    setOpen(null);
+    setDirty(true);
   }
 
   async function save() {
     if (!current) return;
     setBusy(true);
     try {
-      const res = await api.put<{ data: Workflow }>(`/workflows/${current.id}`, {
-        name: current.name,
-        description: current.description,
-        is_default: current.is_default,
-        is_active: current.is_active,
-        steps: steps.map((step, i) => ({
-          id: step.id, position: i + 1, name: step.name, name_sw: step.name_sw, role: step.role,
-          assigned_user_id: step.assigned_user_id, assignee_hint: step.assignee_hint,
-          can_sign: step.can_sign, can_approve: step.can_approve, can_reject: step.can_reject,
-          can_request_changes: step.can_request_changes, can_print: step.can_print,
-          can_download: step.can_download, requires_signature: step.can_sign,
-          min_amount: step.min_amount, max_amount: step.max_amount,
-        })),
-      });
-      setCurrent(res.data);
-      setSteps(res.data.steps.map((s) => ({ ...s })));
+      const res = await api.put<{ data: Workflow }>(`/workflows/${current.id}`, workflowPayload(current, steps));
+      invalidateWorkflows(company?.id);
       toast("Workflow saved", `${res.data.steps.length} steps · applies to vouchers created from now on.`, "ok");
-      load();
+      load(res.data.id);
     } catch (err) {
       reportError(err, "Could not save the workflow");
     } finally { setBusy(false); }
@@ -146,148 +160,251 @@ function WorkflowBuilder() {
     setBusy(true);
     try {
       const res = await api.post<{ data: Workflow }>("/workflows/apply-preset", { preset: key });
+      invalidateWorkflows(company?.id);
       toast("Workflow applied", res.data.route_summary ?? res.data.name, "ok");
       setPresetDialog(false);
-      load();
+      setChosenPreset(null);
+      load(res.data.id);
     } catch (err) {
       reportError(err, "Could not apply the preset");
     } finally { setBusy(false); }
   }
 
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (error) return <ErrorState message={error} onRetry={() => load()} />;
   if (!workflows) return <LoadingBlock rows={5} />;
-  if (!current) return <div>No workflow configured.</div>;
+  if (!current) {
+    return (
+      <div className="vf-panel">
+        <EmptyState icon="ph-flow-arrow" title="No workflow configured" body="Start from a preset, then adjust each step."
+          action={<button className="btn btn-primary" onClick={() => setPresetDialog(true)}>{t("presets")}</button>} />
+      </div>
+    );
+  }
 
-  const approvalLevels = Math.max(0, steps.length - 1);
+  const noPayer = steps.length > 1 && !steps.some((s) => s.can_pay);
+  const noDecider = steps.length > 1 && !steps.slice(1).some((s) => s.can_approve);
 
   return (
-    <div>
-      <Banner tone="accent" icon="ph-info" title={t("currentRoute")}>
-        {steps.map((s) => s.role_label ?? s.role).join(" → ")} → {t("completed")}
-        {" · "}{approvalLevels} approval {approvalLevels === 1 ? "level" : "levels"}
-      </Banner>
-
-      <SectionTitle actions={
-        <>
-          <button className="btn btn-secondary btn-sm" onClick={() => setPresetDialog(true)}>{t("presets")}</button>
-          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy}>
-            {busy ? <Spinner /> : t("saveWorkflow")}
+    <div className="vf-wf">
+      {/* ── which workflow, and its state ── */}
+      <div className="vf-panel vf-wf-head">
+        <div className="vf-wf-head-main">
+          {workflows.length > 1 ? (
+            <select className="input vf-wf-select" value={current.id} aria-label="Workflow"
+              onChange={(e) => {
+                const next = workflows.find((w) => w.id === Number(e.target.value)) ?? null;
+                if (dirty) setPendingSwitch(next);
+                else pick(next);
+              }}>
+              {workflows.map((w) => <option key={w.id} value={w.id}>{w.name}{w.is_default ? " — default" : ""}</option>)}
+            </select>
+          ) : (
+            <h2 className="vf-wf-name">{current.name}</h2>
+          )}
+          <div className="vf-wf-badges">
+            {current.is_default && <span className="badge tone-info">Default</span>}
+            <span className={`badge ${current.is_active ? "tone-ok" : "tone-neutral"}`}>{current.is_active ? "Active" : "Inactive"}</span>
+            {dirty && <span className="badge tone-warn">Unsaved changes</span>}
+          </div>
+        </div>
+        <div className="vf-wf-head-actions">
+          <label className="switch">
+            <input type="checkbox" checked={current.is_active}
+              onChange={(e) => { setCurrent({ ...current, is_active: e.target.checked }); setDirty(true); }} />
+            <span className="track" />
+            Active
+          </label>
+          <button className="btn btn-secondary btn-sm" onClick={() => setPresetDialog(true)}>
+            <Icon name="ph-magic-wand" size={15} /> {t("presets")}
           </button>
-        </>
-      }>{current.name}</SectionTitle>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy || !dirty}>
+            {busy ? <Spinner /> : <><Icon name="ph-floppy-disk" size={15} /> {t("saveWorkflow")}</>}
+          </button>
+        </div>
+      </div>
 
-      <div style={{ margin: "0 0 var(--space-4)", maxWidth: "78ch" }}>
+      {(noPayer || noDecider) && (
+        <div className="vf-alert tone-warn" style={{ marginTop: 12 }}>
+          <Icon name="ph-warning" size={18} style={{ flex: "none", marginTop: 1 }} />
+          <div className="vf-alert-text">
+            {noDecider && <div><strong>No step can approve.</strong> Vouchers on this route can never be approved.</div>}
+            {noPayer && <div><strong>No step can pay.</strong> Approved vouchers on this route can never be paid.</div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── the route, drawn ── */}
+      <ol className="vf-flow">
+        <li className="vf-flow-node vf-flow-start">
+          <span className="vf-flow-node-icon"><Icon name="ph-file-plus" size={16} /></span>
+          Voucher raised
+        </li>
+
+        {steps.map((step, index) => {
+          const request = index === 0;
+          const expanded = open === index;
+          const caps = CAPS.filter((c) => step[c.key]);
+          const assignee = step.assigned_user_id ? people.find((p) => p.id === step.assigned_user_id)?.name : null;
+          const threshold = step.min_amount != null || step.max_amount != null;
+
+          return (
+            <li key={step.id ?? `new-${index}`} className="vf-flow-step" data-open={expanded ? "true" : "false"}>
+              <div className="vf-flow-card">
+                <button type="button" className="vf-flow-card-head" onClick={() => setOpen(expanded ? null : index)} aria-expanded={expanded}>
+                  <span className="vf-flow-num">{index + 1}</span>
+                  <span className="vf-flow-card-text">
+                    <span className="vf-flow-card-name">{step.name}</span>
+                    <span className="vf-flow-card-sub">
+                      {request ? "Requester" : assignee ?? ROLE_OPTIONS.find((r) => r.value === step.role)?.label}
+                      {threshold && ` · ${step.min_amount != null ? `from ${Number(step.min_amount).toLocaleString()}` : ""}${step.min_amount != null && step.max_amount != null ? " " : ""}${step.max_amount != null ? `up to ${Number(step.max_amount).toLocaleString()}` : ""}`}
+                    </span>
+                  </span>
+                  <span className="vf-flow-caps">
+                    {caps.filter((c) => c.key !== "can_print" && c.key !== "can_download").map((c) => (
+                      <span key={c.key} className="vf-flow-cap" title={c.label}><Icon name={c.icon} size={14} /><span>{c.label}</span></span>
+                    ))}
+                  </span>
+                  <Icon name="ph-caret-down" size={16} style={{ color: "var(--color-neutral-500)", transform: expanded ? "rotate(180deg)" : "none", transition: "transform var(--dur) var(--ease-out)", flex: "none" }} />
+                </button>
+
+                {expanded && (
+                  <div className="vf-flow-card-body vf-rise">
+                    <div className="vf-form-row">
+                      <Field label="Step name" htmlFor={`step-name-${index}`}>
+                        <input id={`step-name-${index}`} className="input" value={step.name} onChange={(e) => patch(index, { name: e.target.value })} />
+                      </Field>
+                      <Field label="Role" htmlFor={`step-role-${index}`}>
+                        <select id={`step-role-${index}`} className="input" value={step.role} disabled={request}
+                          onChange={(e) => patch(index, { role: e.target.value as WorkflowStep["role"] })}>
+                          {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                        </select>
+                      </Field>
+                    </div>
+
+                    {!request && (
+                      <div className="vf-form-row">
+                        <Field label={t("whoActs")} htmlFor={`step-user-${index}`} hint="A named person overrides the role.">
+                          <select id={`step-user-${index}`} className="input" value={step.assigned_user_id ?? ""}
+                            onChange={(e) => patch(index, { assigned_user_id: e.target.value ? Number(e.target.value) : null })}>
+                            <option value="">Anyone with the {ROLE_OPTIONS.find((r) => r.value === step.role)?.label} role</option>
+                            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Applies from (amount)" htmlFor={`step-min-${index}`} hint={t("amountThresholds")}>
+                          <input id={`step-min-${index}`} className="input tnum" inputMode="decimal" value={step.min_amount ?? ""} placeholder="Any amount"
+                            onChange={(e) => patch(index, { min_amount: e.target.value ? Number(e.target.value) : null })} />
+                        </Field>
+                        <Field label="Applies up to (amount)" htmlFor={`step-max-${index}`}>
+                          <input id={`step-max-${index}`} className="input tnum" inputMode="decimal" value={step.max_amount ?? ""} placeholder="No ceiling"
+                            onChange={(e) => patch(index, { max_amount: e.target.value ? Number(e.target.value) : null })} />
+                        </Field>
+                      </div>
+                    )}
+
+                    <div className="field">
+                      <span className="vf-label">{t("permittedHere")}</span>
+                      <div className="vf-caps">
+                        {CAPS.map((cap) => {
+                          const on = Boolean(step[cap.key]);
+                          const locked = request && cap.key !== "can_print" && cap.key !== "can_download";
+                          return (
+                            <button key={cap.key} type="button" className="vf-cap" disabled={locked} aria-pressed={on}
+                              onClick={() => patch(index, { [cap.key]: !on } as Partial<WorkflowStep>)}>
+                              <Icon name={cap.icon} size={15} /> {cap.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {step.can_sign && step.can_approve && !request && (
+                        <label className="radio" style={{ marginTop: 10 }}>
+                          <input type="checkbox" checked={step.requires_signature}
+                            onChange={(e) => patch(index, { requires_signature: e.target.checked })} />
+                          <span className="dot" />
+                          Signature required before approving
+                        </label>
+                      )}
+                      {step.can_sign && !step.can_approve && !request && (
+                        <p className="field-hint">This step signs only. Its holder signs, then submits onward — the approve or reject decision belongs to a later step.</p>
+                      )}
+                      {step.can_request_changes && !request && (
+                        <p className="field-hint">Requesting changes returns the voucher to the requester to revise and resubmit.</p>
+                      )}
+                    </div>
+
+                    {!request && (
+                      <div className="vf-flow-card-tools">
+                        <button className="btn btn-ghost btn-sm" onClick={() => move(index, -1)} disabled={index <= 1}>
+                          <Icon name="ph-arrow-up" size={15} /> {t("moveEarlier")}
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => move(index, 1)} disabled={index >= steps.length - 1}>
+                          <Icon name="ph-arrow-down" size={15} /> {t("moveLater")}
+                        </button>
+                        <div style={{ flex: 1 }} />
+                        <button className="btn btn-ghost btn-sm vf-text-bad" onClick={() => removeStep(index)}>
+                          <Icon name="ph-trash" size={15} /> {t("removeStep")}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+
+        <li className="vf-flow-add">
+          <button className="btn btn-secondary btn-sm" onClick={addStep}>
+            <Icon name="ph-plus" size={15} /> {t("addStep")}
+          </button>
+        </li>
+
+        <li className="vf-flow-node vf-flow-end">
+          <span className="vf-flow-node-icon"><Icon name="ph-check" size={16} /></span>
+          {t("completed")}
+        </li>
+      </ol>
+
+      <div style={{ marginTop: 16 }}>
         <Note>{t("isolationNote").replace("this company", company?.name ?? "this company")}</Note>
       </div>
 
-      <div style={{ display: "grid", gap: "var(--space-3)" }}>
-        {steps.map((step, index) => (
-          <div key={step.id ?? `new-${index}`} style={{
-            border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: "var(--space-4)",
-            display: "grid", gap: "var(--space-3)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
-              <div style={{
-                width: 30, height: 30, flex: "none", display: "grid", placeItems: "center",
-                background: "var(--color-text)", color: "var(--color-bg)", borderRadius: "var(--radius-md)",
-                fontFamily: "var(--font-heading)", fontWeight: 600,
-              }}>{index + 1}</div>
-              <input className="input" value={step.name} onChange={(e) => patch(index, { name: e.target.value })}
-                style={{ maxWidth: 260 }} aria-label={`Step ${index + 1} name`} />
-              <select className="input" value={step.role} disabled={index === 0}
-                onChange={(e) => patch(index, { role: e.target.value as WorkflowStep["role"] })}
-                style={{ maxWidth: 180 }} aria-label={`Step ${index + 1} role`}>
-                {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-              <div style={{ flex: 1 }} />
-              <button className="btn btn-ghost btn-sm" onClick={() => move(index, -1)} disabled={index <= 1} title={t("moveEarlier")}>
-                <Icon name="ph-arrow-up" size={14} />
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => move(index, 1)} disabled={index === 0 || index >= steps.length - 1} title={t("moveLater")}>
-                <Icon name="ph-arrow-down" size={14} />
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => setSteps((l) => l.filter((_, i) => i !== index))}
-                disabled={index === 0} title={t("removeStep")} style={{ color: "var(--color-accent-2-700)" }}>
-                <Icon name="ph-trash" size={14} />
-              </button>
-            </div>
+      <Dialog
+        open={!!pendingSwitch}
+        icon="ph-warning"
+        tone="warn"
+        title="Discard unsaved changes?"
+        sub={`Your edits to ${current.name} have not been saved.`}
+        onClose={() => setPendingSwitch(null)}
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setPendingSwitch(null)}>Keep editing</button>
+            <button className="btn btn-danger-solid" onClick={() => { pick(pendingSwitch); setPendingSwitch(null); }}>Discard changes</button>
+          </>
+        }
+      />
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "var(--space-3)" }}>
-              <Field label={t("whoActs")} htmlFor={`step-user-${index}`}>
-                <select id={`step-user-${index}`} className="input" value={step.assigned_user_id ?? ""}
-                  onChange={(e) => patch(index, { assigned_user_id: e.target.value ? Number(e.target.value) : null })}>
-                  <option value="">By role ({ROLE_OPTIONS.find((r) => r.value === step.role)?.label})</option>
-                  {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Applies from" htmlFor={`step-min-${index}`} hint={t("amountThresholds")}>
-                <input id={`step-min-${index}`} className="input" inputMode="decimal" value={step.min_amount ?? ""}
-                  placeholder="Any amount"
-                  onChange={(e) => patch(index, { min_amount: e.target.value ? Number(e.target.value) : null })} />
-              </Field>
-              <Field label="Applies up to" htmlFor={`step-max-${index}`}>
-                <input id={`step-max-${index}`} className="input" inputMode="decimal" value={step.max_amount ?? ""}
-                  placeholder="No ceiling"
-                  onChange={(e) => patch(index, { max_amount: e.target.value ? Number(e.target.value) : null })} />
-              </Field>
-            </div>
-
-            <div>
-              <div style={{ fontSize: 12, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: 8 }}>
-                {t("permittedHere")}
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {CAPS.map((cap) => {
-                  const on = Boolean(step[cap.key]);
-                  const locked = index === 0 && cap.key !== "can_print";
-                  return (
-                    <button key={String(cap.key)} type="button" disabled={locked}
-                      onClick={() => patch(index, { [cap.key]: !on } as Partial<WorkflowStep>)}
-                      aria-pressed={on}
-                      style={{
-                        display: "inline-flex", alignItems: "center", gap: 6, cursor: locked ? "not-allowed" : "pointer",
-                        border: `1px solid ${on ? "var(--color-accent-500)" : "var(--color-neutral-300)"}`,
-                        background: on ? "var(--color-accent-100)" : "transparent",
-                        color: on ? "var(--color-accent-800)" : "var(--color-neutral-600)",
-                        borderRadius: "var(--radius-md)", padding: "6px 11px", fontSize: 13.5,
-                        fontFamily: "var(--font-body)", opacity: locked ? .5 : 1,
-                      }}>
-                      <Icon name={on ? "ph-check-circle" : "ph-circle"} size={15} />
-                      {cap.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {step.can_sign && !step.can_approve && index > 0 && (
-                <div style={{ fontSize: 13, color: "var(--color-neutral-700)", marginTop: 8, borderLeft: "2px solid var(--color-accent-300)", paddingLeft: 10 }}>
-                  This step signs only. After signing, its holder submits the voucher onward — the approve or reject decision belongs to a later step.
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <button className="btn btn-secondary" onClick={addStep} style={{ marginTop: "var(--space-3)" }}>
-        <Icon name="ph-plus" size={15} /> {t("addStep")}
-      </button>
-
-      <Dialog open={presetDialog} title={t("presets")} onClose={() => setPresetDialog(false)}>
-        <div style={{ display: "grid", gap: "var(--space-2)" }}>
-          {presets.map((preset) => (
-            <button key={preset.key} onClick={() => applyPreset(preset.key)} disabled={busy}
-              style={{
-                textAlign: "left", cursor: "pointer", border: "1px solid var(--color-divider)",
-                borderRadius: "var(--radius-md)", padding: "var(--space-3)", background: "transparent",
-                fontFamily: "var(--font-body)", color: "var(--color-text)",
-              }}>
-              <div style={{ fontWeight: 600 }}>{preset.name}</div>
-              <div style={{ fontSize: 13.5, color: "var(--color-neutral-700)" }}>{preset.description}</div>
+      {/* Presets replace the company's default route, so choosing one is not the same as applying it. */}
+      <Dialog
+        open={presetDialog}
+        icon="ph-magic-wand"
+        title={t("presets")}
+        sub="Applying a preset replaces the current default route. Vouchers already in flight keep the route they started on."
+        onClose={() => { setPresetDialog(false); setChosenPreset(null); }}
+        busy={busy}
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => { setPresetDialog(false); setChosenPreset(null); }} disabled={busy}>{t("cancel")}</button>
+            <button className="btn btn-primary" disabled={busy || !chosenPreset} onClick={() => chosenPreset && applyPreset(chosenPreset)}>
+              {busy ? <Spinner /> : "Apply preset"}
             </button>
+          </>
+        }
+      >
+        <div className="vf-stack" style={{ gap: 8 }}>
+          {presets.map((preset) => (
+            <Choice key={preset.key} selected={chosenPreset === preset.key} onSelect={() => setChosenPreset(preset.key)}
+              icon="ph-flow-arrow" label={preset.name} sub={preset.description} />
           ))}
-        </div>
-        <div style={{ fontSize: 13, color: "var(--color-neutral-600)", marginTop: "var(--space-2)" }}>
-          Applying a preset replaces the current default route. Vouchers already in flight keep the route they started on.
         </div>
       </Dialog>
     </div>

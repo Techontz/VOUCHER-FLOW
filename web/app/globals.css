@@ -1,6 +1,5 @@
-/* Base structural classes, then the VouchFlow v2 skin on top — the same
-   layering the design uses. */
-@import "../styles/broadsheet.css";
+/* The design system. One file now — the structural base and the skin that
+   used to be layered over it defined the same components twice. */
 @import "../styles/vouchflow.css";
 
 /* ── Print ────────────────────────────────────────────────────────────────
@@ -57,56 +56,57 @@
 }
 
 /* ── App shell ────────────────────────────────────────────────────────────
-   The sidebar collapses into a drawer and the bottom tab bar takes over at the
-   same breakpoint. */
-.vf-shell { display: flex; min-height: 100vh; }
+   Solid surfaces throughout. The topbar and tab bar used to be translucent and
+   blurred, which let a scrolling page show through them on a phone. */
+.vf-shell { display: flex; min-height: 100vh; min-height: 100dvh; }
 
 .vf-sidebar {
-  width: 258px; flex: 0 0 258px;
+  width: 256px; flex: 0 0 256px;
   border-right: 1px solid var(--vf-line);
   background: var(--vf-elev-1);
-  padding: 16px 12px; display: flex; flex-direction: column; gap: 4px;
-  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  padding: 14px 12px; display: flex; flex-direction: column; gap: 2px;
+  position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto;
 }
 
 .vf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 .vf-topbar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 24px; border-bottom: 1px solid var(--vf-line);
+  display: flex; align-items: center; gap: 8px;
+  height: 60px; padding: 0 24px; border-bottom: 1px solid var(--vf-line);
   position: sticky; top: 0; z-index: 20;
-  background: var(--vf-glass);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  background: var(--vf-elev-1);
 }
 
-.vf-content { flex: 1; padding: 28px 24px 40px; min-width: 0; }
+.vf-content { flex: 1; width: 100%; max-width: 1280px; margin: 0 auto; padding: 28px 28px 48px; min-width: 0; }
 
 .vf-navitem {
+  position: relative;
   display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
-  border: 1px solid transparent; border-radius: 10px; cursor: pointer;
-  font-family: var(--font-body); font-size: 14.5px; font-weight: 400;
-  padding: 9px 11px; background: transparent; color: var(--color-neutral-700);
-  text-decoration: none; transition: background .16s ease, color .16s ease, border-color .16s ease;
+  height: 38px; padding: 0 10px; border: 0; border-radius: 9px; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--text-base); font-weight: 500;
+  background: transparent; color: var(--color-neutral-700);
+  text-decoration: none; transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
-.vf-navitem i { font-size: 18px; color: var(--color-neutral-500); transition: color .16s ease; }
-.vf-navitem:hover { background: var(--vf-elev-2); color: var(--color-text); text-decoration: none; }
+.vf-navitem i { font-size: 19px; color: var(--color-neutral-500); transition: color var(--dur-fast) ease; }
+.vf-navitem:hover { background: var(--vf-elev-3); color: var(--color-text); text-decoration: none; }
 .vf-navitem:hover i { color: var(--color-neutral-700); }
-.vf-navitem[aria-current="page"] {
-  background: var(--vf-elev-3); color: var(--color-text); font-weight: 500;
-  border-color: var(--vf-line);
-}
-.vf-navitem[aria-current="page"] i { color: var(--color-accent-600); }
+.vf-navitem:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.vf-navitem[aria-current="page"] { background: var(--color-accent-100); color: var(--color-accent-700); }
+.vf-navitem[aria-current="page"] i { color: var(--color-accent-500); }
+[data-theme="dark"] .vf-navitem[aria-current="page"] { color: var(--color-accent-800); }
 
+/* A count, not an alarm. Only work waiting on you gets the accent. */
 .vf-navbadge {
-  font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums;
-  background: color-mix(in srgb, var(--vf-warn) 18%, transparent);
-  color: var(--vf-warn); border-radius: 7px; padding: 1px 7px;
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  display: inline-grid; place-items: center;
+  font-size: var(--text-xs); font-weight: 600; font-variant-numeric: tabular-nums;
+  background: var(--color-accent-500); color: #fff;
 }
-.vf-navbadge-quiet { background: var(--vf-elev-3); color: var(--color-neutral-600); }
+.vf-navbadge-quiet { background: var(--vf-elev-3); color: var(--color-neutral-700); }
 
 .vf-sectionlabel {
-  font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--color-neutral-500); padding: 14px 11px 6px;
+  font-size: var(--text-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--color-neutral-500); padding: 16px 10px 6px;
 }
 
 .vf-tabbar { display: none; }
@@ -115,37 +115,39 @@
 
 @media (max-width: 980px) {
   .vf-sidebar {
-    position: fixed; inset: 0 auto 0 0; z-index: 60; width: 274px; flex-basis: 274px;
+    position: fixed; inset: 0 auto 0 0; z-index: 60; width: 284px; flex-basis: 284px;
     box-shadow: var(--shadow-lg); transform: translateX(-100%);
-    transition: transform .2s ease, visibility .2s;
+    transition: transform var(--dur-slow) var(--ease-out), visibility var(--dur-slow);
     visibility: hidden;   /* an off-screen drawer must leave the tab order too */
   }
   .vf-sidebar[data-open="true"] { transform: none; visibility: visible; }
   .vf-scrim {
     display: block; position: fixed; inset: 0; z-index: 55; border: 0;
-    background: rgba(3, 6, 14, .6); backdrop-filter: blur(3px);
+    background: var(--vf-overlay); animation: vf-fade var(--dur) ease-out;
   }
   .vf-menu-btn { display: inline-flex; }
-  .vf-topbar { padding: 10px 14px; }
-  .vf-content { padding: 18px 14px 96px; }
+  .vf-topbar { height: 56px; padding: 0 10px 0 6px; }
+  /* Clears the tab bar, and the action bar above it where a page has one. */
+  .vf-content { padding: 18px 16px calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .vf-content:has(.vf-actionbar) { padding-bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
   .vf-topbar-extras { display: none; }
 
   .vf-tabbar {
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-    background: var(--vf-glass); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-    border-top: 1px solid var(--vf-line);
-    padding: 7px 4px calc(7px + env(safe-area-inset-bottom, 0px));
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 6px env(safe-area-inset-bottom, 0px);
+    background: var(--vf-elev-1); border-top: 1px solid var(--vf-line);
   }
   .vf-tabbar a {
-    flex: 1 1 0; min-width: 0;
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    font-size: 10.5px; font-weight: 500; padding: 4px 2px;
-    color: var(--color-neutral-600); text-decoration: none; border-radius: 10px;
-    /* One line only — the bar has five slots and no room to wrap. */
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    text-align: center;
+    flex: 1 1 0; min-width: 0; position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    font-size: 11px; font-weight: 500; padding: 4px 2px;
+    color: var(--color-neutral-600); text-decoration: none; border-radius: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
+    transition: color var(--dur-fast) ease;
   }
-  .vf-tabbar a[aria-current="page"] { color: var(--color-accent-600); }
+  .vf-tabbar a i { font-size: 22px; }
+  .vf-tabbar a[aria-current="page"] { color: var(--color-accent-500); font-weight: 600; }
   .vf-tabbar a:hover { text-decoration: none; }
 }
 
@@ -162,11 +164,12 @@
 
 .table-wrap {
   width: 100%; overflow-x: auto;
-  border: 1px solid var(--vf-line); border-radius: 14px; background: var(--vf-elev-1);
+  border: 1px solid var(--vf-line); border-radius: var(--radius-lg); background: var(--vf-elev-1);
+  box-shadow: var(--shadow-sm);
 }
 /* Inside a panel the surface is already drawn — no second frame. */
 .vf-panel > .table-wrap,
-.vf-panel .vf-panel-pad > .table-wrap { border: 0; border-radius: 0; background: transparent; }
+.vf-panel .vf-panel-pad > .table-wrap { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 
 .table-wrap .table thead th { padding-top: 14px; }
 .table-wrap .table thead th:first-child,
@@ -199,14 +202,14 @@
 .vf-document-frame {
   border-radius: 10px;
   padding: 14px;
-  background: linear-gradient(180deg, var(--vf-elev-2), var(--vf-elev-1));
+  background: var(--vf-elev-2);
   border: 1px solid var(--vf-line);
   overflow: hidden;
 }
 .vf-document-frame .vf-sheet {
   /* Fit the sheet to the column without reflowing the print geometry. */
   transform-origin: top left;
-  box-shadow: 0 18px 44px -22px rgba(0, 0, 0, .75);
+  box-shadow: var(--shadow-md);
 }
 
 @media print {

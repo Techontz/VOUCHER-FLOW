@@ -91,18 +91,12 @@ export function SignaturePad({
   ];
 
   return (
-    <div>
-      <div className="seg" style={{ marginBottom: "var(--space-2)" }} role="tablist">
+    <div className="vf-sigpad">
+      <div className="seg" role="tablist" aria-label="Signature method">
         {tabs.map((tab) => (
           <button
             key={tab.key} type="button" role="tab" aria-selected={mode === tab.key} disabled={tab.disabled}
             onClick={() => { setMode(tab.key); if (tab.key !== "draw") dirty.current = false; }}
-            style={{
-              border: 0, padding: "7px 12px", fontSize: 13, cursor: tab.disabled ? "not-allowed" : "pointer",
-              fontFamily: "var(--font-body)", opacity: tab.disabled ? .45 : 1,
-              background: mode === tab.key ? "var(--color-text)" : "transparent",
-              color: mode === tab.key ? "var(--color-bg)" : "var(--color-text)",
-            }}
           >
             {tab.label}
           </button>
@@ -114,10 +108,7 @@ export function SignaturePad({
           <canvas
             ref={canvasRef}
             aria-label={t("signWithFinger")}
-            style={{
-              width: "100%", height: 150, background: "#fff", touchAction: "none",
-              border: "1px solid var(--color-neutral-400)", borderRadius: "var(--radius-md)", cursor: "crosshair",
-            }}
+            className="vf-sigpad-canvas"
             onPointerDown={(e) => {
               prepare();
               drawing.current = true;
@@ -138,8 +129,8 @@ export function SignaturePad({
             onPointerUp={() => { drawing.current = false; commit(); }}
             onPointerLeave={() => { if (drawing.current) { drawing.current = false; commit(); } }}
           />
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: 6 }}>
-            <span style={{ fontSize: 12.5, color: "var(--color-neutral-600)", flex: 1 }}>{t("signWithFinger")}</span>
+          <div className="vf-sigpad-foot">
+            <span>{t("signWithFinger")}</span>
             <button type="button" className="btn btn-ghost btn-sm" onClick={clear}>
               <Icon name="ph-eraser" size={14} /> {t("clearSignature")}
             </button>
@@ -159,14 +150,14 @@ export function SignaturePad({
               reader.readAsDataURL(file);
             }}
           />
-          {value && <img src={value} alt="Signature preview" style={{ marginTop: 10, maxHeight: 120, background: "#fff", border: "1px solid var(--color-divider)" }} />}
+          {value && <div className="vf-sigpad-preview"><img src={value} alt="Signature preview" /></div>}
         </div>
       )}
 
       {mode === "saved" && (
         hasSaved && savedSignature
-          ? <img src={savedSignature} alt="Saved signature" style={{ maxHeight: 130, background: "#fff", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: 6 }} />
-          : <div style={{ fontSize: 14, color: "var(--color-neutral-700)" }}>No saved signature yet — draw one and tick &ldquo;save for next time&rdquo;.</div>
+          ? <div className="vf-sigpad-preview"><img src={savedSignature} alt="Your saved signature" /></div>
+          : <div className="vf-sigpad-empty">No saved signature yet — draw one and tick &ldquo;save for next time&rdquo;.</div>
       )}
     </div>
   );
