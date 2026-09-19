@@ -20,15 +20,15 @@ export const viewport: Viewport = {
 
 /**
  * Applied before the first paint, so a returning visitor who chose dark never
- * sees a light frame flash first (and vice versa). Light is the default when
+ * sees a light frame flash first (and vice versa). Dark is the default when
  * nothing has been stored — the operating system's preference is deliberately
- * not consulted.
+ * not consulted. The company's colour theme is restored the same way.
  */
-const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem("vouchflow.theme");document.documentElement.dataset.theme=(t==="light"||t==="dark")?t:"light";}catch(e){document.documentElement.dataset.theme="light";}})();`;
+const THEME_BOOTSTRAP = `(function(){var d=document.documentElement;try{var t=localStorage.getItem("vouchflow.theme");d.dataset.theme=(t==="light"||t==="dark")?t:"dark";var a=localStorage.getItem("vouchflow.accent");if(/^(blue|emerald|violet|rose)$/.test(a||""))d.dataset.accent=a;}catch(e){d.dataset.theme="dark";}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="light" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />

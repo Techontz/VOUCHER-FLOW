@@ -31,7 +31,8 @@ class MockApi {
 
   /* The demo tenant. Every field here is one a company fills in under
      Branding — none of it is special-cased anywhere in the app. */
-  static const _company = {
+  // Mutable, so the branding screen's saves show up in the fixture.
+  static final Map<String, dynamic> _company = {
     'id': 1,
     'name': 'Watercom (T) Limited',
     'slug': 'watercom',
@@ -101,7 +102,37 @@ class MockApi {
       throw ApiException(401, 'Your session has ended. Sign in again.');
     }
 
+    // The company's own profile. Artwork is a file, which the fixture cannot
+    // keep (upload() refuses in mock mode); removal is honoured.
+    if (path.startsWith('/company/logo') && method == 'DELETE') {
+      final slot = Uri.parse(path).queryParameters['slot'];
+      _company[slot == 'logo_mark' ? 'logo_mark_url' : 'logo_url'] = null;
+      return {'data': _company};
+    }
+
     switch (path) {
+      case '/company':
+        if (method == 'PUT') {
+          const editable = [
+            'name',
+            'legal_name',
+            'email',
+            'phone',
+            'address',
+            'website',
+            'tin',
+            'color_theme',
+            'voucher_footer_text',
+            'bank_name',
+            'bank_branch',
+            'bank_account_name',
+            'bank_account_number',
+          ];
+          for (final key in editable) {
+            if (body.containsKey(key)) _company[key] = body[key];
+          }
+        }
+        return {'data': _company};
       case '/auth/me':
         return {'user': _userJson(_current!), 'company': _company};
       case '/auth/logout':
@@ -297,34 +328,36 @@ class MockApi {
       orElse: () => _types.first,
     );
     final id = _nextVoucherId++;
-    final voucher = MockVoucher(
-      id: id,
-      companyId: _current!.companyId ?? 1,
-      number: _takeNumber(type),
-      kind: body['kind'] == 'cash' ? 'cash' : 'bank',
-      voucherTypeId: type.id,
-      departmentId:
-          int.tryParse('${body['department_id']}') ?? _current!.departmentId,
-      requesterId: _current!.id,
-      payee: '${body['payee'] ?? ''}',
-      purpose: '${body['purpose'] ?? ''}',
-      description: body['description'] as String?,
-      amount: double.tryParse('${body['amount'] ?? 0}') ?? 0,
-      paymentMethod: body['payment_method'] as String?,
-      category: body['category'] as String?,
-      accountRef: body['account_ref'] as String?,
-      voucherDate:
-          '${body['voucher_date'] ?? DateTime.now().toIso8601String().substring(0, 10)}',
-      status: 'draft',
-      currentStepPosition: null,
-      createdAt: DateTime.now().toIso8601String(),
-      notesToApprover: body['notes_to_approver'] as String?,
-    )
-      ..payeeBank = body['payee_bank'] as String?
-      ..payeeAccountName = body['payee_account_name'] as String?
-      ..payeeAccountNumber = body['payee_account_number'] as String?
-      ..payeeBankBranch = body['payee_bank_branch'] as String?
-      ..cashFloat = body['cash_float'] as String?;
+    final voucher =
+        MockVoucher(
+            id: id,
+            companyId: _current!.companyId ?? 1,
+            number: _takeNumber(type),
+            kind: body['kind'] == 'cash' ? 'cash' : 'bank',
+            voucherTypeId: type.id,
+            departmentId:
+                int.tryParse('${body['department_id']}') ??
+                _current!.departmentId,
+            requesterId: _current!.id,
+            payee: '${body['payee'] ?? ''}',
+            purpose: '${body['purpose'] ?? ''}',
+            description: body['description'] as String?,
+            amount: double.tryParse('${body['amount'] ?? 0}') ?? 0,
+            paymentMethod: body['payment_method'] as String?,
+            category: body['category'] as String?,
+            accountRef: body['account_ref'] as String?,
+            voucherDate:
+                '${body['voucher_date'] ?? DateTime.now().toIso8601String().substring(0, 10)}',
+            status: 'draft',
+            currentStepPosition: null,
+            createdAt: DateTime.now().toIso8601String(),
+            notesToApprover: body['notes_to_approver'] as String?,
+          )
+          ..payeeBank = body['payee_bank'] as String?
+          ..payeeAccountName = body['payee_account_name'] as String?
+          ..payeeAccountNumber = body['payee_account_number'] as String?
+          ..payeeBankBranch = body['payee_bank_branch'] as String?
+          ..cashFloat = body['cash_float'] as String?;
     _vouchers.insert(0, voucher);
     _log(voucher, 'created', null);
 
@@ -689,9 +722,11 @@ class MockApi {
   /// Open vouchers that have not moved in a while — the administrator's queue.
   List<MockVoucher> _stalled([int thresholdDays = 3]) {
     final rows = _visible()
-        .where((v) =>
-            (v.status == 'in_review' || v.status == 'approved') &&
-            _idleDays(v) >= thresholdDays)
+        .where(
+          (v) =>
+              (v.status == 'in_review' || v.status == 'approved') &&
+              _idleDays(v) >= thresholdDays,
+        )
         .toList();
     rows.sort((a, b) => _idleDays(b).compareTo(_idleDays(a)));
     return rows;
@@ -712,10 +747,12 @@ class MockApi {
 
     if (me.role == 'employee') {
       final mine = _vouchers
-          .where((v) =>
-              v.companyId == me.companyId &&
-              v.requesterId == me.id &&
-              (v.status == 'draft' || v.status == 'changes_requested'))
+          .where(
+            (v) =>
+                v.companyId == me.companyId &&
+                v.requesterId == me.id &&
+                (v.status == 'draft' || v.status == 'changes_requested'),
+          )
           .toList();
       mine.sort((a, b) => b.voucherDate.compareTo(a.voucherDate));
       return mine;
@@ -724,15 +761,14 @@ class MockApi {
     if (me.role == 'company_admin') return _stalled();
 
     final queue = _pending();
-    final mine = _vouchers.where((v) =>
-        v.companyId == me.companyId &&
-        v.requesterId == me.id &&
-        (v.status == 'draft' || v.status == 'changes_requested'));
+    final mine = _vouchers.where(
+      (v) =>
+          v.companyId == me.companyId &&
+          v.requesterId == me.id &&
+          (v.status == 'draft' || v.status == 'changes_requested'),
+    );
 
-    return [
-      ...queue,
-      ...mine.where((m) => !queue.any((q) => q.id == m.id)),
-    ];
+    return [...queue, ...mine.where((m) => !queue.any((q) => q.id == m.id))];
   }
 
   /* ═══════════════════════════════════════════════════ presentation ══ */
@@ -1197,8 +1233,12 @@ class MockApi {
       String? trend,
       bool? up,
     ]) => {
-      'label': label, 'value': value, 'sub': sub,
-      'icon': icon, 'trend': trend, 'up': up,
+      'label': label,
+      'value': value,
+      'sub': sub,
+      'icon': icon,
+      'trend': trend,
+      'up': up,
     };
 
     String plural(int n) => '$n ${n == 1 ? 'voucher' : 'vouchers'}';
@@ -1208,10 +1248,12 @@ class MockApi {
     List<MockVoucher> paidThisMonth() {
       final from = DateTime(DateTime.now().year, DateTime.now().month);
       return visible
-          .where((v) =>
-              v.status == 'paid' &&
-              v.paidAt != null &&
-              DateTime.parse(v.paidAt!).isAfter(from))
+          .where(
+            (v) =>
+                v.status == 'paid' &&
+                v.paidAt != null &&
+                DateTime.parse(v.paidAt!).isAfter(from),
+          )
           .toList();
     }
 
@@ -1228,15 +1270,37 @@ class MockApi {
       return {
         ...base,
         'data': {
-          'headline': queue.isEmpty ? 'Nothing to pay' : '${plural(queue.length)} to pay',
+          'headline': queue.isEmpty
+              ? 'Nothing to pay'
+              : '${plural(queue.length)} to pay',
           'sub': queue.isEmpty
               ? 'Every approved voucher has been released. New ones arrive the moment they are approved.'
               : 'Each one is approved and cleared for release. Paying it closes the voucher.',
           'stats': [
-            stat('Awaiting release', '${queue.length}', _money(total(queue)), 'hourglass'),
-            stat('Cash', _compact(total(cash)), '${plural(cash.length)} from a float', 'money'),
-            stat('Bank transfers', _compact(total(bank)), '${plural(bank.length)} to an account', 'bank'),
-            stat('Released this month', _compact(total(paidThisMonth())), '${paidThisMonth().length} settled', 'check'),
+            stat(
+              'Awaiting release',
+              '${queue.length}',
+              _money(total(queue)),
+              'hourglass',
+            ),
+            stat(
+              'Cash',
+              _compact(total(cash)),
+              '${plural(cash.length)} from a float',
+              'money',
+            ),
+            stat(
+              'Bank transfers',
+              _compact(total(bank)),
+              '${plural(bank.length)} to an account',
+              'bank',
+            ),
+            stat(
+              'Released this month',
+              _compact(total(paidThisMonth())),
+              '${paidThisMonth().length} settled',
+              'check',
+            ),
           ],
         },
       };
@@ -1258,9 +1322,24 @@ class MockApi {
               : 'Finish these and they move on for review.',
           'stats': [
             stat('On you', '${queue.length}', 'drafts and returns', 'receipt'),
-            stat('With an approver', '${withOthers.length}', _compact(total(withOthers)), 'hourglass'),
-            stat('Paid', '${settled.length}', _compact(total(settled)), 'check'),
-            stat('Raised this year', '${visible.length}', _compact(total(visible)), 'coins'),
+            stat(
+              'With an approver',
+              '${withOthers.length}',
+              _compact(total(withOthers)),
+              'hourglass',
+            ),
+            stat(
+              'Paid',
+              '${settled.length}',
+              _compact(total(settled)),
+              'check',
+            ),
+            stat(
+              'Raised this year',
+              '${visible.length}',
+              _compact(total(visible)),
+              'coins',
+            ),
           ],
         },
       };
@@ -1279,10 +1358,24 @@ class MockApi {
               : 'These have not moved in three days or more.',
           'stats': [
             stat('Stalled', '${queue.length}', 'three days or more', 'undo'),
-            stat('In the workflow', '${open.length}', _compact(total(open)), 'hourglass'),
-            stat('Paid this month', '${settled.length}', _compact(total(settled)), 'check'),
-            stat('People', '${_users.where((u) => u.companyId == me.companyId).length}',
-                '${_departments.where((d) => d.companyId == me.companyId).length} departments', 'receipt'),
+            stat(
+              'In the workflow',
+              '${open.length}',
+              _compact(total(open)),
+              'hourglass',
+            ),
+            stat(
+              'Paid this month',
+              '${settled.length}',
+              _compact(total(settled)),
+              'check',
+            ),
+            stat(
+              'People',
+              '${_users.where((u) => u.companyId == me.companyId).length}',
+              '${_departments.where((d) => d.companyId == me.companyId).length} departments',
+              'receipt',
+            ),
           ],
         },
       };
@@ -1291,21 +1384,26 @@ class MockApi {
     /* Approvers. Whether this person signs or decides is a property of the
        steps they hold, not of whatever is in the queue right now — otherwise
        the wording flips the moment they clear it. */
-    final mySteps = _steps.where((s) =>
-        s.assignedUserId == me.id ||
-        (s.assignedUserId == null && s.role == me.role));
-    final signOnly =
-        mySteps.isNotEmpty && mySteps.every((s) => !s.canApprove);
+    final mySteps = _steps.where(
+      (s) =>
+          s.assignedUserId == me.id ||
+          (s.assignedUserId == null && s.role == me.role),
+    );
+    final signOnly = mySteps.isNotEmpty && mySteps.every((s) => !s.canApprove);
 
     final acted = _approvals
-        .where((a) =>
-            a.actorId == me.id &&
-            const ['signed', 'approved', 'paid'].contains(a.action))
+        .where(
+          (a) =>
+              a.actorId == me.id &&
+              const ['signed', 'approved', 'paid'].contains(a.action),
+        )
         .length;
     final returned = _approvals
-        .where((a) =>
-            a.actorId == me.id &&
-            const ['rejected', 'changes_requested'].contains(a.action))
+        .where(
+          (a) =>
+              a.actorId == me.id &&
+              const ['rejected', 'changes_requested'].contains(a.action),
+        )
         .length;
 
     return {
@@ -1317,11 +1415,21 @@ class MockApi {
         'sub': queue.isEmpty
             ? 'Your work is clear. Past decisions are in Reports.'
             : (signOnly
-                ? 'Your step signs and passes the voucher on — the approval decision belongs to a later step.'
-                : 'Each one has reached your step. Acting on it moves it to whoever is next.'),
+                  ? 'Your step signs and passes the voucher on — the approval decision belongs to a later step.'
+                  : 'Each one has reached your step. Acting on it moves it to whoever is next.'),
         'stats': [
-          stat('Awaiting you', '${queue.length}', _money(total(queue)), 'hourglass'),
-          stat('In the workflow', '${open.length}', _compact(total(open)), 'receipt'),
+          stat(
+            'Awaiting you',
+            '${queue.length}',
+            _money(total(queue)),
+            'hourglass',
+          ),
+          stat(
+            'In the workflow',
+            '${open.length}',
+            _compact(total(open)),
+            'receipt',
+          ),
           stat('Actioned', '$acted', 'signed or approved', 'signature'),
           stat('Returned', '$returned', 'rejected or sent back', 'undo'),
         ],
@@ -1494,17 +1602,122 @@ class MockApi {
     ]);
 
     _users.addAll([
-      MockUser(id: 2, companyId: 1, name: 'Neema Shirima', email: 'admin@watercom.test', role: 'company_admin', jobTitle: 'Company Administrator', employeeCode: 'WC-0087', departmentId: 5),
-      MockUser(id: 3, companyId: 1, name: 'Frank Kessy', email: 'frank@watercom.test', role: 'employee', jobTitle: 'Procurement Officer', employeeCode: 'WC-0114', departmentId: 2),
-      MockUser(id: 4, companyId: 1, name: 'Rehema Kilonzo', email: 'rehema@watercom.test', role: 'hod', jobTitle: 'Head of Finance', employeeCode: 'WC-0032', departmentId: 1, signature: sampleSignature),
-      MockUser(id: 5, companyId: 1, name: 'Emmanuel Massawe', email: 'emmanuel@watercom.test', role: 'ceo', jobTitle: 'Managing Director', employeeCode: 'WC-0008', departmentId: 1, signature: sampleSignature),
-      MockUser(id: 6, companyId: 1, name: 'Mwajuma Hamisi', email: 'mwajuma@watercom.test', role: 'cashier', jobTitle: 'Cashier · Finance', employeeCode: 'WC-0056', departmentId: 1, signature: sampleSignature),
-      MockUser(id: 7, companyId: 1, name: 'Baraka Ndosi', email: 'baraka@watercom.test', role: 'employee', jobTitle: 'Transport Supervisor', employeeCode: 'WC-0129', departmentId: 4),
-      MockUser(id: 8, companyId: 1, name: 'Gloria Mtei', email: 'gloria@watercom.test', role: 'employee', jobTitle: 'Quality Assurance Officer', employeeCode: 'WC-0141', departmentId: 7),
-      MockUser(id: 9, companyId: 1, name: 'Joseph Mrisho', email: 'joseph@watercom.test', role: 'hod', jobTitle: 'Head of Procurement', employeeCode: 'WC-0021', departmentId: 2, signature: sampleSignature),
-      MockUser(id: 12, companyId: 1, name: 'Salum Bakari', email: 'salum@watercom.test', role: 'hod', jobTitle: 'Transport Manager', employeeCode: 'WC-0044', departmentId: 4, signature: sampleSignature),
-      MockUser(id: 13, companyId: 1, name: 'Anna Lyimo', email: 'anna@watercom.test', role: 'hod', jobTitle: 'Head of Human Resources', employeeCode: 'WC-0061', departmentId: 5, signature: sampleSignature),
-      MockUser(id: 14, companyId: 1, name: 'Doreen Massawe', email: 'doreen@watercom.test', role: 'employee', jobTitle: 'Human Resources Officer', employeeCode: 'WC-0152', departmentId: 5),
+      MockUser(
+        id: 2,
+        companyId: 1,
+        name: 'Neema Shirima',
+        email: 'admin@watercom.test',
+        role: 'company_admin',
+        jobTitle: 'Company Administrator',
+        employeeCode: 'WC-0087',
+        departmentId: 5,
+      ),
+      MockUser(
+        id: 3,
+        companyId: 1,
+        name: 'Frank Kessy',
+        email: 'frank@watercom.test',
+        role: 'employee',
+        jobTitle: 'Procurement Officer',
+        employeeCode: 'WC-0114',
+        departmentId: 2,
+      ),
+      MockUser(
+        id: 4,
+        companyId: 1,
+        name: 'Rehema Kilonzo',
+        email: 'rehema@watercom.test',
+        role: 'hod',
+        jobTitle: 'Head of Finance',
+        employeeCode: 'WC-0032',
+        departmentId: 1,
+        signature: sampleSignature,
+      ),
+      MockUser(
+        id: 5,
+        companyId: 1,
+        name: 'Emmanuel Massawe',
+        email: 'emmanuel@watercom.test',
+        role: 'ceo',
+        jobTitle: 'Managing Director',
+        employeeCode: 'WC-0008',
+        departmentId: 1,
+        signature: sampleSignature,
+      ),
+      MockUser(
+        id: 6,
+        companyId: 1,
+        name: 'Mwajuma Hamisi',
+        email: 'mwajuma@watercom.test',
+        role: 'cashier',
+        jobTitle: 'Cashier · Finance',
+        employeeCode: 'WC-0056',
+        departmentId: 1,
+        signature: sampleSignature,
+      ),
+      MockUser(
+        id: 7,
+        companyId: 1,
+        name: 'Baraka Ndosi',
+        email: 'baraka@watercom.test',
+        role: 'employee',
+        jobTitle: 'Transport Supervisor',
+        employeeCode: 'WC-0129',
+        departmentId: 4,
+      ),
+      MockUser(
+        id: 8,
+        companyId: 1,
+        name: 'Gloria Mtei',
+        email: 'gloria@watercom.test',
+        role: 'employee',
+        jobTitle: 'Quality Assurance Officer',
+        employeeCode: 'WC-0141',
+        departmentId: 7,
+      ),
+      MockUser(
+        id: 9,
+        companyId: 1,
+        name: 'Joseph Mrisho',
+        email: 'joseph@watercom.test',
+        role: 'hod',
+        jobTitle: 'Head of Procurement',
+        employeeCode: 'WC-0021',
+        departmentId: 2,
+        signature: sampleSignature,
+      ),
+      MockUser(
+        id: 12,
+        companyId: 1,
+        name: 'Salum Bakari',
+        email: 'salum@watercom.test',
+        role: 'hod',
+        jobTitle: 'Transport Manager',
+        employeeCode: 'WC-0044',
+        departmentId: 4,
+        signature: sampleSignature,
+      ),
+      MockUser(
+        id: 13,
+        companyId: 1,
+        name: 'Anna Lyimo',
+        email: 'anna@watercom.test',
+        role: 'hod',
+        jobTitle: 'Head of Human Resources',
+        employeeCode: 'WC-0061',
+        departmentId: 5,
+        signature: sampleSignature,
+      ),
+      MockUser(
+        id: 14,
+        companyId: 1,
+        name: 'Doreen Massawe',
+        email: 'doreen@watercom.test',
+        role: 'employee',
+        jobTitle: 'Human Resources Officer',
+        employeeCode: 'WC-0152',
+        departmentId: 5,
+      ),
     ]);
 
     _types.addAll([
@@ -1533,13 +1746,26 @@ class MockApi {
 
     // ── awaiting the Procurement head ──
     _addVoucher(
-      number: 'PV-2026-001248', kind: 'bank', typeId: 101, dept: 2, requester: 3,
-      payee: 'Kibo Preforms Limited', purpose: 'PET preforms — Afiya 500 ml line',
-      description: '420,000 × 24.5 g preforms for the Afiya still-water line, against framework contract WC/PR/2026/04.',
-      amount: 18400000, method: 'Bank Transfer', category: 'Raw materials',
-      ref: 'INV-KP-88213', daysAgo: 2, status: 'in_review', step: 2,
-      bank: 'NMB Bank', accountName: 'Kibo Preforms Limited',
-      accountNumber: '40910022317', bankBranch: 'Ubungo Branch',
+      number: 'PV-2026-001248',
+      kind: 'bank',
+      typeId: 101,
+      dept: 2,
+      requester: 3,
+      payee: 'Kibo Preforms Limited',
+      purpose: 'PET preforms — Afiya 500 ml line',
+      description:
+          '420,000 × 24.5 g preforms for the Afiya still-water line, against framework contract WC/PR/2026/04.',
+      amount: 18400000,
+      method: 'Bank Transfer',
+      category: 'Raw materials',
+      ref: 'INV-KP-88213',
+      daysAgo: 2,
+      status: 'in_review',
+      step: 2,
+      bank: 'NMB Bank',
+      accountName: 'Kibo Preforms Limited',
+      accountNumber: '40910022317',
+      bankBranch: 'Ubungo Branch',
       attachments: ['invoice-KP-88213.pdf', 'goods-received-note.jpg'],
       trail: [
         ('created', 3, null, 2, 7, null, false),
@@ -1549,14 +1775,27 @@ class MockApi {
 
     // ── signed by the Transport head, still to be sent onward ──
     _addVoucher(
-      number: 'PV-2026-001247', kind: 'bank', typeId: 101, dept: 4, requester: 7,
+      number: 'PV-2026-001247',
+      kind: 'bank',
+      typeId: 101,
+      dept: 4,
+      requester: 7,
       payee: 'Coastal Transporters Limited',
       purpose: 'Distribution haulage — Mwanza and Mbeya routes',
-      description: 'Outbound haulage of 38 pallets of finished goods to the Mwanza and Mbeya depots, week 36.',
-      amount: 6750000, method: 'Bank Transfer', category: 'Distribution',
-      ref: 'INV-CT-4471', daysAgo: 3, status: 'in_review', step: 2, signedAtStep: true,
-      bank: 'CRDB Bank', accountName: 'Coastal Transporters Ltd',
-      accountNumber: '0152447199031', bankBranch: 'Nyerere Road Branch',
+      description:
+          'Outbound haulage of 38 pallets of finished goods to the Mwanza and Mbeya depots, week 36.',
+      amount: 6750000,
+      method: 'Bank Transfer',
+      category: 'Distribution',
+      ref: 'INV-CT-4471',
+      daysAgo: 3,
+      status: 'in_review',
+      step: 2,
+      signedAtStep: true,
+      bank: 'CRDB Bank',
+      accountName: 'Coastal Transporters Ltd',
+      accountNumber: '0152447199031',
+      bankBranch: 'Nyerere Road Branch',
       attachments: ['delivery-schedule.pdf'],
       trail: [
         ('created', 7, null, 3, 7, null, false),
@@ -1567,12 +1806,23 @@ class MockApi {
 
     // ── awaiting the HR head ──
     _addVoucher(
-      number: 'PC-2026-000324', kind: 'cash', typeId: 102, dept: 5, requester: 14,
-      payee: 'Bahati Catering Services', purpose: 'Staff canteen supplies — September',
-      description: 'Monthly canteen provisions for the Kibada plant, 240 staff meals per week.',
-      amount: 940000, method: 'Cash', category: 'Staff welfare', ref: 'RCP-1180',
+      number: 'PC-2026-000324',
+      kind: 'cash',
+      typeId: 102,
+      dept: 5,
+      requester: 14,
+      payee: 'Bahati Catering Services',
+      purpose: 'Staff canteen supplies — September',
+      description:
+          'Monthly canteen provisions for the Kibada plant, 240 staff meals per week.',
+      amount: 940000,
+      method: 'Cash',
+      category: 'Staff welfare',
+      ref: 'RCP-1180',
       float: 'Kibada plant petty cash float',
-      daysAgo: 1, status: 'in_review', step: 2,
+      daysAgo: 1,
+      status: 'in_review',
+      step: 2,
       trail: [
         ('created', 14, null, 1, 8, null, false),
         ('submitted', 14, 1, 1, 9, null, false),
@@ -1581,29 +1831,63 @@ class MockApi {
 
     // ── awaiting the Managing Director ──
     _addVoucher(
-      number: 'PV-2026-001245', kind: 'bank', typeId: 101, dept: 3, requester: 3,
-      payee: 'BOC Tanzania Limited', purpose: 'Food-grade CO₂ — Supa Cola line',
-      description: 'Twelve tonnes of beverage-grade carbon dioxide for the Supa Cola carbonation plant.',
-      amount: 9200000, method: 'Bank Transfer', category: 'Raw materials',
-      ref: 'INV-BOC-2214', daysAgo: 5, status: 'in_review', step: 3,
-      bank: 'Stanbic Bank', accountName: 'BOC Tanzania Limited',
-      accountNumber: '9120044178', bankBranch: 'Mikocheni Branch',
+      number: 'PV-2026-001245',
+      kind: 'bank',
+      typeId: 101,
+      dept: 3,
+      requester: 3,
+      payee: 'BOC Tanzania Limited',
+      purpose: 'Food-grade CO₂ — Supa Cola line',
+      description:
+          'Twelve tonnes of beverage-grade carbon dioxide for the Supa Cola carbonation plant.',
+      amount: 9200000,
+      method: 'Bank Transfer',
+      category: 'Raw materials',
+      ref: 'INV-BOC-2214',
+      daysAgo: 5,
+      status: 'in_review',
+      step: 3,
+      bank: 'Stanbic Bank',
+      accountName: 'BOC Tanzania Limited',
+      accountNumber: '9120044178',
+      bankBranch: 'Mikocheni Branch',
       attachments: ['certificate-of-analysis.pdf'],
       trail: [
         ('created', 3, null, 5, 7, null, false),
         ('submitted', 3, 1, 5, 8, null, false),
         ('signed', 9, 2, 4, 9, null, true),
-        ('forwarded', 9, 2, 4, 10, 'Checked against the October production plan.', false),
+        (
+          'forwarded',
+          9,
+          2,
+          4,
+          10,
+          'Checked against the October production plan.',
+          false,
+        ),
       ],
     );
     _addVoucher(
-      number: 'PV-2026-001244', kind: 'bank', typeId: 101, dept: 1, requester: 3,
-      payee: 'TANESCO', purpose: 'Kibada plant electricity — August',
-      description: 'Industrial supply for the Kibada bottling plant, meter 41-882-0173.',
-      amount: 14850000, method: 'Bank Transfer', category: 'Utilities',
-      ref: 'BILL-4188-08', daysAgo: 6, status: 'in_review', step: 3,
-      bank: 'CRDB Bank', accountName: 'Tanzania Electric Supply Co Ltd',
-      accountNumber: '0150310099200', bankBranch: 'Azikiwe Branch',
+      number: 'PV-2026-001244',
+      kind: 'bank',
+      typeId: 101,
+      dept: 1,
+      requester: 3,
+      payee: 'TANESCO',
+      purpose: 'Kibada plant electricity — August',
+      description:
+          'Industrial supply for the Kibada bottling plant, meter 41-882-0173.',
+      amount: 14850000,
+      method: 'Bank Transfer',
+      category: 'Utilities',
+      ref: 'BILL-4188-08',
+      daysAgo: 6,
+      status: 'in_review',
+      step: 3,
+      bank: 'CRDB Bank',
+      accountName: 'Tanzania Electric Supply Co Ltd',
+      accountNumber: '0150310099200',
+      bankBranch: 'Azikiwe Branch',
       trail: [
         ('created', 3, null, 6, 7, null, false),
         ('submitted', 3, 1, 6, 8, null, false),
@@ -1612,12 +1896,23 @@ class MockApi {
       ],
     );
     _addVoucher(
-      number: 'PC-2026-000322', kind: 'cash', typeId: 102, dept: 7, requester: 8,
-      payee: 'Afri-Chem Supplies', purpose: 'Laboratory reagents — water testing',
-      description: 'Microbiological media and reagents for routine potable-water testing.',
-      amount: 1320000, method: 'Cash', category: 'Quality control', ref: 'QT-7741',
+      number: 'PC-2026-000322',
+      kind: 'cash',
+      typeId: 102,
+      dept: 7,
+      requester: 8,
+      payee: 'Afri-Chem Supplies',
+      purpose: 'Laboratory reagents — water testing',
+      description:
+          'Microbiological media and reagents for routine potable-water testing.',
+      amount: 1320000,
+      method: 'Cash',
+      category: 'Quality control',
+      ref: 'QT-7741',
       float: 'Laboratory petty cash float',
-      daysAgo: 4, status: 'in_review', step: 3,
+      daysAgo: 4,
+      status: 'in_review',
+      step: 3,
       trail: [
         ('created', 8, null, 4, 8, null, false),
         ('submitted', 8, 1, 4, 9, null, false),
@@ -1628,13 +1923,26 @@ class MockApi {
 
     // ── approved, waiting on the cashier ──
     _addVoucher(
-      number: 'PV-2026-001240', kind: 'bank', typeId: 101, dept: 2, requester: 3,
-      payee: 'Tanpack Labels Limited', purpose: 'Shrink labels — Afiya and Jembe',
-      description: 'Roll-fed shrink sleeves for the Afiya 500 ml and Jembe Energy 300 ml lines.',
-      amount: 7600000, method: 'Bank Transfer', category: 'Packaging',
-      ref: 'INV-TP-6620', daysAgo: 8, status: 'approved', step: 4,
-      bank: 'NMB Bank', accountName: 'Tanpack Labels Limited',
-      accountNumber: '40120087755', bankBranch: "Chang'ombe Branch",
+      number: 'PV-2026-001240',
+      kind: 'bank',
+      typeId: 101,
+      dept: 2,
+      requester: 3,
+      payee: 'Tanpack Labels Limited',
+      purpose: 'Shrink labels — Afiya and Jembe',
+      description:
+          'Roll-fed shrink sleeves for the Afiya 500 ml and Jembe Energy 300 ml lines.',
+      amount: 7600000,
+      method: 'Bank Transfer',
+      category: 'Packaging',
+      ref: 'INV-TP-6620',
+      daysAgo: 8,
+      status: 'approved',
+      step: 4,
+      bank: 'NMB Bank',
+      accountName: 'Tanpack Labels Limited',
+      accountNumber: '40120087755',
+      bankBranch: "Chang'ombe Branch",
       attachments: ['artwork-approval.pdf'],
       trail: [
         ('created', 3, null, 8, 7, null, false),
@@ -1645,12 +1953,23 @@ class MockApi {
       ],
     );
     _addVoucher(
-      number: 'PC-2026-000318', kind: 'cash', typeId: 102, dept: 4, requester: 7,
-      payee: 'Msasani Motor Spares', purpose: 'Tyres and spares — truck T 4471 DTX',
-      description: 'Four drive tyres and a service kit for the Mbeya route truck.',
-      amount: 2150000, method: 'Cash', category: 'Fleet maintenance', ref: 'RCP-3312',
+      number: 'PC-2026-000318',
+      kind: 'cash',
+      typeId: 102,
+      dept: 4,
+      requester: 7,
+      payee: 'Msasani Motor Spares',
+      purpose: 'Tyres and spares — truck T 4471 DTX',
+      description:
+          'Four drive tyres and a service kit for the Mbeya route truck.',
+      amount: 2150000,
+      method: 'Cash',
+      category: 'Fleet maintenance',
+      ref: 'RCP-3312',
       float: 'Transport petty cash float',
-      daysAgo: 9, status: 'approved', step: 4,
+      daysAgo: 9,
+      status: 'approved',
+      step: 4,
       trail: [
         ('created', 7, null, 9, 7, null, false),
         ('submitted', 7, 1, 9, 8, null, false),
@@ -1660,14 +1979,25 @@ class MockApi {
       ],
     );
     _addVoucher(
-      number: 'PV-2026-001239', kind: 'bank', typeId: 101, dept: 5, requester: 14,
+      number: 'PV-2026-001239',
+      kind: 'bank',
+      typeId: 101,
+      dept: 5,
+      requester: 14,
       payee: 'National Social Security Fund',
       purpose: 'Statutory contributions — August 2026',
       description: 'Employer and employee NSSF contributions for 214 staff.',
-      amount: 5480000, method: 'Bank Transfer', category: 'Statutory',
-      ref: 'NSSF-08-2026', daysAgo: 10, status: 'approved', step: 4,
-      bank: 'CRDB Bank', accountName: 'National Social Security Fund',
-      accountNumber: '0150200011003', bankBranch: 'Tower Branch',
+      amount: 5480000,
+      method: 'Bank Transfer',
+      category: 'Statutory',
+      ref: 'NSSF-08-2026',
+      daysAgo: 10,
+      status: 'approved',
+      step: 4,
+      bank: 'CRDB Bank',
+      accountName: 'National Social Security Fund',
+      accountNumber: '0150200011003',
+      bankBranch: 'Tower Branch',
       trail: [
         ('created', 14, null, 10, 7, null, false),
         ('submitted', 14, 1, 10, 8, null, false),
@@ -1679,14 +2009,28 @@ class MockApi {
 
     // ── closed ──
     _addVoucher(
-      number: 'PV-2026-001236', kind: 'bank', typeId: 101, dept: 3, requester: 3,
-      payee: 'Kilimanjaro Sugar Distributors', purpose: 'Refined sugar — 20 tonnes',
-      description: 'Refined white sugar for the Supa Cola and Afiya juice lines.',
-      amount: 22300000, method: 'Bank Transfer', category: 'Raw materials',
-      ref: 'INV-KS-1180', daysAgo: 6, status: 'paid', step: null,
-      bank: 'NBC Bank', accountName: 'Kilimanjaro Sugar Distributors',
-      accountNumber: '011103004471', bankBranch: 'Moshi Branch',
-      paymentRef: 'TRF-2026-884120', paidBy: 'Mwajuma Hamisi',
+      number: 'PV-2026-001236',
+      kind: 'bank',
+      typeId: 101,
+      dept: 3,
+      requester: 3,
+      payee: 'Kilimanjaro Sugar Distributors',
+      purpose: 'Refined sugar — 20 tonnes',
+      description:
+          'Refined white sugar for the Supa Cola and Afiya juice lines.',
+      amount: 22300000,
+      method: 'Bank Transfer',
+      category: 'Raw materials',
+      ref: 'INV-KS-1180',
+      daysAgo: 6,
+      status: 'paid',
+      step: null,
+      bank: 'NBC Bank',
+      accountName: 'Kilimanjaro Sugar Distributors',
+      accountNumber: '011103004471',
+      bankBranch: 'Moshi Branch',
+      paymentRef: 'TRF-2026-884120',
+      paidBy: 'Mwajuma Hamisi',
       trail: [
         ('created', 3, null, 6, 7, null, false),
         ('submitted', 3, 1, 6, 8, null, false),
@@ -1697,42 +2041,92 @@ class MockApi {
       ],
     );
     _addVoucher(
-      number: 'AD-2026-000042', kind: 'cash', typeId: 104, dept: 4, requester: 7,
-      payee: 'Baraka Ndosi', purpose: 'Travel advance — Mbeya depot stock audit',
-      description: 'Three nights, per diem and fuel for the quarterly stock count.',
-      amount: 860000, method: 'Mobile Money', category: 'Travel', ref: 'ADV-0042',
+      number: 'AD-2026-000042',
+      kind: 'cash',
+      typeId: 104,
+      dept: 4,
+      requester: 7,
+      payee: 'Baraka Ndosi',
+      purpose: 'Travel advance — Mbeya depot stock audit',
+      description:
+          'Three nights, per diem and fuel for the quarterly stock count.',
+      amount: 860000,
+      method: 'Mobile Money',
+      category: 'Travel',
+      ref: 'ADV-0042',
       float: 'Transport petty cash float',
-      daysAgo: 14, status: 'rejected', step: null,
+      daysAgo: 14,
+      status: 'rejected',
+      step: null,
       trail: [
         ('created', 7, null, 14, 7, null, false),
         ('submitted', 7, 1, 14, 8, null, false),
         ('signed', 12, 2, 13, 9, null, true),
         ('forwarded', 12, 2, 13, 10, null, false),
-        ('rejected', 5, 3, 13, 14, 'The Mbeya depot holds its own float — draw the advance there.', false),
+        (
+          'rejected',
+          5,
+          3,
+          13,
+          14,
+          'The Mbeya depot holds its own float — draw the advance there.',
+          false,
+        ),
       ],
     );
 
     // ── back with the requester ──
     _addVoucher(
-      number: 'EX-2026-000011', kind: 'bank', typeId: 103, dept: 2, requester: 3,
-      payee: 'Sumaria Industries Limited', purpose: 'Closures and caps — August arrears',
-      description: 'Outstanding balance on 1.2 million 28 mm closures delivered in August.',
-      amount: 3150000, method: 'Bank Transfer', category: 'Packaging',
-      ref: 'INV-SI-5590', daysAgo: 5, status: 'changes_requested', step: null,
-      bank: 'Exim Bank', accountName: 'Sumaria Industries Ltd',
-      accountNumber: '0100200455', bankBranch: 'Nyerere Road Branch',
+      number: 'EX-2026-000011',
+      kind: 'bank',
+      typeId: 103,
+      dept: 2,
+      requester: 3,
+      payee: 'Sumaria Industries Limited',
+      purpose: 'Closures and caps — August arrears',
+      description:
+          'Outstanding balance on 1.2 million 28 mm closures delivered in August.',
+      amount: 3150000,
+      method: 'Bank Transfer',
+      category: 'Packaging',
+      ref: 'INV-SI-5590',
+      daysAgo: 5,
+      status: 'changes_requested',
+      step: null,
+      bank: 'Exim Bank',
+      accountName: 'Sumaria Industries Ltd',
+      accountNumber: '0100200455',
+      bankBranch: 'Nyerere Road Branch',
       trail: [
         ('created', 3, null, 5, 7, null, false),
         ('submitted', 3, 1, 5, 8, null, false),
-        ('changes_requested', 9, 2, 4, 11, 'Attach the August goods-received note and the reconciled supplier statement.', false),
+        (
+          'changes_requested',
+          9,
+          2,
+          4,
+          11,
+          'Attach the August goods-received note and the reconciled supplier statement.',
+          false,
+        ),
       ],
     );
     _addVoucher(
-      number: 'PV-2026-001249', kind: 'bank', typeId: 101, dept: 2, requester: 3,
-      payee: 'Coastal Packaging Limited', purpose: 'Shrink film — October order',
+      number: 'PV-2026-001249',
+      kind: 'bank',
+      typeId: 101,
+      dept: 2,
+      requester: 3,
+      payee: 'Coastal Packaging Limited',
+      purpose: 'Shrink film — October order',
       description: "Draft pending the supplier's confirmed quotation.",
-      amount: 4100000, method: 'Bank Transfer', category: 'Packaging', ref: '',
-      daysAgo: 0, status: 'draft', step: null,
+      amount: 4100000,
+      method: 'Bank Transfer',
+      category: 'Packaging',
+      ref: '',
+      daysAgo: 0,
+      status: 'draft',
+      step: null,
       trail: [('created', 3, null, 0, 9, null, false)],
     );
 
@@ -1779,10 +2173,16 @@ class MockApi {
         step: null,
         paymentRef: rejected ? null : 'TRX-${700000 + h}',
         paidBy: rejected ? null : 'Mwajuma Hamisi',
-        bank: h % 3 == 0 ? null : const ['CRDB Bank', 'NMB Bank', 'NBC Bank'][h % 3],
+        bank: h % 3 == 0
+            ? null
+            : const ['CRDB Bank', 'NMB Bank', 'NBC Bank'][h % 3],
         accountName: h % 3 == 0 ? null : payees[h % payees.length],
-        accountNumber: h % 3 == 0 ? null : '01${(500000 + h * 137).toString().padLeft(9, "0")}',
-        bankBranch: h % 3 == 0 ? null : const ['Tower Branch', 'Ubungo Branch', 'Kariakoo Branch'][h % 3],
+        accountNumber: h % 3 == 0
+            ? null
+            : '01${(500000 + h * 137).toString().padLeft(9, "0")}',
+        bankBranch: h % 3 == 0
+            ? null
+            : const ['Tower Branch', 'Ubungo Branch', 'Kariakoo Branch'][h % 3],
         float: h % 3 == 0 ? 'Kibada plant petty cash float' : null,
         receivedBy: h % 3 == 0 && !rejected ? payees[h % payees.length] : null,
         trail: [

@@ -49,6 +49,8 @@ export interface MockCompany {
   bank_branch: string | null;
   primary_color: string;
   theme: "light" | "dark";
+  /** Interface palette; absent means blue, as on the API. */
+  color_theme?: "blue" | "emerald" | "violet" | "rose";
   voucher_footer_text: string;
   status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   plan_code: string;

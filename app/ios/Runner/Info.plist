@@ -7,7 +7,11 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>App</string>
+	<string>VouchFlow</string>
+	<key>NSCameraUsageDescription</key>
+	<string>VouchFlow uses the camera to photograph receipts and invoices you attach to a voucher.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>VouchFlow opens your photos so you can attach receipts to a voucher or choose your company logo.</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +19,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>app</string>
+	<string>VouchFlow</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

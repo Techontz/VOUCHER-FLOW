@@ -62,8 +62,17 @@ class Company extends Model
         'timezone' => ['nullable', 'string', 'max:60'],
     ];
 
+    /**
+     * The interface palettes a company can work in. Each is defined for light
+     * and dark mode in web/styles/app.css; add one there before adding it here.
+     */
+    public const COLOR_THEMES = ['blue', 'emerald', 'violet', 'rose'];
+
+    private const COLOR_THEMES_LIST = 'blue,emerald,violet,rose';
+
     /** Colours, theme and the words printed on a voucher. */
     public const BRANDING_RULES = [
+        'color_theme' => ['nullable', 'string', 'in:'.self::COLOR_THEMES_LIST],
         'primary_color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         'secondary_color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         'accent_color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],

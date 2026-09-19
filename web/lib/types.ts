@@ -74,6 +74,8 @@ export interface Company {
   primary_color: string;
   accent_color: string;
   theme: "light" | "dark";
+  /** The interface palette this company works in; see styles/app.css. */
+  color_theme: ColorTheme;
   voucher_footer_text: string | null;
   status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   is_usable: boolean;
@@ -90,6 +92,8 @@ export interface Company {
   vouchers_count?: number;
   created_at: string | null;
 }
+
+export type ColorTheme = "blue" | "emerald" | "violet" | "rose";
 
 export interface Department {
   id: number;

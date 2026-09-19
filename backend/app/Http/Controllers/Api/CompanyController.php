@@ -101,7 +101,7 @@ class CompanyController extends Controller
         }
 
         $company->fill(collect($data)->only([
-            'primary_color', 'secondary_color', 'accent_color', 'theme',
+            'primary_color', 'secondary_color', 'accent_color', 'theme', 'color_theme',
             'voucher_header_text', 'voucher_footer_text',
             'bank_name', 'bank_account_name', 'bank_account_number', 'bank_branch', 'swift_code',
         ])->filter(fn ($v) => $v !== null)->all())->save();

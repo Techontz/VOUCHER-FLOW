@@ -118,7 +118,10 @@ class LoginPage extends GetView<LoginController> {
                               vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: VfColors.bad,
+                              // A tint, not the full colour: the icon and the
+                              // message are drawn in it, and on a solid rose
+                              // ground both disappeared.
+                              color: VfColors.bad.withValues(alpha: .14),
                               border: Border.all(
                                 color: VfColors.bad.withValues(alpha: .5),
                               ),

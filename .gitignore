@@ -3,3 +3,4 @@
 
 # Deployment packages built for manual upload to production.
 /dist/
+backend-update-*.zip

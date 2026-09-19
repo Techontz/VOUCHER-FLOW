@@ -8,6 +8,7 @@ import 'app/data/services/session_service.dart';
 import 'app/data/services/voucher_repository.dart';
 import 'app/modules/auth/login_page.dart';
 import 'app/modules/auth/splash_page.dart';
+import 'app/modules/branding/branding_page.dart';
 import 'app/modules/dashboard/dashboard_tab.dart';
 import 'app/modules/notifications/notifications_tab.dart';
 import 'app/modules/profile/profile_tab.dart';
@@ -37,6 +38,15 @@ class VouchFlowApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuilt when the company's colour changes: the themes are built from
+    // VfColors.palette, which SessionService sets before this reads it.
+    return Obx(() {
+      session.accent.value;
+      return _app();
+    });
+  }
+
+  Widget _app() {
     return GetMaterialApp(
       title: 'VouchFlow',
       debugShowCheckedModeBanner: false,
@@ -66,6 +76,11 @@ class VouchFlowApp extends StatelessWidget {
           }),
         ),
         GetPage(name: Routes.voucher, page: () => const VoucherDetailPage()),
+        GetPage(
+          name: Routes.branding,
+          page: () => const BrandingPage(),
+          binding: BindingsBuilder(() => Get.lazyPut(BrandingController.new)),
+        ),
         GetPage(
           name: Routes.createVoucher,
           page: () => const CreateVoucherPage(),

@@ -4,4 +4,5 @@ abstract class Routes {
   static const shell = '/app';
   static const voucher = '/voucher';
   static const createVoucher = '/voucher/new';
+  static const branding = '/branding';
 }

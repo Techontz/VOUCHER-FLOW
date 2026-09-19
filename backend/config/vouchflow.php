@@ -21,6 +21,22 @@ return [
     */
     'seed_demo' => filter_var(env('SEED_DEMO', false), FILTER_VALIDATE_BOOLEAN),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Platform operator
+    |--------------------------------------------------------------------------
+    |
+    | The account DatabaseSeeder creates, read from config for the same reason
+    | as seed_demo. There is no fallback password outside local work: a
+    | production seed without SUPER_ADMIN_PASSWORD skips the account instead of
+    | creating one with a published password.
+    |
+    */
+    'super_admin' => [
+        'email' => env('SUPER_ADMIN_EMAIL', 'super@vouchflow.test'),
+        'password' => env('SUPER_ADMIN_PASSWORD') ?: null,
+    ],
+
     'trial_days' => (int) env('VOUCHFLOW_TRIAL_DAYS', 14),
     'max_upload_mb' => (int) env('VOUCHFLOW_MAX_UPLOAD_MB', 10),
     'payments_driver' => env('PAYMENTS_DRIVER', 'demo'),

@@ -645,12 +645,23 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
   if (method === "GET" && path === "/company") {
     return { data: companyResource(db, companyId), usage: usage(companyId) };
   }
-  if ((method === "PUT" || method === "POST") && (path === "/company" || path === "/company/branding")) {
+  // Artwork travels as a file, which the in-browser mock cannot keep; it
+  // accepts the upload so the screen's flow runs, and honours removal.
+  if (method === "POST" && path === "/company/logo") {
+    return { data: companyResource(db, companyId) };
+  }
+  if (method === "DELETE" && path === "/company/logo") {
+    const key = query.slot === "logo_mark" ? "logo_mark_url" : "logo_url";
+    store.mutate((d) => { d.companies.find((x) => x.id === companyId)![key] = null; });
+    return { data: companyResource(store.db, companyId) };
+  }
+  // The live API takes PUT on /company and POST on /company/branding only.
+  if ((method === "PUT" && path === "/company") || (method === "POST" && path === "/company/branding")) {
     store.mutate((d) => {
       const c = d.companies.find((x) => x.id === companyId)!;
       ([
         "name", "legal_name", "email", "phone", "address", "website", "tin",
-        "currency", "locale", "primary_color", "voucher_footer_text",
+        "currency", "locale", "primary_color", "color_theme", "voucher_footer_text",
         "logo_url", "logo_mark_url",
         "bank_name", "bank_account_name", "bank_account_number", "bank_branch",
       ] as const)

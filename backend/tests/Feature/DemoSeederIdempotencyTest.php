@@ -272,4 +272,35 @@ class DemoSeederIdempotencyTest extends TestCase
         $this->assertSame(3, Company::count());
         $this->assertSame('Watercom (T) Limited', Company::where('slug', 'watercom')->firstOrFail()->name);
     }
+
+    /** Re-seeding on a deploy must not undo a password the operator changed. */
+    public function test_reseeding_keeps_the_operators_own_password(): void
+    {
+        config(['vouchflow.seed_demo' => false]);
+        $this->seed(DatabaseSeeder::class);
+
+        $operator = User::withoutGlobalScopes()->where('role', User::ROLE_SUPER_ADMIN)->firstOrFail();
+        $operator->update(['password' => 'Chosen-by-the-operator-1']);
+
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check(
+            'Chosen-by-the-operator-1',
+            $operator->fresh()->password,
+        ));
+    }
+
+    /** No SUPER_ADMIN_PASSWORD in production: no operator, rather than a guessable one. */
+    public function test_production_without_a_password_creates_no_operator(): void
+    {
+        config(['vouchflow.seed_demo' => false, 'vouchflow.super_admin.password' => null]);
+        $this->app['env'] = 'production';
+
+        $this->artisan('db:seed', ['--class' => DatabaseSeeder::class, '--force' => true])
+            ->expectsOutputToContain('not created: set SUPER_ADMIN_PASSWORD')
+            ->assertSuccessful();
+
+        $this->assertSame(0, User::withoutGlobalScopes()->where('role', User::ROLE_SUPER_ADMIN)->count());
+        $this->assertSame(4, Plan::count(), 'the plans are still seeded');
+    }
 }

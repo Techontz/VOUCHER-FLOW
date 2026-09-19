@@ -122,8 +122,8 @@ const THEME_KEY = "vouchflow.theme";
 export type Locale = "en" | "sw";
 export type Theme = "light" | "dark";
 
-/** Light is the product's default appearance; dark is a stored preference. */
-export const DEFAULT_THEME: Theme = "light";
+/** Dark is the product's default appearance; light is a stored preference. */
+export const DEFAULT_THEME: Theme = "dark";
 
 export class ApiError extends Error {
   status: number;

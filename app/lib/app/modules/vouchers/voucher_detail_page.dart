@@ -466,7 +466,7 @@ class _Timeline extends StatelessWidget {
                             const SizedBox(height: 6),
                             Container(
                               padding: const EdgeInsets.only(left: 10),
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 border: Border(
                                   left: BorderSide(
                                     color: VfColors.accent500,

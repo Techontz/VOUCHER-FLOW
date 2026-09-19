@@ -137,6 +137,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = locale;
   }, [locale]);
 
+  // The company's interface palette. Remembered on the device so the pre-paint
+  // script can apply it before the first frame; a signed-out page keeps the
+  // last value, which only the signed-in shell reads.
+  const colorTheme = company?.color_theme;
+  useEffect(() => {
+    if (!colorTheme) return;
+    document.documentElement.dataset.accent = colorTheme;
+    try {
+      window.localStorage.setItem("vouchflow.accent", colorTheme);
+    } catch {
+      /* private browsing — the palette arrives with the company instead */
+    }
+  }, [colorTheme]);
+
   // Keep the notification badge current while the tab is open.
   useEffect(() => {
     if (!user) return;

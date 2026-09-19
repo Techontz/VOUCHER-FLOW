@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:get/get.dart' hide Response, FormData, MultipartFile;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,6 +41,7 @@ class ApiService extends GetxService {
   static const _tokenKey = 'vouchflow.token';
   static const _localeKey = 'vouchflow.locale';
   static const _themeKey = 'vouchflow.theme';
+  static const _accentKey = 'vouchflow.accent';
 
   /// Dark is the product's default appearance; light is a stored preference.
   static const defaultTheme = 'dark';
@@ -51,6 +53,7 @@ class ApiService extends GetxService {
   String? _token;
   String _locale = 'en';
   String _theme = defaultTheme;
+  String? _accent;
 
   /// Raised when the server rejects the stored token, so the app can sign out.
   final onUnauthorised = <void Function()>[];
@@ -60,6 +63,7 @@ class ApiService extends GetxService {
     _token = _prefs.getString(_tokenKey);
     _locale = _prefs.getString(_localeKey) ?? 'en';
     _theme = _prefs.getString(_themeKey) ?? defaultTheme;
+    _accent = _prefs.getString(_accentKey);
     return this;
   }
 
@@ -70,6 +74,15 @@ class ApiService extends GetxService {
   /// The appearance chosen on this device. Kept locally as well as on the
   /// account, so it applies before the first frame and survives signing out.
   String get theme => _theme;
+
+  /// The last company colour seen on this device, so the first frame after a
+  /// restart is already in the company's colour rather than flashing blue.
+  String? get accent => _accent;
+
+  Future<void> setAccent(String value) async {
+    _accent = value;
+    await _prefs.setString(_accentKey, value);
+  }
 
   Future<void> setToken(String? value) async {
     _token = value;
@@ -225,9 +238,14 @@ class ApiService extends GetxService {
     } on ApiException {
       rethrow;
     } catch (error) {
+      // Outside a release build, name the address that failed: on a physical
+      // device the development default is the emulator's route to the host,
+      // and "check your connection" sends you looking in the wrong place.
       throw ApiException(
         0,
-        'Cannot reach the server. Check your connection and try again.',
+        kReleaseMode
+            ? 'Cannot reach the server. Check your connection and try again.'
+            : 'Cannot reach ${VfConfig.apiUrl} — $error',
       );
     }
   }

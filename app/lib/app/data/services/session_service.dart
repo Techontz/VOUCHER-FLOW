@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/theme.dart';
 import '../models/models.dart';
 import 'api_service.dart';
 
@@ -18,6 +19,9 @@ class SessionService extends GetxService {
   final unread = 0.obs;
   final locale = 'en'.obs;
   final themeMode = ThemeMode.dark.obs;
+
+  /// The company's interface palette. The app's themes are rebuilt from it.
+  final accent = VfAccentPalette.blue.obs;
   final booting = true.obs;
 
   bool get isSignedIn => user.value != null;
@@ -29,6 +33,7 @@ class SessionService extends GetxService {
     // first frame is already correct — dark unless this device chose light.
     themeMode.value = _modeFrom(_api.theme);
     Get.changeThemeMode(themeMode.value);
+    applyAccent(_api.accent, persist: false);
     _api.onUnauthorised.add(() => _clear());
 
     if (_api.hasToken) {
@@ -72,10 +77,22 @@ class SessionService extends GetxService {
     if (preferred != locale.value) {
       setLocale(preferred, persist: false);
     }
-    themeMode.value = user.value!.theme == 'dark'
-        ? ThemeMode.dark
-        : ThemeMode.light;
+    themeMode.value = user.value!.theme == 'light'
+        ? ThemeMode.light
+        : ThemeMode.dark;
     Get.changeThemeMode(themeMode.value);
+
+    final colour = company.value?.colorTheme;
+    if (colour != null) applyAccent(colour);
+  }
+
+  /// Switches the interface palette. Also used by the branding screen to
+  /// preview a colour before it is saved; persist only what the company has.
+  void applyAccent(String? key, {bool persist = true}) {
+    final palette = VfAccentPalette.of(key);
+    VfColors.palette = palette;
+    accent.value = palette;
+    if (persist) unawaited(_api.setAccent(palette.key));
   }
 
   Future<void> refreshUnread() async {

@@ -2,9 +2,10 @@ import 'package:flutter/foundation.dart';
 
 /// Where the API lives.
 ///
-/// The Android emulator reaches the host machine through 10.0.2.2, so the
-/// default is chosen per platform. Override for a real device or a deployed
-/// backend with --dart-define=API_URL=https://api.example.com/api
+/// A release build talks to production unless told otherwise. Debug and
+/// profile builds talk to `php artisan serve` on the development machine —
+/// the Android emulator reaches it through 10.0.2.2. Override either with
+/// --dart-define=API_URL=https://api.example.com/api
 class VfConfig {
   const VfConfig._();
 
@@ -20,8 +21,12 @@ class VfConfig {
   );
   static bool get useMock => apiMode != 'live';
 
+  /// The live API. Store builds use this with no extra flags.
+  static const productionApiUrl = 'https://api.voucherflow.co.tz/api';
+
   static String get apiUrl {
     if (_override.isNotEmpty) return _override;
+    if (kReleaseMode) return productionApiUrl;
 
     // dart:io's Platform is unavailable on the web, so branch on the target.
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {

@@ -166,6 +166,60 @@
   --elevation-modal: 0 32px 72px -18px rgba(0, 0, 0, .75);
 }
 
+/* ────────────────────────────────────────────── 1 · company colour themes ── */
+
+/* A company chooses the colour its people work in (companies.color_theme).
+   Only the primary family moves; status colours keep their meaning. Blue is
+   the tokens above. Each palette is defined for light and dark, and its
+   resting button colour keeps white text at 5:1 or better in both.
+   The :not([data-theme="dark"]) guard lifts the light rules to the same
+   weight as the dark ones, so a light palette never leaks into dark mode. */
+
+:root:not([data-theme="dark"])[data-accent="emerald"]:has(.vf-shell) {
+  --primary: #047857; --primary-hover: #065f46; --primary-active: #064e3b;
+  --primary-soft: #ecfdf5; --primary-soft-strong: #d1fae5; --primary-border: #6ee7b7;
+  --primary-text: #047857;
+  --focus: 0 0 0 3px rgba(4, 120, 87, .24);
+  --table-row-selected: #f0fdf8;
+}
+:root[data-theme="dark"][data-accent="emerald"]:has(.vf-shell) {
+  --primary: #047f5c; --primary-hover: #059669; --primary-active: #046c4e;
+  --primary-soft: rgba(16, 185, 129, .13); --primary-soft-strong: rgba(16, 185, 129, .22);
+  --primary-border: rgba(52, 211, 153, .45); --primary-text: #6ee7b7;
+  --focus: 0 0 0 3px rgba(16, 185, 129, .36);
+  --table-row-selected: rgba(16, 185, 129, .08);
+}
+
+:root:not([data-theme="dark"])[data-accent="violet"]:has(.vf-shell) {
+  --primary: #6d28d9; --primary-hover: #5b21b6; --primary-active: #4c1d95;
+  --primary-soft: #f5f3ff; --primary-soft-strong: #ede9fe; --primary-border: #c4b5fd;
+  --primary-text: #6d28d9;
+  --focus: 0 0 0 3px rgba(109, 40, 217, .24);
+  --table-row-selected: #faf7ff;
+}
+:root[data-theme="dark"][data-accent="violet"]:has(.vf-shell) {
+  --primary: #7c3aed; --primary-hover: #8b5cf6; --primary-active: #6d28d9;
+  --primary-soft: rgba(139, 92, 246, .14); --primary-soft-strong: rgba(139, 92, 246, .24);
+  --primary-border: rgba(167, 139, 250, .45); --primary-text: #c4b5fd;
+  --focus: 0 0 0 3px rgba(139, 92, 246, .38);
+  --table-row-selected: rgba(139, 92, 246, .08);
+}
+
+:root:not([data-theme="dark"])[data-accent="rose"]:has(.vf-shell) {
+  --primary: #be123c; --primary-hover: #9f1239; --primary-active: #881337;
+  --primary-soft: #fff1f2; --primary-soft-strong: #ffe4e6; --primary-border: #fda4af;
+  --primary-text: #be123c;
+  --focus: 0 0 0 3px rgba(190, 18, 60, .22);
+  --table-row-selected: #fff7f8;
+}
+:root[data-theme="dark"][data-accent="rose"]:has(.vf-shell) {
+  --primary: #d4163f; --primary-hover: #e11d48; --primary-active: #be123c;
+  --primary-soft: rgba(244, 63, 94, .13); --primary-soft-strong: rgba(244, 63, 94, .22);
+  --primary-border: rgba(251, 113, 133, .45); --primary-text: #fda4af;
+  --focus: 0 0 0 3px rgba(244, 63, 94, .36);
+  --table-row-selected: rgba(244, 63, 94, .08);
+}
+
 /* ───────────────────────────────────────────────── 2 · legacy token aliases ── */
 
 :root:has(.vf-shell),
@@ -1247,6 +1301,16 @@
 .vf-shell .app-branding-preview { position: sticky; top: 68px; display: grid; gap: 8px; }
 .vf-shell .app-preview-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
 .vf-shell .app-color-swatch { width: 44px; height: 36px; padding: 3px; border-radius: var(--radius-m); border: 1px solid var(--input-border); background: var(--input-background); cursor: pointer; }
+.vf-shell .app-theme-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--space-2); }
+.vf-shell .app-theme-option {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface);
+  color: var(--text-primary); font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left;
+}
+.vf-shell .app-theme-option:hover { border-color: var(--border-strong); }
+.vf-shell .app-theme-option:focus-visible { outline: none; box-shadow: var(--focus); }
+.vf-shell .app-theme-option[aria-checked="true"] { border-color: var(--primary); background: var(--primary-soft); }
+.vf-shell .app-theme-swatch { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; flex: none; }
 @media (max-width: 1180px) { .vf-shell .app-branding-grid { grid-template-columns: minmax(0, 1fr); } .vf-shell .app-branding-preview { position: static; } }
 
 .vf-shell .app-toolbar-search { flex: 1 1 240px; max-width: 320px; height: 32px; font-size: 13px; }

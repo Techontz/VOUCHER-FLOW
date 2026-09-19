@@ -1,5 +1,94 @@
 import 'package:flutter/material.dart';
 
+/// A company's interface colour (companies.color_theme), matching the web
+/// client's four palettes. Every palette carries dark ink on its button
+/// colour, as blue always has, at 4.5:1 or better.
+class VfAccentPalette {
+  const VfAccentPalette._({
+    required this.key,
+    required this.solid,
+    required this.mid,
+    required this.end,
+    required this.lighter,
+    required this.onDark,
+    required this.onDarkSoft,
+    required this.onLight,
+    required this.tintLight,
+  });
+
+  final String key;
+
+  /// Filled buttons, focus rings, progress, "done" marks.
+  final Color solid;
+  final Color mid, end;
+
+  /// Selected borders.
+  final Color lighter;
+
+  /// Accent text and icons on the dark ground, and a softer tone for avatars.
+  final Color onDark, onDarkSoft;
+
+  /// Accent text and icons on the light ground.
+  final Color onLight;
+
+  /// Chip and icon-plate tint on the light ground.
+  final Color tintLight;
+
+  static const blue = VfAccentPalette._(
+    key: 'blue',
+    solid: Color(0xFF2F7BF6),
+    mid: Color(0xFF22A7E8),
+    end: Color(0xFF22D3EE),
+    lighter: Color(0xFF5B9BFF),
+    onDark: Color(0xFF63A9FF),
+    onDarkSoft: Color(0xFF8CC2FF),
+    onLight: Color(0xFF2F7BF6),
+    tintLight: Color(0xFFEAF2FF),
+  );
+
+  static const emerald = VfAccentPalette._(
+    key: 'emerald',
+    solid: Color(0xFF10B981),
+    mid: Color(0xFF2DD4BF),
+    end: Color(0xFF5EEAD4),
+    lighter: Color(0xFF34D399),
+    onDark: Color(0xFF34D399),
+    onDarkSoft: Color(0xFF6EE7B7),
+    onLight: Color(0xFF047857),
+    tintLight: Color(0xFFE7F8F1),
+  );
+
+  static const violet = VfAccentPalette._(
+    key: 'violet',
+    solid: Color(0xFF9467F9),
+    mid: Color(0xFFA78BFA),
+    end: Color(0xFFC4B5FD),
+    lighter: Color(0xFFA78BFA),
+    onDark: Color(0xFFA78BFA),
+    onDarkSoft: Color(0xFFC4B5FD),
+    onLight: Color(0xFF6D28D9),
+    tintLight: Color(0xFFF1ECFF),
+  );
+
+  static const rose = VfAccentPalette._(
+    key: 'rose',
+    solid: Color(0xFFF43F5E),
+    mid: Color(0xFFFB7185),
+    end: Color(0xFFFDA4AF),
+    lighter: Color(0xFFFB7185),
+    onDark: Color(0xFFFB7185),
+    onDarkSoft: Color(0xFFFDA4AF),
+    onLight: Color(0xFFBE123C),
+    tintLight: Color(0xFFFFEEF1),
+  );
+
+  static const all = [blue, emerald, violet, rose];
+
+  /// The palette for a stored key; anything unknown is blue.
+  static VfAccentPalette of(String? key) =>
+      all.firstWhere((p) => p.key == key, orElse: () => blue);
+}
+
 /// The VouchFlow v2 palette, taken from the design's token block so the app,
 /// the web client and the printed voucher read as one product.
 ///
@@ -8,13 +97,16 @@ class VfColors {
   const VfColors._();
 
   // ── dark (default) ──
-  static const bg = Color(0xFF070A12);
-  static const elev1 = Color(0xFF0C111D);
-  static const elev2 = Color(0xFF111827);
-  static const elev3 = Color(0xFF161F31);
-  static const text = Color(0xFFEEF2FA);
-  static const line = Color(0x1F94AAD6); // rgba(148,170,214,.12)
-  static const lineStrong = Color(0x3D94AAD6); // rgba(148,170,214,.24)
+  // True black: the page itself is #000000, which an OLED screen leaves
+  // unlit. What sits on it — cards, fields, sheets — steps up in small,
+  // neutral increments, so depth still reads without any blue cast.
+  static const bg = Color(0xFF000000);
+  static const elev1 = Color(0xFF0B0B0D);
+  static const elev2 = Color(0xFF131316);
+  static const elev3 = Color(0xFF1C1C20);
+  static const text = Color(0xFFF2F4F8);
+  static const line = Color(0x1FFFFFFF); // white at 12%
+  static const lineStrong = Color(0x3DFFFFFF); // white at 24%
 
   // ── light ──
   static const lightBg = Color(0xFFF7F9FC);
@@ -25,31 +117,36 @@ class VfColors {
   static const lightLine = Color(0x1A0F2042);
   static const lightLineStrong = Color(0x330F2042);
 
-  // ── the blue-to-cyan accent that carries every primary action ──
-  static const accent = Color(0xFF2F7BF6);
-  static const accentMid = Color(0xFF22A7E8);
-  static const accentEnd = Color(0xFF22D3EE);
-  static const accent400 = Color(0xFF5B9BFF);
-  static const accent500 = Color(0xFF2F7BF6);
-  static const accent600 = Color(0xFF63A9FF);
-  static const accent700 = Color(0xFF8CC2FF);
-  static const accentInk = Color(0xFF05121F); // ink on the gradient
+  // ── the accent that carries every primary action ──
+  /// The company's palette. Set by SessionService before the themes are
+  /// built; the app rebuilds its themes whenever it changes.
+  static VfAccentPalette palette = VfAccentPalette.blue;
+
+  static Color get accent => palette.solid;
+  static Color get accentMid => palette.mid;
+  static Color get accentEnd => palette.end;
+  static Color get accent400 => palette.lighter;
+  static Color get accent500 => palette.solid;
+  static Color get accent600 => palette.onDark;
+  static Color get accent700 => palette.onDarkSoft;
+  static const accentInk = Color(0xFF05121F); // ink on the accent
 
   // Accent tints for chips and icon plates.
-  static const accent100Dark = Color(0x1F2F7BF6);
-  static const accent100Light = Color(0xFFEAF2FF);
+  static Color get accent100Dark => palette.solid.withValues(alpha: .12);
+  static Color get accent100Light => palette.tintLight;
 
   // ── semantic ──
   static const ok = Color(0xFF34D399);
   static const warn = Color(0xFFFBBF24);
   static const bad = Color(0xFFFB7185);
+  static const info = Color(0xFF2F7BF6);
 
   // ── the printed sheet, always ink on paper ──
   static const paper = Color(0xFFFFFFFF);
   static const paperInk = Color(0xFF0B1220);
 
   /// The gradient behind every primary action.
-  static const gradient = LinearGradient(
+  static LinearGradient get gradient => LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [accent, accentMid, accentEnd],
@@ -70,7 +167,8 @@ extension VfPalette on BuildContext {
   Color get vfLineStrong =>
       isDark ? VfColors.lineStrong : VfColors.lightLineStrong;
   Color get vfMuted => Theme.of(this).textTheme.bodySmall?.color ?? vfInk;
-  Color get vfAccent => isDark ? VfColors.accent600 : VfColors.accent500;
+  Color get vfAccent =>
+      isDark ? VfColors.accent600 : VfColors.palette.onLight;
   Color get vfAccentTint =>
       isDark ? VfColors.accent100Dark : VfColors.accent100Light;
 }
@@ -96,7 +194,7 @@ class VfTheme {
     surface: VfColors.lightElev1,
     field: VfColors.lightElev2,
     onSurface: VfColors.lightText,
-    accent: VfColors.accent500,
+    accent: VfColors.palette.onLight,
     divider: VfColors.lightLine,
     muted: const Color(0xFF5A6782),
   );
@@ -109,7 +207,7 @@ class VfTheme {
     onSurface: VfColors.text,
     accent: VfColors.accent600,
     divider: VfColors.line,
-    muted: const Color(0xFF94A3BE),
+    muted: const Color(0xFF9AA1AF),
   );
 
   static ThemeData _base({
@@ -165,11 +263,13 @@ class VfTheme {
       dividerTheme: DividerThemeData(color: divider, thickness: 1, space: 1),
       splashFactory: InkSparkle.splashFactory,
       textTheme: TextTheme(
-        displaySmall: heading(32, FontWeight.w600),
-        headlineMedium: heading(27),
-        headlineSmall: heading(22),
-        titleLarge: heading(19),
-        titleMedium: heading(16.5),
+        // Headings sit about 15% below Material's scale: on a phone the
+        // screen titles were competing with the content under them.
+        displaySmall: heading(27, FontWeight.w600),
+        headlineMedium: heading(23),
+        headlineSmall: heading(19),
+        titleLarge: heading(17),
+        titleMedium: heading(15.5),
         titleSmall: body(14, FontWeight.w600),
         bodyLarge: body(16),
         bodyMedium: body(14.5),
@@ -190,7 +290,7 @@ class VfTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: heading(19),
+        titleTextStyle: heading(17),
       ),
       cardTheme: CardThemeData(
         color: surface,
@@ -254,7 +354,7 @@ class VfTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(rMd),
-          borderSide: const BorderSide(color: VfColors.accent500, width: 1.6),
+          borderSide: BorderSide(color: VfColors.accent500, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(rMd),
@@ -313,7 +413,7 @@ class VfTheme {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rMd)),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
+      progressIndicatorTheme: ProgressIndicatorThemeData(
         color: VfColors.accent500,
         linearMinHeight: 3,
       ),
@@ -348,7 +448,8 @@ class VfStatus {
       case 'tag-accent-2':
         return VfColors.bad;
       case 'tag-info':
-        return VfColors.accent500;
+        // Status keeps its meaning whatever the company's palette.
+        return VfColors.info;
       case 'tag-outline':
         return VfColors.warn;
       default:

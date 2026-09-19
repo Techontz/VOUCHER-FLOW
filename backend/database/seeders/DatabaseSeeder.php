@@ -11,20 +11,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(PlanSeeder::class);
 
-        // The platform operator. Not attached to any company, so the tenant scope
-        // lifts for this account alone.
-        User::updateOrCreate(
-            ['email' => env('SUPER_ADMIN_EMAIL', 'super@vouchflow.test')],
-            [
-                'company_id' => null,
-                'name' => 'Platform Operator',
-                'password' => env('SUPER_ADMIN_PASSWORD', 'Password123!'),
-                'role' => User::ROLE_SUPER_ADMIN,
-                'status' => 'active',
-                'job_title' => 'Platform Super Admin',
-                'email_verified_at' => now(),
-            ],
-        );
+        $this->seedPlatformOperator();
 
         // Demo tenants are opt-in, and off unless asked for. `db:seed` on a
         // production box must give you the plans and the platform operator and
@@ -39,5 +26,51 @@ class DatabaseSeeder extends Seeder
         if (config('vouchflow.seed_demo')) {
             $this->call(DemoSeeder::class);
         }
+    }
+
+    /**
+     * The platform operator. Not attached to any company, so the tenant scope
+     * lifts for this account alone.
+     *
+     * Created once and never overwritten: db:seed is re-run on deploys to pick
+     * up new plans, and it must not reset a password the operator has since
+     * changed. Outside local work there is no default password — without
+     * SUPER_ADMIN_PASSWORD the account is skipped, not created guessable.
+     */
+    private function seedPlatformOperator(): void
+    {
+        $email = config('vouchflow.super_admin.email');
+
+        $existing = User::withoutGlobalScopes()
+            ->whereNull('company_id')
+            ->where('email', $email)
+            ->exists();
+
+        if ($existing) {
+            return;
+        }
+
+        $password = config('vouchflow.super_admin.password')
+            ?? (app()->environment('local', 'testing') ? 'Password123!' : null);
+
+        if ($password === null) {
+            $this->command?->warn(
+                "Platform operator {$email} not created: set SUPER_ADMIN_PASSWORD, run "
+                .'php artisan config:cache, then db:seed again.'
+            );
+
+            return;
+        }
+
+        User::create([
+            'email' => $email,
+            'company_id' => null,
+            'name' => 'Platform Operator',
+            'password' => $password,
+            'role' => User::ROLE_SUPER_ADMIN,
+            'status' => 'active',
+            'job_title' => 'Platform Super Admin',
+            'email_verified_at' => now(),
+        ]);
     }
 }

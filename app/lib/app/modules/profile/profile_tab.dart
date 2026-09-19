@@ -7,6 +7,7 @@ import '../../data/services/session_service.dart';
 import '../../data/services/voucher_repository.dart';
 import '../../routes/routes.dart';
 import '../../widgets/common.dart';
+import '../branding/branding_page.dart';
 import '../../widgets/signature_pad.dart';
 
 class ProfileController extends GetxController {
@@ -233,6 +234,15 @@ class ProfileTab extends GetView<ProfileController> {
                   ),
                 ],
               ),
+            ),
+          ],
+
+          if (company != null && canEditBranding(user)) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Get.toNamed(Routes.branding),
+              icon: const Icon(Icons.palette_outlined, size: 18),
+              label: Text('branding.title'.tr),
             ),
           ],
 
