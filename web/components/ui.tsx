@@ -228,24 +228,13 @@ export function EmptyState({
   );
 }
 
-/**
- * What failed, in a sentence, and the one way back. Whatever did load stays on
- * the page around it; this replaces only the part that could not.
- */
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   const { t } = useApp();
   return (
-    <div role="alert" className="vf-panel vf-empty vf-error-state">
-      <div className="vf-empty-icon tone-bad"><Icon name="ph-cloud-slash" size={24} /></div>
-      <div className="vf-empty-title">{t("somethingWrong")}</div>
-      <p className="vf-empty-body">{message}</p>
-      {onRetry && (
-        <div className="vf-empty-actions">
-          <button className="btn btn-primary btn-sm" onClick={onRetry}>
-            <Icon name="ph-arrow-clockwise" size={15} /> {t("retry")}
-          </button>
-        </div>
-      )}
+    <div role="alert" className="vf-alert tone-bad">
+      <Icon name="ph-warning-circle" size={20} style={{ flex: "none" }} />
+      <span className="vf-alert-text">{message}</span>
+      {onRetry && <button className="btn btn-secondary btn-sm" onClick={onRetry}>{t("retry")}</button>}
     </div>
   );
 }

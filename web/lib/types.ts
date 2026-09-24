@@ -93,7 +93,7 @@ export interface Company {
   created_at: string | null;
 }
 
-export type ColorTheme = "crimson" | "blue" | "emerald" | "violet" | "rose";
+export type ColorTheme = "blue" | "emerald" | "violet" | "rose";
 
 export interface Department {
   id: number;

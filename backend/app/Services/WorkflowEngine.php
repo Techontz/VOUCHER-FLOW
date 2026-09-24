@@ -118,8 +118,11 @@ class WorkflowEngine
             }
         }
 
-        // Fall back to everyone in the tenant holding the step's role.
-        if ($step->role === 'custom') {
+        // Fall back to everyone in the tenant holding the step's role — except
+        // for department-bound roles: an HOD or manager step belongs to the
+        // voucher's own department and never passes to another department's
+        // head. With nobody there, the company admin acts as the override.
+        if (in_array($step->role, ['custom', 'hod', 'manager'], true)) {
             return new Collection;
         }
 

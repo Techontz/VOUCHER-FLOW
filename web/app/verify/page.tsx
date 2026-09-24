@@ -94,7 +94,6 @@ function VerifyInner() {
 
   return (
     <AuthFrame
-      palette="product"
       kicker={isReset ? t("forgotPassword") : t("verifyNumber")}
       title={isReset ? t("changePassword") : t("verifyNumber")}
       sub={isReset

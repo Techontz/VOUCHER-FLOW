@@ -334,7 +334,6 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
           .forEach((k) => { if (body[k] !== undefined) (row as never as Body)[k] = body[k]; });
         if (body.amount !== undefined) row.amount = Number(body.amount) || 0;
         if (body.currency) row.currency = String(body.currency);
-        if (body.department_id !== undefined) row.department_id = body.department_id ? Number(body.department_id) : null;
         if (body.voucher_type_id) row.voucher_type_id = Number(body.voucher_type_id);
       });
       recordAudit("voucher.updated", `Updated voucher ${voucher.number}`, user, { type: "Voucher", id });
@@ -607,7 +606,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       id, company_id: companyId!, number: nextNumber(type.id),
       kind: (body.kind === "cash" ? "cash" : "bank"),
       voucher_type_id: type.id, workflow_id: wf.id,
-      department_id: body.department_id ? Number(body.department_id) : user.department_id,
+      department_id: user.department_id,
       requester_id: user.id,
       payee: String(body.payee ?? ""), purpose: String(body.purpose ?? ""),
       description: body.description ? String(body.description) : null,
@@ -615,7 +614,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       payment_method: body.payment_method ? String(body.payment_method) : null,
       account_ref: body.account_ref ? String(body.account_ref) : null,
       category: body.category ? String(body.category) : null,
-      cost_centre: db.departments.find((d) => d.id === Number(body.department_id))?.cost_centre ?? null,
+      cost_centre: db.departments.find((d) => d.id === user.department_id)?.cost_centre ?? null,
       voucher_date: String(body.voucher_date ?? now().slice(0, 10)),
       status: "draft", current_step_position: null, step_signed_at: null,
       verification_code: `VF-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,

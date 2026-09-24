@@ -8,6 +8,7 @@ use App\Models\Voucher;
 use App\Models\VoucherType;
 use App\Services\AmountFormatter;
 use App\Services\AuditLogger;
+use App\Services\UsageLimits;
 use App\Services\VoucherNumberGenerator;
 use App\Services\VoucherVisibility;
 use App\Services\WorkflowEngine;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class VoucherController extends Controller
@@ -99,9 +101,11 @@ class VoucherController extends Controller
         $user = $request->user();
         $company = $this->tenant->company();
 
+        $this->assertDepartment($data, $user->department_id);
+
         abort_unless($company, 403, 'No company context.');
 
-        app(\App\Services\UsageLimits::class)->assertCanCreateVoucher($company);
+        app(UsageLimits::class)->assertCanCreateVoucher($company);
 
         $type = VoucherType::findOrFail($data['voucher_type_id']);
         $workflow = $this->engine->resolveWorkflow($type);
@@ -112,7 +116,7 @@ class VoucherController extends Controller
                 'number' => $this->numbers->next($type),
                 'voucher_type_id' => $type->id,
                 'workflow_id' => $workflow?->id,
-                'department_id' => $data['department_id'] ?? $user->department_id,
+                'department_id' => $user->department_id,
                 'requester_id' => $user->id,
                 'payee' => $data['payee'],
                 'purpose' => $data['purpose'],
@@ -164,6 +168,8 @@ class VoucherController extends Controller
         );
 
         $data = $this->validateVoucher($request, partial: true);
+        $this->assertDepartment($data, $voucher->department_id);
+        unset($data['department_id']);
         $before = $voucher->only(['payee', 'purpose', 'amount', 'description', 'payment_method']);
 
         if (array_key_exists('amount', $data) || array_key_exists('currency', $data)) {
@@ -389,6 +395,19 @@ class VoucherController extends Controller
             'status' => 'vouchers.status',
             default => 'vouchers.voucher_date',
         };
+    }
+
+    /**
+     * A voucher stays in its requester's department: it is never raised into,
+     * or moved to, another department, so it only ever reaches its own HOD.
+     */
+    private function assertDepartment(array $data, ?int $departmentId): void
+    {
+        if (isset($data['department_id']) && (int) $data['department_id'] !== (int) $departmentId) {
+            throw ValidationException::withMessages([
+                'department_id' => 'A voucher can only be raised in your own department.',
+            ]);
+        }
     }
 
     private function validateVoucher(Request $request, bool $partial = false): array

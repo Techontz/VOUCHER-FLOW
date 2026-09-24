@@ -96,7 +96,7 @@ export function companyResource(db: MockDataset, companyId: number | null) {
     currency: c.currency, locale: c.locale, timezone: "Africa/Dar_es_Salaam",
     logo_url: c.logo_url, logo_mark_url: c.logo_mark_url,
     primary_color: c.primary_color, accent_color: "#22d3ee",
-    theme: c.theme, color_theme: c.color_theme ?? "crimson", voucher_footer_text: c.voucher_footer_text,
+    theme: c.theme, color_theme: c.color_theme ?? "blue", voucher_footer_text: c.voucher_footer_text,
     status: c.status,
     is_usable: !["suspended", "cancelled"].includes(c.status) && (c.status !== "trial" || (daysRemaining ?? 1) > 0),
     is_expired: end ? new Date(end).getTime() < Date.now() : false,

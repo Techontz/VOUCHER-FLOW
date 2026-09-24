@@ -155,7 +155,7 @@ void main() {
       // Target the action itself: "Record payment" also appears in the timeline
       // as the step's permitted actions.
       final payButton = find.descendant(
-        of: find.bySubtype<FilledButton>(),
+        of: find.byType(FilledButton),
         matching: find.textContaining(RegExp('Release funds|Record payment')),
       );
       expect(payButton, findsOneWidget);
@@ -171,13 +171,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'TRF-2026-9001');
       await settle(tester, 400);
 
-      // The confirm button repeats the amount: "Mark TZS … as paid".
-      await tester.tap(
-        find.descendant(
-          of: find.bySubtype<FilledButton>(),
-          matching: find.textContaining('as paid'),
-        ),
-      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Mark as paid'));
       await settle(tester, 2600);
 
       expect(

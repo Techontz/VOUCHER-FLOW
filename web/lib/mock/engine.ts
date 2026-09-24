@@ -63,7 +63,9 @@ export function assigneesFor(db: MockDataset, voucher: MockVoucher, step: MockSt
     const ceo = db.users.find((u) => u.id === dept.manager_user_id);
     if (ceo) return [ceo];
   }
-  if (step.role === "custom") return [];
+  // HOD and manager steps belong to the voucher's own department and never
+  // pass to another department's head; the company admin is the override.
+  if (step.role === "custom" || step.role === "hod" || step.role === "manager") return [];
 
   return db.users.filter(
     (u) => u.company_id === voucher.company_id && u.role === step.role && u.status === "active",

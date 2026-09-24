@@ -16,9 +16,6 @@ class SignaturePad extends StatefulWidget {
   final SignaturePadController controller;
   final double height;
 
-  /// The off-white card signatures are drawn and shown on, in either theme.
-  static const paper = Color(0xFFF6F3EC);
-
   @override
   State<SignaturePad> createState() => _SignaturePadState();
 }
@@ -88,71 +85,50 @@ void _paintStrokes(Canvas canvas, List<List<Offset>> strokes, Color colour) {
 class _SignaturePadState extends State<SignaturePad> {
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        widget.controller._size = Size(constraints.maxWidth, widget.height);
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(VfTheme.rMd),
-          child: Container(
-            height: widget.height,
-            color: SignaturePad.paper,
-            child: Stack(
-              children: [
-                // The line a signature sits on, and the hint while it is bare.
-                Positioned(
-                  left: 18,
-                  right: 18,
-                  bottom: 26,
-                  child: Container(height: 1, color: const Color(0xFFCFC8B8)),
-                ),
-                if (widget.controller.isEmpty)
-                  Positioned(
-                    left: 18,
-                    bottom: 8,
-                    child: Text(
-                      'sign.hint'.tr,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: Color(0xFF8C8577),
-                      ),
-                    ),
-                  ),
-                Positioned.fill(
-                  child: GestureDetector(
-                    onPanStart: (d) =>
-                        widget.controller._start(d.localPosition),
-                    onPanUpdate: (d) =>
-                        widget.controller._extend(d.localPosition),
-                    child: AnimatedBuilder(
-                      animation: widget.controller,
-                      builder: (_, _) => CustomPaint(
-                        painter: _SignaturePainter(widget.controller._strokes),
-                        size: Size.infinite,
-                      ),
-                    ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            widget.controller._size = Size(constraints.maxWidth, widget.height);
+            return Container(
+              height: widget.height,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: VfColors.lineStrong),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: GestureDetector(
+                onPanStart: (d) => widget.controller._start(d.localPosition),
+                onPanUpdate: (d) => widget.controller._extend(d.localPosition),
+                child: AnimatedBuilder(
+                  animation: widget.controller,
+                  builder: (_, _) => CustomPaint(
+                    painter: _SignaturePainter(widget.controller._strokes),
+                    size: Size.infinite,
                   ),
                 ),
-                Positioned(
-                  top: 2,
-                  right: 4,
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF6B6558),
-                      textStyle: const TextStyle(
-                        fontFamily: VfTheme.fontFamily,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    onPressed: widget.controller.clear,
-                    child: Text('action.clear'.tr),
-                  ),
-                ),
-              ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'sign.hint'.tr,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
-          ),
-        );
-      },
+            TextButton.icon(
+              onPressed: widget.controller.clear,
+              icon: const Icon(Icons.backspace_outlined, size: 16),
+              label: Text('action.clear'.tr),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -164,7 +140,7 @@ class _SignaturePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) =>
-      _paintStrokes(canvas, strokes, const Color(0xFF1B2A5C));
+      _paintStrokes(canvas, strokes, const Color(0xFF201E1D));
 
   @override
   bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;

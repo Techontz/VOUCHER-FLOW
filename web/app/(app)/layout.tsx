@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { NAV_GROUP_LABEL, mobileNavFor, navFor, splitHref, type NavGroup, type NavItem } from "@/lib/nav";
+import { mobileNavFor, navFor, type NavItem } from "@/lib/nav";
+import type { MessageKey } from "@/lib/i18n";
 import { Icon, Spinner } from "@/components/ui";
 import { VouchFlowMark } from "@/components/login-brand";
 import { Breadcrumb, Dropdown, MenuItem, MenuLabel, MenuSeparator, ThemeSwitch } from "@/components/app-ui";
@@ -16,9 +17,24 @@ import type { Voucher } from "@/lib/types";
  *
  * Sidebar: whose workspace this is, where you can go (grouped by purpose),
  * and who you are — with the appearance switch always in reach. The top bar
- * carries only what applies on every page: where you are, search, language,
- * alerts and the one action most people come here for.
+ * carries only what applies on every page: where you are, search, alerts and
+ * the one action most people come here for.
  */
+
+type Group = "workspace" | "admin" | "platform";
+
+const GROUP_LABEL: Record<Group, MessageKey> = { workspace: "navWorkspace", admin: "navAdministration", platform: "navPlatform" };
+
+/** Where an entry belongs. Account pages live in the user menu instead. */
+function groupOf(item: NavItem): Group | null {
+  if (item.href === "/notifications" || item.href === "/profile") return null;
+  if (item.href.startsWith("/platform")) return "platform";
+  if (["/employees", "/departments", "/settings", "/branding", "/subscription", "/audit"].includes(item.href)) return "admin";
+  return "workspace";
+}
+
+/** Company settings pages that open inside the Settings area rather than the menu. */
+const SETTINGS_CHILDREN = ["/branding", "/subscription"];
 
 const COLLAPSE_KEY = "vouchflow.sidebar";
 const COLLAPSE_EVENT = "vouchflow:sidebar";
@@ -43,31 +59,12 @@ function subscribeCollapsed(onChange: () => void) {
   return () => { window.removeEventListener(COLLAPSE_EVENT, onChange); window.removeEventListener("storage", onChange); };
 }
 
-/* The #section of the address, for the hash-addressed Settings page. */
-function subscribeHash(onChange: () => void) {
-  window.addEventListener("hashchange", onChange);
-  return () => window.removeEventListener("hashchange", onChange);
-}
-const readHash = () => window.location.hash.replace("#", "");
-
-/* Laptop and tablet widths (981–1279px) get the icon rail, whatever was stored. */
-const RAIL_QUERY = "(min-width: 981px) and (max-width: 1279px)";
-function subscribeRail(onChange: () => void) {
-  const mq = window.matchMedia(RAIL_QUERY);
-  mq.addEventListener("change", onChange);
-  return () => mq.removeEventListener("change", onChange);
-}
-const readRail = () => window.matchMedia(RAIL_QUERY).matches;
-
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, company, ready, t, unread, signOut, locale, setLocale } = useApp();
   const router = useRouter();
   const pathname = usePathname();
-  const hash = useSyncExternalStore(subscribeHash, readHash, () => "");
   const [drawer, setDrawer] = useState(false);
-  const storedCollapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
-  const railWidth = useSyncExternalStore(subscribeRail, readRail, () => false);
-  const collapsed = storedCollapsed || railWidth;
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const [pendingCount, setPendingCount] = useState(0);
   const [payCount, setPayCount] = useState(0);
   const [query, setQuery] = useState("");
@@ -79,42 +76,33 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setDrawer(false); }, [pathname]);
 
-  const toggleCollapsed = () => writeCollapsed(!storedCollapsed);
+  const toggleCollapsed = () => writeCollapsed(!collapsed);
 
   const items = useMemo(() => (user ? navFor(user.role) : []), [user]);
   const tabs = useMemo(() => (user ? mobileNavFor(user.role) : []), [user]);
 
-  // A company administrator reaches notifications and profile from the user
-  // menu; everyone else keeps them in the sidebar, as the design lays out.
-  const sidebarItems = useMemo(
-    () => items.filter((item) => !(user?.role === "company_admin" && item.group === "account")),
-    [items, user],
-  );
+  const sidebarItems = useMemo(() => items.filter((item) => {
+    if (groupOf(item) === null) return false;
+    // A company administrator reaches branding and billing through Settings.
+    if (user?.role === "company_admin" && SETTINGS_CHILDREN.includes(item.href)) return false;
+    return true;
+  }), [items, user]);
 
   /**
    * Exactly one entry is ever current, in each menu.
    *
    * "Create voucher" lives at /vouchers/new, which is a route *beneath*
    * /vouchers — so a plain prefix test lights both rows at once. The deepest
-   * href that still covers the current path is the one the user is on; where
-   * two entries share a route (Settings' sections), the #section decides.
+   * href that still covers the current path is the one the user is on.
    */
-  const currentOf = (list: NavItem[]) => {
-    const covering = list.filter((i) => {
-      const { path } = splitHref(i.href);
-      return pathname === path || pathname.startsWith(path + "/");
-    });
-    if (covering.length === 0) return null;
-    const depth = Math.max(...covering.map((i) => splitHref(i.href).path.length));
-    const deepest = covering.filter((i) => splitHref(i.href).path.length === depth);
-    if (deepest.length === 1) return deepest[0].href;
-    const section = hash || "workflow";
-    return (deepest.find((i) => splitHref(i.href).hash === section)
-      ?? deepest.find((i) => splitHref(i.href).hash === "workflow")
-      ?? deepest[0]).href;
-  };
-  const currentHref = currentOf(sidebarItems);
-  const currentTab = currentOf(tabs);
+  const deepest = (hrefs: string[], path: string) => hrefs
+    .filter((h) => path === h || path.startsWith(h + "/"))
+    .sort((a, b) => b.length - a.length)[0] ?? null;
+
+  // Settings children light up Settings in the menu.
+  const menuPath = user?.role === "company_admin" && SETTINGS_CHILDREN.some((h) => pathname.startsWith(h)) ? "/settings" : pathname;
+  const currentHref = useMemo(() => deepest(sidebarItems.map((i) => i.href), menuPath), [sidebarItems, menuPath]);
+  const currentTab = useMemo(() => deepest(tabs.map((i) => i.href), pathname), [tabs, pathname]);
 
   useEffect(() => {
     if (!user) return;
@@ -154,26 +142,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       : item.badge === "notifications" ? (unread || null) : null;
 
   const isPlatform = user.role === "super_admin";
-  const workspaceName = isPlatform ? "Platform console" : company?.name ?? "VouchFlow";
+  const workspaceName = isPlatform ? "VouchFlow Platform" : company?.name ?? "VouchFlow";
   const tenantLine = isPlatform
-    ? (locale === "sw" ? "Kampuni zote" : "All tenants")
+    ? t("navPlatform")
     : [company?.plan?.name, company?.status].filter(Boolean).join(" · ");
 
-  const groups: { group: NavGroup; items: NavItem[] }[] = [];
-  for (const item of sidebarItems) {
-    const last = groups[groups.length - 1];
-    if (last && last.group === item.group) last.items.push(item);
-    else groups.push({ group: item.group, items: [item] });
-  }
+  const groups = (["workspace", "admin", "platform"] as Group[])
+    .map((group) => ({ group, items: sidebarItems.filter((item) => groupOf(item) === group) }))
+    .filter((g) => g.items.length > 0);
 
   // Where you are: the menu entry, plus one step deeper for a record or an edit.
-  const current = items.find((i) => i.href === currentHref) ?? items.find((i) => i.href === currentOf(items));
+  const current = sidebarItems.find((i) => i.href === currentHref) ?? items.find((i) => i.href === deepest(items.map((x) => x.href), pathname));
   const crumbs: { label: string; href?: string }[] = [];
   if (current) {
-    crumbs.push({ label: t(NAV_GROUP_LABEL[current.group]) });
+    const group = groupOf(current);
+    if (group) crumbs.push({ label: t(GROUP_LABEL[group]) });
     crumbs.push({ label: t(current.label), href: current.href });
-    if (pathname !== splitHref(current.href).path) {
+    if (pathname !== current.href && !SETTINGS_CHILDREN.includes(pathname)) {
       crumbs.push({ label: pathname.endsWith("/edit") ? t("edit") : t("details") });
+    }
+    if (SETTINGS_CHILDREN.includes(pathname) && user.role === "company_admin") {
+      crumbs.push({ label: t(pathname === "/branding" ? "branding" : "subscription") });
     }
   }
 
@@ -187,12 +176,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="vf-sidebar" data-open={drawer} aria-label="Main navigation">
         <div className="app-side-head">
           <Link href="/dashboard" className="app-side-brand" aria-label="VouchFlow">
-            <VouchFlowMark size={26} />
+            <VouchFlowMark size={24} />
             <span>VouchFlow</span>
           </Link>
-          <button type="button" className="app-side-collapse" onClick={toggleCollapsed} hidden={railWidth}
+          <button type="button" className="app-side-collapse" onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-            <Icon name="ph-sidebar-simple" size={17} />
+            <Icon name={collapsed ? "ph-sidebar-simple" : "ph-sidebar-simple"} size={17} />
           </button>
           <button type="button" className="app-side-close" onClick={() => setDrawer(false)} aria-label="Close menu">
             <Icon name="ph-x" size={18} />
@@ -200,7 +189,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="app-workspace" title={workspaceName}>
-          <div className="app-workspace-mark" data-platform={isPlatform || undefined} data-has-logo={company?.logo_mark_url && !isPlatform ? "true" : undefined}>
+          <div className="app-workspace-mark" data-has-logo={company?.logo_mark_url ? "true" : undefined}>
             {company?.logo_mark_url && !isPlatform
               // eslint-disable-next-line @next/next/no-img-element
               ? <img src={company.logo_mark_url} alt="" />
@@ -215,17 +204,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="app-nav">
           {groups.map(({ group, items: groupItems }) => (
             <div key={group} className="app-nav-group">
-              <div className="app-nav-label">{t(NAV_GROUP_LABEL[group])}</div>
+              <div className="app-nav-label">{t(GROUP_LABEL[group])}</div>
               {groupItems.map((item) => {
                 const badge = badgeFor(item);
                 const active = item.href === currentHref;
                 return (
                   <Link key={item.href} href={item.href} className="app-nav-item" aria-current={active ? "page" : undefined} data-tip={t(item.label)}>
-                    <Icon name={item.icon} size={18} weight={active ? "fill" : "regular"} />
+                    <Icon name={item.icon} size={17} weight={active ? "fill" : "regular"} />
                     <span className="app-nav-text">{t(item.label)}</span>
-                    {badge ? (
-                      <span className="app-nav-badge tnum" data-quiet={item.badge !== "pending" || undefined}>{badge > 99 ? "99+" : badge}</span>
-                    ) : null}
+                    {badge ? <span className="app-nav-badge tnum">{badge > 99 ? "99+" : badge}</span> : null}
                   </Link>
                 );
               })}
@@ -295,7 +282,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               onChange={(e) => setQuery(e.target.value)}
               onBlur={() => window.setTimeout(() => setResults([]), 180)}
             />
-            <kbd className="app-kbd" aria-hidden="true">⌘K</kbd>
             {results.length > 0 && (
               <div className="vf-search-results" role="listbox">
                 {results.map((row) => (
@@ -313,18 +299,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="app-topbar-actions">
-            <div className="app-lang" role="group" aria-label="Language">
-              {(["en", "sw"] as const).map((code) => (
-                <button key={code} type="button" onClick={() => setLocale(code)} aria-pressed={locale === code}>{code.toUpperCase()}</button>
-              ))}
-            </div>
             <ThemeToggleButton />
             <Link className="btn btn-icon vf-bell" href="/notifications" aria-label={unread > 0 ? `${t("notifications")} (${unread})` : t("notifications")}>
               <Icon name="ph-bell" size={18} />
               {unread > 0 && <span className="vf-bell-dot" aria-hidden="true" />}
             </Link>
             {canCreate && (
-              <Link className="btn btn-primary btn-sm app-topbar-create" href="/vouchers/new">
+              <Link className="btn btn-primary app-topbar-create" href="/vouchers/new">
                 <Icon name="ph-plus" size={15} /> <span>{t("newVoucher")}</span>
               </Link>
             )}
@@ -341,7 +322,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           return (
             <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}>
               <span className="vf-tab-icon">
-                <Icon name={item.icon} size={22} weight={active ? "fill" : "regular"} />
+                <Icon name={item.icon} size={21} weight={active ? "fill" : "regular"} />
                 {badge ? <span className="vf-tab-badge">{badge > 99 ? "99+" : badge}</span> : null}
               </span>
               <span className="vf-tab-label">{t(item.short ?? item.label)}</span>
@@ -349,11 +330,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
-      {canCreate && (pathname === "/dashboard" || pathname === "/vouchers") && (
-        <Link className="app-fab no-print" href="/vouchers/new">
-          <Icon name="ph-plus" size={20} /> <span>{t("newVoucher")}</span>
-        </Link>
-      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { API_MODE, download, printBlob, saveBlob } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { Icon, type Tone } from "@/components/ui";
-import { formatDate, formatDateTime, relativeTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { deriveProgress, type ProgressStep } from "@/lib/progress";
 import { useWorkflows } from "@/lib/use-workflows";
 import type { MessageKey } from "@/lib/i18n";
@@ -39,29 +39,9 @@ export function statusTone(key: string | null | undefined): Tone {
   }
 }
 
-/**
- * The mark beside each status label, so a state never rests on colour alone.
- * Keys are StatusPresenter's; anything else in review reads as waiting.
- */
-const STATUS_ICON: Record<string, string> = {
-  draft: "ph-pencil-simple",
-  awaiting_signature: "ph-hourglass-medium",
-  awaiting_approval: "ph-hourglass-medium",
-  awaiting_review: "ph-hourglass-medium",
-  in_review: "ph-hourglass-medium",
-  signed_pending_submit: "ph-signature",
-  changes_requested: "ph-arrow-u-up-left",
-  awaiting_payment: "ph-check-circle",
-  paid: "ph-check-circle",
-  rejected: "ph-x-circle",
-  cancelled: "ph-prohibit",
-};
-
 export function StatusBadge({ voucher, large }: { voucher: Pick<Voucher, "status_key" | "status_label">; large?: boolean }) {
-  const key = voucher.status_key ?? "in_review";
   return (
-    <span className={`badge badge-status tone-${statusTone(key)}${large ? " badge-lg" : ""}`} data-status={key}>
-      <Icon name={STATUS_ICON[key] ?? "ph-hourglass-medium"} size={13} weight={key === "paid" ? "fill" : "regular"} />
+    <span className={`badge tone-${statusTone(voucher.status_key)}${large ? " badge-lg" : ""}`}>
       {voucher.status_label}
     </span>
   );
@@ -235,92 +215,47 @@ export function VoucherCard({ voucher, showActions = true }: { voucher: Voucher;
 }
 
 /**
- * One line under a status saying where the voucher is and who holds it:
- * "Step 2 of 3 · HOD", "Back with Gloria Mtei", "Ref. NMB-TT-88213".
- */
-export function stageLine(voucher: Voucher, progress: ProgressStep[], locale: "en" | "sw"): string {
-  const sw = locale === "sw";
-  switch (voucher.status) {
-    case "draft":
-      return sw ? "Haijawasilishwa" : "Not submitted";
-    case "changes_requested":
-      return voucher.requester?.name ? `${sw ? "Imerudi kwa" : "Back with"} ${voucher.requester.name}` : (sw ? "Imerudi kwa mwombaji" : "Back with the requester");
-    case "approved":
-      return sw ? "Inasubiri malipo" : "Awaiting payment";
-    case "paid":
-      return voucher.payment_reference ? `Ref. ${voucher.payment_reference}` : `${sw ? "Imelipwa" : "Paid"} ${formatDate(voucher.paid_at, locale)}`;
-    case "rejected":
-      return voucher.rejected_at ? `${sw ? "Imekataliwa" : "Rejected"} ${formatDate(voucher.rejected_at, locale)}` : "";
-    case "cancelled":
-      return "";
-    default: {
-      const steps = progress.filter((s) => s.key !== "prepared");
-      const index = steps.findIndex((s) => s.state === "current");
-      if (index < 0) return "";
-      return `${sw ? "Hatua" : "Step"} ${index + 1} ${sw ? "kati ya" : "of"} ${steps.length} · ${steps[index].label}`;
-    }
-  }
-}
-
-/**
  * The voucher register. A table where there is room to compare columns; the
  * same vouchers as rows on a phone, where a seven-column table is unusable.
  */
 export function VoucherTable({ vouchers, bare = false }: { vouchers: Voucher[]; /** Inside a panel that already draws the frame. */ bare?: boolean }) {
   const { t, locale } = useApp();
   const router = useRouter();
-  const workflows = useWorkflows();
 
   const table = (
     <div className="table-wrap">
       <table className="table app-voucher-table">
         <thead>
           <tr>
-            <th className="app-vt-c-number">{t("voucher")}</th>
-            <th>{locale === "sw" ? "Mlipwaji na madhumuni" : "Payee & purpose"}</th>
-            <th className="app-vt-c-requester">{locale === "sw" ? "Mwombaji" : "Requester"}</th>
-            <th className="num app-vt-c-amount">{t("amount")}</th>
-            <th className="app-vt-c-status">{t("status")}</th>
-            <th className="app-vt-c-date">{locale === "sw" ? "Imesasishwa" : "Updated"}</th>
+            <th>{t("voucher")}</th>
+            <th>{t("purpose")}</th>
+            <th>{t("payee")}</th>
+            <th className="num">{t("amount")}</th>
+            <th>{t("status")}</th>
+            <th>{t("date")}</th>
           </tr>
         </thead>
         <tbody>
-          {vouchers.map((voucher) => {
-            const stage = stageLine(voucher, deriveProgress(voucher, workflows, locale), locale);
-            return (
-              <tr key={voucher.id} className="is-clickable"
-                onClick={(e) => {
-                  if ((e.target as HTMLElement).closest("a, button")) return;
-                  router.push(`/vouchers/${voucher.id}`);
-                }}>
-                <td className="app-vt-number">
-                  <Link href={`/vouchers/${voucher.id}`} className="app-mono">{voucher.number}</Link>
-                  <span className="app-vt-sub">{[voucher.voucher_type?.label, voucher.kind === "cash" ? t("cash") : t("bank")].filter(Boolean).join(" · ")}</span>
-                </td>
-                <td className="app-vt-purpose">
-                  <div className="app-vt-title">{voucher.payee}</div>
-                  <div className="app-vt-meta">{voucher.purpose}</div>
-                </td>
-                <td className="app-vt-requester">
-                  {voucher.requester && (
-                    <span className="app-person">
-                      <span className="app-avatar" aria-hidden="true">{voucher.requester.initials}</span>
-                      <span className="app-person-text">
-                        <strong>{voucher.requester.name}</strong>
-                        {voucher.department?.name && <span>{voucher.department.name}</span>}
-                      </span>
-                    </span>
-                  )}
-                </td>
-                <td className="num app-vt-amount">{voucher.amount_text}</td>
-                <td className="app-vt-status">
-                  <StatusBadge voucher={voucher} />
-                  {stage && <div className="app-vt-stage">{stage}</div>}
-                </td>
-                <td className="app-vt-date">{relativeTime(voucher.updated_at ?? voucher.voucher_date, locale)}</td>
-              </tr>
-            );
-          })}
+          {vouchers.map((voucher) => (
+            <tr key={voucher.id} className="is-clickable"
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("a, button")) return;
+                router.push(`/vouchers/${voucher.id}`);
+              }}>
+              <td className="app-vt-number">
+                <Link href={`/vouchers/${voucher.id}`} className="tnum">{voucher.number}</Link>
+                <KindChip kind={voucher.kind} />
+              </td>
+              <td className="app-vt-purpose">
+                <div className="app-vt-title">{voucher.purpose}</div>
+                <div className="app-vt-meta">{[voucher.requester?.name, voucher.department?.name].filter(Boolean).join(" · ")}</div>
+              </td>
+              <td className="app-vt-payee">{voucher.payee}</td>
+              <td className="num app-vt-amount">{voucher.amount_text}</td>
+              <td><StatusBadge voucher={voucher} /></td>
+              <td className="app-vt-date">{formatDate(voucher.voucher_date, locale)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

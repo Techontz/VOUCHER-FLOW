@@ -11,9 +11,7 @@ import {
   Dialog, Disclosure, EmptyState, Field, Icon, Note, Spinner, type SummaryRow,
 } from "@/components/ui";
 import { Stamp } from "@/components/stamps";
-import { ApprovalTrack, DocumentActions, KindChip, ProgressSteps, StatusBadge } from "@/components/voucher-bits";
-import { deriveProgress } from "@/lib/progress";
-import { useWorkflows } from "@/lib/use-workflows";
+import { ApprovalTrack, DocumentActions, KindChip, StatusBadge } from "@/components/voucher-bits";
 import { VoucherSheet } from "@/components/voucher-sheet";
 import { SignaturePad } from "@/components/signature-pad";
 import type { Voucher } from "@/lib/types";
@@ -40,7 +38,6 @@ export default function VoucherDetailPage() {
   const router = useRouter();
   const { t, locale, user, company, toast, reportError, refreshUnread } = useApp();
   const search = useSearchParams();
-  const workflows = useWorkflows();
 
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -91,18 +88,6 @@ export default function VoucherDetailPage() {
     const timer = window.setTimeout(() => window.print(), 350);
     return () => window.clearTimeout(timer);
   }, [search, voucher]);
-
-  // Arriving from the payment queue's "Pay": open the same confirmation the
-  // button on this page opens — only if the engine says this person may pay.
-  const payRequested = search.get("action") === "pay";
-  const canPayHere = !!voucher?.actions?.pay;
-  useEffect(() => {
-    if (!payRequested || !canPayHere) return;
-    const timer = window.setTimeout(() => openDialog("pay"), 0);
-    router.replace(`/vouchers/${params.id}`, { scroll: false });
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payRequested, canPayHere]);
 
   useEffect(() => {
     if (user?.has_signature) {
@@ -239,7 +224,6 @@ export default function VoucherDetailPage() {
   const decisionActions = a && (a.submit || a.sign || a.submit_signed || a.approve || a.reject || a.request_changes || a.pay);
   const signValid = statement && !!signature;
   const isCash = voucher.kind === "cash";
-  const progress = deriveProgress(voucher, workflows, locale);
 
   /** The same statement of what is being acted on, in every dialog. */
   const summary: SummaryRow[] = [
@@ -267,19 +251,12 @@ export default function VoucherDetailPage() {
         <div className="app-doc-head">
           <div className="app-doc-head-main">
             <div className="vf-voucher-kicker">
-              <span className="app-doc-number app-mono">{voucher.number}</span>
-              <StatusBadge voucher={voucher} />
-              <KindChip kind={voucher.kind} />
+              <span className="app-doc-number tnum">{voucher.number}</span>
               <span className="app-doc-type">{voucher.voucher_type?.label ?? t("voucher")}</span>
+              <KindChip kind={voucher.kind} />
+              <StatusBadge voucher={voucher} />
             </div>
             <h1 className="vf-voucher-title">{voucher.purpose}</h1>
-            <p className="app-doc-meta">
-              {[
-                voucher.requester?.name && `${t("requestedBy")} ${voucher.requester.name}`,
-                voucher.department?.name,
-                formatDate(voucher.voucher_date, locale),
-              ].filter(Boolean).join(" · ")}
-            </p>
           </div>
           <div className="app-doc-amount">
             <span className="app-doc-amount-label">{t("amount")}</span>
@@ -295,12 +272,6 @@ export default function VoucherDetailPage() {
           <div><dt>{t("date")}</dt><dd className="tnum">{formatDate(voucher.voucher_date, locale)}</dd></div>
           <div><dt>{t("paymentMethod")}</dt><dd>{voucher.payment_method ?? "—"}</dd></div>
         </dl>
-
-        {progress.length > 1 && (
-          <div className="app-doc-route no-print">
-            <ProgressSteps steps={progress} />
-          </div>
-        )}
 
         <div className="vf-voucher-tools no-print">
           <DocumentActions voucher={voucher} />
@@ -546,11 +517,11 @@ export default function VoucherDetailPage() {
       {primary && !decisionVisible && (
         <div className="vf-actionbar no-print">
           {a?.reject && (
-            <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => openDialog("reject")}>
-              <Icon name="ph-x" size={18} /> {t("reject")}
+            <button className="btn btn-danger" style={{ flex: "0 0 auto" }} onClick={() => openDialog("reject")} aria-label={t("reject")}>
+              <Icon name="ph-x" size={18} />
             </button>
           )}
-          <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={() => openDialog(primary.action)}>
+          <button className="btn btn-primary" onClick={() => openDialog(primary.action)}>
             <Icon name={primary.icon} size={18} /> {primary.label}
           </button>
         </div>
@@ -695,9 +666,9 @@ export default function VoucherDetailPage() {
         actions={
           <>
             <button className="btn btn-secondary" onClick={closeDialog} disabled={busy}>{t("cancel")}</button>
-            <button className="btn btn-success" onClick={() => run("pay")}
+            <button className="btn btn-primary" onClick={() => run("pay")}
               disabled={busy || (isCash ? !receivedBy.trim() : !payReference.trim())}>
-              {busy ? <Spinner /> : <><Icon name="ph-check" size={17} /> {locale === "sw" ? `Weka ${voucher.amount_text} kama imelipwa` : `Mark ${voucher.amount_text} as paid`}</>}
+              {busy ? <Spinner /> : <><Icon name="ph-check" size={17} /> {t("confirmPayment")}</>}
             </button>
           </>
         }

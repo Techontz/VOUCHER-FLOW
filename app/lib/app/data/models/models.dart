@@ -73,7 +73,7 @@ class Company {
       bankBranch = _as<String>(json['bank_branch']),
       voucherFooterText = _as<String>(json['voucher_footer_text']),
       primaryColor = '${json['primary_color'] ?? '#0088b0'}',
-      colorTheme = '${json['color_theme'] ?? 'crimson'}',
+      colorTheme = '${json['color_theme'] ?? 'blue'}',
       status = '${json['status']}',
       isUsable = json['is_usable'] == true,
       isExpired = json['is_expired'] == true,
@@ -85,7 +85,7 @@ class Company {
   final int id;
   final String name, email, currency, locale, primaryColor, status;
 
-  /// The interface palette: crimson (the default), blue, emerald, violet or rose.
+  /// The interface palette: blue, emerald, violet or rose.
   final String colorTheme;
   final String? phone, address, logoUrl, logoMarkUrl, legalName, website, tin;
   final String? bankName, bankAccountName, bankAccountNumber, bankBranch;

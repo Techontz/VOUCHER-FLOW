@@ -335,9 +335,7 @@ class MockApi {
             number: _takeNumber(type),
             kind: body['kind'] == 'cash' ? 'cash' : 'bank',
             voucherTypeId: type.id,
-            departmentId:
-                int.tryParse('${body['department_id']}') ??
-                _current!.departmentId,
+            departmentId: _current!.departmentId,
             requesterId: _current!.id,
             payee: '${body['payee'] ?? ''}',
             purpose: '${body['purpose'] ?? ''}',
@@ -377,9 +375,6 @@ class MockApi {
     v.accountRef = body['account_ref'] as String? ?? v.accountRef;
     v.category = body['category'] as String? ?? v.category;
     if (body['kind'] != null) v.kind = '${body['kind']}';
-    if (body['department_id'] != null) {
-      v.departmentId = int.tryParse('${body['department_id']}');
-    }
     return {'data': _voucherJson(v, detailed: true)};
   }
 
@@ -518,12 +513,8 @@ class MockApi {
         if (!actions['pay']!) {
           throw ApiException(422, 'This voucher is not cleared for payment.');
         }
-        // The app sends payment_reference for a transfer and received_by for
-        // cash; older fixtures and tests send reference.
-        final reference =
-            '${body['reference'] ?? body['payment_reference'] ?? ''}'.trim();
-        final receiver = '${body['received_by'] ?? ''}'.trim();
-        if (reference.isEmpty && receiver.isEmpty) {
+        final reference = '${body['reference'] ?? ''}'.trim();
+        if (reference.isEmpty) {
           throw ApiException(422, 'A payment reference is required.', {
             'reference': ['A payment reference is required.'],
           });
@@ -538,23 +529,16 @@ class MockApi {
         );
         v.status = 'paid';
         v.paidAt = now;
-        v.paymentReference = reference.isEmpty ? null : reference;
+        v.paymentReference = reference;
         v.paidBy = _current!.name;
         v.currentStepPosition = null;
         if (body['method'] != null) v.paymentMethod = '${body['method']}';
-        if (body['payment_method'] != null) {
-          v.paymentMethod = '${body['payment_method']}';
-        }
-        if (body['received_by'] != null) {
-          v.receivedBy = '${body['received_by']}';
-        }
         _notify(
           v.requesterId,
           title: '${v.number} has been paid',
           titleSw: '${v.number} imelipwa',
           icon: 'check',
-          body:
-              '${_current!.name} released ${_money(v.amount)} · ${reference.isEmpty ? receiver : reference}.',
+          body: '${_current!.name} released ${_money(v.amount)} · $reference.',
           voucherId: v.id,
         );
 
@@ -628,6 +612,8 @@ class MockApi {
       final u = _user(dept!.managerUserId!);
       if (u != null) return [u];
     }
+    // HOD and manager steps stay inside the voucher's own department.
+    if (step.role == 'hod' || step.role == 'manager') return [];
     return _users
         .where((u) => u.companyId == v.companyId && u.role == step.role)
         .toList();

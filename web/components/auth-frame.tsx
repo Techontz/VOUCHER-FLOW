@@ -13,14 +13,10 @@ import { LanguageToggle, ThemeToggle } from "@/components/ui";
  * card rather than above it.
  */
 export function AuthFrame({
-  kicker, title, sub, children, aside, footer, palette,
-}: {
-  kicker: string; title: string; sub?: string; children: ReactNode; aside?: ReactNode; footer?: ReactNode;
-  /** "product" wears the signed-in app's palette (sign-in family); omitted keeps the approved public look. */
-  palette?: "product";
-}) {
+  kicker, title, sub, children, aside, footer,
+}: { kicker: string; title: string; sub?: string; children: ReactNode; aside?: ReactNode; footer?: ReactNode }) {
   return (
-    <div className="vf-auth" data-palette={palette}>
+    <div className="vf-auth">
       <header className="vf-auth-bar">
         <Link href="/" className="vf-auth-brand" aria-label="VouchFlow home">
           <span className="vf-auth-mark" aria-hidden="true">V</span>

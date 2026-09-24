@@ -50,7 +50,7 @@ export interface MockCompany {
   primary_color: string;
   theme: "light" | "dark";
   /** Interface palette; absent means blue, as on the API. */
-  color_theme?: "crimson" | "blue" | "emerald" | "violet" | "rose";
+  color_theme?: "blue" | "emerald" | "violet" | "rose";
   voucher_footer_text: string;
   status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   plan_code: string;
