@@ -51,7 +51,7 @@ class CompanyResource extends JsonResource
             'secondary_color' => $this->secondary_color,
             'accent_color' => $this->accent_color,
             'theme' => $this->theme,
-            'color_theme' => $this->color_theme ?? 'blue',
+            'color_theme' => $this->color_theme ?? 'crimson',
             'voucher_header_text' => $this->voucher_header_text,
             'voucher_footer_text' => $this->voucher_footer_text,
 

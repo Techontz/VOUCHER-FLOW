@@ -12,9 +12,9 @@ use App\Models\Voucher;
 use App\Models\WorkflowStep;
 use App\Services\AmountFormatter;
 use App\Services\VoucherVisibility;
+use App\Services\WorkflowEngine;
 use App\Support\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Role-shaped dashboards.
@@ -170,7 +170,7 @@ class DashboardController extends Controller
     private function cashier(Request $request): array
     {
         $user = $request->user();
-        $engine = app(\App\Services\WorkflowEngine::class);
+        $engine = app(WorkflowEngine::class);
 
         $query = Voucher::with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
             ->awaitingPayment();
@@ -344,9 +344,13 @@ class DashboardController extends Controller
         return $this->tenant->company()?->currency ?? 'TZS';
     }
 
+    /**
+     * By the company's own clock. The app runs on UTC, three hours behind
+     * Tanzania, so reading the server's hour greeted afternoons as mornings.
+     */
     private function greeting(): string
     {
-        $hour = (int) now()->format('G');
+        $hour = (int) now($this->tenant->company()?->timezone ?: 'Africa/Dar_es_Salaam')->format('G');
 
         return match (true) {
             $hour < 12 => 'Good morning',

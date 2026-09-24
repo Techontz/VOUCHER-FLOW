@@ -49,12 +49,22 @@ class CompanyBrandingTest extends TestCase
         $this->assertSame('0250390569500', $t['company']->fresh()->bank_account_number);
     }
 
-    public function test_new_companies_start_on_the_blue_interface_theme(): void
+    public function test_new_companies_start_on_the_crimson_interface_theme(): void
     {
         $t = $this->makeTenant('Acme Trading');
 
         $this->actingAs($t['admin'], 'sanctum')
             ->getJson('/api/company')
+            ->assertOk()
+            ->assertJsonPath('data.color_theme', 'crimson');
+    }
+
+    public function test_a_company_can_still_choose_the_blue_interface_theme(): void
+    {
+        $t = $this->makeTenant('Acme Trading');
+
+        $this->actingAs($t['admin'], 'sanctum')
+            ->putJson('/api/company', ['color_theme' => 'blue'])
             ->assertOk()
             ->assertJsonPath('data.color_theme', 'blue');
     }
@@ -77,7 +87,7 @@ class CompanyBrandingTest extends TestCase
             ->putJson('/api/company', ['color_theme' => 'rose'])
             ->assertForbidden();
 
-        $this->assertSame('blue', $t['company']->fresh()->color_theme);
+        $this->assertSame('crimson', $t['company']->fresh()->color_theme);
     }
 
     public function test_both_logos_can_be_replaced_and_removed(): void

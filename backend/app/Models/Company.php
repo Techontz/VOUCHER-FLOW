@@ -66,9 +66,9 @@ class Company extends Model
      * The interface palettes a company can work in. Each is defined for light
      * and dark mode in web/styles/app.css; add one there before adding it here.
      */
-    public const COLOR_THEMES = ['blue', 'emerald', 'violet', 'rose'];
+    public const COLOR_THEMES = ['crimson', 'blue', 'emerald', 'violet', 'rose'];
 
-    private const COLOR_THEMES_LIST = 'blue,emerald,violet,rose';
+    private const COLOR_THEMES_LIST = 'crimson,blue,emerald,violet,rose';
 
     /** Colours, theme and the words printed on a voucher. */
     public const BRANDING_RULES = [
