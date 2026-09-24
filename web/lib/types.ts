@@ -1,6 +1,6 @@
 /** v2 routes a voucher Employee → HOD → CEO → Cashier. */
 export type Role =
-  | "super_admin" | "company_admin" | "employee" | "hod" | "ceo" | "cashier" | "finance" | "director";
+  | "super_admin" | "company_admin" | "employee" | "hod" | "manager" | "ceo" | "cashier" | "finance" | "director";
 
 export interface User {
   id: number;
@@ -93,7 +93,7 @@ export interface Company {
   created_at: string | null;
 }
 
-export type ColorTheme = "blue" | "emerald" | "violet" | "rose";
+export type ColorTheme = "crimson" | "blue" | "emerald" | "violet" | "rose";
 
 export interface Department {
   id: number;
@@ -116,7 +116,7 @@ export interface WorkflowStep {
   name: string;
   name_sw: string | null;
   label: string;
-  role: "employee" | "hod" | "ceo" | "cashier" | "finance" | "director" | "custom";
+  role: "employee" | "hod" | "manager" | "ceo" | "cashier" | "finance" | "director" | "custom";
   role_label: string;
   assigned_user_id: number | null;
   assigned_user?: { id: number; name: string } | null;

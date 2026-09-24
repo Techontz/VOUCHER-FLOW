@@ -127,6 +127,8 @@ const D = {
 
   // — dashboard —
   goodMorning: ['Good morning', 'Habari za asubuhi'],
+  goodAfternoon: ['Good afternoon', 'Habari za mchana'],
+  goodEvening: ['Good evening', 'Habari za jioni'],
   createAVoucher: ['Create a voucher', 'Tengeneza vocha'],
   trackMine: ['Track my vouchers', 'Fuatilia vocha zangu'],
   myRecent: ['My recent vouchers', 'Vocha zangu za hivi karibuni'],
@@ -669,8 +671,8 @@ const D = {
   loginLine2: ["Get them approved.", "Pata idhini."],
   loginLine3: ["Pay with confidence.", "Lipa kwa uhakika."],
   loginBody: [
-    "VouchFlow gives organisations one secure platform to create, review, sign, approve and pay financial vouchers — with complete visibility from request to payment.",
-    "VouchFlow inaipa kampuni jukwaa moja salama la kuandaa, kukagua, kusaini, kuidhinisha na kulipa vocha za fedha — ukiona kila hatua kuanzia ombi hadi malipo.",
+    "VouchFlow gives organisations one secure platform to create, review, sign, approve and pay financial vouchers, with complete visibility from request to payment.",
+    "VouchFlow inaipa kampuni jukwaa moja salama la kuandaa, kukagua, kusaini, kuidhinisha na kulipa vocha za fedha, ukiona kila hatua kuanzia ombi hadi malipo.",
   ],
   loginFeat1: ["Secure", "Salama"],
   loginFeat1Sub: ["Controlled voucher approvals", "Idhini za vocha zenye udhibiti"],
@@ -713,6 +715,12 @@ const D = {
   navWorkspace: ["Workspace", "Kazi"],
   navAdministration: ["Administration", "Utawala"],
   navPlatform: ["Platform", "Jukwaa"],
+  navOrganisation: ["Organisation", "Shirika"],
+  navFinance: ["Finance", "Fedha"],
+  navInsights: ["Insights", "Takwimu"],
+  navAccount: ["Account", "Akaunti"],
+  navSystem: ["System", "Mfumo"],
+  rolesAccess: ["Roles & access", "Majukumu na ruhusa"],
   loginFooter: ["Vouchers, signatures and payments — on the record.", "Vocha, saini na malipo — yote kwenye kumbukumbu."],
 } as const satisfies Record<string, Entry>;
 

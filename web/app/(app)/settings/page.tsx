@@ -18,6 +18,7 @@ interface DirectoryUser { id: number; name: string; role: string }
 const ROLE_OPTIONS = [
   { value: "employee", label: "Employee" },
   { value: "hod", label: "HOD" },
+  { value: "manager", label: "Manager" },
   { value: "finance", label: "Finance" },
   { value: "ceo", label: "CEO" },
   { value: "cashier", label: "Cashier" },

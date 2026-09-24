@@ -35,7 +35,17 @@ export default function VouchersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [types, setTypes] = useState<VoucherType[]>([]);
+
+  // A link can open the register on one view: /vouchers?status=changes_requested.
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("status");
+    if (status && STATUSES.some((s) => s.value === status)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFilters((f) => ({ ...f, status }));
+    }
+  }, []);
 
   useEffect(() => {
     api.get<{ data: Department[] }>("/departments").then((r) => setDepartments(r.data)).catch(() => undefined);
@@ -56,6 +66,20 @@ export default function VouchersPage() {
     return () => window.clearTimeout(timer);
   }, [load, filters.q]);
 
+  // How many vouchers sit in each view, under the same search and filters.
+  const scopeKey = JSON.stringify({ ...filters, status: undefined });
+  useEffect(() => {
+    const params = JSON.parse(scopeKey) as typeof BLANK;
+    const timer = window.setTimeout(() => {
+      Promise.all(STATUSES.map((s) =>
+        api.get<Paginated<Voucher>>("/vouchers", { ...params, status: s.value, per_page: 1 })
+          .then((r) => [s.value, r.meta?.total ?? r.data.length] as const)
+          .catch(() => [s.value, -1] as const),
+      )).then((pairs) => setCounts(Object.fromEntries(pairs.filter(([, n]) => n >= 0))));
+    }, params.q ? 300 : 0);
+    return () => window.clearTimeout(timer);
+  }, [scopeKey]);
+
   const set = (key: keyof typeof filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setPage(1);
     setFilters((f) => ({ ...f, [key]: e.target.value }));
@@ -70,7 +94,9 @@ export default function VouchersPage() {
     <div className="app-page">
       <PageHeader
         title={isEmployee ? t("myVouchers") : t("voucherRegister")}
-        sub={isEmployee ? "You see only your own vouchers." : undefined}
+        sub={isEmployee
+          ? (locale === "sw" ? "Unaona vocha zako pekee." : "You see only your own vouchers.")
+          : company?.name ? `${locale === "sw" ? "Kila vocha iliyoandaliwa" : "Every voucher raised at"} ${company.name}` : undefined}
         actions={user?.role !== "cashier" && user?.role !== "super_admin"
           ? <Link className="btn btn-primary" href="/vouchers/new"><Icon name="ph-plus" size={15} /> {t("createVoucher")}</Link>
           : undefined}
@@ -81,7 +107,7 @@ export default function VouchersPage() {
           <button key={s.value} type="button" role="tab" aria-selected={filters.status === s.value}
             onClick={() => { setPage(1); setFilters((f) => ({ ...f, status: s.value })); }}>
             {s.value === "" ? t("all") : t(s.key as never)}
-            {filters.status === s.value && result?.meta?.total != null && <span className="app-tabs-count">{result.meta.total}</span>}
+            {counts[s.value] != null && <span className="app-tabs-count tnum">{counts[s.value].toLocaleString()}</span>}
           </button>
         ))}
       </div>

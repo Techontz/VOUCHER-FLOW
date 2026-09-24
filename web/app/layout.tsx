@@ -13,8 +13,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e1116" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f6f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0e10" },
   ],
 };
 
@@ -24,7 +24,7 @@ export const viewport: Viewport = {
  * nothing has been stored — the operating system's preference is deliberately
  * not consulted. The company's colour theme is restored the same way.
  */
-const THEME_BOOTSTRAP = `(function(){var d=document.documentElement;try{var t=localStorage.getItem("vouchflow.theme");d.dataset.theme=(t==="light"||t==="dark")?t:"dark";var a=localStorage.getItem("vouchflow.accent");if(/^(blue|emerald|violet|rose)$/.test(a||""))d.dataset.accent=a;}catch(e){d.dataset.theme="dark";}})();`;
+const THEME_BOOTSTRAP = `(function(){var d=document.documentElement;try{var t=localStorage.getItem("vouchflow.theme");d.dataset.theme=(t==="light"||t==="dark")?t:"dark";var a=localStorage.getItem("vouchflow.accent");if(/^(crimson|blue|emerald|violet|rose)$/.test(a||""))d.dataset.accent=a;}catch(e){d.dataset.theme="dark";}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

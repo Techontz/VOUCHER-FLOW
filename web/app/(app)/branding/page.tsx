@@ -12,6 +12,7 @@ type LogoSlot = "logo" | "logo_mark";
 
 /** The interface palettes; the CSS for each lives in styles/app.css. */
 const COLOR_THEMES: { key: ColorTheme; label: [string, string]; swatch: string }[] = [
+  { key: "crimson", label: ["Crimson", "Nyekundu"], swatch: "#b8132a" },
   { key: "blue", label: ["Blue", "Bluu"], swatch: "#2563eb" },
   { key: "emerald", label: ["Emerald", "Zumaridi"], swatch: "#047857" },
   { key: "violet", label: ["Violet", "Zambarau"], swatch: "#6d28d9" },
@@ -34,13 +35,14 @@ export default function BrandingPage() {
   const { t, locale, company, refresh, toast, reportError } = useApp();
   const sw = locale === "sw";
   const [busy, setBusy] = useState(false);
+  const [previewKind, setPreviewKind] = useState<"app" | "document">("app");
   // New artwork waiting to be uploaded, and artwork marked for removal. The
   // *_url fields in the form are only the on-screen preview of either.
   const [files, setFiles] = useState<Partial<Record<LogoSlot, File>>>({});
   const [removed, setRemoved] = useState<Partial<Record<LogoSlot, boolean>>>({});
   const [form, setForm] = useState({
     name: "", legal_name: "", email: "", phone: "", address: "", website: "", tin: "",
-    primary_color: "#2E3192", color_theme: "blue" as ColorTheme, voucher_footer_text: "",
+    primary_color: "#2E3192", color_theme: "crimson" as ColorTheme, voucher_footer_text: "",
     bank_name: "", bank_account_name: "", bank_account_number: "", bank_branch: "",
     logo_url: "", logo_mark_url: "",
   });
@@ -58,7 +60,7 @@ export default function BrandingPage() {
       website: company.website ?? "",
       tin: company.tin ?? "",
       primary_color: company.primary_color ?? "#2E3192",
-      color_theme: company.color_theme ?? "blue",
+      color_theme: company.color_theme ?? "crimson",
       voucher_footer_text: company.voucher_footer_text ?? "",
       bank_name: company.bank_name ?? "",
       bank_account_name: company.bank_account_name ?? "",
@@ -77,7 +79,7 @@ export default function BrandingPage() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.accent = form.color_theme;
-    return () => { root.dataset.accent = company?.color_theme ?? "blue"; };
+    return () => { root.dataset.accent = company?.color_theme ?? "crimson"; };
   }, [form.color_theme, company?.color_theme]);
 
   const set = (key: keyof typeof form) =>
@@ -317,10 +319,49 @@ export default function BrandingPage() {
 
         {/* ── live specimen ── */}
         <div className="app-branding-preview">
-          <div className="app-preview-label"><Icon name="ph-eye" size={14} /> {t("livePreview")}</div>
-          <div className="vf-document-frame">
-            <VoucherSheet voucher={specimen} company={previewCompany} />
+          <div className="app-preview-top">
+            <div className="app-preview-label"><Icon name="ph-eye" size={14} /> {t("livePreview")}</div>
+            <div className="seg seg-sm" role="tablist" aria-label={t("livePreview")}>
+              <button type="button" role="tab" aria-selected={previewKind === "app"} onClick={() => setPreviewKind("app")}>{sw ? "Programu" : "App"}</button>
+              <button type="button" role="tab" aria-selected={previewKind === "document"} onClick={() => setPreviewKind("document")}>{sw ? "Vocha (PDF)" : "Voucher PDF"}</button>
+            </div>
           </div>
+          {previewKind === "app" ? (
+            /* The interface in the chosen colour. The palette is already applied
+               to the page while this screen is open, so this uses the live tokens. */
+            <div className="app-brand-app" aria-hidden="true">
+              <div className="app-brand-app-side">
+                <div className="app-brand-app-co">
+                  <span className="app-brand-app-mark">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {form.logo_mark_url ? <img src={form.logo_mark_url} alt="" /> : (form.name || "V").trim().charAt(0).toUpperCase()}
+                  </span>
+                  <span className="app-brand-app-name">{form.name || company?.name}</span>
+                </div>
+                <span className="app-brand-app-item is-on"><Icon name="ph-squares-four" size={13} weight="fill" /> {t("dashboard")}</span>
+                <span className="app-brand-app-item"><Icon name="ph-seal-check" size={13} /> {t("approvals")}</span>
+                <span className="app-brand-app-item"><Icon name="ph-receipt" size={13} /> {t("vouchers")}</span>
+                <span className="app-brand-app-item"><Icon name="ph-users" size={13} /> {t("employees")}</span>
+              </div>
+              <div className="app-brand-app-main">
+                <div className="app-brand-app-head">
+                  <span>{t("dashboard")}</span>
+                  <span className="app-brand-app-btn"><Icon name="ph-plus" size={11} /> {t("newVoucher")}</span>
+                </div>
+                <div className="app-brand-app-cards">
+                  <span><small>{t("pending")}</small><b>12</b></span>
+                  <span><small>{t("paidAct")}</small><b>48</b></span>
+                </div>
+                <div className="app-brand-app-bars">
+                  {[46, 62, 40, 70, 88].map((h, i) => <span key={i} style={{ height: `${h}%` }} data-on={i === 4 || undefined} />)}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="vf-document-frame">
+              <VoucherSheet voucher={specimen} company={previewCompany} />
+            </div>
+          )}
           <div style={{ marginTop: "var(--space-3)" }}>
             <Note>{t("previewNote")}</Note>
           </div>

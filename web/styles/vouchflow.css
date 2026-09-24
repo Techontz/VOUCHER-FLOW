@@ -2255,3 +2255,51 @@ select.rg-input { padding-right: 36px; }
   .rg-preview-sheet { grid-template-columns: auto minmax(0, 1fr); }
   .rg-preview-tag { grid-column: 1 / -1; }
 }
+
+/* ── Sign-in and one-time code: the product palette ──────────────────────
+   Same structure as the approved pages; only the colours follow the signed-in
+   app (dark charcoal, crimson). Registration and the landing page are not
+   touched: their palette stays as approved. */
+.vf-login,
+.vf-auth[data-palette="product"] {
+  --color-accent: #b8132a;
+  --color-accent-100: rgba(184, 19, 42, .12);
+  --color-accent-200: rgba(184, 19, 42, .2);
+  --color-accent-300: rgba(255, 107, 120, .4);
+  --color-accent-400: #b8132a;
+  --color-accent-500: #b8132a;
+  --color-accent-600: #a3112a;
+  --color-accent-700: #a3112a;
+  --focus-ring: 0 0 0 3px rgba(184, 19, 42, .22);
+}
+[data-theme="dark"] .vf-login,
+[data-theme="dark"] .vf-auth[data-palette="product"] {
+  --color-bg: #0d0e10;
+  --vf-elev-1: #16171a;
+  --vf-elev-2: #1c1d21;
+  --vf-elev-3: #222328;
+  --vf-line: #26272c;
+  --vf-line-strong: #34353b;
+  --color-accent-600: #ff6b78;
+  --color-accent-700: #ff6b78;
+  --focus-ring: 0 0 0 3px rgba(255, 107, 120, .26);
+}
+.vf-login {
+  --lg-navy: #111215;
+  --lg-navy-2: #16171a;
+  --lg-ink: #eceef1;
+  --lg-ink-2: rgba(236, 238, 241, .74);
+  --lg-ink-3: rgba(236, 238, 241, .5);
+  --lg-line: rgba(255, 255, 255, .08);
+  --lg-card: rgba(255, 255, 255, .03);
+  --lg-accent: #ff6b78;
+}
+.vf-login .vf-login-mark rect,
+.vf-auth[data-palette="product"] .vf-login-mark rect { fill: #b8132a; }
+.vf-login .btn-primary,
+.vf-auth[data-palette="product"] .btn-primary { background: #b8132a; border-color: #b8132a; color: #fff; }
+.vf-login .btn-primary:hover:not(:disabled),
+.vf-auth[data-palette="product"] .btn-primary:hover:not(:disabled) { background: #9f0f23; border-color: #9f0f23; }
+[data-theme="dark"] .vf-login .input,
+[data-theme="dark"] .vf-auth[data-palette="product"] .input { background: #1c1d21; border-color: #34353b; }
+.vf-auth[data-palette="product"] .vf-auth-mark { background: #b8132a; }

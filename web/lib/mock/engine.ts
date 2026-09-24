@@ -55,6 +55,10 @@ export function assigneesFor(db: MockDataset, voucher: MockVoucher, step: MockSt
     const hod = db.users.find((u) => u.id === dept.hod_user_id);
     if (hod) return [hod];
   }
+  if (step.role === "manager" && dept?.manager_user_id) {
+    const manager = db.users.find((u) => u.id === dept.manager_user_id);
+    if (manager) return [manager];
+  }
   if (step.role === "ceo" && dept?.manager_user_id) {
     const ceo = db.users.find((u) => u.id === dept.manager_user_id);
     if (ceo) return [ceo];

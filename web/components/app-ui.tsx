@@ -168,29 +168,17 @@ export function FormSection({ title, description, children, aside }: { title: st
 
 /* ─────────────────────────────────────────────────────────── settings ── */
 
-interface SettingsLink { href: string; label: MessageKey; icon: string; hash?: string }
-
-const COMPANY_SETTINGS: { group: MessageKey; items: SettingsLink[] }[] = [
-  { group: "companyProfile", items: [
-    { href: "/settings", hash: "company", label: "companyProfile", icon: "ph-buildings" },
-    { href: "/branding", label: "branding", icon: "ph-palette" },
-    { href: "/subscription", label: "subscription", icon: "ph-crown-simple" },
-  ] },
-  { group: "approvalWorkflow", items: [
-    { href: "/settings", hash: "workflow", label: "approvalWorkflow", icon: "ph-flow-arrow" },
-    { href: "/settings", hash: "types", label: "voucherSettings", icon: "ph-receipt" },
-  ] },
-  { group: "employees", items: [
-    { href: "/employees", label: "employees", icon: "ph-users-three" },
-    { href: "/departments", label: "departments", icon: "ph-tree-structure" },
-    { href: "/audit", label: "auditLogs", icon: "ph-scroll" },
-  ] },
+/** The sections of /settings, addressed by #hash so the sidebar can open each one. */
+const SETTINGS_SECTIONS: { hash: string; label: MessageKey; icon: string }[] = [
+  { hash: "workflow", label: "approvalWorkflow", icon: "ph-flow-arrow" },
+  { hash: "types", label: "voucherSettings", icon: "ph-receipt" },
+  { hash: "company", label: "companyProfile", icon: "ph-buildings" },
 ];
 
 /**
- * Company administration as one area: a settings menu on the left, the chosen
- * page on the right. The pages keep their own routes and data; this only
- * gives them a common frame.
+ * The frame for company administration pages: a page header, and on
+ * /settings the tabs between its sections. Every page is reached from the
+ * sidebar, so there is no second menu here.
  */
 export function SettingsLayout({ title, sub, children, actions }: { title: string; sub?: ReactNode; children: ReactNode; actions?: ReactNode }) {
   const { t, user } = useApp();
@@ -204,55 +192,30 @@ export function SettingsLayout({ title, sub, children, actions }: { title: strin
     return () => window.removeEventListener("hashchange", read);
   }, [pathname]);
 
-  // Only a company administrator has the whole area; everyone else sees the page alone.
-  if (user?.role !== "company_admin") {
-    return (
-      <div className="app-page">
-        <header className="vf-pagehead">
-          <div className="vf-pagehead-main">
-            <h1 className="vf-pagehead-title">{title}</h1>
-            {sub && <p className="vf-pagehead-sub">{sub}</p>}
-          </div>
-          {actions && <div className="vf-pagehead-actions">{actions}</div>}
-        </header>
-        {children}
-      </div>
-    );
-  }
-
-  const isActive = (item: SettingsLink) => {
-    if (item.href !== pathname) return false;
-    if (!item.hash) return true;
-    return (hash || "workflow") === item.hash;
-  };
+  const tabs = user?.role === "company_admin" && pathname === "/settings";
+  const section = hash || "workflow";
 
   return (
-    <div className="app-settings">
-      <aside className="app-settings-nav" aria-label={t("settings")}>
-        <div className="app-settings-nav-title">{t("settings")}</div>
-        {COMPANY_SETTINGS.map((group) => (
-          <div key={group.group} className="app-settings-group">
-            {group.items.map((item) => (
-              <Link key={`${item.href}#${item.hash ?? ""}`} href={item.hash ? `${item.href}#${item.hash}` : item.href}
-                className="app-settings-link" aria-current={isActive(item) ? "page" : undefined}
-                onClick={() => { if (item.hash) setHash(item.hash); }}>
-                <Icon name={item.icon} size={16} />
-                <span>{t(item.label)}</span>
-              </Link>
-            ))}
-          </div>
-        ))}
-      </aside>
-      <div className="app-settings-body">
-        <header className="vf-pagehead">
-          <div className="vf-pagehead-main">
-            <h1 className="vf-pagehead-title">{title}</h1>
-            {sub && <p className="vf-pagehead-sub">{sub}</p>}
-          </div>
-          {actions && <div className="vf-pagehead-actions">{actions}</div>}
-        </header>
-        {children}
-      </div>
+    <div className="app-page">
+      <header className="vf-pagehead">
+        <div className="vf-pagehead-main">
+          <h1 className="vf-pagehead-title">{tabs ? t("settings") : title}</h1>
+          {sub && <p className="vf-pagehead-sub">{sub}</p>}
+        </div>
+        {actions && <div className="vf-pagehead-actions">{actions}</div>}
+      </header>
+      {tabs && (
+        <nav className="app-tabs" aria-label={t("settings")}>
+          {SETTINGS_SECTIONS.map((item) => (
+            <Link key={item.hash} href={`/settings#${item.hash}`} className="app-tab-link"
+              aria-current={section === item.hash ? "page" : undefined}
+              onClick={() => setHash(item.hash)}>
+              {t(item.label)}
+            </Link>
+          ))}
+        </nav>
+      )}
+      {children}
     </div>
   );
 }
