@@ -39,7 +39,7 @@ class BrandingController extends GetxController {
   final bankAccountName = TextEditingController();
   final bankAccountNumber = TextEditingController();
 
-  final colorTheme = 'blue'.obs;
+  final colorTheme = 'crimson'.obs;
   final busy = false.obs;
   final fieldErrors = <String, String>{}.obs;
 
@@ -388,11 +388,7 @@ class _ColourOption extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: selected
-                    ? const Icon(
-                        Icons.check,
-                        size: 15,
-                        color: VfColors.accentInk,
-                      )
+                    ? Icon(Icons.check, size: 15, color: palette.onSolid)
                     : null,
               ),
               const SizedBox(width: 10),

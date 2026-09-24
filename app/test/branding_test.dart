@@ -14,22 +14,24 @@ double _contrast(Color a, Color b) {
 }
 
 void main() {
-  test('offers the same four palettes as the web, blue for anything else', () {
+  test('offers crimson first, then the four web palettes; crimson for anything else', () {
     expect(VfAccentPalette.all.map((p) => p.key), [
+      'crimson',
       'blue',
       'emerald',
       'violet',
       'rose',
     ]);
     expect(VfAccentPalette.of('violet'), VfAccentPalette.violet);
-    expect(VfAccentPalette.of('neon'), VfAccentPalette.blue);
-    expect(VfAccentPalette.of(null), VfAccentPalette.blue);
+    expect(VfAccentPalette.of('blue'), VfAccentPalette.blue);
+    expect(VfAccentPalette.of('neon'), VfAccentPalette.crimson);
+    expect(VfAccentPalette.of(null), VfAccentPalette.crimson);
   });
 
   test('button ink stays readable on every palette', () {
     for (final p in VfAccentPalette.all) {
       expect(
-        _contrast(VfColors.accentInk, p.solid),
+        _contrast(p.onSolid, p.solid),
         greaterThanOrEqualTo(4.5),
         reason: '${p.key} button',
       );
@@ -47,7 +49,7 @@ void main() {
   });
 
   test('the themes follow the chosen palette', () {
-    addTearDown(() => VfColors.palette = VfAccentPalette.blue);
+    addTearDown(() => VfColors.palette = VfAccentPalette.crimson);
     VfColors.palette = VfAccentPalette.emerald;
     expect(VfTheme.dark().colorScheme.primary, VfAccentPalette.emerald.onDark);
     expect(
@@ -56,9 +58,9 @@ void main() {
     );
   });
 
-  test('a company without color_theme reads as blue', () {
+  test('a company without color_theme reads as crimson', () {
     final company = Company.fromJson({'id': 1, 'name': 'Acme'});
-    expect(company.colorTheme, 'blue');
+    expect(company.colorTheme, 'crimson');
   });
 
   test('a user without a stored theme reads as dark', () {
@@ -94,7 +96,7 @@ void main() {
     await api.handle(
       'PUT',
       '/company',
-      body: {'color_theme': 'blue', 'bank_branch': 'Tower Branch'},
+      body: {'color_theme': 'crimson', 'bank_branch': 'Tower Branch'},
     );
   });
 }

@@ -59,10 +59,20 @@ class ShellPage extends GetView<ShellController> {
         const ProfileTab(),
       ];
 
+      final queueCount = controller.queue?.vouchers.length ?? 0;
+
+      Widget counted(Widget icon, int count) => Badge(
+        isLabelVisible: count > 0,
+        backgroundColor: VfBadge.background(Theme.of(context).brightness),
+        textColor: VfBadge.foreground(Theme.of(context).brightness),
+        label: Text('$count'),
+        child: icon,
+      );
+
       final destinations = <NavigationDestination>[
         NavigationDestination(
           icon: const Icon(Icons.home_outlined),
-          selectedIcon: const Icon(Icons.home),
+          selectedIcon: const Icon(Icons.home_rounded),
           label: 'nav.home'.tr,
         ),
         NavigationDestination(
@@ -72,64 +82,49 @@ class ShellPage extends GetView<ShellController> {
         ),
         if (controller.showsQueue)
           NavigationDestination(
-            icon: Icon(
-              controller.isCashier
-                  ? Icons.account_balance_wallet_outlined
-                  : Icons.fact_check_outlined,
+            icon: counted(
+              Icon(
+                controller.isCashier
+                    ? Icons.account_balance_wallet_outlined
+                    : Icons.fact_check_outlined,
+              ),
+              queueCount,
             ),
-            selectedIcon: Icon(
-              controller.isCashier
-                  ? Icons.account_balance_wallet
-                  : Icons.fact_check,
+            selectedIcon: counted(
+              Icon(
+                controller.isCashier
+                    ? Icons.account_balance_wallet
+                    : Icons.fact_check,
+              ),
+              queueCount,
             ),
             label: controller.isCashier
                 ? 'nav.payments'.tr
                 : 'nav.approvals'.tr,
           ),
         NavigationDestination(
-          icon: Badge(
-            isLabelVisible: session.unread.value > 0,
-            backgroundColor: VfBadge.background(Theme.of(context).brightness),
-            textColor: VfBadge.foreground(Theme.of(context).brightness),
-            label: Text('${session.unread.value}'),
-            child: const Icon(Icons.notifications_none),
+          icon: counted(
+            const Icon(Icons.notifications_none),
+            session.unread.value,
           ),
-          selectedIcon: const Icon(Icons.notifications),
+          selectedIcon: counted(
+            const Icon(Icons.notifications),
+            session.unread.value,
+          ),
           label: 'nav.alerts'.tr,
         ),
         NavigationDestination(
-          icon: const Icon(Icons.person_outline),
-          selectedIcon: const Icon(Icons.person),
+          icon: const Icon(Icons.account_circle_outlined),
+          selectedIcon: const Icon(Icons.account_circle),
           label: 'nav.profile'.tr,
         ),
       ];
 
-      final title = switch (controller.index.value) {
-        0 => session.company.value?.name ?? 'app.name'.tr,
-        1 => 'nav.vouchers'.tr,
-        _ when controller.showsQueue && controller.index.value == 2 =>
-          controller.isCashier ? 'nav.payments'.tr : 'nav.approvals'.tr,
-        _ when controller.index.value == destinations.length - 2 =>
-          'alerts.title'.tr,
-        _ => 'profile.title'.tr,
-      };
-
       return Scaffold(
-        appBar: AppBar(
-          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          actions: [
-            IconButton(
-              tooltip: 'profile.theme'.tr,
-              onPressed: session.toggleTheme,
-              icon: Icon(
-                session.themeMode.value == ThemeMode.dark
-                    ? Icons.light_mode_outlined
-                    : Icons.dark_mode_outlined,
-              ),
-            ),
-          ],
+        body: SafeArea(
+          bottom: false,
+          child: IndexedStack(index: controller.index.value, children: tabs),
         ),
-        body: IndexedStack(index: controller.index.value, children: tabs),
         floatingActionButton:
             !session.me.canCreateVouchers || controller.index.value > 1
             ? null
@@ -140,13 +135,18 @@ class ShellPage extends GetView<ShellController> {
                 icon: const Icon(Icons.add),
                 label: Text('voucher.new'.tr),
               ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: controller.index.value,
-          onDestinationSelected: (i) {
-            controller.index.value = i;
-            controller.refreshCurrent();
-          },
-          destinations: destinations,
+        bottomNavigationBar: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: context.vfLine)),
+          ),
+          child: NavigationBar(
+            selectedIndex: controller.index.value,
+            onDestinationSelected: (i) {
+              controller.index.value = i;
+              controller.refreshCurrent();
+            },
+            destinations: destinations,
+          ),
         ),
       );
     });

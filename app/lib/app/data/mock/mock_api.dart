@@ -518,8 +518,12 @@ class MockApi {
         if (!actions['pay']!) {
           throw ApiException(422, 'This voucher is not cleared for payment.');
         }
-        final reference = '${body['reference'] ?? ''}'.trim();
-        if (reference.isEmpty) {
+        // The app sends payment_reference for a transfer and received_by for
+        // cash; older fixtures and tests send reference.
+        final reference =
+            '${body['reference'] ?? body['payment_reference'] ?? ''}'.trim();
+        final receiver = '${body['received_by'] ?? ''}'.trim();
+        if (reference.isEmpty && receiver.isEmpty) {
           throw ApiException(422, 'A payment reference is required.', {
             'reference': ['A payment reference is required.'],
           });
@@ -534,16 +538,23 @@ class MockApi {
         );
         v.status = 'paid';
         v.paidAt = now;
-        v.paymentReference = reference;
+        v.paymentReference = reference.isEmpty ? null : reference;
         v.paidBy = _current!.name;
         v.currentStepPosition = null;
         if (body['method'] != null) v.paymentMethod = '${body['method']}';
+        if (body['payment_method'] != null) {
+          v.paymentMethod = '${body['payment_method']}';
+        }
+        if (body['received_by'] != null) {
+          v.receivedBy = '${body['received_by']}';
+        }
         _notify(
           v.requesterId,
           title: '${v.number} has been paid',
           titleSw: '${v.number} imelipwa',
           icon: 'check',
-          body: '${_current!.name} released ${_money(v.amount)} · $reference.',
+          body:
+              '${_current!.name} released ${_money(v.amount)} · ${reference.isEmpty ? receiver : reference}.',
           voucherId: v.id,
         );
 

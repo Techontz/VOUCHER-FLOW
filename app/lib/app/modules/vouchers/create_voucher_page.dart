@@ -12,9 +12,11 @@ import '../../data/services/session_service.dart';
 import '../../data/services/voucher_repository.dart';
 import '../../routes/routes.dart';
 import '../../widgets/common.dart';
+import '../../widgets/design.dart';
 
-/// The design's five-step mobile capture flow: type → payment → description →
-/// attachments → review, then submit.
+/// The design's four-step mobile capture flow: basic information → payment
+/// details → attachments → review, then submit. The fields, their validation
+/// and the calls made are the same as before; only their grouping changed.
 class CreateVoucherController extends GetxController {
   final repo = Get.find<VoucherRepository>();
   final session = Get.find<SessionService>();
@@ -54,12 +56,20 @@ class CreateVoucherController extends GetxController {
   ];
 
   static const stepTitles = [
-    'step.type',
+    'step.basic',
     'step.payment',
-    'step.details',
     'step.attachments',
     'step.review',
   ];
+
+  static const stepShort = [
+    'step.basicShort',
+    'step.paymentShort',
+    'step.attachmentsShort',
+    'step.reviewShort',
+  ];
+
+  static const lastStep = 3;
 
   double get amountValue =>
       double.tryParse(amount.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
@@ -89,16 +99,35 @@ class CreateVoucherController extends GetxController {
     } catch (_) {}
   }
 
+  /// The same required fields as before — type, amount, purpose, payee —
+  /// asked for on the step that now holds them.
   bool get canAdvance => switch (step.value) {
-    0 => typeId.value != null,
-    1 => payee.text.trim().isNotEmpty && amountValue > 0,
-    2 => purpose.text.trim().isNotEmpty,
+    0 =>
+      typeId.value != null &&
+          amountValue > 0 &&
+          purpose.text.trim().isNotEmpty,
+    1 => payee.text.trim().isNotEmpty,
     _ => true,
   };
 
   void next() {
     if (!canAdvance) return;
-    if (step.value < 4) step.value++;
+    if (step.value < lastStep) step.value++;
+  }
+
+  void goTo(int index) => step.value = index;
+
+  /// Bumped on every keystroke in a required field, so the Continue button
+  /// re-reads [canAdvance] as the user types.
+  final edits = 0.obs;
+  void touched() {
+    edits.value++;
+    fieldErrors.refresh();
+  }
+
+  void setKind(String value) {
+    kind.value = value;
+    method.value = value == 'cash' ? 'Cash' : 'Bank Transfer';
   }
 
   void back() {
@@ -184,87 +213,324 @@ class CreateVoucherPage extends GetView<CreateVoucherController> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    const total = CreateVoucherController.lastStep + 1;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('voucher.create'.tr),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(46),
-          child: Obx(
-            () => Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: List.generate(5, (i) {
-                      return Expanded(
-                        child: Container(
-                          height: 3,
-                          margin: EdgeInsets.only(right: i == 4 ? 0 : 4),
-                          color: i <= controller.step.value
-                              ? theme.colorScheme.primary
-                              : theme.dividerColor,
+    return Obx(() {
+      final step = controller.step.value;
+      return PopScope(
+        canPop: step == 0,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) controller.back();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            leadingWidth: 60,
+            leading: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Center(
+                child: IconButton.outlined(
+                  tooltip: step == 0 ? 'action.close'.tr : 'action.back'.tr,
+                  style: IconButton.styleFrom(
+                    side: BorderSide(color: context.vfLine),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(VfTheme.rMd),
+                    ),
+                  ),
+                  onPressed: step == 0 ? Get.back : controller.back,
+                  icon: Icon(
+                    step == 0 ? Icons.close : Icons.chevron_left,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+            title: Text('voucher.new'.tr),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(44),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: List.generate(total, (i) {
+                        return Expanded(
+                          child: Container(
+                            height: 3,
+                            margin: EdgeInsets.only(
+                              right: i == total - 1 ? 0 : 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: i <= step
+                                  ? VfColors.accent500
+                                  : context.vfLineStrong,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${'step.count'.trParams({'n': '${step + 1}', 'total': '$total'})} · '
+                            '${CreateVoucherController.stepTitles[step].tr}',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: context.vfInk,
+                            ),
+                          ),
                         ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${'step.label'.tr} ${controller.step.value + 1} ${'step.of'.tr} 5 · '
-                    '${CreateVoucherController.stepTitles[controller.step.value].tr}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
+                        if (step < CreateVoucherController.lastStep)
+                          Text(
+                            'step.next'.trParams({
+                              'step': CreateVoucherController
+                                  .stepShort[step + 1]
+                                  .tr,
+                            }),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+          body: switch (step) {
+            0 => _BasicStep(controller: controller),
+            1 => _PaymentStep(controller: controller),
+            2 => _AttachmentStep(controller: controller),
+            _ => _ReviewStep(controller: controller),
+          },
+          bottomNavigationBar: StickyActions(child: _Footer(controller)),
         ),
-      ),
-      body: Obx(
-        () => switch (controller.step.value) {
-          0 => _TypeStep(controller: controller),
-          1 => _PaymentStep(controller: controller),
-          2 => _DetailStep(controller: controller),
-          3 => _AttachmentStep(controller: controller),
-          _ => _ReviewStep(controller: controller),
-        },
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(18, 8, 18, 14),
-        child: Obx(
-          () => Row(
-            children: [
-              if (controller.step.value > 0)
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: controller.busy.value ? null : controller.back,
-                    child: Text('action.back'.tr),
+      );
+    });
+  }
+}
+
+class _Footer extends StatelessWidget {
+  const _Footer(this.controller);
+
+  final CreateVoucherController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      controller.edits.value;
+      final step = controller.step.value;
+      final busy = controller.busy.value;
+      final last = step == CreateVoucherController.lastStep;
+
+      final spinner = SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: VfTheme.onPrimary(context),
+        ),
+      );
+
+      final primary = FilledButton(
+        onPressed: busy || !controller.canAdvance
+            ? null
+            : () => last ? controller.save(submit: true) : controller.next(),
+        child: busy && last
+            ? spinner
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (last) ...[
+                    const Icon(Icons.send_rounded, size: 18),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Text(
+                      last ? 'voucher.submitShort'.tr : 'action.continue'.tr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              if (controller.step.value > 0) const SizedBox(width: 10),
+                  if (!last) ...[
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward, size: 18),
+                  ],
+                ],
+              ),
+      );
+
+      Widget? secondary;
+      if (step == 2 && controller.attachments.isEmpty) {
+        secondary = OutlinedButton(
+          onPressed: busy ? null : controller.next,
+          child: Text('action.skip'.tr),
+        );
+      } else if (last) {
+        secondary = OutlinedButton(
+          onPressed: busy ? null : () => controller.save(submit: false),
+          child: Text(
+            'voucher.saveDraft'.tr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }
+
+      return Row(
+        children: [
+          if (secondary != null) ...[
+            Expanded(child: secondary),
+            const SizedBox(width: 10),
+          ],
+          Expanded(flex: 2, child: primary),
+        ],
+      );
+    });
+  }
+}
+
+IconData _typeIcon(VoucherType type) {
+  final name = '${type.name} ${type.label}'.toLowerCase();
+  if (name.contains('petty') || name.contains('cash')) {
+    return Icons.payments_outlined;
+  }
+  if (name.contains('advance')) return Icons.flight_takeoff_outlined;
+  if (name.contains('expense') || name.contains('claim')) {
+    return Icons.receipt_outlined;
+  }
+  return Icons.description_outlined;
+}
+
+class _BasicStep extends StatelessWidget {
+  const _BasicStep({required this.controller});
+
+  final CreateVoucherController controller;
+
+  @override
+  Widget build(BuildContext context) => Obx(() {
+    // Read here, not inside the LayoutBuilder, so Obx tracks them.
+    final types = controller.types.toList();
+    final selected = controller.typeId.value;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      children: [
+        FieldLabel('voucher.type'.tr, required: true),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = (constraints.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final type in types)
+                  SizedBox(
+                    width: width,
+                    child: _TypeChip(
+                      type: type,
+                      selected: selected == type.id,
+                      onTap: () => controller.typeId.value = type.id,
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        FieldLabel('voucher.amount'.tr, required: true),
+        _AmountField(controller: controller),
+        const SizedBox(height: 20),
+        FieldLabel('voucher.purpose'.tr, required: true),
+        TextField(
+          controller: controller.purpose,
+          onChanged: (_) => controller.touched(),
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(
+            hintText: 'create.purposeHint'.tr,
+            errorText: controller.fieldErrors['purpose'],
+          ),
+        ),
+        const SizedBox(height: 16),
+        FieldLabel('voucher.description'.tr),
+        TextField(
+          controller: controller.description,
+          minLines: 2,
+          maxLines: 4,
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        const SizedBox(height: 16),
+        FieldLabel('voucher.category'.tr),
+        DropdownButtonFormField<String>(
+          initialValue: controller.category.value,
+          isExpanded: true,
+          items: CreateVoucherController.categories
+              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+              .toList(),
+          onChanged: (v) => controller.category.value = v ?? 'Logistics',
+        ),
+      ],
+    );
+  });
+}
+
+class _TypeChip extends StatelessWidget {
+  const _TypeChip({
+    required this.type,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final VoucherType type;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final brand = context.vfAccent;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(VfTheme.rMd),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 50),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? context.vfAccentTint : context.vfElev1,
+            border: Border.all(
+              color: selected ? brand.withValues(alpha: .7) : context.vfLine,
+              width: selected ? 1.4 : 1,
+            ),
+            borderRadius: BorderRadius.circular(VfTheme.rMd),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _typeIcon(type),
+                size: 18,
+                color: selected ? brand : context.vfMuted,
+              ),
+              const SizedBox(width: 9),
               Expanded(
-                flex: 2,
-                child: FilledButton(
-                  onPressed: controller.busy.value || !controller.canAdvance
-                      ? null
-                      : () => controller.step.value < 4
-                            ? controller.next()
-                            : controller.save(submit: true),
-                  child: controller.busy.value
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: VfTheme.onPrimary(context),
-                          ),
-                        )
-                      : Text(
-                          controller.step.value < 4
-                              ? 'action.continue'.tr
-                              : 'voucher.submit'.tr,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      type.label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: selected ? context.vfInk : context.vfInk2,
+                      ),
+                    ),
+                    if (type.nextNumberPreview.isNotEmpty)
+                      Mono(type.nextNumberPreview, size: 10.5),
+                  ],
                 ),
               ),
             ],
@@ -275,83 +541,64 @@ class CreateVoucherPage extends GetView<CreateVoucherController> {
   }
 }
 
-class _TypeStep extends StatelessWidget {
-  const _TypeStep({required this.controller});
+/// The amount gets its own large field: currency on the left, the figure in
+/// tabular digits.
+class _AmountField extends StatelessWidget {
+  const _AmountField({required this.controller});
 
   final CreateVoucherController controller;
 
   @override
-  Widget build(BuildContext context) => Obx(
-    () => ListView(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      children: [
-        Text('voucher.kind'.tr, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 10),
-        ChoiceCard(
-          selected: controller.kind.value == 'bank',
-          onTap: () {
-            controller.kind.value = 'bank';
-            controller.method.value = 'Bank Transfer';
-          },
-          icon: Icons.account_balance_outlined,
-          label: 'voucher.bank'.tr,
-          sub: 'voucher.bankSub'.tr,
-        ),
-        const SizedBox(height: 8),
-        ChoiceCard(
-          selected: controller.kind.value == 'cash',
-          onTap: () {
-            controller.kind.value = 'cash';
-            controller.method.value = 'Cash';
-          },
-          icon: Icons.payments_outlined,
-          label: 'voucher.cash'.tr,
-          sub: 'voucher.cashSub'.tr,
-        ),
-        const SizedBox(height: 22),
-        Text('voucher.type'.tr, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
-        RadioGroup<int>(
-          groupValue: controller.typeId.value,
-          onChanged: (v) => controller.typeId.value = v,
-          child: Column(
-            children: controller.types
-                .map(
-                  (type) => RadioListTile<int>(
-                    value: type.id,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(type.label),
-                    subtitle: Text(
-                      type.nextNumberPreview,
-                      style: Theme.of(context).textTheme.bodySmall,
+  Widget build(BuildContext context) {
+    final error = controller.fieldErrors['amount'];
+    final big = TextStyle(
+      fontFamily: VfTheme.fontFamily,
+      fontSize: 30,
+      fontWeight: FontWeight.w600,
+      height: 1.2,
+      color: context.vfInk,
+      fontFeatures: VfTheme.tabular,
+    );
+    return TextField(
+      controller: controller.amount,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      onChanged: (_) => controller.touched(),
+      style: big,
+      decoration: InputDecoration(
+        hintText: '0',
+        hintStyle: big.copyWith(color: context.vfFaint),
+        errorText: error,
+        contentPadding: const EdgeInsets.fromLTRB(4, 18, 14, 18),
+        prefixIcon: PopupMenuButton<String>(
+          tooltip: 'voucher.currency'.tr,
+          initialValue: controller.currency.value,
+          onSelected: (v) => controller.currency.value = v,
+          itemBuilder: (_) => const ['TZS', 'USD', 'KES', 'EUR']
+              .map((c) => PopupMenuItem(value: c, child: Text(c)))
+              .toList(),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 14, right: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Obx(
+                  () => Text(
+                    controller.currency.value,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: context.vfMuted,
                     ),
                   ),
-                )
-                .toList(),
+                ),
+                Icon(Icons.expand_more, size: 16, color: context.vfMuted),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<int?>(
-          // The department is pre-filled from the signed-in user before the
-          // list arrives; offering a value with no matching item throws.
-          initialValue:
-              controller.departments.any(
-                (d) => d.id == controller.departmentId.value,
-              )
-              ? controller.departmentId.value
-              : null,
-          decoration: InputDecoration(labelText: 'voucher.department'.tr),
-          items: [
-            const DropdownMenuItem<int?>(value: null, child: Text('—')),
-            ...controller.departments.map(
-              (d) => DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
-            ),
-          ],
-          onChanged: (v) => controller.departmentId.value = v,
-        ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class _PaymentStep extends StatelessWidget {
@@ -362,103 +609,76 @@ class _PaymentStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Obx(
     () => ListView(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
+        VfSegmented<String>(
+          value: controller.kind.value,
+          options: [
+            ('bank', 'voucher.bankShort'.tr, Icons.account_balance_outlined),
+            ('cash', 'voucher.cashShort'.tr, Icons.payments_outlined),
+          ],
+          onChanged: controller.setKind,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          controller.kind.value == 'cash'
+              ? 'voucher.cashSub'.tr
+              : 'voucher.bankSub'.tr,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 18),
+        FieldLabel('voucher.payee'.tr, required: true),
         TextField(
           controller: controller.payee,
-          onChanged: (_) => controller.fieldErrors.refresh(),
-          decoration: InputDecoration(
-            labelText: 'voucher.payee'.tr,
-            errorText: controller.fieldErrors['payee'],
-          ),
+          onChanged: (_) => controller.touched(),
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(errorText: controller.fieldErrors['payee']),
         ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: controller.amount,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                onChanged: (_) => controller.fieldErrors.refresh(),
-                decoration: InputDecoration(
-                  labelText: 'voucher.amount'.tr,
-                  errorText: controller.fieldErrors['amount'],
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                initialValue: controller.currency.value,
-                decoration: InputDecoration(labelText: 'voucher.currency'.tr),
-                items: const ['TZS', 'USD', 'KES', 'EUR']
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                    .toList(),
-                onChanged: (v) => controller.currency.value = v ?? 'TZS',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
+        FieldLabel('voucher.method'.tr),
         DropdownButtonFormField<String>(
+          // Re-keyed so switching Bank / Cash shows the method it implies.
+          key: ValueKey(controller.method.value),
           initialValue: controller.method.value,
-          decoration: InputDecoration(labelText: 'voucher.method'.tr),
+          isExpanded: true,
           items: CreateVoucherController.methods
               .map((m) => DropdownMenuItem(value: m, child: Text(m)))
               .toList(),
           onChanged: (v) => controller.method.value = v ?? 'Bank Transfer',
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
+        FieldLabel('voucher.reference'.tr),
         TextField(
           controller: controller.reference,
-          decoration: InputDecoration(labelText: 'voucher.reference'.tr),
+          style: Mono.style(context, size: 14.5, colour: context.vfInk),
         ),
-      ],
-    ),
-  );
-}
-
-class _DetailStep extends StatelessWidget {
-  const _DetailStep({required this.controller});
-
-  final CreateVoucherController controller;
-
-  @override
-  Widget build(BuildContext context) => Obx(
-    () => ListView(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      children: [
-        TextField(
-          controller: controller.purpose,
-          onChanged: (_) => controller.fieldErrors.refresh(),
-          decoration: InputDecoration(
-            labelText: 'voucher.purpose'.tr,
-            errorText: controller.fieldErrors['purpose'],
-          ),
+        const SizedBox(height: 16),
+        FieldLabel('voucher.department'.tr),
+        DropdownButtonFormField<int?>(
+          // The department is pre-filled from the signed-in user before the
+          // list arrives; offering a value with no matching item throws.
+          initialValue:
+              controller.departments.any(
+                (d) => d.id == controller.departmentId.value,
+              )
+              ? controller.departmentId.value
+              : null,
+          isExpanded: true,
+          items: [
+            const DropdownMenuItem<int?>(value: null, child: Text('—')),
+            ...controller.departments.map(
+              (d) => DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
+            ),
+          ],
+          onChanged: (v) => controller.departmentId.value = v,
         ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: controller.description,
-          maxLines: 4,
-          decoration: InputDecoration(labelText: 'voucher.description'.tr),
-        ),
-        const SizedBox(height: 14),
-        DropdownButtonFormField<String>(
-          initialValue: controller.category.value,
-          decoration: InputDecoration(labelText: 'voucher.category'.tr),
-          items: CreateVoucherController.categories
-              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-              .toList(),
-          onChanged: (v) => controller.category.value = v ?? 'Logistics',
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
+        FieldLabel('voucher.notes'.tr),
         TextField(
           controller: controller.notes,
+          minLines: 2,
           maxLines: 3,
-          decoration: InputDecoration(labelText: 'voucher.notes'.tr),
+          textCapitalization: TextCapitalization.sentences,
         ),
       ],
     ),
@@ -471,62 +691,172 @@ class _AttachmentStep extends StatelessWidget {
   final CreateVoucherController controller;
 
   @override
-  Widget build(BuildContext context) => Obx(
-    () => ListView(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => controller.addPhoto(ImageSource.camera),
-                icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                label: const Text('Camera'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => controller.addPhoto(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library_outlined, size: 18),
-                label: const Text('Gallery'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (controller.attachments.isEmpty)
-          Text(
-            'Photograph the receipt or invoice. PDF and images up to 10 MB.',
-            style: Theme.of(context).textTheme.bodySmall,
-          )
-        else
-          ...controller.attachments.map(
-            (file) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: Image.file(
-                  file,
-                  width: 46,
-                  height: 46,
-                  fit: BoxFit.cover,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Obx(
+      () => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        children: [
+          Text('attach.title'.tr, style: theme.textTheme.titleLarge),
+          const SizedBox(height: 4),
+          Text('attach.body'.tr, style: theme.textTheme.bodySmall),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _DashedAction(
+                  icon: Icons.photo_camera_outlined,
+                  label: 'attach.camera'.tr,
+                  onTap: () => controller.addPhoto(ImageSource.camera),
                 ),
               ),
-              title: Text(
-                file.path.split('/').last,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              const SizedBox(width: 10),
+              Expanded(
+                child: _DashedAction(
+                  icon: Icons.photo_library_outlined,
+                  label: 'attach.gallery'.tr,
+                  onTap: () => controller.addPhoto(ImageSource.gallery),
+                ),
               ),
-              trailing: IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: () => controller.attachments.remove(file),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (controller.attachments.isNotEmpty)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final size = (constraints.maxWidth - 20) / 3;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final file in controller.attachments)
+                      _Thumb(
+                        file: file,
+                        size: size,
+                        onRemove: () => controller.attachments.remove(file),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashedAction extends StatelessWidget {
+  const _DashedAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(VfTheme.rMd),
+    child: Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: context.vfElev1,
+        border: Border.all(color: context.vfLineStrong),
+        borderRadius: BorderRadius.circular(VfTheme.rMd),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: context.vfInk2),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+                color: context.vfInk2,
               ),
             ),
           ),
-      ],
+        ],
+      ),
     ),
   );
+}
+
+class _Thumb extends StatelessWidget {
+  const _Thumb({required this.file, required this.size, required this.onRemove});
+
+  final File file;
+  final double size;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = file.path.split('/').last;
+    return SizedBox(
+      width: size,
+      height: size * 1.15,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(VfTheme.rMd),
+        child: Container(
+          decoration: BoxDecoration(
+            color: context.vfElev2,
+            border: Border.all(color: context.vfLine),
+            borderRadius: BorderRadius.circular(VfTheme.rMd),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                file,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Icon(
+                  Icons.insert_drive_file_outlined,
+                  color: context.vfMuted,
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  color: Colors.black.withValues(alpha: .55),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  child: Mono(name, size: 10, colour: Colors.white),
+                ),
+              ),
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Material(
+                  color: Colors.black.withValues(alpha: .6),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onRemove,
+                    child: const Padding(
+                      padding: EdgeInsets.all(5),
+                      child: Icon(Icons.close, size: 14, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ReviewStep extends StatelessWidget {
@@ -539,97 +869,124 @@ class _ReviewStep extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Obx(() {
-      final rows = <(String, String)>[
-        ('voucher.type'.tr, controller.selectedType?.label ?? '—'),
-        ('voucher.payee'.tr, controller.payee.text),
-        ('voucher.purpose'.tr, controller.purpose.text),
-        ('voucher.method'.tr, controller.method.value),
-        ('voucher.category'.tr, controller.category.value),
-        (
-          'voucher.reference'.tr,
-          controller.reference.text.isEmpty ? '—' : controller.reference.text,
-        ),
-        ('voucher.attachments'.tr, '${controller.attachments.length}'),
-      ];
+      final department = controller.departments.firstWhereOrNull(
+        (d) => d.id == controller.departmentId.value,
+      );
+
+      Widget edit(String text, int step) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: InfoRows.value(context, text)),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: () => controller.goTo(step),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                'action.edit'.tr,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: context.vfAccent,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
 
       return ListView(
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            color: Colors.white,
+          SectionCard(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  Get.find<SessionService>().company.value?.name ?? '',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: Color(0xFF201E1D),
+                  [
+                    controller.selectedType?.label,
+                    controller.kind.value == 'cash'
+                        ? 'voucher.cashShort'.tr
+                        : 'voucher.bankShort'.tr,
+                  ].whereType<String>().join(' · '),
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 6),
+                Center(
+                  child: AmountText(
+                    amount: controller.amountValue,
+                    currency: controller.currency.value,
+                    size: 28,
                   ),
                 ),
-                const Divider(
-                  color: Color(0xFF201E1D),
-                  thickness: 2,
-                  height: 16,
-                ),
+                const SizedBox(height: 4),
                 Text(
-                  controller.selectedType?.nextNumberPreview ?? '',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF605D5D),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  controller.purpose.text,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Color(0xFF201E1D),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  Fmt.money(controller.amountValue, controller.currency.value),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 22,
-                    color: Color(0xFF201E1D),
-                  ),
+                  'create.toPayee'.trParams({'payee': controller.payee.text}),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          ...rows.map(
-            (row) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
+          const SizedBox(height: 10),
+          InfoRows(
+            rows: [
+              ('voucher.purpose'.tr, edit(controller.purpose.text, 0)),
+              ('voucher.category'.tr, edit(controller.category.value, 0)),
+              ('voucher.payee'.tr, edit(controller.payee.text, 1)),
+              ('voucher.method'.tr, edit(controller.method.value, 1)),
+              (
+                'voucher.reference'.tr,
+                edit(
+                  controller.reference.text.isEmpty
+                      ? '—'
+                      : controller.reference.text,
+                  1,
+                ),
+              ),
+              ('voucher.department'.tr, edit(department?.name ?? '—', 1)),
+              (
+                'voucher.attachments'.tr,
+                edit(
+                  'create.files'.trParams({
+                    'n': '${controller.attachments.length}',
+                  }),
+                  2,
+                ),
+              ),
+            ],
+          ),
+          if (controller.description.text.trim().isNotEmpty ||
+              controller.notes.text.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SectionCard(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 130,
-                    child: Text(
-                      row.$1.toUpperCase(),
-                      style: theme.textTheme.labelSmall,
+                  if (controller.description.text.trim().isNotEmpty) ...[
+                    Text(
+                      'voucher.description'.tr,
+                      style: theme.textTheme.bodySmall,
                     ),
-                  ),
-                  Expanded(
-                    child: Text(row.$2, style: theme.textTheme.bodyLarge),
-                  ),
+                    const SizedBox(height: 2),
+                    Text(
+                      controller.description.text.trim(),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (controller.notes.text.trim().isNotEmpty) ...[
+                    Text('voucher.notes'.tr, style: theme.textTheme.bodySmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      controller.notes.text.trim(),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton(
-            onPressed: controller.busy.value
-                ? null
-                : () => controller.save(submit: false),
-            child: Text('voucher.saveDraft'.tr),
-          ),
+          ],
         ],
       );
     });

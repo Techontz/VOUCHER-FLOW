@@ -21,7 +21,7 @@ class SessionService extends GetxService {
   final themeMode = ThemeMode.dark.obs;
 
   /// The company's interface palette. The app's themes are rebuilt from it.
-  final accent = VfAccentPalette.blue.obs;
+  final accent = VfAccentPalette.crimson.obs;
   final booting = true.obs;
 
   bool get isSignedIn => user.value != null;
