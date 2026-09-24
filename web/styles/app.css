@@ -618,8 +618,12 @@
 
 /* ═══════════════════════════════════════════════════════════════ 4 · shell ══ */
 
-.vf-shell { display: flex; min-height: 100vh; min-height: 100dvh; background: var(--background); --sidebar-w: 248px; }
-.vf-shell[data-collapsed="true"] { --sidebar-w: 64px; }
+.vf-shell {
+  display: flex; min-height: 100vh; min-height: 100dvh; background: var(--background);
+  --sidebar-w: 248px; --rail-w: 64px;
+  /* One curve for everything the rail moves, so the pieces arrive together. */
+  --rail-ease: cubic-bezier(.2, .8, .2, 1); --rail-time: 280ms;
+}
 .app-booting { display: grid !important; place-items: center; }
 
 .vf-shell .vf-sidebar {
@@ -627,24 +631,24 @@
   display: flex; flex-direction: column; gap: 0; padding: 0;
   background: var(--sidebar-background); border-right: 1px solid var(--sidebar-border);
   position: sticky; top: 0; height: 100vh; height: 100dvh; overflow: hidden;
-  transition: width 180ms var(--ease-out), flex-basis 180ms var(--ease-out), var(--app-transition);
+  transition: width var(--rail-time) var(--rail-ease), flex-basis var(--rail-time) var(--rail-ease), var(--app-transition);
 }
 
-.app-side-head { display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 10px 0 16px; flex: none; }
+.app-side-head { display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 10px 0 20px; flex: none; }
 .app-side-brand { display: inline-flex; align-items: center; gap: 9px; min-width: 0; flex: 1; font-family: var(--font-heading); font-weight: 600; font-size: 15px; letter-spacing: -.01em; color: var(--text-primary) !important; }
 .app-side-brand:hover { text-decoration: none; }
 .app-side-brand .vf-login-mark rect { fill: var(--primary); stroke: transparent; }
 .app-side-brand .vf-login-mark path { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.app-side-collapse, .app-side-close {
+.app-side-close {
   flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: var(--radius-s);
   background: transparent; color: var(--sidebar-muted); cursor: pointer;
 }
-.app-side-collapse:hover, .app-side-close:hover { background: var(--sidebar-hover); color: var(--text-primary); }
-.app-side-collapse:focus-visible, .app-side-close:focus-visible { outline: none; box-shadow: var(--focus); }
+.app-side-close:hover { background: var(--sidebar-hover); color: var(--text-primary); }
+.app-side-close:focus-visible { outline: none; box-shadow: var(--focus); }
 .app-side-close { display: none; }
 
 .app-workspace {
-  display: flex; align-items: center; gap: 10px; margin: 2px 10px 6px; padding: 8px;
+  display: flex; align-items: center; gap: 10px; margin: 2px 12px 8px; padding: 6px 5px;
   border: 1px solid var(--sidebar-border); border-radius: var(--radius-m); background: var(--surface); flex: none; min-width: 0;
 }
 .app-workspace-mark {
@@ -657,13 +661,13 @@
 .app-workspace-name { font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-workspace-sub { font-size: 11.5px; color: var(--sidebar-muted); text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.app-nav { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 10px 10px; display: grid; align-content: start; gap: 14px; }
-.app-nav-group { display: grid; gap: 1px; }
-.app-nav-label { padding: 6px 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--sidebar-muted); white-space: nowrap; }
+.app-nav { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 12px 12px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; scrollbar-width: thin; }
+.app-nav-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.app-nav-label { position: relative; height: 26px; padding: 8px 11px 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--sidebar-muted); white-space: nowrap; }
 .app-nav-item {
-  position: relative; display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px;
+  position: relative; display: flex; align-items: center; gap: 11px; height: 34px; padding: 0 11px;
   border-radius: var(--radius-m); font-size: 13.5px; font-weight: 500; color: var(--sidebar-foreground) !important;
-  text-decoration: none !important; white-space: nowrap;
+  text-decoration: none !important; white-space: nowrap; min-width: 0;
 }
 .app-nav-item i { flex: none; color: var(--sidebar-muted); }
 .app-nav-item:hover { background: var(--sidebar-hover); color: var(--text-primary) !important; }
@@ -671,14 +675,15 @@
 .app-nav-item:focus-visible { outline: none; box-shadow: var(--focus); }
 .app-nav-item[aria-current="page"] { background: var(--sidebar-active); color: var(--sidebar-active-foreground) !important; font-weight: 600; }
 .app-nav-item[aria-current="page"] i { color: var(--primary); }
-.app-nav-item[aria-current="page"]::before { content: ""; position: absolute; left: -10px; top: 7px; bottom: 7px; width: 2px; border-radius: 0 2px 2px 0; background: var(--primary); }
+.app-nav-item[aria-current="page"]::before { content: ""; position: absolute; left: -12px; top: 7px; bottom: 7px; width: 2px; border-radius: 0 2px 2px 0; background: var(--primary); }
 .app-nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .app-nav-badge {
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-s); display: inline-grid; place-items: center;
   font-size: 11px; font-weight: 600; color: var(--primary-foreground); background: var(--primary);
 }
 
-.app-side-foot { flex: none; display: grid; gap: 8px; padding: 10px; border-top: 1px solid var(--sidebar-border); }
+.app-side-foot { flex: none; display: grid; padding: 10px; border-top: 1px solid var(--sidebar-border); }
+.app-side-foot > .app-theme { margin-bottom: 8px; max-height: 34px; overflow: hidden; }
 
 .app-theme { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border-radius: var(--radius-m); background: var(--surface-tertiary); border: 1px solid var(--border); }
 .app-theme button {
@@ -695,7 +700,7 @@
 
 .app-dropdown { position: relative; min-width: 0; }
 .app-user {
-  display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px; border: 0; border-radius: var(--radius-m);
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 7px; border: 0; border-radius: var(--radius-m);
   background: transparent; cursor: pointer; text-align: left; font-family: var(--font-body); color: var(--text-primary);
 }
 .app-user:hover, .app-user[aria-expanded="true"] { background: var(--sidebar-hover); }
@@ -731,29 +736,77 @@
 .app-menu-label { padding: 7px 9px 5px; font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 4px 4px 9px; font-size: 13px; color: var(--text-secondary); }
 
-/* collapsed rail */
-.vf-shell[data-collapsed="true"] .app-side-head { padding: 0; justify-content: center; flex-direction: column; height: auto; gap: 6px; padding-top: 12px; }
-.vf-shell[data-collapsed="true"] .app-side-brand { flex: none; }
-.vf-shell[data-collapsed="true"] .app-side-brand span,
-.vf-shell[data-collapsed="true"] .app-workspace-text,
-.vf-shell[data-collapsed="true"] .app-nav-text,
-.vf-shell[data-collapsed="true"] .app-nav-label,
-.vf-shell[data-collapsed="true"] .app-user-text,
-.vf-shell[data-collapsed="true"] .app-user > i { display: none; }
-.vf-shell[data-collapsed="true"] .app-workspace { justify-content: center; margin: 6px 10px; padding: 6px 0; border-color: transparent; background: transparent; }
-.vf-shell[data-collapsed="true"] .app-nav { padding: 4px 10px; gap: 10px; }
-.vf-shell[data-collapsed="true"] .app-nav-group + .app-nav-group { border-top: 1px solid var(--sidebar-border); padding-top: 10px; }
-.vf-shell[data-collapsed="true"] .app-nav-item { justify-content: center; padding: 0; }
-.vf-shell[data-collapsed="true"] .app-nav-item[aria-current="page"]::before { left: -10px; }
-.vf-shell[data-collapsed="true"] .app-nav-badge { position: absolute; top: 1px; right: 1px; min-width: 15px; height: 15px; font-size: 9.5px; padding: 0 3px; }
-.vf-shell[data-collapsed="true"] .app-side-foot { justify-items: center; }
-.vf-shell[data-collapsed="true"] .app-theme { grid-template-columns: 1fr; }
-.vf-shell[data-collapsed="true"] .app-user { justify-content: center; }
-/* The tooltip a collapsed rail needs, drawn in CSS so it costs nothing. */
-.vf-shell[data-collapsed="true"] .app-nav-item:hover::after {
-  content: attr(data-tip); position: fixed; left: calc(var(--sidebar-w) + 6px); transform: translateY(-2px);
+/* ── collapsed rail ──
+ * Collapsing never re-lays the sidebar out: every icon, the logo, the
+ * workspace mark and the avatar sit on the same 32px axis in both states, so
+ * only the width animates and the labels fade and clip where they stand.
+ * The state lives on <html data-sidebar> (set before first paint), so a
+ * page that loads collapsed does not animate into it.
+ */
+.app-side-brand span, .app-workspace-text, .app-nav-text, .app-nav-label > span,
+.app-user-text, .app-user > i, .app-nav-badge {
+  transition: opacity 180ms ease 90ms;
+}
+.app-workspace { transition: border-color 200ms ease, background-color 200ms ease; }
+.app-side-foot > .app-theme { transition: max-height var(--rail-time) var(--rail-ease), margin var(--rail-time) var(--rail-ease), opacity 160ms ease 90ms, border-width 0s; }
+.app-nav-label::after {
+  content: ""; position: absolute; left: 12px; right: 12px; top: 50%; height: 1px;
+  background: var(--sidebar-border); opacity: 0; transition: opacity 120ms ease;
+}
+.app-nav-dot {
+  position: absolute; top: 7px; left: 25px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--primary); box-shadow: 0 0 0 2px var(--sidebar-background);
+  opacity: 0; transform: scale(.4); transition: opacity 120ms ease, transform 120ms ease; pointer-events: none;
+}
+
+@media (min-width: 981px) {
+  :root[data-sidebar="collapsed"] .vf-shell { --sidebar-w: var(--rail-w); }
+  :root[data-sidebar="collapsed"] .vf-shell :is(.app-side-brand span, .app-workspace-text, .app-nav-text, .app-nav-label > span, .app-user-text, .app-user > i, .app-nav-badge) {
+    opacity: 0; pointer-events: none; transition: opacity 90ms ease;
+  }
+  :root[data-sidebar="collapsed"] .vf-shell .app-workspace { border-color: transparent; background: transparent; }
+  :root[data-sidebar="collapsed"] .vf-shell .app-nav-label::after { opacity: 1; transition-delay: 120ms; }
+  :root[data-sidebar="collapsed"] .vf-shell .app-nav-dot { opacity: 1; transform: none; transition-delay: 140ms; }
+  :root[data-sidebar="collapsed"] .vf-shell .app-side-foot > .app-theme { max-height: 0; margin-bottom: 0; opacity: 0; border-width: 0; transition: max-height var(--rail-time) var(--rail-ease), margin var(--rail-time) var(--rail-ease), opacity 90ms ease, border-width 0s var(--rail-time); }
+
+  /* The collapsed rail names each entry on hover and keyboard focus. */
+  :root[data-sidebar="collapsed"] .vf-shell .app-nav-item:is(:hover, :focus-visible)::after {
+    content: attr(data-tip); position: fixed; left: calc(var(--rail-w) + 8px); transform: translateY(-3px);
+    padding: 5px 9px; border-radius: var(--radius-s); font-size: 12.5px; font-weight: 500; white-space: nowrap;
+    color: var(--surface); background: var(--text-primary); box-shadow: var(--elevation-popover); pointer-events: none; z-index: 90;
+    animation: app-tip-in 140ms var(--ease-out) 60ms both;
+  }
+}
+.app-nav-group:first-child .app-nav-label::after { display: none; }
+@keyframes app-tip-in { from { opacity: 0; translate: -4px 0; } to { opacity: 1; translate: 0 0; } }
+
+/* The handle on the sidebar's edge that folds it to a rail and back. */
+.app-side-toggle {
+  position: fixed; z-index: 40; top: 50%; left: calc(var(--sidebar-w) - 12px);
+  width: 24px; height: 24px; margin-top: -12px; padding: 0; display: grid; place-items: center;
+  border: 1px solid var(--sidebar-border); border-radius: 50%; cursor: pointer;
+  background: var(--sidebar-background); color: var(--sidebar-muted);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .08);
+  opacity: 0; transition: left var(--rail-time) var(--rail-ease), opacity 140ms ease, color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+.app-side-toggle i { transition: transform var(--rail-time) var(--rail-ease); }
+:root[data-sidebar="collapsed"] .app-side-toggle i { transform: rotate(180deg); }
+/* Shown while the pointer is over the sidebar, always while it is a rail. */
+.vf-sidebar:hover ~ .app-side-toggle, .app-side-toggle:hover, .app-side-toggle:focus-visible,
+:root[data-sidebar="collapsed"] .app-side-toggle { opacity: 1; }
+.app-side-toggle:hover { color: var(--text-primary); border-color: var(--border-strong); background: var(--surface); }
+.app-side-toggle:focus-visible { outline: none; box-shadow: var(--focus); }
+.app-side-toggle::after {
+  content: attr(data-tip); position: absolute; left: calc(100% + 8px); top: 50%; translate: 0 -50%;
   padding: 5px 9px; border-radius: var(--radius-s); font-size: 12.5px; font-weight: 500; white-space: nowrap;
-  color: var(--surface); background: var(--text-primary); box-shadow: var(--elevation-popover); pointer-events: none; z-index: 90;
+  color: var(--surface); background: var(--text-primary); box-shadow: var(--elevation-popover); pointer-events: none;
+  opacity: 0; transition: opacity 120ms ease;
+}
+.app-side-toggle:hover::after, .app-side-toggle:focus-visible::after { opacity: 1; transition-delay: 250ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vf-shell { --rail-time: 0ms; }
+  .vf-shell *, .app-side-toggle, .app-side-toggle i { transition-duration: 0ms !important; transition-delay: 0ms !important; }
 }
 
 /* main column */
@@ -789,34 +842,24 @@
 
 .vf-shell .vf-menu-btn { display: none; }
 
+/* Each route settles in rather than snapping: a short rise and fade, content only. */
+/* Offset with `top`, not a transform: a transform would become the containing
+   block for fixed children (dialogs, the mobile action bar) while it runs. */
+.vf-shell .app-route { position: relative; animation: app-route-in 220ms var(--ease-out) both; }
+@keyframes app-route-in { from { opacity: 0; top: 4px; } to { opacity: 1; top: 0; } }
+@media (prefers-reduced-motion: reduce) { .vf-shell .app-route { animation: none; } }
+
 /* ── tablet & phone: drawer + tab bar ── */
 @media (max-width: 980px) {
-  .vf-shell, .vf-shell[data-collapsed="true"] { --sidebar-w: 284px; }
+  .vf-shell { --sidebar-w: 284px; }
   .vf-shell .vf-sidebar {
     position: fixed; inset: 0 auto 0 0; z-index: 70; width: 284px; flex-basis: 284px;
     box-shadow: var(--elevation-modal); transform: translateX(-100%); visibility: hidden;
     transition: transform 220ms var(--ease-out), visibility 220ms;
   }
   .vf-shell .vf-sidebar[data-open="true"] { transform: none; visibility: visible; }
-  .vf-shell .app-side-collapse { display: none; }
+  .vf-shell .app-side-toggle { display: none; }
   .vf-shell .app-side-close { display: grid; }
-  /* The drawer always shows labels, whatever the desktop rail was set to. */
-  .vf-shell[data-collapsed="true"] .app-side-head { flex-direction: row; height: 52px; padding: 0 10px 0 16px; justify-content: flex-start; }
-  .vf-shell[data-collapsed="true"] .app-side-brand { flex: 1; }
-  .vf-shell[data-collapsed="true"] .app-side-brand span,
-  .vf-shell[data-collapsed="true"] .app-workspace-text,
-  .vf-shell[data-collapsed="true"] .app-nav-text,
-  .vf-shell[data-collapsed="true"] .app-nav-label,
-  .vf-shell[data-collapsed="true"] .app-user-text { display: block; }
-  .vf-shell[data-collapsed="true"] .app-user > i { display: inline-block; }
-  .vf-shell[data-collapsed="true"] .app-workspace { justify-content: flex-start; margin: 2px 10px 6px; padding: 8px; border-color: var(--sidebar-border); background: var(--surface); }
-  .vf-shell[data-collapsed="true"] .app-nav-item { justify-content: flex-start; padding: 0 8px; }
-  .vf-shell[data-collapsed="true"] .app-nav-badge { position: static; }
-  .vf-shell[data-collapsed="true"] .app-side-foot { justify-items: stretch; }
-  .vf-shell[data-collapsed="true"] .app-theme { grid-template-columns: 1fr 1fr; }
-  .vf-shell[data-collapsed="true"] .app-user { justify-content: flex-start; }
-  .vf-shell[data-collapsed="true"] .app-nav-item:hover::after { display: none; }
-
   .vf-shell .vf-scrim { display: block; position: fixed; inset: 0; z-index: 65; border: 0; background: var(--overlay); animation: vf-fade 160ms ease-out; }
   .vf-shell .vf-menu-btn { display: inline-flex; margin-left: -6px; }
   .vf-shell .vf-topbar { height: 52px; padding: 0 12px; gap: 6px; }
@@ -1052,10 +1095,13 @@
 @media (max-width: 1080px) { .vf-shell .vf-voucher-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .vf-shell .app-detail-grid { display: grid; grid-template-columns: 1fr 1fr; }
-.vf-shell .app-detail-grid > .vf-dl { padding: 4px 18px 8px; }
+.vf-shell .app-detail-grid > .vf-dl { padding: 4px 18px 8px; align-content: start; }
 .vf-shell .app-detail-grid > .vf-dl + .vf-dl { border-left: 1px solid var(--border-subtle); }
 .vf-shell .app-detail-grid .vf-dl-row { grid-template-columns: minmax(110px, 42%) 1fr; }
-@media (max-width: 760px) {
+/* Two columns only while the panel itself has room for them — it narrows
+   with the sidebar and the decision column, not just with the window. */
+.vf-shell .vf-panel:has(> .app-detail-grid) { container-type: inline-size; }
+@container (max-width: 680px) {
   .vf-shell .app-detail-grid { grid-template-columns: minmax(0, 1fr); }
   .vf-shell .app-detail-grid > .vf-dl + .vf-dl { border-left: 0; border-top: 1px solid var(--border-subtle); }
 }

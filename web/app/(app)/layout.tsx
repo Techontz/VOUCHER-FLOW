@@ -43,20 +43,36 @@ const COLLAPSE_EVENT = "vouchflow:sidebar";
  * Whether the desktop sidebar is folded to icons: a per-device preference in
  * localStorage, read as an external store so the server render (always open)
  * and the first client render agree, and every change re-renders at once.
+ *
+ * The state itself lives on <html data-sidebar>, which the root layout's
+ * bootstrap script sets before first paint — so a sidebar the user left
+ * collapsed is already a rail when the page appears, rather than animating
+ * into one after hydration.
  */
 function readCollapsed(): boolean {
-  try { return window.localStorage.getItem(COLLAPSE_KEY) === "1"; } catch { return false; }
+  // Until the user picks, the bootstrap starts laptop-width screens (under
+  // 1280px) on the rail so the content keeps its room; a choice then sticks.
+  return document.documentElement.dataset.sidebar === "collapsed";
 }
 
 function writeCollapsed(value: boolean) {
+  if (value) document.documentElement.dataset.sidebar = "collapsed";
+  else delete document.documentElement.dataset.sidebar;
   try { window.localStorage.setItem(COLLAPSE_KEY, value ? "1" : "0"); } catch { /* the choice lasts this visit */ }
   window.dispatchEvent(new Event(COLLAPSE_EVENT));
 }
 
 function subscribeCollapsed(onChange: () => void) {
+  // Another tab changed it: mirror the stored choice onto this page first.
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== COLLAPSE_KEY) return;
+    if (e.newValue === "1") document.documentElement.dataset.sidebar = "collapsed";
+    else delete document.documentElement.dataset.sidebar;
+    onChange();
+  };
   window.addEventListener(COLLAPSE_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => { window.removeEventListener(COLLAPSE_EVENT, onChange); window.removeEventListener("storage", onChange); };
+  window.addEventListener("storage", onStorage);
+  return () => { window.removeEventListener(COLLAPSE_EVENT, onChange); window.removeEventListener("storage", onStorage); };
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -166,11 +182,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const sideLabel = locale === "sw"
+    ? (collapsed ? "Panua menyu" : "Kunja menyu")
+    : (collapsed ? "Expand sidebar" : "Collapse sidebar");
   const profileLabel = items.find((i) => i.href === "/profile")?.label ?? "profile";
   const canCreate = user.role !== "super_admin" && user.role !== "cashier";
 
   return (
-    <div className="vf-shell" data-collapsed={collapsed ? "true" : undefined}>
+    <div className="vf-shell">
       {drawer && <button className="vf-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />}
 
       <aside className="vf-sidebar" data-open={drawer} aria-label="Main navigation">
@@ -179,10 +198,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <VouchFlowMark size={24} />
             <span>VouchFlow</span>
           </Link>
-          <button type="button" className="app-side-collapse" onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-            <Icon name={collapsed ? "ph-sidebar-simple" : "ph-sidebar-simple"} size={17} />
-          </button>
           <button type="button" className="app-side-close" onClick={() => setDrawer(false)} aria-label="Close menu">
             <Icon name="ph-x" size={18} />
           </button>
@@ -204,7 +219,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="app-nav">
           {groups.map(({ group, items: groupItems }) => (
             <div key={group} className="app-nav-group">
-              <div className="app-nav-label">{t(GROUP_LABEL[group])}</div>
+              <div className="app-nav-label"><span>{t(GROUP_LABEL[group])}</span></div>
               {groupItems.map((item) => {
                 const badge = badgeFor(item);
                 const active = item.href === currentHref;
@@ -213,6 +228,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <Icon name={item.icon} size={17} weight={active ? "fill" : "regular"} />
                     <span className="app-nav-text">{t(item.label)}</span>
                     {badge ? <span className="app-nav-badge tnum">{badge > 99 ? "99+" : badge}</span> : null}
+                    {badge ? <span className="app-nav-dot" aria-hidden="true" /> : null}
                   </Link>
                 );
               })}
@@ -221,7 +237,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="app-side-foot">
-          <ThemeSwitch compact={collapsed} />
+          <ThemeSwitch />
           <Dropdown
             placement="above" align="start" label={user.name}
             trigger={({ open, toggle, id }) => (
@@ -263,6 +279,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Dropdown>
         </div>
       </aside>
+
+      <button type="button" className="app-side-toggle no-print" onClick={toggleCollapsed}
+        aria-label={sideLabel} data-tip={sideLabel} aria-expanded={!collapsed}>
+        <Icon name="ph-caret-left" size={13} />
+      </button>
 
       <div className="vf-main">
         <header className="vf-topbar no-print">
@@ -312,7 +333,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="vf-content">{children}</main>
+        {/* Keyed by route, so each page arrives with a short settle while the
+            sidebar and top bar stay put around it. */}
+        <main className="vf-content"><div key={pathname} className="app-route">{children}</div></main>
       </div>
 
       <nav className="vf-tabbar no-print" aria-label="Primary">
