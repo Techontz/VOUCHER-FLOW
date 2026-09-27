@@ -119,7 +119,7 @@ export function stepResource(step: MockStep, db: MockDataset) {
     id: step.id, position: step.position, name: step.name, name_sw: step.name_sw,
     label: step.name, role: step.role, role_label: roleLabel(step.role),
     assigned_user_id: step.assigned_user_id,
-    assigned_user: assigned ? { id: assigned.id, name: assigned.name } : null,
+    assigned_user: assigned ? { id: assigned.id, name: assigned.name, role: assigned.role, status: assigned.status } : null,
     assignee_hint: step.assignee_hint,
     can_sign: step.can_sign, can_approve: step.can_approve, can_reject: step.can_reject,
     can_request_changes: step.can_request_changes, can_pay: step.can_pay,
@@ -132,8 +132,15 @@ export function stepResource(step: MockStep, db: MockDataset) {
 
 export function workflowResource(db: MockDataset, wf: MockWorkflow) {
   return {
-    id: wf.id, name: wf.name, description: wf.description,
-    voucher_type_id: null, is_default: wf.is_default, is_active: wf.is_active,
+    id: wf.id, name: wf.name, name_sw: wf.name_sw ?? null, label: wf.name, description: wf.description,
+    voucher_type_id: wf.voucher_type_id ?? null,
+    voucher_type: (() => {
+      const type = db.voucherTypes.find((t) => t.id === wf.voucher_type_id);
+      return type ? { id: type.id, name: type.name, name_sw: type.name_sw } : null;
+    })(),
+    vouchers_count: db.vouchers.filter((v) => v.workflow_id === wf.id).length,
+    in_flight_count: db.vouchers.filter((v) => v.workflow_id === wf.id && ["draft", "in_review", "changes_requested", "approved"].includes(v.status)).length,
+    is_default: wf.is_default, is_active: wf.is_active,
     version: wf.version,
     route_summary: `${wf.steps.map((s) => roleLabel(s.role)).join(" → ")} → Completed`,
     steps: wf.steps.map((s) => stepResource(s, db)),

@@ -15,6 +15,7 @@ class ApiException implements Exception {
     this.message, [
     this.errors = const {},
     this.code,
+    this.data = const {},
   ]);
 
   final int statusCode;
@@ -22,7 +23,17 @@ class ApiException implements Exception {
   final Map<String, List<String>> errors;
   final String? code;
 
+  /// The whole error body, for the fields a screen reads beyond the message —
+  /// `reason`, `retry_after`, `attempts_remaining`.
+  final Map<String, dynamic> data;
+
   String? field(String name) => errors[name]?.first;
+
+  /// The machine-readable cause the API names, when it names one.
+  String? get reason => data['reason'] as String?;
+
+  /// A whole-number field of the error body, such as `retry_after`.
+  int? intValue(String key) => (data[key] as num?)?.toInt();
 
   bool get isUnauthorised => statusCode == 401;
   bool get isForbidden => statusCode == 403;
@@ -46,9 +57,14 @@ class ApiService extends GetxService {
   /// Dark is the product's default appearance; light is a stored preference.
   static const defaultTheme = 'dark';
 
+  /// [mock] routes every call to that fixture regardless of the build's
+  /// API mode — for tests.
+  ApiService({MockApi? mock})
+    : _mock = mock ?? (VfConfig.useMock ? MockApi() : null);
+
   late final SharedPreferences _prefs;
   final _client = http.Client();
-  final _mock = VfConfig.useMock ? MockApi() : null;
+  final MockApi? _mock;
 
   String? _token;
   String _locale = 'en';
@@ -285,6 +301,7 @@ class ApiService extends GetxService {
             'Request failed (${response.statusCode})',
         errors,
         map['code'] as String?,
+        map,
       );
     }
 

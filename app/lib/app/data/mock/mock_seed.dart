@@ -68,8 +68,8 @@ List<MockStep> defaultSteps() => [
   ),
   MockStep(
     position: 2,
-    name: 'Department review',
-    nameSw: 'Ukaguzi wa idara',
+    name: 'HOD signature',
+    nameSw: 'Sahihi ya Mkuu wa Idara',
     role: 'hod',
     assigneeHint: 'Head of the requesting department',
     canSign: true,
@@ -109,11 +109,15 @@ class MockUser {
     this.locale = 'en',
     this.theme = 'dark',
     this.status = 'active',
+    this.phone,
   });
 
   final int id;
   final int? companyId, departmentId;
   final String name, email, employeeCode;
+
+  /// Only users with a phone are offered their sign-in code by SMS.
+  final String? phone;
   String role, jobTitle, locale, theme, status;
   String? signature;
 }

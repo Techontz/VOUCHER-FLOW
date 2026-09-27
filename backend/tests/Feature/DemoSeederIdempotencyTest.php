@@ -7,11 +7,13 @@ use App\Models\Plan;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherType;
+use App\Services\CompanyProvisioner;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\DemoSeeder;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
@@ -54,7 +56,7 @@ class DemoSeederIdempotencyTest extends TestCase
     {
         $this->seedDemo();
 
-        $this->assertSame(3, Company::count(), 'the demo world is three tenants');
+        $this->assertSame(4, Company::count(), 'the demo world is four tenants');
         $this->assertGreaterThan(0, Voucher::withoutGlobalScopes()->count());
     }
 
@@ -135,7 +137,7 @@ class DemoSeederIdempotencyTest extends TestCase
         $before = (int) $type->next_number;
         $this->assertGreaterThan(1, $before, 'the demo issued payment vouchers, so this has moved');
 
-        app(\App\Services\CompanyProvisioner::class)->seedVoucherTypes($watercom);
+        app(CompanyProvisioner::class)->seedVoucherTypes($watercom);
 
         $this->assertSame($before, (int) $type->fresh()->next_number);
     }
@@ -220,6 +222,54 @@ class DemoSeederIdempotencyTest extends TestCase
         $this->assertGreaterThan(0, $after['in_review'] ?? 0, 'and must still have work waiting');
     }
 
+    /**
+     * The fourth tenant is the "busy company" demo: every department headed,
+     * every role reachable, months of history and live work in every queue.
+     */
+    public function test_kilimanjaro_is_a_complete_working_demo_company(): void
+    {
+        $this->seedDemo();
+
+        $company = Company::where('slug', 'kilimanjaro-logistics')->firstOrFail();
+        $this->assertSame('Kilimanjaro Logistics Ltd', $company->name);
+        $this->assertSame('active', $company->status);
+
+        $departments = DB::table('departments')->where('company_id', $company->id)->get();
+        $this->assertCount(10, $departments);
+        $this->assertSame(0, $departments->whereNull('hod_user_id')->count(), 'every department has its own head');
+
+        $users = User::withoutGlobalScopes()->where('company_id', $company->id)->get();
+        $this->assertGreaterThanOrEqual(35, $users->count());
+        $this->assertSame(0, $users->whereNull('phone')->count(), 'everyone can be offered an SMS code');
+
+        $vouchers = Voucher::withoutGlobalScopes()->where('company_id', $company->id);
+        $this->assertGreaterThanOrEqual(150, (clone $vouchers)->count());
+        $this->assertSame(6, (clone $vouchers)->distinct()->count('voucher_type_id'), 'all six voucher types');
+
+        foreach (['draft', 'in_review', 'changes_requested', 'approved', 'rejected', 'cancelled', 'paid'] as $status) {
+            $this->assertGreaterThan(0, (clone $vouchers)->where('status', $status)->count(), "some {$status} vouchers");
+        }
+
+        $this->assertGreaterThan(0, (clone $vouchers)->whereBetween('voucher_date', [now()->startOfMonth(), now()])->count());
+
+        // Timestamps follow the journey and never sit in the future.
+        $this->assertSame(0, (clone $vouchers)->where(fn ($q) => $q
+            ->whereColumn('submitted_at', '<', 'created_at')
+            ->orWhereColumn('approved_at', '<', 'submitted_at')
+            ->orWhereColumn('paid_at', '<', 'approved_at')
+            ->orWhere('updated_at', '>', now()))->count());
+
+        foreach (['admin@kilimanjaro.test', 'frank@kilimanjaro.test', 'halima@kilimanjaro.test', 'juma@kilimanjaro.test', 'hamisi@kilimanjaro.test'] as $email) {
+            $user = $users->firstWhere('email', $email);
+            $this->actingAs($user, 'sanctum')->getJson('/api/dashboard')->assertOk();
+        }
+
+        $admin = $users->firstWhere('email', 'admin@kilimanjaro.test');
+        foreach (['vouchers', 'payments', 'monthly'] as $kind) {
+            $this->actingAs($admin, 'sanctum')->getJson("/api/reports/{$kind}")->assertOk();
+        }
+    }
+
     public function test_plan_seeder_is_idempotent(): void
     {
         $this->seed(PlanSeeder::class);
@@ -269,7 +319,7 @@ class DemoSeederIdempotencyTest extends TestCase
 
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertSame(3, Company::count());
+        $this->assertSame(4, Company::count());
         $this->assertSame('Watercom (T) Limited', Company::where('slug', 'watercom')->firstOrFail()->name);
     }
 
@@ -284,7 +334,7 @@ class DemoSeederIdempotencyTest extends TestCase
 
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check(
+        $this->assertTrue(Hash::check(
             'Chosen-by-the-operator-1',
             $operator->fresh()->password,
         ));

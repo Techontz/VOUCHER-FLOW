@@ -1376,3 +1376,111 @@
 .vf-shell .app-settings-link i { margin-top: 1px; flex: none; }
 .vf-shell .app-wf-matrix .table th, .vf-shell .app-wf-matrix .table td { padding-left: 10px; padding-right: 10px; }
 .vf-shell .app-wf-matrix .table th.app-wf-cap-col { font-size: 11px; letter-spacing: .02em; }
+
+/* ═══════════════════════════════════════ dashboard · role views (2026-09-27) ══
+   Attention banner, activity feed, workflow route and fact lists used by the
+   role-aware dashboard. Scoped to .vf-shell like everything else here. */
+.vf-shell .app-attn {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface);
+}
+.vf-shell .app-attn[data-tone="info"] { border-color: var(--primary-border); background: var(--primary-soft); }
+.vf-shell .app-attn[data-tone="ok"] { border-color: color-mix(in srgb, var(--success-strong) 30%, transparent); background: var(--success-soft); }
+.vf-shell .app-attn-icon {
+  display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: var(--radius-m);
+  background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border-subtle);
+}
+.vf-shell .app-attn[data-tone="info"] .app-attn-icon { color: var(--primary); }
+.vf-shell .app-attn[data-tone="ok"] .app-attn-icon { color: var(--success); }
+.vf-shell .app-attn-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.vf-shell .app-attn-title { font-size: 14.5px; font-weight: 600; color: var(--text-primary); }
+.vf-shell .app-attn-body { font-size: 13px; color: var(--text-secondary); }
+.vf-shell .app-attn-action { flex: none; }
+@media (max-width: 640px) {
+  .vf-shell .app-attn { flex-wrap: wrap; }
+  .vf-shell .app-attn-action { width: 100%; justify-content: center; }
+}
+
+.vf-shell .app-dash-empty { margin: 0; padding: 16px 18px; font-size: 13px; color: var(--text-muted); }
+.vf-shell .app-dash-links { display: grid; gap: 8px; }
+
+.vf-shell .app-dash-facts { margin: 0; padding: 4px 0; }
+.vf-shell .app-dash-facts > div {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 9px 18px; border-bottom: 1px solid var(--border-subtle); font-size: 13px;
+}
+.vf-shell .app-dash-facts > div:last-child { border-bottom: 0; }
+.vf-shell .app-dash-facts dt { color: var(--text-muted); font-weight: 500; }
+.vf-shell .app-dash-facts dd { margin: 0; font-weight: 600; color: var(--text-primary); text-align: right; }
+.vf-shell .app-dash-facts dd.text-muted { font-weight: 400; color: var(--text-muted); }
+
+.vf-shell .app-mini-amount { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+
+.vf-shell .app-activity { list-style: none; margin: 0; padding: 0; }
+.vf-shell .app-activity li { display: flex; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--border-subtle); }
+.vf-shell .app-activity li:last-child { border-bottom: 0; }
+.vf-shell .app-activity-dot { width: 8px; height: 8px; margin-top: 6px; flex: none; border-radius: 50%; background: var(--text-faint); }
+.vf-shell .app-activity-dot[data-action="approved"], .vf-shell .app-activity-dot[data-action="paid"] { background: var(--success-strong); }
+.vf-shell .app-activity-dot[data-action="signed"], .vf-shell .app-activity-dot[data-action="submitted"], .vf-shell .app-activity-dot[data-action="resubmitted"] { background: var(--primary); }
+.vf-shell .app-activity-dot[data-action="rejected"] { background: var(--danger-strong); }
+.vf-shell .app-activity-dot[data-action="changes_requested"] { background: var(--warning-strong); }
+.vf-shell .app-activity-main { min-width: 0; display: grid; gap: 2px; font-size: 13.5px; color: var(--text-secondary); }
+.vf-shell .app-activity-main strong { color: var(--text-primary); font-weight: 600; }
+.vf-shell .app-activity-main a { color: var(--primary-text); font-weight: 500; text-decoration: none; }
+.vf-shell .app-activity-main a:hover { text-decoration: underline; }
+.vf-shell .app-activity-meta { font-size: 12px; color: var(--text-muted); }
+
+.vf-shell .app-wf-route { list-style: none; margin: 0; padding: 8px 18px 12px; display: grid; gap: 0; counter-reset: none; }
+.vf-shell .app-wf-route li { position: relative; display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 13px; }
+.vf-shell .app-wf-route li:not(:last-child)::after {
+  content: ""; position: absolute; left: 13px; top: 34px; bottom: -6px; width: 1px; background: var(--border);
+}
+.vf-shell .app-wf-route-icon {
+  display: grid; place-items: center; width: 27px; height: 27px; flex: none; border-radius: 50%;
+  background: var(--primary-soft); color: var(--primary); border: 1px solid var(--primary-border);
+}
+.vf-shell .app-wf-route-name { flex: 1; min-width: 0; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vf-shell .app-wf-route-kind { font-size: 12px; color: var(--text-muted); }
+
+/* ═══════════════════════════════════ workflow configuration: approvers ══ */
+/* Levels, "who acts" and the per-department routing matrix in the builder. */
+.vf-shell .wfc-level { font-weight: 600; color: var(--primary-text); }
+.vf-shell .wfc-warn-icon { display: inline-flex; flex: none; color: var(--st-warn-dot); }
+.vf-shell .wfc-seg {
+  display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface-secondary);
+}
+.vf-shell .wfc-seg > button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px;
+  border: 0; border-radius: calc(var(--radius-m) - 2px); background: transparent;
+  color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.vf-shell .wfc-seg > button:hover { color: var(--text-primary); }
+.vf-shell .wfc-seg > button:focus-visible { outline: none; box-shadow: var(--focus); }
+.vf-shell .wfc-seg > button[aria-checked="true"] { background: var(--primary-soft); color: var(--primary-text); }
+.vf-shell .wfc-issue { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; }
+.vf-shell .wfc-routing { margin-top: 16px; }
+.vf-shell .wfc-routing-summary { padding-top: 0; padding-bottom: 12px; }
+.vf-shell .wfc-routing-table th { vertical-align: bottom; white-space: nowrap; }
+.vf-shell .wfc-routing-table th .wfc-level { display: block; font-size: 11px; letter-spacing: .02em; }
+.vf-shell .wfc-routing-step { display: block; font-weight: 500; }
+.vf-shell .wfc-routing-table td { vertical-align: top; min-width: 150px; }
+.vf-shell .wfc-fix-link { display: block; margin-top: 4px; font-size: 12px; color: var(--primary-text); text-decoration: underline; }
+.vf-shell .wfc-inactive { margin-left: 6px; }
+@media (max-width: 640px) {
+  .vf-shell .wfc-seg { display: flex; }
+  .vf-shell .wfc-seg > button { flex: 1; justify-content: center; }
+}
+
+/* ── dashboard figures: even rows ──
+ * Eight or four figures sit in rows of four and six in rows of three, so a
+ * strip never ends on a lone card; each row is ruled off from the next. */
+@media (min-width: 1100px) {
+  .vf-shell .app-dash-figures:is([data-count="8"], [data-count="4"]) .vf-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .vf-shell .app-dash-figures:is([data-count="6"], [data-count="3"]) .vf-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .vf-shell .app-dash-figures[data-count="5"] .vf-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .vf-shell .app-dash-figures[data-count="8"] .vf-kpi:nth-child(4n) { border-right: 0; }
+  .vf-shell .app-dash-figures[data-count="6"] .vf-kpi:nth-child(3n) { border-right: 0; }
+  .vf-shell .app-dash-figures:is([data-count="8"], [data-count="6"]) .vf-kpi:nth-child(-n+4) { border-bottom: 1px solid var(--border-subtle); }
+  .vf-shell .app-dash-figures[data-count="6"] .vf-kpi:nth-child(4) { border-bottom: 0; }
+}

@@ -92,11 +92,19 @@ class WorkflowEngine
 
     /* ------------------------------------------------------------- assignment */
 
-    /** The people who may act at a step, resolved against this voucher. */
+    /**
+     * The people who may act at a step, resolved against this voucher.
+     *
+     * A named person, a department head or a department manager who is no
+     * longer active resolves to nobody — a suspended account must not keep
+     * approving — and the company admin's override then applies.
+     */
     public function assigneesFor(Voucher $voucher, WorkflowStep $step): Collection
     {
         if ($step->assigned_user_id) {
-            $user = User::where('company_id', $voucher->company_id)->find($step->assigned_user_id);
+            $user = User::where('company_id', $voucher->company_id)
+                ->where('status', 'active')
+                ->find($step->assigned_user_id);
 
             return new Collection($user ? [$user] : []);
         }
@@ -111,7 +119,9 @@ class WorkflowEngine
         };
 
         if ($candidate) {
-            $user = User::where('company_id', $voucher->company_id)->find($candidate);
+            $user = User::where('company_id', $voucher->company_id)
+                ->when($step->role !== 'employee', fn ($query) => $query->where('status', 'active'))
+                ->find($candidate);
 
             if ($user) {
                 return new Collection([$user]);
@@ -305,10 +315,10 @@ class WorkflowEngine
                 'voucher.paid',
                 "{$voucher->number} has been paid",
                 "{$voucher->number} imelipwa",
-                "{$actor->name} released {$voucher->currency} ".number_format((float) $voucher->amount)
-                    .($voucher->payment_reference ? " · ref {$voucher->payment_reference}" : '').'.',
-                "{$actor->name} ametoa {$voucher->currency} ".number_format((float) $voucher->amount)
-                    .($voucher->payment_reference ? " · kumb. {$voucher->payment_reference}" : '').'.',
+                "{$actor->name} paid {$voucher->currency} ".number_format((float) $voucher->amount)
+                    .($voucher->payment_reference ? ". Payment reference: {$voucher->payment_reference}" : '').'.',
+                "{$actor->name} amelipa {$voucher->currency} ".number_format((float) $voucher->amount)
+                    .($voucher->payment_reference ? ". Kumbukumbu ya malipo: {$voucher->payment_reference}" : '').'.',
                 $voucher,
                 'ph-check-circle',
             );
@@ -388,8 +398,8 @@ class WorkflowEngine
                 'voucher.signed',
                 "{$voucher->number} signed by {$actor->name}",
                 "{$voucher->number} imesainiwa na {$actor->name}",
-                "{$step->name} complete. The voucher continues along the approval route.",
-                "{$step->name} imekamilika. Vocha inaendelea kwenye njia ya idhini.",
+                "Your voucher has been signed at the {$step->name} step and will move to the next approval step.",
+                "Vocha yako imesainiwa katika hatua ya {$step->name} na itaendelea kwenye hatua inayofuata ya idhini.",
                 $voucher,
                 'ph-signature',
             );
@@ -459,10 +469,10 @@ class WorkflowEngine
             $this->notifier->toUser(
                 $voucher->requester,
                 'voucher.rejected',
-                "{$voucher->number} was rejected",
+                "{$voucher->number} has been rejected",
                 "{$voucher->number} imekataliwa",
-                "{$actor->name}: {$comment}",
-                "{$actor->name}: {$comment}",
+                "{$actor->name} rejected this voucher: {$comment}",
+                "{$actor->name} ameikataa vocha hii: {$comment}",
                 $voucher,
                 'ph-x-circle',
             );
@@ -490,10 +500,10 @@ class WorkflowEngine
             $this->notifier->toUser(
                 $voucher->requester,
                 'voucher.changes_requested',
-                "{$voucher->number} needs changes",
-                "{$voucher->number} inahitaji mabadiliko",
-                "{$actor->name}: {$comment}",
-                "{$actor->name}: {$comment}",
+                "Changes requested on {$voucher->number}",
+                "Mabadiliko yameombwa kwenye {$voucher->number}",
+                "{$actor->name} requested changes: {$comment}",
+                "{$actor->name} ameomba mabadiliko: {$comment}",
                 $voucher,
                 'ph-arrow-u-up-left',
             );
@@ -562,10 +572,10 @@ class WorkflowEngine
         $this->notifier->toUser(
             $voucher->requester,
             'voucher.approved',
-            "{$voucher->number} approved",
+            "{$voucher->number} has been approved",
             "{$voucher->number} imeidhinishwa",
-            'Approved and sent for payment.',
-            'Imeidhinishwa na kupelekwa kwa malipo.',
+            'Your voucher has been approved and is now awaiting payment.',
+            'Vocha yako imeidhinishwa na sasa inasubiri malipo.',
             $voucher,
             'ph-seal-check',
         );
@@ -579,8 +589,8 @@ class WorkflowEngine
                     'voucher.awaiting_payment',
                     "{$voucher->number} is ready for payment",
                     "{$voucher->number} ipo tayari kulipwa",
-                    "{$voucher->currency} ".number_format((float) $voucher->amount)." to {$voucher->payee}.",
-                    "{$voucher->currency} ".number_format((float) $voucher->amount)." kwa {$voucher->payee}.",
+                    "Approved for payment: {$voucher->currency} ".number_format((float) $voucher->amount)." to {$voucher->payee}.",
+                    "Imeidhinishwa kulipwa: {$voucher->currency} ".number_format((float) $voucher->amount)." kwa {$voucher->payee}.",
                     $voucher,
                     'ph-wallet',
                 );
@@ -597,8 +607,8 @@ class WorkflowEngine
             $this->notifier->toUser(
                 $assignee,
                 'voucher.awaiting',
-                "{$voucher->number} needs your {$verb}",
-                "{$voucher->number} inahitaji {$verbSw} yako",
+                "{$voucher->number} is awaiting your {$verb}",
+                "{$voucher->number} inasubiri {$verbSw} yako",
                 "{$voucher->requester?->name} submitted {$voucher->currency} ".number_format((float) $voucher->amount)." — {$voucher->purpose}.",
                 "{$voucher->requester?->name} alituma {$voucher->currency} ".number_format((float) $voucher->amount)." — {$voucher->purpose}.",
                 $voucher,

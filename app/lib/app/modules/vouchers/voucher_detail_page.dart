@@ -588,18 +588,34 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final a = voucher.actions;
+    final signOnly =
+        (a.sign || a.submitSigned) &&
+        !a.approve &&
+        !voucher.currentStepCanApprove;
 
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (a.sign && !voucher.currentStepCanApprove)
+          // Signing and deciding are different acts: a sign-only step is
+          // headed "Your signature" and says plainly who decides.
+          if (signOnly || a.approve || a.reject)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'sign.noApprove'.tr,
-                style: theme.textTheme.bodySmall,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (signOnly ? 'decision.signature' : 'decision.decision').tr
+                        .toUpperCase(),
+                    style: theme.textTheme.labelSmall,
+                  ),
+                  if (signOnly) ...[
+                    const SizedBox(height: 4),
+                    Text('sign.noApprove'.tr, style: theme.textTheme.bodySmall),
+                  ],
+                ],
               ),
             ),
           Row(
@@ -636,10 +652,29 @@ class _ActionBar extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => controller.run(
-                  () => controller.repo.submit(voucher.id),
-                  'msg.submitted'.tr,
-                ),
+                onPressed: () async {
+                  final confirmed = await Get.dialog<bool>(
+                    AlertDialog(
+                      title: Text('voucher.submitConfirm'.tr),
+                      content: Text('voucher.submitConfirmBody'.tr),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Get.back(result: false),
+                          child: Text('action.cancel'.tr),
+                        ),
+                        FilledButton(
+                          onPressed: () => Get.back(result: true),
+                          child: Text('voucher.submit'.tr),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  await controller.run(
+                    () => controller.repo.submit(voucher.id),
+                    'msg.submitted'.tr,
+                  );
+                },
                 icon: const Icon(Icons.send_outlined, size: 18),
                 label: Text('voucher.submit'.tr),
               ),
@@ -831,12 +866,10 @@ Future<void> _recordPayment(
                       decoration: InputDecoration(
                         // The label follows the METHOD, not the format: only a
                         // cheque has a cheque number.
-                        labelText:
-                            method.value.toLowerCase().contains('cheque')
+                        labelText: method.value.toLowerCase().contains('cheque')
                             ? 'pay.cheque'.tr
                             : 'pay.reference'.tr,
-                        hintText:
-                            method.value.toLowerCase().contains('cheque')
+                        hintText: method.value.toLowerCase().contains('cheque')
                             ? '004471'
                             : 'CRDB-TRX-8841207',
                       ),

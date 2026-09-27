@@ -271,7 +271,7 @@ class ApprovalWorkflowTest extends TestCase
 
         $this->assertSame(['done', 'done', 'done', 'current', 'pending'], $states, 'Approved: the chain is done, payment is next, nothing is complete yet.');
         $this->assertSame('Awaiting payment', $payment['act']);
-        $this->assertSame('Not completed', end($approved)['act']);
+        $this->assertSame('Not yet completed', end($approved)['act']);
 
         $this->actingAs($t['cashier'], 'sanctum')
             ->postJson("/api/vouchers/{$voucher->id}/pay", ['payment_reference' => 'CRDB-TRX-4410'])
@@ -362,5 +362,24 @@ class ApprovalWorkflowTest extends TestCase
         $this->actingAs($t['employee'], 'sanctum')
             ->postJson('/api/workflows/apply-preset', ['preset' => 'single'])
             ->assertForbidden();
+    }
+
+    public function test_the_timeline_names_the_hod_on_the_signature_step_not_the_requester(): void
+    {
+        $t = $this->makeTenant('Acme Trading');
+        $voucher = $this->makeVoucher($t);
+
+        $this->actingAs($t['employee'], 'sanctum')
+            ->postJson("/api/vouchers/{$voucher->id}/submit")
+            ->assertOk();
+
+        $timeline = $this->actingAs($t['hod'], 'sanctum')
+            ->getJson("/api/vouchers/{$voucher->id}")
+            ->assertOk()
+            ->json('data.timeline');
+
+        $current = collect($timeline)->firstWhere('state', 'current');
+
+        $this->assertSame($t['hod']->name, $current['person']);
     }
 }

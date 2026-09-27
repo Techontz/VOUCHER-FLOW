@@ -45,7 +45,7 @@ class CompanyProvisioner
             'steps' => [
                 ['name' => 'Request', 'name_sw' => 'Ombi', 'role' => 'employee', 'assignee_hint' => 'Voucher creator',
                     'can_sign' => false, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => false, 'can_print' => true],
-                ['name' => 'Department review', 'name_sw' => 'Ukaguzi wa idara', 'role' => 'hod', 'assignee_hint' => 'Head of the requesting department',
+                ['name' => 'HOD signature', 'name_sw' => 'Sahihi ya Mkuu wa Idara', 'role' => 'hod', 'assignee_hint' => 'Head of the requesting department',
                     'can_sign' => true, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => true, 'can_print' => true, 'requires_signature' => true],
                 ['name' => 'Management approval', 'name_sw' => 'Idhini ya menejimenti', 'role' => 'ceo', 'assignee_hint' => 'CEO or approving manager',
                     'can_sign' => true, 'can_approve' => true, 'can_reject' => true, 'can_request_changes' => true, 'can_print' => true],
@@ -59,7 +59,7 @@ class CompanyProvisioner
             'steps' => [
                 ['name' => 'Request', 'name_sw' => 'Ombi', 'role' => 'employee', 'assignee_hint' => 'Voucher creator',
                     'can_sign' => false, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => false, 'can_print' => true],
-                ['name' => 'Department review', 'name_sw' => 'Ukaguzi wa idara', 'role' => 'hod', 'assignee_hint' => 'Head of the requesting department',
+                ['name' => 'HOD signature', 'name_sw' => 'Sahihi ya Mkuu wa Idara', 'role' => 'hod', 'assignee_hint' => 'Head of the requesting department',
                     'can_sign' => true, 'can_approve' => false, 'can_reject' => false, 'can_request_changes' => true, 'can_print' => true, 'requires_signature' => true],
                 ['name' => 'Finance verification', 'name_sw' => 'Uhakiki wa fedha', 'role' => 'finance', 'assignee_hint' => 'Finance officer',
                     'can_sign' => true, 'can_approve' => true, 'can_reject' => true, 'can_request_changes' => true, 'can_print' => true],

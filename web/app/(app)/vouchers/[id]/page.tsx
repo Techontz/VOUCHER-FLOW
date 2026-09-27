@@ -153,10 +153,10 @@ export default function VoucherDetailPage() {
       }
 
       const messages: Record<Exclude<Action, "pay">, [string, string]> = {
-        sign: ["Voucher signed", `${res.data.number} carries your signature. Submit it onward when ready.`],
+        sign: ["Voucher signed", `${res.data.number} has been signed. Forward it to the next approval step when you are ready.`],
         submit_signed: ["Signed voucher submitted", `${res.data.number} — ${res.data.status_label}`],
         approve: ["Voucher approved", `${res.data.number} is ${res.data.status_label.toLowerCase()}.`],
-        reject: ["Voucher rejected", `${res.data.number} was returned to ${res.data.requester?.name ?? "the requester"}.`],
+        reject: ["Voucher rejected", `${res.data.number} has been rejected and ${res.data.requester?.name ?? "the requester"} has been notified.`],
         request_changes: ["Changes requested", `${res.data.requester?.name ?? "The requester"} has been notified.`],
         submit: ["Voucher submitted", `${res.data.number} — ${res.data.status_label}`],
         cancel: ["Voucher withdrawn", res.data.number],
@@ -220,6 +220,8 @@ export default function VoucherDetailPage() {
 
   const a = voucher.actions;
   const step = voucher.current_step;
+  /* A signing-only step: the holder signs (and may send back), never decides. */
+  const signOnly = Boolean((a?.sign || a?.submit_signed) && !a?.approve && step && !step.capabilities.approve);
   const rows = voucher.timeline ?? [];
   const decisionActions = a && (a.submit || a.sign || a.submit_signed || a.approve || a.reject || a.request_changes || a.pay);
   const signValid = statement && !!signature;
@@ -302,7 +304,7 @@ export default function VoucherDetailPage() {
               <div className="vf-decision-head">
                 <span className="vf-decision-icon"><Icon name={primary?.icon ?? "ph-hand-pointing"} size={20} /></span>
                 <div style={{ minWidth: 0 }}>
-                  <div className="vf-eyebrow">{t("yourDecision")}</div>
+                  <div className="vf-eyebrow">{signOnly ? t("yourSignature") : t("yourDecision")}</div>
                   <h2 className="vf-decision-title">{step?.name ?? voucher.status_label}</h2>
                 </div>
               </div>
@@ -342,7 +344,7 @@ export default function VoucherDetailPage() {
                 )}
               </div>
 
-              {a?.sign && !step?.capabilities.approve && <p className="vf-decision-hint">{t("signNoApprove")}</p>}
+              {signOnly && <p className="vf-decision-hint">{t("signOnlyNote")}</p>}
               {a?.pay && <p className="vf-decision-hint">{t("payNote")}</p>}
             </section>
           ) : (

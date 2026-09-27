@@ -188,7 +188,7 @@ export default function RegisterPage() {
     setBusy(true);
     setServerMessage(null);
 
-    let res: { token: string; user: User; company: Company; otp: { code: string | null; identifier: string } };
+    let res: { token: string; user: User; company: Company; otp: { identifier: string; purpose: string; expires_in: number } };
     try {
       res = await api.post("/auth/register", {
         company_name: form.company_name.trim(),
@@ -247,12 +247,11 @@ export default function RegisterPage() {
       }
     }
 
-    const code = res.otp?.code ? `&code=${res.otp.code}` : "";
     setOutcome({
       details: detailsState,
       logo: logoState,
       company: res.company.name,
-      verifyUrl: `/verify?identifier=${encodeURIComponent(res.otp.identifier)}&purpose=registration&next=onboarding${code}`,
+      verifyUrl: `/verify?identifier=${encodeURIComponent(res.otp.identifier)}&purpose=registration&next=onboarding`,
     });
     setConfirming(false);
     setBusy(false);

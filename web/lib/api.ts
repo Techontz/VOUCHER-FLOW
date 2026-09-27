@@ -129,13 +129,28 @@ export class ApiError extends Error {
   status: number;
   errors: Record<string, string[]>;
   code?: string;
+  /**
+   * The rest of the error body — e.g. `reason`, `retry_after` and
+   * `attempts_remaining` on the two-step sign-in endpoints.
+   */
+  details: Record<string, unknown>;
 
-  constructor(status: number, message: string, errors: Record<string, string[]> = {}, code?: string) {
+  constructor(
+    status: number, message: string, errors: Record<string, string[]> = {}, code?: string,
+    details: Record<string, unknown> = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.errors = errors;
     this.code = code;
+    this.details = details;
+  }
+
+  /** The machine-readable `reason` the API attaches to some errors. */
+  get reason(): string | undefined {
+    const value = this.details.reason;
+    return typeof value === "string" ? value : undefined;
   }
 
   /** First message for a field, for inline form errors. */
@@ -295,7 +310,7 @@ async function mockRequest<T>(path: string, options: RequestOptions): Promise<T>
         setToken(null);
         if (!window.location.pathname.startsWith("/login")) window.location.href = "/login";
       }
-      throw new ApiError(error.status, error.message, error.errors, error.code);
+      throw new ApiError(error.status, error.message, error.errors, error.code, error.details);
     }
     throw error;
   }
@@ -346,6 +361,7 @@ export async function request<T = any>(path: string, options: RequestOptions = {
       payload?.message || `Request failed (${response.status})`,
       payload?.errors ?? {},
       payload?.code,
+      payload && typeof payload === "object" ? payload : {},
     );
   }
 

@@ -30,7 +30,24 @@ function stepForErrors(errors: Record<string, string[]> | undefined): number {
   return STEP_FIELDS.findIndex((owned) => owned.some((f) => fields.some((e) => e === f || e.startsWith(`${f}.`))));
 }
 
-const CATEGORIES = ["Logistics", "Premises", "Transport", "Capital equipment", "Professional fees", "Staff welfare", "Utilities", "Other"];
+const CATEGORIES = [
+  "Fuel",
+  "Transport",
+  "Vehicle maintenance",
+  "Travel & accommodation",
+  "Meals & refreshments",
+  "Office supplies & stationery",
+  "Internet & communications",
+  "Procurement",
+  "Logistics",
+  "Staff welfare",
+  "Equipment",
+  "Repairs & maintenance",
+  "Utilities",
+  "Professional fees",
+  "Premises",
+  "Other",
+];
 
 export default function CreateVoucherPage() {
   const router = useRouter();

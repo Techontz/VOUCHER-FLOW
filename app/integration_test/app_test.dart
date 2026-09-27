@@ -10,6 +10,8 @@ import 'package:get/get.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:vouchflow/app/data/mock/mock_api.dart';
+import 'package:vouchflow/app/modules/auth/verify_login_page.dart';
 import 'package:vouchflow/main.dart' as app;
 
 void main() {
@@ -35,6 +37,26 @@ void main() {
     }
   }
 
+  /// Completes the second sign-in step when the API asks for one: picks the
+  /// first method offered if there is a choice, then enters the code. The mock
+  /// always accepts its fixed code; against a live API pass the code with
+  /// --dart-define=LOGIN_CODE=123456.
+  Future<void> verifyIfAsked(WidgetTester tester) async {
+    if (find.byType(VerifyLoginPage).evaluate().isEmpty) return;
+    final send = find.widgetWithText(FilledButton, 'Send code');
+    if (send.evaluate().isNotEmpty) {
+      await tester.tap(send.first);
+      await settle(tester, 1600);
+    }
+    const code = String.fromEnvironment(
+      'LOGIN_CODE',
+      defaultValue: MockApi.mockLoginCode,
+    );
+    await tester.enterText(find.byType(TextField).first, code);
+    await tester.tap(find.widgetWithText(FilledButton, 'Verify').first);
+    await settle(tester, 1600);
+  }
+
   Future<void> signIn(WidgetTester tester, String email) async {
     await settle(tester);
     if (find.byType(FloatingActionButton).evaluate().isNotEmpty ||
@@ -47,6 +69,7 @@ void main() {
     await tester.enterText(find.byType(TextField).at(1), 'Password123!');
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in').first);
     await settle(tester, 1600);
+    await verifyIfAsked(tester);
   }
 
   testWidgets(
@@ -165,7 +188,9 @@ void main() {
       // The label follows the payment METHOD for a bank voucher, and a cash
       // voucher is asked who received the money instead.
       expect(
-        find.textContaining(RegExp('Payment reference|Cheque number|Received by')),
+        find.textContaining(
+          RegExp('Payment reference|Cheque number|Received by'),
+        ),
         findsWidgets,
       );
       await tester.enterText(find.byType(TextField).first, 'TRF-2026-9001');

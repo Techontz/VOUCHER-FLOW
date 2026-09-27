@@ -37,6 +37,19 @@ return [
         'password' => env('SUPER_ADMIN_PASSWORD') ?: null,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Two-step sign-in
+    |--------------------------------------------------------------------------
+    |
+    | Every sign-in asks for a one-time code, sent by e-mail (or SMS when the
+    | account has a phone number), after the password. This is the kill-switch
+    | for when mail delivery is down: with it off, a correct password returns a
+    | token straight away, exactly as before two-step sign-in existed.
+    |
+    */
+    'two_factor' => filter_var(env('VOUCHFLOW_TWO_FACTOR', true), FILTER_VALIDATE_BOOLEAN),
+
     'trial_days' => (int) env('VOUCHFLOW_TRIAL_DAYS', 14),
     'max_upload_mb' => (int) env('VOUCHFLOW_MAX_UPLOAD_MB', 10),
     'payments_driver' => env('PAYMENTS_DRIVER', 'demo'),

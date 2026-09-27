@@ -29,6 +29,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:10,1');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:20,1');
+    Route::post('login/send-code', [AuthController::class, 'sendLoginCode'])->middleware('throttle:10,1');
+    Route::post('login/verify', [AuthController::class, 'verifyLogin'])->middleware('throttle:20,1');
     Route::post('otp/send', [AuthController::class, 'sendOtp'])->middleware('throttle:10,1');
     Route::post('otp/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:20,1');
     Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:6,1');
@@ -120,6 +122,8 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
     /* ------------------------------------------------------------ workflows */
     Route::get('workflows/presets', [WorkflowController::class, 'presets']);
     Route::post('workflows/apply-preset', [WorkflowController::class, 'applyPreset']);
+    Route::get('workflows/{workflow}/routing', [WorkflowController::class, 'routing']);
+    Route::post('workflows/{workflow}/make-default', [WorkflowController::class, 'makeDefault']);
     Route::apiResource('workflows', WorkflowController::class);
 
     /* -------------------------------------------------------- notifications */

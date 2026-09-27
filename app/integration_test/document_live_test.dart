@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vouchflow/app/data/mock/mock_api.dart';
+import 'package:vouchflow/app/modules/auth/verify_login_page.dart';
 import 'package:vouchflow/main.dart' as app;
 
 void main() {
@@ -19,48 +21,75 @@ void main() {
     }
   }
 
-  testWidgets('a voucher opened on the phone carries the tenant\'s own letterhead', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    await app.main();
-    await settle(tester, 3000);
-
-    await tester.tap(find.textContaining('mwajuma@watercom.test').first);
-    await settle(tester, 1200);
-    final signIn = find.widgetWithText(FilledButton, 'Sign in');
-    if (signIn.evaluate().isNotEmpty) await tester.tap(signIn.first);
-    await settle(tester, 5000);
-
-    // Open the first voucher in the payment queue.
-    await tester.tap(find.textContaining('Approved — awaiting payment').first);
-    await settle(tester, 3000);
-
-    final texts = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((t) => t.data ?? '')
-        .join(' | ');
-
-    // The letterhead comes from the company record, not from a constant.
-    expect(texts, contains('WATERCOM'));
-    expect(texts, contains('TIN 109-482-771'));
-
-    // Each format shows its own particulars and nothing else. A cash claim has
-    // no account to be drawn on, and must not print an empty bank block.
-    final isCash = texts.contains('CASH');
-
-    if (isCash) {
-      expect(texts, contains('RECEIVED BY'));
-      expect(texts, isNot(contains('DRAWN ON')));
-    } else {
-      expect(texts, contains('DRAWN ON'));
-      expect(texts, contains('CRDB Bank'));
+  /// Completes the second sign-in step when the API asks for one: picks the
+  /// first method offered if there is a choice, then enters the code. The mock
+  /// always accepts its fixed code; against a live API pass the code with
+  /// --dart-define=LOGIN_CODE=123456.
+  Future<void> verifyIfAsked(WidgetTester tester) async {
+    if (find.byType(VerifyLoginPage).evaluate().isEmpty) return;
+    final send = find.widgetWithText(FilledButton, 'Send code');
+    if (send.evaluate().isNotEmpty) {
+      await tester.tap(send.first);
+      await settle(tester, 1600);
     }
+    const code = String.fromEnvironment(
+      'LOGIN_CODE',
+      defaultValue: MockApi.mockLoginCode,
+    );
+    await tester.enterText(find.byType(TextField).first, code);
+    await tester.tap(find.widgetWithText(FilledButton, 'Verify').first);
+    await settle(tester, 1600);
+  }
 
-    // And the marks the workflow has actually collected.
-    expect(texts, contains('SIGNED'));
-    expect(texts, contains('APPROVED'));
+  testWidgets(
+    'a voucher opened on the phone carries the tenant\'s own letterhead',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await app.main();
+      await settle(tester, 3000);
 
-    debugPrint('DOCUMENT >>> ${texts.substring(0, texts.length.clamp(0, 1400))}');
-  }, timeout: const Timeout(Duration(minutes: 5)));
+      await tester.tap(find.textContaining('mwajuma@watercom.test').first);
+      await settle(tester, 1200);
+      final signIn = find.widgetWithText(FilledButton, 'Sign in');
+      if (signIn.evaluate().isNotEmpty) await tester.tap(signIn.first);
+      await settle(tester, 5000);
+      await verifyIfAsked(tester);
+
+      // Open the first voucher in the payment queue.
+      await tester.tap(
+        find.textContaining('Approved — awaiting payment').first,
+      );
+      await settle(tester, 3000);
+
+      final texts = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.data ?? '')
+          .join(' | ');
+
+      // The letterhead comes from the company record, not from a constant.
+      expect(texts, contains('WATERCOM'));
+      expect(texts, contains('TIN 109-482-771'));
+
+      // Each format shows its own particulars and nothing else. A cash claim has
+      // no account to be drawn on, and must not print an empty bank block.
+      final isCash = texts.contains('CASH');
+
+      if (isCash) {
+        expect(texts, contains('RECEIVED BY'));
+        expect(texts, isNot(contains('DRAWN ON')));
+      } else {
+        expect(texts, contains('DRAWN ON'));
+        expect(texts, contains('CRDB Bank'));
+      }
+
+      // And the marks the workflow has actually collected.
+      expect(texts, contains('SIGNED'));
+      expect(texts, contains('APPROVED'));
+
+      debugPrint(
+        'DOCUMENT >>> ${texts.substring(0, texts.length.clamp(0, 1400))}',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
 }

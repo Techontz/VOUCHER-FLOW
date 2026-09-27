@@ -41,7 +41,9 @@ export const nextStepAfter = (db: MockDataset, v: MockVoucher, position: number)
 /** Who may act at a step, resolved against this voucher. */
 export function assigneesFor(db: MockDataset, voucher: MockVoucher, step: MockStep): MockUser[] {
   if (step.assigned_user_id) {
-    const named = db.users.find((u) => u.id === step.assigned_user_id);
+    // Mirrors the API: an inactive named person resolves to nobody, and the
+    // company admin's override then applies.
+    const named = db.users.find((u) => u.id === step.assigned_user_id && u.status === "active");
     return named ? [named] : [];
   }
 
@@ -52,11 +54,11 @@ export function assigneesFor(db: MockDataset, voucher: MockVoucher, step: MockSt
     return requester ? [requester] : [];
   }
   if (step.role === "hod" && dept?.hod_user_id) {
-    const hod = db.users.find((u) => u.id === dept.hod_user_id);
+    const hod = db.users.find((u) => u.id === dept.hod_user_id && u.status === "active");
     if (hod) return [hod];
   }
   if (step.role === "manager" && dept?.manager_user_id) {
-    const manager = db.users.find((u) => u.id === dept.manager_user_id);
+    const manager = db.users.find((u) => u.id === dept.manager_user_id && u.status === "active");
     if (manager) return [manager];
   }
   if (step.role === "ceo" && dept?.manager_user_id) {
@@ -146,7 +148,7 @@ export function presentStatus(db: MockDataset, v: MockVoucher): StatusView {
     case "changes_requested": return mk("changes_requested", "Changes requested", "Mabadiliko yameombwa", "tag-accent-2");
     case "rejected": return mk("rejected", "Rejected", "Imekataliwa", "tag-accent-2");
     case "cancelled": return mk("cancelled", "Cancelled", "Imefutwa", "tag-neutral");
-    case "paid": return mk("paid", "Paid & completed", "Imelipwa na kukamilika", "tag-accent");
+    case "paid": return mk("paid", "Paid", "Imelipwa", "tag-accent");
     case "approved": return mk("awaiting_payment", "Approved — awaiting payment", "Imeidhinishwa — inasubiri malipo", "tag-info");
     default: break;
   }
@@ -227,7 +229,7 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
     if (step.position === 1) {
       if (v.status === "draft") { act = "Draft — not submitted"; actSw = "Rasimu — haijatumwa"; }
       else {
-        act = "Created & submitted"; actSw = "Imetengenezwa na kutumwa";
+        act = "Created and submitted"; actSw = "Imetengenezwa na kutumwa";
         when = v.submitted_at;
         comment = v.attachments.length ? `${v.attachments.length} supporting document(s) attached.` : null;
       }
@@ -242,18 +244,18 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
       act = "Approved"; actSw = "Imeidhinishwa"; when = approveEvent.acted_at;
       comment = approveEvent.comment ?? "Cleared for payment.";
     } else if (signEvent && forwardEvent) {
-      act = "Reviewed & signed"; actSw = "Imepitiwa na kusainiwa"; when = signEvent.acted_at;
+      act = "Signed and forwarded"; actSw = "Imesainiwa na kupelekwa mbele"; when = signEvent.acted_at;
       comment = forwardEvent.comment ?? "Signature applied and forwarded to the next step.";
     } else if (signEvent && atThis) {
-      act = "Signed — not yet submitted onward"; actSw = "Imesainiwa — haijatumwa mbele";
+      act = "Signed — not yet forwarded"; actSw = "Imesainiwa — bado haijapelekwa mbele";
       when = signEvent.acted_at;
-      comment = "Signature captured. This step signs only; it makes no approval decision.";
+      comment = "Signature recorded. This step signs only — the approval decision sits with the next approval step.";
     } else if (atThis) {
       if (step.can_pay) { act = "Awaiting payment"; actSw = "Inasubiri malipo"; }
       else if (step.can_approve) { act = "Awaiting approval"; actSw = "Inasubiri idhini"; }
       else { act = "Awaiting signature"; actSw = "Inasubiri sahihi"; }
     } else if (done && last) {
-      act = "Passed"; actSw = "Imepita"; when = last.acted_at; comment = last.comment;
+      act = "Completed"; actSw = "Imekamilika"; when = last.acted_at; comment = last.comment;
     }
 
     const bad = !!rejectEvent || !!changesEvent;
@@ -283,11 +285,11 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
   rows.push({
     position: null, name: "Completed", name_sw: "Imekamilika",
     sub: "System", sub_sw: "Mfumo", person: "VouchFlow",
-    act: paid ? "Voucher completed" : rejected ? "Closed as rejected" : returned ? "Returned to requester" : "Not completed",
-    act_sw: paid ? "Vocha imekamilika" : rejected ? "Imefungwa kama iliyokataliwa" : returned ? "Imerudishwa kwa mwombaji" : "Haijakamilika",
+    act: paid ? "Voucher completed" : rejected ? "Closed — rejected" : returned ? "Returned to the requester" : "Not yet completed",
+    act_sw: paid ? "Vocha imekamilika" : rejected ? "Imefungwa — imekataliwa" : returned ? "Imerudishwa kwa mwombaji" : "Bado haijakamilika",
     when: paid ? v.paid_at : rejected ? v.rejected_at : null,
     comment: paid && v.verification_code
-      ? `Approval ID ${v.verification_code} · PDF generated with all captured marks.`
+      ? `Verification code ${v.verification_code}. The PDF includes every recorded signature.`
       : null,
     signature: null,
     capabilities: { print: true, download: true },

@@ -8,6 +8,7 @@ import 'app/data/services/session_service.dart';
 import 'app/data/services/voucher_repository.dart';
 import 'app/modules/auth/login_page.dart';
 import 'app/modules/auth/splash_page.dart';
+import 'app/modules/auth/verify_login_page.dart';
 import 'app/modules/branding/branding_page.dart';
 import 'app/modules/dashboard/dashboard_tab.dart';
 import 'app/modules/notifications/notifications_tab.dart';
@@ -64,6 +65,13 @@ class VouchFlowApp extends StatelessWidget {
           name: Routes.login,
           page: () => const LoginPage(),
           binding: BindingsBuilder(() => Get.lazyPut(LoginController.new)),
+        ),
+        GetPage(
+          name: Routes.verifyLogin,
+          page: () => const VerifyLoginPage(),
+          binding: BindingsBuilder(
+            () => Get.lazyPut(VerifyLoginController.new),
+          ),
         ),
         GetPage(
           name: Routes.shell,

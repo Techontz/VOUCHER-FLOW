@@ -85,6 +85,9 @@ export interface MockWorkflow {
   id: number;
   company_id: number;
   name: string;
+  name_sw?: string | null;
+  /** null / absent = applies to every voucher type without a route of its own. */
+  voucher_type_id?: number | null;
   description: string;
   is_default: boolean;
   is_active: boolean;
@@ -261,7 +264,7 @@ const STEP = (
 /** The default route a new company starts on: request → sign → approve → pay. */
 export const DEFAULT_STEPS = (): MockStep[] => [
   STEP(1, 1, "Request", "Ombi", "employee", "Voucher creator", {}),
-  STEP(2, 2, "Department review", "Ukaguzi wa idara", "hod", "Head of the requesting department",
+  STEP(2, 2, "HOD signature", "Sahihi ya Mkuu wa Idara", "hod", "Head of the requesting department",
     { can_sign: true, can_request_changes: true, requires_signature: true }),
   STEP(3, 3, "Executive approval", "Idhini ya mkurugenzi", "ceo", "Chief executive / approving manager",
     { can_approve: true, can_reject: true, can_request_changes: true }),
@@ -279,7 +282,7 @@ export const WORKFLOW_PRESETS: Record<string, { name: string; description: strin
     description: "Employee → HOD → Finance → CEO → Cashier",
     steps: () => [
       STEP(11, 1, "Request", "Ombi", "employee", "Voucher creator", {}),
-      STEP(12, 2, "Department review", "Ukaguzi wa idara", "hod", "Head of the requesting department",
+      STEP(12, 2, "HOD signature", "Sahihi ya Mkuu wa Idara", "hod", "Head of the requesting department",
         { can_sign: true, can_request_changes: true, requires_signature: true }),
       STEP(13, 3, "Finance verification", "Uhakiki wa fedha", "finance", "Finance officer",
         { can_sign: true, can_approve: true, can_reject: true, can_request_changes: true }),

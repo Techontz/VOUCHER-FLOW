@@ -29,6 +29,8 @@ class VoucherListController extends GetxController {
     ('', 'filter.all'),
     ('pending', 'filter.pending'),
     ('approved', 'filter.approved'),
+    ('paid', 'filter.paid'),
+    ('changes_requested', 'filter.changesRequested'),
     ('rejected', 'filter.rejected'),
     ('drafts', 'filter.drafts'),
   ];

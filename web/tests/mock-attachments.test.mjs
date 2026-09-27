@@ -18,7 +18,9 @@ const PDF = { name: "invoice.pdf", size: 120_000, type: "application/pdf" };
 
 function signIn(email) {
   store.reset?.();
-  const out = handle("POST", "/auth/login", { email, password: "Password123!" }, {}, null);
+  // Signing in is two-step: the password opens a challenge, the code closes it.
+  const challenge = handle("POST", "/auth/login", { email, password: "Password123!" }, {}, null);
+  const out = handle("POST", "/auth/login/verify", { challenge: challenge.challenge, code: "418205" }, {}, null);
   return out.token;
 }
 

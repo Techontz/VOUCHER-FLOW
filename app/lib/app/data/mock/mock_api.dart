@@ -97,6 +97,12 @@ class MockApi {
     final seg = path.replaceFirst(RegExp(r'^/+'), '').split('/');
 
     if (method == 'POST' && path == '/auth/login') return _login(body);
+    if (method == 'POST' && path == '/auth/login/send-code') {
+      return _sendLoginCode(body);
+    }
+    if (method == 'POST' && path == '/auth/login/verify') {
+      return _verifyLogin(body);
+    }
 
     if (_current == null) {
       throw ApiException(401, 'Your session has ended. Sign in again.');
@@ -262,12 +268,166 @@ class MockApi {
         'email': ['These credentials do not match our records.'],
       });
     }
+
+    // Two-step sign-in: the password alone never returns a token.
+    final challenge = _MockChallenge(
+      'mock-challenge-${user.id}-${DateTime.now().microsecondsSinceEpoch}',
+      user,
+    );
+    _challenges[challenge.id] = challenge;
+
+    final channels = [
+      {'channel': 'email', 'destination': _maskEmail(user.email)},
+      if (user.phone != null)
+        {'channel': 'sms', 'destination': _maskPhone(user.phone!)},
+    ];
+
+    // With one way to reach the user, the code goes out straight away.
+    String? sentTo;
+    if (channels.length == 1) {
+      sentTo = 'email';
+      challenge.issue(sentTo);
+    }
+
+    return {
+      'requires_verification': true,
+      'challenge': challenge.id,
+      'channels': channels,
+      'sent_to': sentTo,
+      'expires_in': _MockChallenge.lifetime.inSeconds,
+      'code_expires_in': sentTo == null
+          ? null
+          : _MockChallenge.codeLifetime.inSeconds,
+      'resend_in': sentTo == null ? null : _MockChallenge.cooldown.inSeconds,
+    };
+  }
+
+  /* ── two-step sign-in ──
+     Mock mode only: every code is [mockLoginCode]. The rules — cooldown,
+     send limit, attempt limit, lifetimes — mirror the API's. */
+
+  /// The one code the fixture accepts.
+  static const mockLoginCode = '418205';
+
+  final _challenges = <String, _MockChallenge>{};
+
+  _MockChallenge _openChallenge(Map<String, dynamic> body) {
+    final challenge = _challenges['${body['challenge'] ?? ''}'];
+    if (challenge == null || challenge.isExpired) {
+      const message = 'This sign-in has expired. Sign in again.';
+      throw ApiException(
+        422,
+        message,
+        {
+          'challenge': [message],
+        },
+        null,
+        {'message': message, 'reason': 'challenge_expired'},
+      );
+    }
+    return challenge;
+  }
+
+  Map<String, dynamic> _sendLoginCode(Map<String, dynamic> body) {
+    final challenge = _openChallenge(body);
+    final channel = '${body['channel'] ?? ''}';
+    final phone = challenge.user.phone;
+
+    if (channel != 'email' && !(channel == 'sms' && phone != null)) {
+      const message = 'Choose one of the methods offered.';
+      throw ApiException(422, message, {
+        'channel': [message],
+      });
+    }
+    if (challenge.sends >= _MockChallenge.maxSends) {
+      const message = 'Too many codes requested. Sign in again.';
+      throw ApiException(429, message, const {}, null, {
+        'message': message,
+        'reason': 'too_many_sends',
+      });
+    }
+    final wait = challenge.cooldownLeft;
+    if (wait > 0) {
+      final message = 'Wait $wait seconds before requesting another code.';
+      throw ApiException(429, message, const {}, null, {
+        'message': message,
+        'reason': 'resend_cooldown',
+        'retry_after': wait,
+      });
+    }
+
+    challenge.issue(channel);
+    return {
+      'sent_to': channel,
+      'destination': channel == 'sms'
+          ? _maskPhone(phone!)
+          : _maskEmail(challenge.user.email),
+      'code_expires_in': _MockChallenge.codeLifetime.inSeconds,
+      'resend_in': _MockChallenge.cooldown.inSeconds,
+      'sends_remaining': _MockChallenge.maxSends - challenge.sends,
+    };
+  }
+
+  Map<String, dynamic> _verifyLogin(Map<String, dynamic> body) {
+    final challenge = _openChallenge(body);
+
+    Never fail(String reason, String message, [int? attemptsRemaining]) {
+      throw ApiException(
+        422,
+        message,
+        {
+          'code': [message],
+        },
+        null,
+        {
+          'message': message,
+          'reason': reason,
+          'attempts_remaining': ?attemptsRemaining,
+        },
+      );
+    }
+
+    if (challenge.user.status != 'active') {
+      _challenges.remove(challenge.id);
+      fail('account_unavailable', 'This account is not available.');
+    }
+    if (challenge.issuedAt == null) {
+      fail('no_code', 'Choose how to receive your code first.');
+    }
+    if (challenge.codeExpired) {
+      fail('code_expired', 'This code has expired. Request a new one.');
+    }
+    if ('${body['code'] ?? ''}'.trim() != mockLoginCode) {
+      challenge.attempts++;
+      final left = _MockChallenge.maxAttempts - challenge.attempts;
+      if (left <= 0) {
+        _challenges.remove(challenge.id);
+        fail('too_many_attempts', 'Too many incorrect codes. Sign in again.');
+      }
+      fail('invalid_code', 'That code is not correct.', left);
+    }
+
+    _challenges.remove(challenge.id);
+    final user = challenge.user;
     _current = user;
     return {
       'token': 'mock-${user.id}-${DateTime.now().millisecondsSinceEpoch}',
       'user': _userJson(user),
       'company': _company,
     };
+  }
+
+  static String _maskEmail(String email) {
+    final at = email.indexOf('@');
+    if (at < 1) return email;
+    return '${email[0]}•••${email.substring(at)}';
+  }
+
+  static String _maskPhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 7) return phone;
+    return '+${digits.substring(0, 3)} ${digits[3]}•• ••• '
+        '${digits.substring(digits.length - 3)}';
   }
 
   Map<String, dynamic> _index(Map<String, dynamic> query) {
@@ -729,11 +889,6 @@ class MockApi {
     return rows;
   }
 
-  /// Everything still moving through the route.
-  List<MockVoucher> _inFlight() => _visible()
-      .where((v) => v.status == 'in_review' || v.status == 'approved')
-      .toList();
-
   /// What this user must personally do next.
   ///
   /// A dashboard is a queue of work, not a record of it. A voucher belongs
@@ -781,13 +936,6 @@ class MockApi {
     return '$currency $grouped';
   }
 
-  static String _compact(double n) {
-    if (n >= 1e9) return 'TZS ${(n / 1e9).toStringAsFixed(1)}B';
-    if (n >= 1e6) return 'TZS ${(n / 1e6).toStringAsFixed(1)}M';
-    if (n >= 1e3) return 'TZS ${(n / 1e3).round()}K';
-    return _money(n);
-  }
-
   static String _initials(String name) => name
       .trim()
       .split(RegExp(r'\s+'))
@@ -812,7 +960,7 @@ class MockApi {
     'name': u.name,
     'initials': _initials(u.name),
     'email': u.email,
-    'phone': null,
+    'phone': u.phone,
     'role': u.role,
     'role_label': _roleLabels[u.role] ?? u.role,
     'job_title': u.jobTitle,
@@ -878,8 +1026,8 @@ class MockApi {
       case 'paid':
         return (
           key: 'paid',
-          label: 'Paid & completed',
-          labelSw: 'Imelipwa na kukamilika',
+          label: 'Paid',
+          labelSw: 'Imelipwa',
           tag: 'tag-accent',
         );
       default:
@@ -1206,11 +1354,9 @@ class MockApi {
   };
 
   /* ═════════════════════════════════════════════════════════ dashboard ══ */
-  /// The dashboard payload.
-  ///
-  /// Every role gets the same thing: the work that is theirs to do right now,
-  /// and a few counters for context. Nothing already dealt with appears here —
-  /// once a user acts, the voucher moves on and drops off this screen.
+  /// The dashboard payload — the same shape as the API's DashboardController:
+  /// a view, an attention banner, figures by stable key, the action queue and
+  /// recent activity, each computed from the vouchers this user may see.
   Map<String, dynamic> _dashboard() {
     final me = _current!;
     final hour = DateTime.now().hour;
@@ -1219,219 +1365,615 @@ class MockApi {
         : (hour < 17 ? 'Good afternoon' : 'Good evening');
 
     final visible = _visible().toList();
-    final queue = _actionQueue();
-    final open = _inFlight();
+    final now = DateTime.now();
+    final monthStart = DateTime(now.year, now.month);
 
-    Map<String, dynamic> stat(
-      String label,
-      String value,
-      String sub, [
-      String icon = 'chart',
-      String? trend,
-      bool? up,
-    ]) => {
-      'label': label,
-      'value': value,
-      'sub': sub,
-      'icon': icon,
-      'trend': trend,
-      'up': up,
-    };
-
-    String plural(int n) => '$n ${n == 1 ? 'voucher' : 'vouchers'}';
+    bool inMonth(String? iso) =>
+        iso != null && !DateTime.parse(iso).isBefore(monthStart);
+    bool inYear(String? iso) =>
+        iso != null && DateTime.parse(iso).year == now.year;
     double total(Iterable<MockVoucher> rows) =>
         rows.fold<double>(0, (sum, v) => sum + v.amount);
 
-    List<MockVoucher> paidThisMonth() {
-      final from = DateTime(DateTime.now().year, DateTime.now().month);
-      return visible
+    Map<String, dynamic> stat(
+      String key,
+      String label,
+      String value, {
+      String sub = '',
+      String? subKey,
+      Map<String, String> subParams = const {},
+      Map<String, String> params = const {},
+    }) => {
+      'key': key,
+      'params': params,
+      'label': label,
+      'value': value,
+      'sub': sub,
+      'sub_key': subKey,
+      'sub_params': subParams,
+    };
+
+    const actionLabels = {
+      'created': 'created',
+      'submitted': 'submitted',
+      'resubmitted': 'resubmitted',
+      'signed': 'signed',
+      'approved': 'approved',
+      'rejected': 'rejected',
+      'changes_requested': 'requested changes on',
+      'paid': 'paid',
+      'cancelled': 'cancelled',
+    };
+
+    Map<String, dynamic> activity(
+      Iterable<MockVoucher> rows,
+      String key,
+      String label, [
+      List<String>? actions,
+    ]) {
+      final ids = rows.map((v) => v.id).toSet();
+      final allowed = actions ?? actionLabels.keys.toList();
+      final events =
+          _approvals
+              .where(
+                (a) => ids.contains(a.voucherId) && allowed.contains(a.action),
+              )
+              .toList()
+            ..sort((a, b) => b.actedAt.compareTo(a.actedAt));
+      return {
+        'recent_activity_key': key,
+        'recent_activity_label': label,
+        'recent_activity': events.take(8).map((a) {
+          final v = _vouchers.where((x) => x.id == a.voucherId).firstOrNull;
+          return {
+            'id': a.id,
+            'action': a.action,
+            'action_label': actionLabels[a.action] ?? a.action,
+            'actor_id': a.actorId,
+            'actor': a.actorName,
+            'voucher_id': a.voucherId,
+            'voucher_number': v?.number,
+            'amount_text': v == null ? null : _money(v.amount, v.currency),
+            'at': a.actedAt,
+          };
+        }).toList(),
+      };
+    }
+
+    Map<String, dynamic> banner(String view, int count) {
+      const pending = {
+        'employee': [
+          'Complete your drafts and respond to any requested changes to keep them moving.',
+          'dash.cta.continue',
+          'Continue drafts and returns',
+        ],
+        'hod': [
+          'Each one needs your signature before it can move to the approval step.',
+          'dash.cta.sign',
+          'Sign vouchers',
+        ],
+        'approver': [
+          'Each one has reached your approval step.',
+          'dash.cta.approve',
+          'Review and approve',
+        ],
+        'cashier': [
+          'Each one is approved and ready for payment.',
+          'dash.cta.pay',
+          'Record payments',
+        ],
+        'admin': [
+          'These have remained on the same step for 3 days or more.',
+          'dash.cta.stalled',
+          'Review stalled vouchers',
+        ],
+      };
+      const clear = {
+        'employee':
+            "Everything you've submitted is currently being processed or has already been reviewed.",
+        'hod': 'No vouchers are waiting for your signature.',
+        'approver': 'No vouchers are waiting for your approval.',
+        'cashier': 'Every approved voucher has been paid.',
+        'admin': 'No vouchers have stalled in the workflow.',
+      };
+      if (count == 0) {
+        return {
+          'count': 0,
+          'key': 'dash.banner.clear',
+          'params': <String, String>{},
+          'title': 'Nothing needs your attention.',
+          'body_key': 'dash.banner.clear.$view',
+          'body': clear[view],
+          'action': null,
+        };
+      }
+      final p = pending[view]!;
+      return {
+        'count': count,
+        'key': count == 1
+            ? 'dash.banner.pending.one'
+            : 'dash.banner.pending.other',
+        'params': {'count': '$count'},
+        'title': count == 1
+            ? 'You have 1 voucher waiting for your attention.'
+            : 'You have $count vouchers waiting for your attention.',
+        'body_key': 'dash.banner.pending.$view',
+        'body': p[0],
+        'action': {'key': p[1], 'label': p[2], 'href': '#queue'},
+      };
+    }
+
+    Map<String, dynamic> build(
+      String view,
+      List<MockVoucher> queue,
+      List<Map<String, dynamic>> stats,
+      Map<String, dynamic> recent, [
+      Map<String, dynamic> extra = const {},
+    ]) {
+      final b = banner(view, queue.length);
+      return {
+        'role': me.role,
+        'greeting': greeting,
+        'queue': queue.map((v) => _voucherJson(v)).toList(),
+        'queue_total_text': _money(total(queue)),
+        'data': {
+          'view': view,
+          'headline': b['title'],
+          'sub': b['body'],
+          'banner': b,
+          'stats': stats,
+          ...recent,
+          ...extra,
+        },
+      };
+    }
+
+    /* ── company admin ── */
+    if (me.role == 'company_admin') {
+      final submitted = visible.where((v) => v.status != 'draft').toList();
+      final inReview = visible.where((v) => v.status == 'in_review');
+      final approved = submitted.where((v) => v.approvedAt != null).length;
+      final paid = visible.where((v) => v.status == 'paid');
+      final rejected = visible.where((v) => v.status == 'rejected').length;
+      String share(int n) =>
+          submitted.isEmpty ? '0' : '${(n / submitted.length * 100).round()}';
+      final departments = _departments
+          .where((d) => d.companyId == me.companyId)
+          .toList();
+      final activeUsers = _users
+          .where((u) => u.companyId == me.companyId && u.status == 'active')
+          .length;
+      final thisMonth = submitted.where((v) => inMonth(v.voucherDate));
+
+      return build(
+        'admin',
+        _stalled(),
+        [
+          stat(
+            'dash.stat.activeUsers',
+            'Active users',
+            '$activeUsers',
+            sub: '${departments.length} departments',
+            subKey: 'dash.sub.departments',
+            subParams: {'count': '${departments.length}'},
+          ),
+          stat(
+            'dash.stat.submittedVouchers',
+            'Submitted vouchers',
+            '${submitted.length}',
+            sub: 'All time',
+            subKey: 'dash.sub.allTime',
+          ),
+          stat(
+            'dash.stat.inWorkflow',
+            'In the workflow',
+            '${inReview.length}',
+            sub: _money(total(inReview)),
+          ),
+          stat(
+            'dash.stat.approvedIncludingPaid',
+            'Approved (including paid)',
+            '$approved',
+            sub: '${share(approved)}% of submitted',
+            subKey: 'dash.sub.percentOfSubmitted',
+            subParams: {'percent': share(approved)},
+          ),
+          stat(
+            'dash.stat.paidVouchers',
+            'Paid vouchers',
+            '${paid.length}',
+            sub: _money(total(paid)),
+          ),
+          stat(
+            'dash.stat.rejected',
+            'Rejected',
+            '$rejected',
+            sub: '${share(rejected)}% of submitted',
+            subKey: 'dash.sub.percentOfSubmitted',
+            subParams: {'percent': share(rejected)},
+          ),
+          stat(
+            'dash.stat.valueThisMonth',
+            'Value this month',
+            _money(total(thisMonth)),
+          ),
+        ],
+        activity(visible, 'dash.activity.company', 'Recent activity'),
+        {
+          'overview': {
+            'active_users': activeUsers,
+            'departments': departments.length,
+          },
+          'workflow': {
+            'id': 1,
+            'name': 'Sign, approve, pay',
+            'name_sw': null,
+            'steps': _steps
+                .map(
+                  (s) => {
+                    'position': s.position,
+                    'name': s.name,
+                    'name_sw': s.nameSw,
+                    'role': s.role,
+                    'action': s.position == 1 || s.role == 'employee'
+                        ? 'request'
+                        : s.canApprove
+                        ? 'approve'
+                        : s.canPay
+                        ? 'pay'
+                        : s.canSign
+                        ? 'sign'
+                        : 'review',
+                  },
+                )
+                .toList(),
+          },
+          'subscription': {
+            'plan': (_company['plan'] as Map?)?['name'],
+            'status': _company['status'],
+            'trial_ends_at': _company['trial_ends_at'],
+            'renews_at': null,
+            'days_remaining': _company['days_remaining'],
+          },
+        },
+      );
+    }
+
+    final mySteps = _steps
+        .where(
+          (s) =>
+              s.assignedUserId == me.id ||
+              (s.assignedUserId == null && s.role == me.role),
+        )
+        .toList();
+
+    /* ── payment desk ── */
+    if (mySteps.any((s) => s.canPay)) {
+      final queue = _pending().where((v) => v.status == 'approved').toList();
+      final bank = queue.where((v) => v.kind == 'bank');
+      final cash = queue.where((v) => v.kind == 'cash');
+      final paid = visible
+          .where((v) => v.status == 'paid' && inMonth(v.paidAt))
+          .toList();
+      final paidBank = paid.where((v) => v.kind == 'bank');
+      final paidCash = paid.where((v) => v.kind == 'cash');
+      Map<String, dynamic> totals(Iterable<MockVoucher> rows) => {
+        'count': rows.length,
+        'total': total(rows),
+        'total_text': _money(total(rows)),
+      };
+
+      return build(
+        'cashier',
+        queue,
+        [
+          stat(
+            'dash.stat.awaitingPayment',
+            'Awaiting payment',
+            '${queue.length}',
+            sub: 'Approved, not yet paid',
+            subKey: 'dash.sub.approvedUnpaid',
+          ),
+          stat(
+            'dash.stat.pendingPayments',
+            'Pending payments',
+            _money(total(queue)),
+            sub: 'Bank ${_money(total(bank))} · Cash ${_money(total(cash))}',
+            subKey: 'dash.sub.bankCash',
+            subParams: {
+              'bank': _money(total(bank)),
+              'cash': _money(total(cash)),
+            },
+          ),
+          stat(
+            'dash.stat.paidVouchers',
+            'Paid vouchers',
+            '${paid.length}',
+            sub: 'This month',
+            subKey: 'dash.sub.thisMonth',
+          ),
+          stat(
+            'dash.stat.paidThisMonth',
+            'Paid this month',
+            _money(total(paid)),
+            sub:
+                'Bank ${_money(total(paidBank))} · Cash ${_money(total(paidCash))}',
+            subKey: 'dash.sub.bankCash',
+            subParams: {
+              'bank': _money(total(paidBank)),
+              'cash': _money(total(paidCash)),
+            },
+          ),
+        ],
+        activity(visible, 'dash.activity.payments', 'Recent payment activity', [
+          'paid',
+        ]),
+        {
+          'payment_totals': {
+            'paid': totals(paid),
+            'bank': totals(paidBank),
+            'cash': totals(paidCash),
+          },
+        },
+      );
+    }
+
+    const approverRoles = [
+      'hod',
+      'manager',
+      'ceo',
+      'finance',
+      'cashier',
+      'director',
+    ];
+    final isApprover = approverRoles.contains(me.role);
+
+    /* ── HOD: every step they hold signs, none decides ── */
+    if (isApprover &&
+        mySteps.isNotEmpty &&
+        mySteps.every((s) => !s.canApprove)) {
+      final queue = _pending().where((v) => v.status == 'in_review').toList();
+      final headed =
+          _departments
+              .where(
+                (d) =>
+                    d.companyId == me.companyId &&
+                    (d.hodUserId == me.id || d.managerUserId == me.id),
+              )
+              .toList()
+            ..sort((a, b) => a.name.compareTo(b.name));
+      final ids = headed.map((d) => d.id).toSet();
+      final deptVouchers = _vouchers
           .where(
             (v) =>
-                v.status == 'paid' &&
-                v.paidAt != null &&
-                DateTime.parse(v.paidAt!).isAfter(from),
+                v.companyId == me.companyId &&
+                ids.contains(v.departmentId) &&
+                v.status != 'draft',
           )
           .toList();
-    }
+      final submittedThisMonth = deptVouchers.where(
+        (v) => inMonth(v.submittedAt),
+      );
+      final signed =
+          _approvals
+              .where((a) => a.actorId == me.id && a.action == 'signed')
+              .toList()
+            ..sort((a, b) => b.actedAt.compareTo(a.actedAt));
+      final signedThisMonth = signed
+          .where((a) => inMonth(a.actedAt))
+          .map((a) => a.voucherId)
+          .toSet();
+      final seen = <int>{};
+      final recentlySigned = [
+        for (final a in signed)
+          if (seen.add(a.voucherId))
+            ?_vouchers.where((v) => v.id == a.voucherId).firstOrNull,
+      ].take(5);
 
-    final base = {
-      'role': me.role,
-      'greeting': greeting,
-      'queue': queue.map((v) => _voucherJson(v)).toList(),
-      'queue_total_text': _money(total(queue)),
-    };
-
-    if (me.role == 'cashier') {
-      final cash = queue.where((v) => v.kind == 'cash').toList();
-      final bank = queue.where((v) => v.kind == 'bank').toList();
-      return {
-        ...base,
-        'data': {
-          'headline': queue.isEmpty
-              ? 'Nothing to pay'
-              : '${plural(queue.length)} to pay',
-          'sub': queue.isEmpty
-              ? 'Every approved voucher has been released. New ones arrive the moment they are approved.'
-              : 'Each one is approved and cleared for release. Paying it closes the voucher.',
-          'stats': [
-            stat(
-              'Awaiting release',
-              '${queue.length}',
-              _money(total(queue)),
-              'hourglass',
-            ),
-            stat(
-              'Cash',
-              _compact(total(cash)),
-              '${plural(cash.length)} from a float',
-              'money',
-            ),
-            stat(
-              'Bank transfers',
-              _compact(total(bank)),
-              '${plural(bank.length)} to an account',
-              'bank',
-            ),
-            stat(
-              'Released this month',
-              _compact(total(paidThisMonth())),
-              '${paidThisMonth().length} settled',
-              'check',
-            ),
-          ],
-        },
-      };
-    }
-
-    if (me.role == 'employee') {
-      final withOthers = visible
-          .where((v) => v.status == 'in_review' || v.status == 'approved')
-          .toList();
-      final settled = visible.where((v) => v.status == 'paid').toList();
-      return {
-        ...base,
-        'data': {
-          'headline': queue.isEmpty
-              ? 'Nothing needs your attention'
-              : '${plural(queue.length)} ${queue.length == 1 ? 'needs' : 'need'} your attention',
-          'sub': queue.isEmpty
-              ? '${withOthers.isEmpty ? 'You have nothing in the workflow.' : '${plural(withOthers.length)} with an approver.'} Your full history is in Reports.'
-              : 'Finish these and they move on for review.',
-          'stats': [
-            stat('On you', '${queue.length}', 'drafts and returns', 'receipt'),
-            stat(
-              'With an approver',
-              '${withOthers.length}',
-              _compact(total(withOthers)),
-              'hourglass',
-            ),
-            stat(
-              'Paid',
-              '${settled.length}',
-              _compact(total(settled)),
-              'check',
-            ),
-            stat(
-              'Raised this year',
-              '${visible.length}',
-              _compact(total(visible)),
-              'coins',
-            ),
-          ],
-        },
-      };
-    }
-
-    if (me.role == 'company_admin') {
-      final settled = paidThisMonth();
-      return {
-        ...base,
-        'data': {
-          'headline': queue.isEmpty
-              ? 'The workflow is moving'
-              : '${plural(queue.length)} ${queue.length == 1 ? 'has' : 'have'} stalled',
-          'sub': queue.isEmpty
-              ? '${plural(open.length)} in the workflow, none of them stuck. Company reporting is in Reports.'
-              : 'These have not moved in three days or more.',
-          'stats': [
-            stat('Stalled', '${queue.length}', 'three days or more', 'undo'),
-            stat(
-              'In the workflow',
-              '${open.length}',
-              _compact(total(open)),
-              'hourglass',
-            ),
-            stat(
-              'Paid this month',
-              '${settled.length}',
-              _compact(total(settled)),
-              'check',
-            ),
-            stat(
-              'People',
-              '${_users.where((u) => u.companyId == me.companyId).length}',
-              '${_departments.where((d) => d.companyId == me.companyId).length} departments',
-              'receipt',
-            ),
-          ],
-        },
-      };
-    }
-
-    /* Approvers. Whether this person signs or decides is a property of the
-       steps they hold, not of whatever is in the queue right now — otherwise
-       the wording flips the moment they clear it. */
-    final mySteps = _steps.where(
-      (s) =>
-          s.assignedUserId == me.id ||
-          (s.assignedUserId == null && s.role == me.role),
-    );
-    final signOnly = mySteps.isNotEmpty && mySteps.every((s) => !s.canApprove);
-
-    final acted = _approvals
-        .where(
-          (a) =>
-              a.actorId == me.id &&
-              const ['signed', 'approved', 'paid'].contains(a.action),
-        )
-        .length;
-    final returned = _approvals
-        .where(
-          (a) =>
-              a.actorId == me.id &&
-              const ['rejected', 'changes_requested'].contains(a.action),
-        )
-        .length;
-
-    return {
-      ...base,
-      'data': {
-        'headline': queue.isEmpty
-            ? 'Nothing awaiting your ${signOnly ? 'signature' : 'decision'}'
-            : '${plural(queue.length)} awaiting your ${signOnly ? 'signature' : 'decision'}',
-        'sub': queue.isEmpty
-            ? 'Your work is clear. Past decisions are in Reports.'
-            : (signOnly
-                  ? 'Your step signs and passes the voucher on — the approval decision belongs to a later step.'
-                  : 'Each one has reached your step. Acting on it moves it to whoever is next.'),
-        'stats': [
+      return build(
+        'hod',
+        queue,
+        [
           stat(
-            'Awaiting you',
+            'dash.stat.awaitingSignature',
+            'Awaiting your signature',
             '${queue.length}',
-            _money(total(queue)),
-            'hourglass',
+            sub: _money(total(queue)),
           ),
           stat(
-            'In the workflow',
-            '${open.length}',
-            _compact(total(open)),
-            'receipt',
+            'dash.stat.signedThisMonth',
+            'Signed this month',
+            '${signedThisMonth.length}',
+            sub: 'Vouchers you signed',
+            subKey: 'dash.sub.signedByYou',
           ),
-          stat('Actioned', '$acted', 'signed or approved', 'signature'),
-          stat('Returned', '$returned', 'rejected or sent back', 'undo'),
+          stat(
+            'dash.stat.deptVouchersThisMonth',
+            'Department vouchers this month',
+            '${submittedThisMonth.length}',
+            sub: _money(total(submittedThisMonth)),
+          ),
+          stat(
+            'dash.stat.deptValue',
+            'Department voucher value',
+            _money(total(deptVouchers.where((v) => inMonth(v.approvedAt)))),
+            sub: 'Approved and paid this month',
+            subKey: 'dash.sub.approvedPaidThisMonth',
+          ),
+          for (final d in headed.take(3))
+            stat(
+              'dash.stat.deptExpenses',
+              '${d.name} expenses',
+              _money(
+                total(
+                  deptVouchers.where(
+                    (v) => v.departmentId == d.id && inYear(v.approvedAt),
+                  ),
+                ),
+              ),
+              sub: 'Approved and paid in ${now.year}',
+              subKey: 'dash.sub.approvedPaidThisYear',
+              subParams: {'year': '${now.year}'},
+              params: {'department': d.name},
+            ),
         ],
-      },
-    };
+        activity(
+          visible,
+          'dash.activity.department',
+          'Recent department activity',
+        ),
+        {
+          'recently_signed': recentlySigned
+              .map(
+                (v) => {
+                  'id': v.id,
+                  'number': v.number,
+                  'payee': v.payee,
+                  'amount_text': _money(v.amount, v.currency),
+                  'status': v.status,
+                },
+              )
+              .toList(),
+        },
+      );
+    }
+
+    /* ── approvers who decide ── */
+    if (isApprover) {
+      final queue = _pending().where((v) => v.status == 'in_review').toList();
+      Set<int> acted(String action) => _approvals
+          .where(
+            (a) =>
+                a.actorId == me.id && a.action == action && inMonth(a.actedAt),
+          )
+          .map((a) => a.voucherId)
+          .toSet();
+      final approvedIds = acted('approved');
+      final spend = visible.where(
+        (v) =>
+            (v.status == 'approved' || v.status == 'paid') &&
+            inMonth(v.approvedAt),
+      );
+      final byDept =
+          _departments
+              .where((d) => d.companyId == me.companyId)
+              .map((d) {
+                final rows = spend.where((v) => v.departmentId == d.id);
+                return {
+                  'id': d.id,
+                  'name': d.name,
+                  'count': rows.length,
+                  'total': total(rows),
+                  'total_text': _money(total(rows)),
+                };
+              })
+              .where((r) => (r['count'] as int) > 0)
+              .toList()
+            ..sort(
+              (a, b) => (b['total'] as double).compareTo(a['total'] as double),
+            );
+
+      return build(
+        'approver',
+        queue,
+        [
+          stat(
+            'dash.stat.awaitingApproval',
+            'Awaiting your approval',
+            '${queue.length}',
+            sub: _money(total(queue)),
+          ),
+          stat(
+            'dash.stat.approvedThisMonth',
+            'Approved this month',
+            '${approvedIds.length}',
+            sub: 'Approved by you',
+            subKey: 'dash.sub.approvedByYou',
+          ),
+          stat(
+            'dash.stat.rejectedThisMonth',
+            'Rejected this month',
+            '${acted('rejected').length}',
+            sub: 'Rejected by you',
+            subKey: 'dash.sub.rejectedByYou',
+          ),
+          stat(
+            'dash.stat.totalValue',
+            'Total voucher value',
+            _money(total(_vouchers.where((v) => approvedIds.contains(v.id)))),
+            sub: 'Approved by you this month',
+            subKey: 'dash.sub.approvedByYouThisMonth',
+          ),
+        ],
+        activity(
+          visible,
+          'dash.activity.approvals',
+          'Recent approval activity',
+          ['signed', 'approved', 'rejected', 'changes_requested', 'paid'],
+        ),
+        {'by_department': byDept},
+      );
+    }
+
+    /* ── employee ── */
+    final mine = visible.where((v) => v.requesterId == me.id).toList();
+    int count(String status) => mine.where((v) => v.status == status).length;
+    final raised = mine.where(
+      (v) =>
+          v.status != 'draft' &&
+          v.status != 'cancelled' &&
+          DateTime.parse(v.voucherDate).year == now.year,
+    );
+
+    return build(
+      'employee',
+      _actionQueue(),
+      [
+        stat(
+          'dash.stat.myVouchers',
+          'My vouchers',
+          '${mine.length}',
+          sub: 'All time',
+          subKey: 'dash.sub.allTime',
+        ),
+        stat(
+          'dash.stat.pending',
+          'Pending',
+          '${count('in_review')}',
+          sub: 'In the approval workflow',
+          subKey: 'dash.sub.inWorkflow',
+        ),
+        stat(
+          'dash.stat.approved',
+          'Approved',
+          '${count('approved')}',
+          sub: 'Awaiting payment',
+          subKey: 'dash.sub.awaitingPayment',
+        ),
+        stat(
+          'dash.stat.rejected',
+          'Rejected',
+          '${count('rejected')}',
+          sub: 'All time',
+          subKey: 'dash.sub.allTime',
+        ),
+        stat(
+          'dash.stat.paidVouchers',
+          'Paid vouchers',
+          '${count('paid')}',
+          sub: _money(total(mine.where((v) => v.status == 'paid'))),
+        ),
+        stat(
+          'dash.stat.amountRaised',
+          'Amount raised',
+          _money(total(raised)),
+          sub: '${raised.length} submitted in ${now.year}',
+          subKey: 'dash.sub.vouchersThisYear',
+          subParams: {'count': '${raised.length}', 'year': '${now.year}'},
+        ),
+      ],
+      activity(mine, 'dash.activity.mine', 'My recent activity'),
+    );
   }
 
   /* ═══════════════════════════════════════════════════════════ helpers ══ */
@@ -1618,6 +2160,7 @@ class MockApi {
         jobTitle: 'Procurement Officer',
         employeeCode: 'WC-0114',
         departmentId: 2,
+        phone: '+255 754 210 418',
       ),
       MockUser(
         id: 4,
@@ -2306,5 +2849,41 @@ class MockApi {
     v.cashFloat = float;
     v.receivedBy = receivedBy;
     _vouchers.add(v);
+  }
+}
+
+/// A password that was right, waiting for its code.
+class _MockChallenge {
+  _MockChallenge(this.id, this.user) : createdAt = DateTime.now();
+
+  static const lifetime = Duration(minutes: 15);
+  static const codeLifetime = Duration(minutes: 10);
+  static const cooldown = Duration(seconds: 30);
+  static const maxSends = 5;
+  static const maxAttempts = 5;
+
+  final String id;
+  final MockUser user;
+  final DateTime createdAt;
+  DateTime? issuedAt;
+  String? channel;
+  int sends = 0, attempts = 0;
+
+  bool get isExpired => DateTime.now().difference(createdAt) > lifetime;
+
+  bool get codeExpired =>
+      issuedAt != null && DateTime.now().difference(issuedAt!) > codeLifetime;
+
+  /// Seconds before another code may be sent; zero when it may.
+  int get cooldownLeft {
+    if (issuedAt == null) return 0;
+    final left = cooldown - DateTime.now().difference(issuedAt!);
+    return left.isNegative ? 0 : (left.inMilliseconds / 1000).ceil();
+  }
+
+  void issue(String via) {
+    channel = via;
+    issuedAt = DateTime.now();
+    sends++;
   }
 }

@@ -5,12 +5,30 @@ import { api, ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { money } from "@/lib/format";
 import { Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, Spinner } from "@/components/ui";
-import { SettingsLayout } from "@/components/app-ui";
+import { SearchInput, SettingsLayout } from "@/components/app-ui";
 import type { Department } from "@/lib/types";
+import type { MessageKey } from "@/lib/i18n";
 
 interface DirectoryUser { id: number; name: string; role: string }
 
 const blank = { name: "", code: "", cost_centre: "", hod_user_id: "", manager_user_id: "" };
+
+const ROLE_KEYS: Record<string, MessageKey> = {
+  employee: "wfcRoleEmployee", hod: "wfcRoleHod", manager: "wfcRoleManager", finance: "wfcRoleFinance",
+  ceo: "wfcRoleCeo", cashier: "wfcRoleCashier", director: "wfcRoleDirector", company_admin: "wfcRoleAdmin",
+};
+
+/** Who holds a department's head or manager seat, flagged when unset or inactive. */
+function AssignedPerson({ person }: { person?: { name: string; status?: string } | null }) {
+  const { t } = useApp();
+  if (!person) return <span className="badge tone-warn">{t("wfcDeptNotAssigned")}</span>;
+  return (
+    <>
+      {person.name}
+      {person.status && person.status !== "active" && <span className="badge tone-warn wfc-inactive">{t("wfcInactive")}</span>}
+    </>
+  );
+}
 
 export default function DepartmentsPage() {
   const { t, company, toast, reportError } = useApp();
@@ -22,6 +40,7 @@ export default function DepartmentsPage() {
   const [form, setForm] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<ApiError | null>(null);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(() => {
     setError(null);
@@ -79,10 +98,23 @@ export default function DepartmentsPage() {
   const setField = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
   const fe = (name: string) => formError?.field(name);
+  const roleName = (role: string) => (ROLE_KEYS[role] ? t(ROLE_KEYS[role]) : role);
+  const personLabel = (p: DirectoryUser) => `${p.name} · ${roleName(p.role)}`;
+  /** The saved person is no longer among the active users offered. */
+  const inactiveChoice = (value: string, saved?: { id: number } | null) =>
+    !!value && !!saved && String(saved.id) === value && !people.some((p) => String(p.id) === value) && people.length > 0;
+
+  // The whole department list is already loaded, so search filters it here:
+  // by name, code, cost centre, head or manager.
+  const term = search.trim().toLowerCase();
+  const shown = rows && term
+    ? rows.filter((d) => [d.name, d.code, d.cost_centre, d.hod?.name, d.manager?.name]
+      .some((field) => field?.toLowerCase().includes(term)))
+    : rows;
 
   return (
     <SettingsLayout title={t("departments")}
-      sub="Each department names a head and an approving manager. Workflow steps resolve their actor from these."
+      sub={t("wfcDeptIntro")}
       actions={<button className="btn btn-primary" onClick={openCreate}><Icon name="ph-plus" size={15} /> {t("addDepartment")}</button>}>
 
       <section className="vf-panel">
@@ -95,6 +127,20 @@ export default function DepartmentsPage() {
         )}
 
         {rows && rows.length > 0 && (
+          <div className="app-toolbar">
+            <div className="app-toolbar-main">
+              <SearchInput value={search} onChange={setSearch} placeholder={t("searchDepartments")} />
+            </div>
+            {term && <div className="app-toolbar-end"><span className="app-result-count tnum">{t("showing")} {shown?.length ?? 0} {t("of")} {rows.length}</span></div>}
+          </div>
+        )}
+
+        {rows && rows.length > 0 && shown && shown.length === 0 && (
+          <EmptyState icon="ph-magnifying-glass" title={t("noResults")}
+            action={<button className="btn btn-secondary" onClick={() => setSearch("")}>{t("clearFilters")}</button>} />
+        )}
+
+        {shown && shown.length > 0 && (
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -106,14 +152,14 @@ export default function DepartmentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((dept) => (
+                {shown.map((dept) => (
                   <tr key={dept.id}>
                     <td>
                       <div style={{ fontWeight: 500 }}>{dept.name}</div>
                       {dept.cost_centre && <div className="app-cell-sub">{dept.cost_centre}</div>}
                     </td>
-                    <td>{dept.hod?.name ?? <span className="badge tone-warn">Not assigned</span>}</td>
-                    <td>{dept.manager?.name ?? <span className="badge tone-warn">Not assigned</span>}</td>
+                    <td><AssignedPerson person={dept.hod} /></td>
+                    <td><AssignedPerson person={dept.manager} /></td>
                     <td className="num">{dept.users_count ?? 0}</td>
                     <td className="num">{dept.vouchers_count ?? 0}</td>
                     <td className="num" style={{ whiteSpace: "nowrap", fontWeight: 600 }}>{money(dept.spend ?? 0, company?.currency)}</td>
@@ -163,16 +209,22 @@ export default function DepartmentsPage() {
             <Field label="Code" htmlFor="d-code"><input id="d-code" className="input" value={form.code} onChange={setField("code")} /></Field>
             <Field label={t("costCentre")} htmlFor="d-cc"><input id="d-cc" className="input" value={form.cost_centre} onChange={setField("cost_centre")} /></Field>
           </div>
-          <Field label={t("headOfDept")} htmlFor="d-hod" hint="Signs at any workflow step assigned to the HOD role">
+          {/* Only active people are offered; a head who has since been deactivated
+              stays visible (and flagged) until someone active replaces them. */}
+          <Field label={t("wfcDeptHodSigns")} htmlFor="d-hod" hint={t("wfcDeptHodHint")}
+            error={inactiveChoice(form.hod_user_id, editing?.hod) ? t("wfcDeptPersonInactive") : fe("hod_user_id")}>
             <select id="d-hod" className="input" value={form.hod_user_id} onChange={setField("hod_user_id")}>
-              <option value="">—</option>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.role})</option>)}
+              <option value="">{t("wfcDeptNotAssigned")}</option>
+              {inactiveChoice(form.hod_user_id, editing?.hod) && <option value={form.hod_user_id} disabled>{editing?.hod?.name}</option>}
+              {people.map((p) => <option key={p.id} value={p.id}>{personLabel(p)}</option>)}
             </select>
           </Field>
-          <Field label={t("approvingManager")} htmlFor="d-mgr" hint="Acts at any step assigned to the Manager role">
+          <Field label={t("wfcDeptManagerApproves")} htmlFor="d-mgr" hint={t("wfcDeptManagerHint")}
+            error={inactiveChoice(form.manager_user_id, editing?.manager) ? t("wfcDeptPersonInactive") : fe("manager_user_id")}>
             <select id="d-mgr" className="input" value={form.manager_user_id} onChange={setField("manager_user_id")}>
-              <option value="">—</option>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.role})</option>)}
+              <option value="">{t("wfcDeptNotAssigned")}</option>
+              {inactiveChoice(form.manager_user_id, editing?.manager) && <option value={form.manager_user_id} disabled>{editing?.manager?.name}</option>}
+              {people.map((p) => <option key={p.id} value={p.id}>{personLabel(p)}</option>)}
             </select>
           </Field>
         </div>

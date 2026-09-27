@@ -35,7 +35,7 @@ class StatusPresenter
             ),
 
             Voucher::STATUS_PAID => $this->make(
-                'paid', 'Paid & completed', 'Imelipwa na kukamilika', 'tag-accent'
+                'paid', 'Paid', 'Imelipwa', 'tag-accent'
             ),
 
             Voucher::STATUS_REJECTED => $this->make('rejected', 'Rejected', 'Imekataliwa', 'tag-accent-2'),

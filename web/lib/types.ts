@@ -103,8 +103,8 @@ export interface Department {
   is_active: boolean;
   hod_user_id: number | null;
   manager_user_id: number | null;
-  hod?: { id: number; name: string } | null;
-  manager?: { id: number; name: string } | null;
+  hod?: { id: number; name: string; status?: string } | null;
+  manager?: { id: number; name: string; status?: string } | null;
   users_count?: number;
   vouchers_count?: number;
   spend?: number;
@@ -119,7 +119,7 @@ export interface WorkflowStep {
   role: "employee" | "hod" | "manager" | "ceo" | "cashier" | "finance" | "director" | "custom";
   role_label: string;
   assigned_user_id: number | null;
-  assigned_user?: { id: number; name: string } | null;
+  assigned_user?: { id: number; name: string; role?: string; status?: string } | null;
   assignee_hint: string | null;
   can_sign: boolean;
   can_approve: boolean;
@@ -137,14 +137,45 @@ export interface WorkflowStep {
 export interface Workflow {
   id: number;
   name: string;
+  name_sw?: string | null;
+  label?: string;
   description: string | null;
+  /** null = the route for every voucher type without a route of its own. */
   voucher_type_id: number | null;
+  voucher_type?: { id: number; name: string; name_sw: string | null } | null;
   is_default: boolean;
   is_active: boolean;
   version: number;
   route_summary?: string;
   steps: WorkflowStep[];
+  vouchers_count?: number;
+  in_flight_count?: number;
   updated_at: string | null;
+}
+
+/** Why a workflow step would find nobody in a department. */
+export type RoutingGap =
+  | "no_hod" | "inactive_hod" | "no_manager" | "inactive_manager"
+  | "inactive_person" | "missing_person" | "no_person_named" | "no_one_with_role";
+
+/** GET /workflows/{id}/routing — who acts at each step, per department. */
+export interface WorkflowRouting {
+  workflow_id: number;
+  steps: {
+    id: number; position: number; name: string; name_sw: string | null;
+    role: WorkflowStep["role"]; role_label: string;
+    is_request_step: boolean; is_payment_step: boolean;
+    assignment: "requester" | "named" | "department_head" | "department_manager" | "role" | "unassigned";
+    min_amount: number | null; max_amount: number | null;
+  }[];
+  departments: {
+    id: number; name: string; is_active: boolean;
+    hod: { id: number; name: string; role: string; status: string } | null;
+    manager: { id: number; name: string; role: string; status: string } | null;
+    cells: { step_id: number; people: { id: number; name: string; role: string }[]; gap: RoutingGap | null }[];
+    gaps: number;
+  }[];
+  gaps: number;
 }
 
 export interface VoucherType {
@@ -266,6 +297,10 @@ export interface Voucher {
   approved_at: string | null;
   rejected_at: string | null;
   paid_at: string | null;
+  /** The day the money moved, as recorded by the cashier. */
+  payment_date?: string | null;
+  /** List rows only: who refused or returned the voucher, when it was. */
+  decided_by?: string | null;
   payment_reference: string | null;
   /**
    * Who released the money. The API sends the person ({ id, name, job_title });
@@ -382,13 +417,45 @@ export interface Usage {
 }
 
 export interface DashboardStat {
+  /** Stable translation key, e.g. "dash.stat.awaitingApproval". */
+  key?: string;
+  params?: Record<string, string | number>;
   label: string;
   value: string;
   sub: string;
+  sub_key?: string | null;
+  sub_params?: Record<string, string | number>;
   icon?: string;
   trend?: string | null;
   up?: boolean | null;
 }
+
+/** Which dashboard the backend built — decided by workflow steps, not only by role. */
+export type DashboardView = "employee" | "hod" | "approver" | "cashier" | "admin" | "platform";
+
+export interface DashboardBanner {
+  count: number;
+  key: string;
+  params?: Record<string, string | number>;
+  title: string;
+  body_key: string;
+  body: string;
+  action: { key: string; label: string; href: string } | null;
+}
+
+export interface DashboardActivity {
+  id: number;
+  action: string;
+  action_label: string;
+  actor_id: number | null;
+  actor: string | null;
+  voucher_id: number;
+  voucher_number: string | null;
+  amount_text: string | null;
+  at: string | null;
+}
+
+export interface DashboardMoneyTotal { count: number; total: number; total_text: string }
 
 export interface DashboardPayload {
   role: Role;
@@ -400,9 +467,24 @@ export interface DashboardPayload {
     recent?: Voucher[];
     queue?: Voucher[];
     volume?: { period: string; label: string; count: number; total: number; is_current: boolean }[];
-    by_department?: { id: number; name: string; count: number; total: number; share: string }[];
+    by_department?: { id: number; name: string; count: number; total: number; total_text?: string; share: string }[];
     by_stage?: { name: string; count: number; total: number; share: string }[];
     attention?: { id: number; name: string; status: string; plan: string | null; users_count: number; note: string }[];
+    view?: DashboardView;
+    banner?: DashboardBanner | null;
+    queue_total_text?: string;
+    recent_activity?: DashboardActivity[];
+    recent_activity_key?: string;
+    recent_activity_label?: string;
+    recently_signed?: { id: number; number: string; payee: string; amount_text: string; status: string }[];
+    departments?: { id: number; name: string; total: number; total_text: string }[];
+    payment_totals?: { paid: DashboardMoneyTotal; bank: DashboardMoneyTotal; cash: DashboardMoneyTotal };
+    overview?: { active_users: number; departments: number };
+    workflow?: {
+      id: number; name: string; name_sw?: string | null;
+      steps: { position: number; name: string; name_sw?: string | null; role: string; action: "request" | "sign" | "approve" | "pay" | "review" }[];
+    } | null;
+    subscription?: { plan: string | null; status: string; trial_ends_at: string | null; renews_at: string | null; days_remaining: number | null } | null;
     recent_companies?: any[];
     recent_payments?: any[];
   };
@@ -428,4 +510,37 @@ export interface Paginated<T> {
     collected?: number;
     outstanding?: number;
   };
+}
+
+/* — two-step sign-in (POST /auth/login → /auth/login/send-code → /auth/login/verify) — */
+
+export type LoginChannel = "email" | "sms";
+
+export interface LoginChannelOption {
+  channel: LoginChannel;
+  /** Masked, e.g. "f•••@watercom.test" or "+255 7•• ••• 418". */
+  destination: string;
+}
+
+/** What /auth/login returns instead of a token when a code is required. */
+export interface LoginChallenge {
+  requires_verification: true;
+  /** Opaque; kept in memory only, never persisted. */
+  challenge: string;
+  channels: LoginChannelOption[];
+  /** Set when there was only one channel and the code has already gone. */
+  sent_to: LoginChannel | null;
+  /** Challenge lifetime, seconds. */
+  expires_in: number;
+  code_expires_in: number | null;
+  resend_in: number | null;
+}
+
+/** POST /auth/login/send-code */
+export interface LoginCodeSent {
+  sent_to: LoginChannel;
+  destination: string;
+  code_expires_in: number;
+  resend_in: number;
+  sends_remaining: number;
 }

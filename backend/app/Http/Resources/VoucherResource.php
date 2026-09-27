@@ -106,6 +106,11 @@ class VoucherResource extends JsonResource
             'submitted_at' => $this->submitted_at?->toIso8601String(),
             'approved_at' => $this->approved_at?->toIso8601String(),
             'rejected_at' => $this->rejected_at?->toIso8601String(),
+            // Present on list rows only: who refused or returned the voucher.
+            'decided_by' => $this->when(
+                array_key_exists('decided_by_name', $this->resource->getAttributes()),
+                fn () => $this->resource->getAttribute('decided_by_name'),
+            ),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
 

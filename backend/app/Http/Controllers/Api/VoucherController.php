@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\VoucherResource;
 use App\Models\Voucher;
+use App\Models\VoucherApproval;
 use App\Models\VoucherType;
 use App\Services\AmountFormatter;
 use App\Services\AuditLogger;
@@ -35,11 +36,14 @@ class VoucherController extends Controller
     {
         $request->validate([
             'status' => ['nullable', 'string'],
+            'kind' => ['nullable', Rule::in(Voucher::KINDS)],
             'department_id' => ['nullable', 'integer'],
             'voucher_type_id' => ['nullable', 'integer'],
             'requester_id' => ['nullable', 'integer'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
+            'paid_from' => ['nullable', 'date'],
+            'paid_to' => ['nullable', 'date'],
             'min_amount' => ['nullable', 'numeric'],
             'max_amount' => ['nullable', 'numeric'],
             'q' => ['nullable', 'string', 'max:120'],
@@ -375,9 +379,22 @@ class VoucherController extends Controller
             $query->where('vouchers.requester_id', $user->id);
         }
 
+        // The latest refusal or return, so a list can say who decided without
+        // loading every voucher's full approval trail.
+        $query->select('vouchers.*')->addSelect(['decided_by_name' => VoucherApproval::query()
+            ->select('actor_name')
+            ->whereColumn('voucher_approvals.voucher_id', 'vouchers.id')
+            ->whereIn('action', ['rejected', 'changes_requested'])
+            ->orderByDesc('acted_at')->orderByDesc('id')
+            ->limit(1),
+        ]);
+
         return $query
-            ->status($request->query('status'))
+            ->status($this->statusKey($request->query('status')))
             ->search($request->query('q'))
+            ->when(in_array($request->query('kind'), Voucher::KINDS, true), fn ($q) => $q->where('vouchers.kind', $request->query('kind')))
+            ->when($request->query('paid_from'), fn ($q, $v) => $q->whereDate('vouchers.payment_date', '>=', $v))
+            ->when($request->query('paid_to'), fn ($q, $v) => $q->whereDate('vouchers.payment_date', '<=', $v))
             ->when($request->query('department_id'), fn ($q, $v) => $q->where('vouchers.department_id', $v))
             ->when($request->query('voucher_type_id'), fn ($q, $v) => $q->where('vouchers.voucher_type_id', $v))
             ->when($request->query('requester_id'), fn ($q, $v) => $q->where('vouchers.requester_id', $v))
@@ -385,6 +402,20 @@ class VoucherController extends Controller
             ->when($request->query('to'), fn ($q, $v) => $q->whereDate('vouchers.voucher_date', '<=', $v))
             ->when($request->query('min_amount'), fn ($q, $v) => $q->where('vouchers.amount', '>=', $v))
             ->when($request->query('max_amount'), fn ($q, $v) => $q->where('vouchers.amount', '<=', $v));
+    }
+
+    /**
+     * The list's status tabs speak in the words people use; the column holds
+     * the lifecycle value. "Awaiting payment" is an approved voucher.
+     */
+    private function statusKey(?string $status): ?string
+    {
+        return match ($status) {
+            'awaiting_payment' => Voucher::STATUS_APPROVED,
+            'in_review' => 'pending',
+            'draft' => 'drafts',
+            default => $status,
+        };
     }
 
     private function sortColumn(?string $sort): string

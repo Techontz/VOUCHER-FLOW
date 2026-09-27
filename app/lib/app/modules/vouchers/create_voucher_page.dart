@@ -43,13 +43,21 @@ class CreateVoucherController extends GetxController {
 
   static const methods = ['Bank Transfer', 'Mobile Money', 'Cash', 'Cheque'];
   static const categories = [
-    'Logistics',
-    'Premises',
+    'Fuel',
     'Transport',
-    'Capital equipment',
-    'Professional fees',
+    'Vehicle maintenance',
+    'Travel & accommodation',
+    'Meals & refreshments',
+    'Office supplies & stationery',
+    'Internet & communications',
+    'Procurement',
+    'Logistics',
     'Staff welfare',
+    'Equipment',
+    'Repairs & maintenance',
     'Utilities',
+    'Professional fees',
+    'Premises',
     'Other',
   ];
 

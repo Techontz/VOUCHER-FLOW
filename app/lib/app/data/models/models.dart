@@ -354,30 +354,100 @@ class AppNotificationItem {
   final DateTime? createdAt;
 }
 
+/// String params from a JSON object (`{}` or a list when empty in PHP).
+Map<String, String> _params(dynamic value) => value is Map
+    ? value.map((k, v) => MapEntry('$k', '$v'))
+    : const <String, String>{};
+
 class DashboardStat {
   DashboardStat.fromJson(Map<String, dynamic> json)
-    : label = '${json['label']}',
+    : key = _as<String>(json['key']),
+      params = _params(json['params']),
+      label = '${json['label']}',
       value = '${json['value']}',
       sub = '${json['sub'] ?? ''}',
+      subKey = _as<String>(json['sub_key']),
+      subParams = _params(json['sub_params']),
       icon = _as<String>(json['icon']),
       trend = _as<String>(json['trend']),
       up = json['up'] as bool?;
 
+  /// Stable translation key, e.g. `dash.stat.awaitingApproval`.
+  final String? key, subKey;
+  final Map<String, String> params, subParams;
   final String label, value, sub;
   final String? icon, trend;
   final bool? up;
+}
+
+/// "You have 3 vouchers waiting for your attention." — or the all-clear.
+class DashboardBanner {
+  DashboardBanner.fromJson(Map<String, dynamic> json)
+    : count = _toInt(json['count']),
+      key = '${json['key'] ?? ''}',
+      params = _params(json['params']),
+      title = '${json['title'] ?? ''}',
+      bodyKey = _as<String>(json['body_key']),
+      body = '${json['body'] ?? ''}',
+      actionKey = _as<String>((json['action'] as Map?)?['key']),
+      actionLabel = _as<String>((json['action'] as Map?)?['label']);
+
+  final int count;
+  final String key, title, body;
+  final String? bodyKey, actionKey, actionLabel;
+  final Map<String, String> params;
+}
+
+/// One workflow event on a voucher the viewer may see.
+class DashboardActivity {
+  DashboardActivity.fromJson(Map<String, dynamic> json)
+    : id = _toInt(json['id']),
+      action = '${json['action'] ?? ''}',
+      actionLabel = '${json['action_label'] ?? json['action'] ?? ''}',
+      actorId = _as<int>(json['actor_id']),
+      actor = '${json['actor'] ?? '—'}',
+      voucherId = _toInt(json['voucher_id']),
+      voucherNumber = '${json['voucher_number'] ?? '#${json['voucher_id']}'}',
+      amountText = _as<String>(json['amount_text']),
+      at = _as<String>(json['at']);
+
+  final int id, voucherId;
+  final int? actorId;
+  final String action, actionLabel, actor, voucherNumber;
+  final String? amountText, at;
+}
+
+/// A labelled figure in a side panel: a department's spend, a payment total,
+/// a workflow step.
+class DashboardLine {
+  DashboardLine({
+    required this.label,
+    required this.value,
+    this.labelSw,
+    this.meta,
+  });
+
+  final String label, value;
+  final String? labelSw, meta;
 }
 
 class DashboardData {
   DashboardData.fromJson(Map<String, dynamic> json)
     : greeting = '${json['greeting'] ?? ''}',
       role = '${json['role'] ?? ''}',
+      view = '${(json['data'] as Map)['view'] ?? ''}',
       headline = '${(json['data'] as Map)['headline']}',
       sub = '${(json['data'] as Map)['sub'] ?? ''}',
+      banner = (json['data'] as Map)['banner'] is Map
+          ? DashboardBanner.fromJson(
+              Map<String, dynamic>.from((json['data'] as Map)['banner'] as Map),
+            )
+          : null,
       stats = ((json['data'] as Map)['stats'] as List? ?? [])
           .map((e) => DashboardStat.fromJson(e as Map<String, dynamic>))
           .toList(),
-      queueTotalText = '${json['queue_total_text'] ?? ''}',
+      queueTotalText =
+          '${json['queue_total_text'] ?? (json['data'] as Map)['queue_total_text'] ?? ''}',
       // The action queue is the payload's own, not a slice of the data block:
       // a dashboard is what is on you, not what has happened.
       queue = ((json['queue'] ?? (json['data'] as Map)['queue']) as List? ?? [])
@@ -385,9 +455,110 @@ class DashboardData {
           .toList(),
       recent = ((json['data'] as Map)['recent'] as List? ?? [])
           .map((e) => Voucher.fromJson(e as Map<String, dynamic>))
-          .toList();
+          .toList(),
+      activityKey = _as<String>((json['data'] as Map)['recent_activity_key']),
+      activityLabel =
+          '${(json['data'] as Map)['recent_activity_label'] ?? 'Recent activity'}',
+      activity = ((json['data'] as Map)['recent_activity'] as List? ?? [])
+          .map(
+            (e) =>
+                DashboardActivity.fromJson(Map<String, dynamic>.from(e as Map)),
+          )
+          .toList(),
+      panels = _panels(json['data'] as Map);
 
-  final String greeting, role, headline, sub, queueTotalText;
+  final String greeting, role, view, headline, sub, queueTotalText;
+  final String activityLabel;
+  final String? activityKey;
+  final DashboardBanner? banner;
   final List<DashboardStat> stats;
   final List<Voucher> queue, recent;
+  final List<DashboardActivity> activity;
+
+  /// The role's side panels, keyed by their translation key.
+  final Map<String, List<DashboardLine>> panels;
+
+  static Map<String, List<DashboardLine>> _panels(Map data) {
+    final out = <String, List<DashboardLine>>{};
+
+    final signed = data['recently_signed'];
+    if (signed is List) {
+      out['dash.panel.recentlySigned'] = signed
+          .whereType<Map>()
+          .map(
+            (v) => DashboardLine(
+              label: '${v['number']}',
+              value: '${v['amount_text'] ?? ''}',
+              meta: _as<String>(v['payee']),
+            ),
+          )
+          .toList();
+    }
+
+    final departments = data['by_department'];
+    if (departments is List) {
+      out['dash.panel.deptSpending'] = departments
+          .whereType<Map>()
+          .map(
+            (d) => DashboardLine(
+              label: '${d['name']}',
+              value: '${d['total_text'] ?? d['total'] ?? ''}',
+              meta: '${d['count'] ?? ''}',
+            ),
+          )
+          .toList();
+    }
+
+    final totals = data['payment_totals'];
+    if (totals is Map) {
+      out['dash.panel.paymentTotals'] = [
+        for (final entry in const [
+          ('paid', 'dash.panel.paidTotal'),
+          ('bank', 'dash.panel.bank'),
+          ('cash', 'dash.panel.cash'),
+        ])
+          if (totals[entry.$1] is Map)
+            DashboardLine(
+              label: entry.$2,
+              value: '${(totals[entry.$1] as Map)['total_text'] ?? ''}',
+              meta: '${(totals[entry.$1] as Map)['count'] ?? 0}',
+            ),
+      ];
+    }
+
+    final workflow = data['workflow'];
+    if (workflow is Map && workflow['steps'] is List) {
+      out['dash.panel.workflow'] = (workflow['steps'] as List)
+          .whereType<Map>()
+          .map(
+            (s) => DashboardLine(
+              label: '${s['name']}',
+              labelSw: _as<String>(s['name_sw']),
+              value: 'dash.step.${s['action']}',
+            ),
+          )
+          .toList();
+    }
+
+    final subscription = data['subscription'];
+    if (subscription is Map) {
+      out['dash.panel.subscription'] = [
+        DashboardLine(
+          label: 'dash.panel.plan',
+          value: '${subscription['plan'] ?? '—'}',
+        ),
+        DashboardLine(
+          label: 'dash.panel.status',
+          value: 'subscription.${subscription['status']}',
+        ),
+        if (subscription['days_remaining'] != null)
+          DashboardLine(
+            label: 'dash.panel.daysRemaining',
+            value: '${subscription['days_remaining']}',
+          ),
+      ];
+    }
+
+    return out;
+  }
 }

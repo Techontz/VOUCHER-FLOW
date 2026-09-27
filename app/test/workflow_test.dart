@@ -8,16 +8,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vouchflow/app/data/mock/mock_api.dart';
 import 'package:vouchflow/app/data/services/api_service.dart';
 
+import 'support/mock_sign_in.dart';
+
 void main() {
   late MockApi api;
 
-  Future<Map<String, dynamic>> signIn(String email) async =>
-      await api.handle(
-            'POST',
-            '/auth/login',
-            body: {'email': email, 'password': 'Password123!'},
-          )
-          as Map<String, dynamic>;
+  Future<Map<String, dynamic>> signIn(String email) => mockSignIn(api, email);
 
   Future<Map<String, dynamic>> show(int id) async =>
       (await api.handle('GET', '/vouchers/$id'))['data']
@@ -130,7 +126,7 @@ void main() {
       'method': 'Cash — office float',
     });
     expect(voucher['status'], 'paid');
-    expect(voucher['status_label'], 'Paid & completed');
+    expect(voucher['status_label'], 'Paid');
     expect(voucher['payment_reference'], 'PC-REL-9931');
     expect(voucher['paid_by'], 'Mwajuma Hamisi');
     expect(
@@ -188,12 +184,14 @@ void main() {
   test('a dashboard holds only what is on that person right now', () async {
     // The employee's queue is their own unfinished work, never their history.
     await signIn('frank@watercom.test');
-    final employee = await api.handle('GET', '/dashboard') as Map<String, dynamic>;
+    final employee =
+        await api.handle('GET', '/dashboard') as Map<String, dynamic>;
     final employeeQueue = employee['queue'] as List;
     expect(employeeQueue, isNotEmpty);
     expect(
-      employeeQueue.every((v) =>
-          v['status'] == 'draft' || v['status'] == 'changes_requested'),
+      employeeQueue.every(
+        (v) => v['status'] == 'draft' || v['status'] == 'changes_requested',
+      ),
       isTrue,
       reason: 'a dashboard is what is on you, not what you have already sent',
     );
@@ -210,8 +208,11 @@ void main() {
         isTrue,
         reason: 'nothing should sit in a queue its owner cannot act on',
       );
-      expect(actions['approve'], isFalse,
-          reason: 'the HOD step signs only, wherever it appears');
+      expect(
+        actions['approve'],
+        isFalse,
+        reason: 'the HOD step signs only, wherever it appears',
+      );
     }
 
     // Acting on it takes it out of the queue.
@@ -250,7 +251,15 @@ void main() {
 
     final dashboard =
         await api.handle('GET', '/dashboard') as Map<String, dynamic>;
-    expect(dashboard['data']['headline'], contains('to pay'));
+    expect(dashboard['data']['view'], 'cashier');
+    expect(
+      dashboard['data']['banner']['count'],
+      (dashboard['queue'] as List).length,
+    );
+    expect(
+      (dashboard['data']['stats'] as List).first['key'],
+      'dash.stat.awaitingPayment',
+    );
   });
 
   test('rejecting closes the voucher and notifies the requester', () async {

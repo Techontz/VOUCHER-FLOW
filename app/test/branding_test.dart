@@ -7,6 +7,8 @@ import 'package:vouchflow/app/core/theme.dart';
 import 'package:vouchflow/app/data/mock/mock_api.dart';
 import 'package:vouchflow/app/data/models/models.dart';
 
+import 'support/mock_sign_in.dart';
+
 double _contrast(Color a, Color b) {
   final la = a.computeLuminance(), lb = b.computeLuminance();
   final hi = la > lb ? la : lb, lo = la > lb ? lb : la;
@@ -73,11 +75,7 @@ void main() {
 
   test('saving the company profile changes what the session sees', () async {
     final api = MockApi();
-    await api.handle(
-      'POST',
-      '/auth/login',
-      body: {'email': 'admin@watercom.test', 'password': 'Password123!'},
-    );
+    await mockSignIn(api, 'admin@watercom.test');
 
     await api.handle(
       'PUT',
