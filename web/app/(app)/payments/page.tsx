@@ -20,6 +20,35 @@ const tally = (page: Paginated<Voucher>): Tally => ({
   amount: page.meta?.total_amount ?? 0,
 });
 
+/** What is still owed on one voucher: its balance, or all of it before any payment. */
+const owed = (v: Voucher) => v.balance ?? v.amount;
+
+/** Count and outstanding value of the queue rows, optionally of one format. */
+function owedTally(rows: Voucher[], kind?: "bank" | "cash"): Tally {
+  const picked = kind ? rows.filter((v) => v.kind === kind) : rows;
+  return { count: picked.length, amount: picked.reduce((sum, v) => sum + owed(v), 0) };
+}
+
+/**
+ * Every voucher in the payment queue, paged through at the API's maximum.
+ *
+ * The list's meta.total_amount sums approved amounts, which overstates what is
+ * owed once a voucher has been part-paid — 10,000,000 approved, 9,000,000
+ * released, 1,000,000 outstanding. Until the list carries a balance total, the
+ * queue figures are summed from each voucher's own balance. The queue is
+ * short-lived work, so this is a page or two, not the whole register.
+ */
+async function wholeQueue(): Promise<Voucher[]> {
+  const first = await api.get<Paginated<Voucher>>("/vouchers", { status: "approved", per_page: 100, page: 1 });
+  const last = first.meta?.last_page ?? 1;
+  if (last <= 1) return first.data;
+  const rest = await Promise.all(
+    Array.from({ length: last - 1 }, (_, i) =>
+      api.get<Paginated<Voucher>>("/vouchers", { status: "approved", per_page: 100, page: i + 2 })),
+  );
+  return [first, ...rest].flatMap((page) => page.data);
+}
+
 /** First and last day of the current month, as the API's date filters expect. */
 function thisMonth(): { from: string; to: string } {
   const now = new Date();
@@ -37,8 +66,9 @@ function thisMonth(): { from: string; to: string } {
  * approval decision is made on this screen. Paying happens on the voucher,
  * behind a confirmation that restates the amount and method.
  *
- * Every figure is a server total over the whole set, never a sum of the rows
- * that happen to be on screen.
+ * Every figure covers the whole set, never just the rows that happen to be on
+ * screen. What is awaiting payment is counted by what is still owed, so a
+ * part-paid voucher counts for its balance, not its full approved amount.
  */
 /** "1 bank voucher", "13 bank vouchers" — in either language. */
 function usePlural() {
@@ -63,13 +93,11 @@ export default function PaymentsPage() {
   const loadFigures = useCallback(() => {
     const month = thisMonth();
     Promise.all([
-      api.get<Paginated<Voucher>>("/vouchers", { status: "approved", per_page: 1 }),
-      api.get<Paginated<Voucher>>("/vouchers", { status: "approved", kind: "bank", per_page: 1 }),
-      api.get<Paginated<Voucher>>("/vouchers", { status: "approved", kind: "cash", per_page: 1 }),
+      wholeQueue(),
       api.get<Paginated<Voucher>>("/vouchers", { status: "paid", paid_from: month.from, paid_to: month.to, per_page: 1 }),
     ])
-      .then(([all, bank, cash, paidMonth]) => setFigures({
-        due: tally(all), bank: tally(bank), cash: tally(cash), paidMonth: tally(paidMonth),
+      .then(([queue, paidMonth]) => setFigures({
+        due: owedTally(queue), bank: owedTally(queue, "bank"), cash: owedTally(queue, "cash"), paidMonth: tally(paidMonth),
       }))
       .catch((err) => setError(err.message));
   }, []);
@@ -133,7 +161,7 @@ export default function PaymentsPage() {
           </div>
           {due.data.length > 0 ? (
             <>
-              <VoucherList vouchers={due.data} bare />
+              <VoucherList vouchers={due.data} bare owing />
               <Pagination
                 page={due.meta?.current_page ?? 1}
                 lastPage={due.meta?.last_page ?? 1}

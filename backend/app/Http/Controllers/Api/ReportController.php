@@ -303,10 +303,12 @@ class ReportController extends Controller
             $v->requester?->name ?? '—',
             (float) $v->amount,
             $v->currency,
+            $v->released(),
+            $v->balance(),
             $v->cash_float ?: '—',
             $v->received_by ?: '—',
             $v->paidBy?->name ?? '—',
-            $v->isPaid() ? 'Paid' : 'Awaiting payment',
+            $v->isPaid() ? 'Paid' : ($v->isPartiallyPaid() ? 'Partially paid' : 'Awaiting payment'),
         ])->all() : $vouchers->map(fn (Voucher $v) => [
             $v->number,
             $v->isBank() ? 'Bank' : 'Cash',
@@ -314,34 +316,41 @@ class ReportController extends Controller
             $v->payee,
             $v->department?->name ?? '—',
             (float) $v->amount,
+            $v->released(),
+            $v->balance(),
             $v->currency,
             $v->payment_method ?: '—',
             $v->payment_reference ?: ($v->cheque_number ?: '—'),
             $v->paidBy?->name ?? '—',
-            $v->isPaid() ? 'Paid' : 'Awaiting payment',
+            $v->isPaid() ? 'Paid' : ($v->isPartiallyPaid() ? 'Partially paid' : 'Awaiting payment'),
         ])->all();
 
         $paid = $vouchers->where('status', Voucher::STATUS_PAID);
         $outstanding = $vouchers->where('status', Voucher::STATUS_APPROVED);
         $currency = $this->tenant->company()?->currency ?? 'TZS';
+        // Money released (part payments included) and what is still owed.
+        $released = fn ($rows) => (float) $rows->sum(fn (Voucher $v) => $v->released());
+        $owed = (float) $outstanding->sum(fn (Voucher $v) => $v->balance());
 
         return [
             'title' => $onlyKind === Voucher::KIND_CASH ? 'Cash report' : 'Payment report',
             'headings' => $onlyKind === Voucher::KIND_CASH
-                ? ['Number', 'Voucher date', 'Paid on', 'Payee', 'Department', 'Requester', 'Amount', 'Currency', 'Cash float', 'Received by', 'Paid by', 'Status']
-                : ['Number', 'Format', 'Paid on', 'Payee', 'Department', 'Amount', 'Currency', 'Method', 'Reference', 'Paid by', 'Status'],
+                ? ['Number', 'Voucher date', 'Paid on', 'Payee', 'Department', 'Requester', 'Amount', 'Currency', 'Paid so far', 'Balance', 'Cash float', 'Received by', 'Paid by', 'Status']
+                : ['Number', 'Format', 'Paid on', 'Payee', 'Department', 'Amount', 'Paid so far', 'Balance', 'Currency', 'Method', 'Reference', 'Paid by', 'Status'],
             'rows' => $rows,
             // The same shape every other report returns, plus the split that
             // only matters here: released vs still outstanding, bank vs cash.
             'summary' => $this->summary($vouchers) + [
-                'paid_total' => (float) $paid->sum('amount'),
-                'paid_total_text' => $this->money->money((float) $paid->sum('amount'), $currency),
+                'paid_total' => $released($vouchers),
+                'paid_total_text' => $this->money->money($released($vouchers), $currency),
                 'paid_count' => $paid->count(),
-                'bank_total_text' => $this->money->money((float) $paid->where('kind', Voucher::KIND_BANK)->sum('amount'), $currency),
+                'partially_paid_count' => $outstanding->filter(fn (Voucher $v) => $v->isPartiallyPaid())->count(),
+                'bank_total_text' => $this->money->money($released($vouchers->where('kind', Voucher::KIND_BANK)), $currency),
                 'bank_count' => $paid->where('kind', Voucher::KIND_BANK)->count(),
-                'cash_total_text' => $this->money->money((float) $paid->where('kind', Voucher::KIND_CASH)->sum('amount'), $currency),
+                'cash_total_text' => $this->money->money($released($vouchers->where('kind', Voucher::KIND_CASH)), $currency),
                 'cash_count' => $paid->where('kind', Voucher::KIND_CASH)->count(),
-                'outstanding_total_text' => $this->money->money((float) $outstanding->sum('amount'), $currency),
+                'outstanding_total' => $owed,
+                'outstanding_total_text' => $this->money->money($owed, $currency),
                 'outstanding_count' => $outstanding->count(),
                 'date_basis' => 'payment_date_when_paid',
             ],

@@ -5,8 +5,8 @@
  */
 
 import {
-  applicableSteps, availableActions, buildTimeline, capabilityText,
-  presentStatus, roleLabel, stepAt, workflowFor,
+  applicableSteps, availableActions, balanceOf, buildTimeline, capabilityText,
+  isPartiallyPaid, presentStatus, releasedAmount, roleLabel, stepAt, workflowFor,
 } from "./engine";
 import type { MockDataset, MockStep, MockUser, MockVoucher, MockWorkflow } from "./seed";
 
@@ -167,6 +167,12 @@ export function voucherResource(
     payee: v.payee, purpose: v.purpose, description: v.description,
     amount: v.amount, currency: v.currency,
     amount_text: money(v.amount, v.currency),
+    // Money can leave in parts: what has been released and what is still owed.
+    amount_paid: releasedAmount(v),
+    amount_paid_text: money(releasedAmount(v), v.currency),
+    balance: balanceOf(v),
+    balance_text: money(balanceOf(v), v.currency),
+    is_partially_paid: isPartiallyPaid(v),
     amount_in_words: amountInWords(v.amount, v.currency),
     payment_method: v.payment_method, account_ref: v.account_ref,
     category: v.category, cost_centre: v.cost_centre,
@@ -215,8 +221,24 @@ export function voucherResource(
       id: a.id, name: a.name, mime_type: a.mime, size_bytes: a.size_bytes,
       size: humanSize(a.size_bytes), is_image: a.mime.startsWith("image/"),
       icon: a.mime.startsWith("image/") ? "ph-image" : "ph-file-pdf",
-      url: `#attachment-${a.id}`, uploaded_by: requester?.name ?? null,
-      created_at: v.created_at,
+      url: `#attachment-${a.id}`, uploaded_by: a.uploaded_by ?? requester?.name ?? null,
+      created_at: a.created_at ?? v.created_at,
+      document_type: a.document_type ?? null,
+      voucher_payment_id: a.voucher_payment_id ?? null,
+    }));
+    base.payments = (v.payments ?? []).map((p) => ({
+      id: p.id, sequence: p.sequence, reference: `${v.number}/${p.sequence}`,
+      amount: p.amount, amount_text: money(p.amount, v.currency),
+      balance_after: p.balance_after, balance_after_text: money(p.balance_after, v.currency),
+      payment_method: p.payment_method, payment_reference: p.payment_reference,
+      cheque_number: p.cheque_number, received_by: p.received_by,
+      receiver_id_number: p.receiver_id_number, payment_date: p.payment_date,
+      paid_at: p.paid_at, paid_by: p.paid_by, note: p.note,
+      acknowledged_at: p.acknowledged_at,
+      acknowledgement_url: `/vouchers/${v.id}/payments/${p.id}/acknowledgement`,
+      acknowledgement_attachment_ids: v.attachments
+        .filter((a) => a.document_type === "payment_acknowledgement" && a.voucher_payment_id === p.id)
+        .map((a) => a.id),
     }));
     base.comments = v.comments.map((c) => {
       const author = db.users.find((u) => u.id === c.user_id);

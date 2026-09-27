@@ -226,6 +226,13 @@ class ApiService extends GetxService {
   /// Raw bytes, for PDFs and attachments.
   Future<List<int>> bytes(String path, [Map<String, dynamic>? query]) async {
     if (_mock != null) {
+      if (path.endsWith('/acknowledgement')) {
+        throw ApiException(
+          501,
+          'The payment acknowledgement is printed from the live server — '
+          'the prototype cannot render PDFs.',
+        );
+      }
       throw ApiException(
         501,
         'The PDF is generated server-side and arrives with the backend. '

@@ -11,6 +11,9 @@ class VoucherAttachment extends Model
 {
     use BelongsToTenant, HasFactory;
 
+    /** A cash (or bank) payment acknowledgement signed by the receiver. */
+    public const TYPE_ACKNOWLEDGEMENT = 'payment_acknowledgement';
+
     protected $guarded = ['id'];
 
     protected function casts(): array
@@ -25,6 +28,7 @@ class VoucherAttachment extends Model
             'voucher_id' => 'integer',
             'company_id' => 'integer',
             'uploaded_by' => 'integer',
+            'voucher_payment_id' => 'integer',
             'size_bytes' => 'integer',
         ];
     }
@@ -32,6 +36,11 @@ class VoucherAttachment extends Model
     public function voucher(): BelongsTo
     {
         return $this->belongsTo(Voucher::class);
+    }
+
+    public function payment(): BelongsTo
+    {
+        return $this->belongsTo(VoucherPayment::class, 'voucher_payment_id');
     }
 
     public function uploader(): BelongsTo

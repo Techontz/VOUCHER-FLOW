@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherApproval;
+use App\Models\VoucherPayment;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
 use App\Services\AmountFormatter;
@@ -289,6 +290,16 @@ class DashboardController extends Controller
             ->whereBetween('vouchers.paid_at', $this->month())
             ->get(['vouchers.id', 'vouchers.amount', 'vouchers.kind']);
 
+        // Money is released in parts, so "paid this month" is every payment made
+        // this month — part payments included — and what is owed is the balance.
+        $released = VoucherPayment::query()
+            ->whereIn('voucher_id', $this->visible($user)->pluck('vouchers.id'))
+            ->whereBetween('paid_at', $this->month())
+            ->with('voucher:id,kind')
+            ->get()
+            ->map(fn (VoucherPayment $p) => (object) ['amount' => (float) $p->amount, 'kind' => $p->voucher?->kind]);
+        $owed = fn (Collection $rows) => (float) $rows->sum(fn (Voucher $v) => $v->balance());
+
         $totals = fn (Collection $rows) => [
             'count' => $rows->count(),
             'total' => (float) $rows->sum('amount'),
@@ -298,23 +309,23 @@ class DashboardController extends Controller
         return $this->tenantView('cashier', $queue, [
             $this->stat('dash.stat.awaitingPayment', 'Awaiting payment', (string) $queue->count(),
                 'dash.sub.approvedUnpaid', 'Approved, not yet paid'),
-            $this->stat('dash.stat.pendingPayments', 'Pending payments', $this->format((float) $queue->sum('amount')),
+            $this->stat('dash.stat.pendingPayments', 'Pending payments', $this->format($owed($queue)),
                 'dash.sub.bankCash', 'Bank :bank · Cash :cash',
-                ['bank' => $this->format((float) $bank->sum('amount')), 'cash' => $this->format((float) $cash->sum('amount'))]),
+                ['bank' => $this->format($owed($bank)), 'cash' => $this->format($owed($cash))]),
             $this->stat('dash.stat.paidVouchers', 'Paid vouchers', (string) $paidThisMonth->count(),
                 'dash.sub.thisMonth', 'This month'),
-            $this->stat('dash.stat.paidThisMonth', 'Paid this month', $this->format((float) $paidThisMonth->sum('amount')),
+            $this->stat('dash.stat.paidThisMonth', 'Paid this month', $this->format((float) $released->sum('amount')),
                 'dash.sub.bankCash', 'Bank :bank · Cash :cash',
                 [
-                    'bank' => $this->format((float) $paidThisMonth->where('kind', Voucher::KIND_BANK)->sum('amount')),
-                    'cash' => $this->format((float) $paidThisMonth->where('kind', Voucher::KIND_CASH)->sum('amount')),
+                    'bank' => $this->format((float) $released->where('kind', Voucher::KIND_BANK)->sum('amount')),
+                    'cash' => $this->format((float) $released->where('kind', Voucher::KIND_CASH)->sum('amount')),
                 ]),
-        ], $this->activity($this->visible($user), 'dash.activity.payments', 'Recent payment activity', ['paid']),
+        ], $this->activity($this->visible($user), 'dash.activity.payments', 'Recent payment activity', ['paid', 'part_paid']),
             [
                 'payment_totals' => [
-                    'paid' => $totals($paidThisMonth),
-                    'bank' => $totals($paidThisMonth->where('kind', Voucher::KIND_BANK)),
-                    'cash' => $totals($paidThisMonth->where('kind', Voucher::KIND_CASH)),
+                    'paid' => $totals($released),
+                    'bank' => $totals($released->where('kind', Voucher::KIND_BANK)),
+                    'cash' => $totals($released->where('kind', Voucher::KIND_CASH)),
                 ],
             ]);
     }

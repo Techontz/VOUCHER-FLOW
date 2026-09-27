@@ -246,6 +246,43 @@ export interface Attachment {
   url: string;
   uploaded_by?: string;
   created_at: string | null;
+  /** "payment_acknowledgement" for a receiver's signed copy; null otherwise. */
+  document_type?: "payment_acknowledgement" | string | null;
+  /** The payment a signed acknowledgement covers. */
+  voucher_payment_id?: number | null;
+}
+
+/**
+ * One release of money against a voucher. A voucher approved for 10,000,000
+ * may be paid 9,000,000 now and 1,000,000 later — two payments, each with its
+ * own receiver, reference and signed acknowledgement.
+ */
+export interface VoucherPayment {
+  id: number;
+  /** 1, 2, … in the order the money left. */
+  sequence: number;
+  /** The voucher number with the sequence, e.g. "PV-2026-000083/1". */
+  reference: string;
+  amount: number;
+  amount_text: string;
+  balance_after: number;
+  balance_after_text: string;
+  payment_method: string | null;
+  payment_reference: string | null;
+  cheque_number: string | null;
+  received_by: string | null;
+  receiver_id_number: string | null;
+  payment_date: string | null;
+  paid_at: string | null;
+  /** The cashier's name. */
+  paid_by: string | null;
+  /** The cashier who released this payment (older servers send only the name). */
+  paid_by_id?: number | null;
+  note: string | null;
+  /** When the receiver's signed copy was filed; null while it is outstanding. */
+  acknowledged_at: string | null;
+  acknowledgement_url: string;
+  acknowledgement_attachment_ids: number[];
 }
 
 export interface Comment {
@@ -272,6 +309,14 @@ export interface Voucher {
   amount: number;
   currency: string;
   amount_text: string;
+  /** Released so far — the whole amount once paid, part of it while a balance remains. */
+  amount_paid?: number;
+  amount_paid_text?: string;
+  /** Still owed. Zero once paid. */
+  balance?: number;
+  balance_text?: string;
+  /** Approved, some money out, some still owed (status_key "partially_paid"). */
+  is_partially_paid?: boolean;
   amount_in_words: string | null;
   payment_method: string | null;
   account_ref: string | null;
@@ -325,6 +370,8 @@ export interface Voucher {
   timeline?: TimelineRow[];
   attachments?: Attachment[];
   comments?: Comment[];
+  /** Detailed voucher only: every release of money, in order. */
+  payments?: VoucherPayment[];
   workflow?: Workflow;
 }
 

@@ -449,7 +449,7 @@ class _ActivityRow extends StatelessWidget {
     final colour = switch (row.action) {
       'approved' || 'paid' => VfColors.ok,
       'rejected' => VfColors.bad,
-      'changes_requested' => VfColors.warn,
+      'changes_requested' || 'part_paid' => VfColors.warn,
       _ => context.vfAccent,
     };
 

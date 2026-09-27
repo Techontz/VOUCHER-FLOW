@@ -44,6 +44,12 @@ class VoucherResource extends JsonResource
             'amount' => (float) $this->amount,
             'currency' => $this->currency,
             'amount_text' => $money->money((float) $this->amount, $this->currency),
+            // Money can leave in parts: what has been released so far and what is still owed.
+            'amount_paid' => $this->resource->released(),
+            'amount_paid_text' => $money->money($this->resource->released(), $this->currency),
+            'balance' => $this->resource->balance(),
+            'balance_text' => $money->money($this->resource->balance(), $this->currency),
+            'is_partially_paid' => $this->resource->isPartiallyPaid(),
             'amount_in_words' => $this->amount_in_words,
 
             'payment_method' => $this->payment_method,
@@ -137,6 +143,30 @@ class VoucherResource extends JsonResource
             $data['attachments'] = AttachmentResource::collection($this->whenLoaded('attachments'));
             $data['comments'] = CommentResource::collection($this->whenLoaded('comments'));
             $data['workflow'] = new WorkflowResource($this->whenLoaded('workflow'));
+            $data['payments'] = $this->relationLoaded('payments')
+                ? $this->payments->map(fn ($p) => [
+                    'id' => $p->id,
+                    'sequence' => $p->sequence,
+                    'reference' => $this->number.'/'.$p->sequence,
+                    'amount' => (float) $p->amount,
+                    'amount_text' => $money->money((float) $p->amount, $this->currency),
+                    'balance_after' => (float) $p->balance_after,
+                    'balance_after_text' => $money->money((float) $p->balance_after, $this->currency),
+                    'payment_method' => $p->payment_method,
+                    'payment_reference' => $p->payment_reference,
+                    'cheque_number' => $p->cheque_number,
+                    'received_by' => $p->received_by,
+                    'receiver_id_number' => $p->receiver_id_number,
+                    'payment_date' => $p->payment_date?->toDateString(),
+                    'paid_at' => $p->paid_at?->toIso8601String(),
+                    'paid_by' => $p->paidBy?->name,
+                    'paid_by_id' => $p->paid_by_id,
+                    'note' => $p->note,
+                    'acknowledged_at' => $p->acknowledged_at?->toIso8601String(),
+                    'acknowledgement_url' => route('api.vouchers.payments.acknowledgement', ['voucher' => $this->id, 'payment' => $p->id]),
+                    'acknowledgement_attachment_ids' => $p->relationLoaded('acknowledgements') ? $p->acknowledgements->pluck('id')->all() : [],
+                ])->values()->all()
+                : [];
         }
 
         return $data;

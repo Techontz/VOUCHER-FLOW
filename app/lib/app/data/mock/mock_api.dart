@@ -25,7 +25,8 @@ class MockApi {
   int _nextVoucherId = 1,
       _nextApprovalId = 1,
       _nextNotificationId = 1,
-      _nextCommentId = 1;
+      _nextCommentId = 1,
+      _nextPaymentId = 1;
 
   MockUser? _current;
 
@@ -275,6 +276,23 @@ class MockApi {
       }
       if (seg.length == 3 && method == 'POST') {
         return _act(voucher, seg[2], body);
+      }
+      if (seg.length == 5 &&
+          seg[2] == 'payments' &&
+          seg[4] == 'acknowledgement') {
+        final payment = voucher.payments
+            .where((p) => p.id == int.tryParse(seg[3]))
+            .firstOrNull;
+        if (payment == null) throw ApiException(404, 'Payment not found.');
+        if (method == 'GET') {
+          // The acknowledgement is a PDF rendered by the server.
+          throw ApiException(
+            501,
+            'The payment acknowledgement is printed from the live server — '
+            'the prototype cannot render PDFs.',
+          );
+        }
+        if (method == 'POST') return _fileAcknowledgement(voucher, payment);
       }
     }
 
@@ -696,32 +714,98 @@ class MockApi {
         if (!actions['pay']!) {
           throw ApiException(422, 'This voucher is not cleared for payment.');
         }
-        final reference = '${body['reference'] ?? ''}'.trim();
-        if (reference.isEmpty) {
+        // The app sends the API's own fields; older callers sent `reference`
+        // and `method`. A cash release is acknowledged by whoever took it.
+        String? text(String key) {
+          final value = '${body[key] ?? ''}'.trim();
+          return value.isEmpty ? null : value;
+        }
+
+        final receivedBy = text('received_by');
+        final reference =
+            text('payment_reference') ??
+            text('reference') ??
+            text('cheque_number');
+        if (reference == null && receivedBy == null) {
           throw ApiException(422, 'A payment reference is required.', {
             'reference': ['A payment reference is required.'],
           });
         }
+        final balance = _balance(v);
+        final amount = body['amount'] == null
+            ? balance
+            : double.tryParse('${body['amount']}') ?? 0;
+        if (amount <= 0) {
+          throw ApiException(422, 'Enter an amount greater than zero.', {
+            'amount': ['Enter an amount greater than zero.'],
+          });
+        }
+        if (amount > balance + 0.001) {
+          throw ApiException(
+            422,
+            'The amount is more than the balance outstanding '
+            '(${_money(balance, v.currency)}).',
+            {
+              'amount': ['The amount is more than the balance outstanding.'],
+            },
+          );
+        }
+        final remaining = balance - amount;
+        final settled = remaining <= 0.001;
+        final methodUsed = text('payment_method') ?? text('method');
+
+        v.payments.add(
+          MockPayment(
+            id: _nextPaymentId++,
+            sequence: v.payments.length + 1,
+            amount: amount,
+            balanceAfter: settled ? 0 : remaining,
+            paidById: _current!.id,
+            paidByName: _current!.name,
+            paidAt: now,
+            paymentMethod: methodUsed ?? v.paymentMethod,
+            paymentReference: text('payment_reference') ?? text('reference'),
+            chequeNumber: text('cheque_number'),
+            receivedBy: receivedBy,
+            receiverIdNumber: text('receiver_id_number'),
+            note: comment,
+          ),
+        );
         _log(
           v,
-          'paid',
+          settled ? 'paid' : 'part_paid',
           step,
-          comment:
-              comment ??
-              'Funds released and reference recorded against the voucher.',
+          comment: settled
+              ? (comment ??
+                    'Funds released and reference recorded against the voucher.')
+              : 'Part payment ${_money(amount, v.currency)} — balance '
+                    '${_money(remaining, v.currency)} outstanding.',
         );
-        v.status = 'paid';
-        v.paidAt = now;
-        v.paymentReference = reference;
-        v.paidBy = _current!.name;
-        v.currentStepPosition = null;
-        if (body['method'] != null) v.paymentMethod = '${body['method']}';
+        // The voucher's own payment fields describe the latest release.
+        v.paymentReference = reference ?? v.paymentReference;
+        if (receivedBy != null) v.receivedBy = receivedBy;
+        if (methodUsed != null) v.paymentMethod = methodUsed;
+        if (settled) {
+          v.status = 'paid';
+          v.paidAt = now;
+          v.paidBy = _current!.name;
+          v.currentStepPosition = null;
+        }
         _notify(
           v.requesterId,
-          title: '${v.number} has been paid',
-          titleSw: '${v.number} imelipwa',
-          icon: 'check',
-          body: '${_current!.name} released ${_money(v.amount)} · $reference.',
+          title: settled
+              ? '${v.number} has been paid'
+              : '${v.number} has been partly paid',
+          titleSw: settled
+              ? '${v.number} imelipwa'
+              : '${v.number} imelipwa sehemu',
+          icon: settled ? 'check' : 'coins',
+          body: settled
+              ? '${_current!.name} released ${_money(amount)} · '
+                    '${reference ?? receivedBy}.'
+              : '${_current!.name} paid ${_money(amount)} of '
+                    '${_money(v.amount)}. The balance of ${_money(remaining)} '
+                    'is still outstanding.',
           voucherId: v.id,
         );
 
@@ -739,6 +823,44 @@ class MockApi {
         throw ApiException(404, 'Unknown action "$action".');
     }
 
+    return {'data': _voucherJson(v, detailed: true)};
+  }
+
+  /// Released so far. Seeded paid vouchers carry no payment rows: they were
+  /// paid in full.
+  double _released(MockVoucher v) => v.payments.isEmpty
+      ? (v.status == 'paid' ? v.amount : 0)
+      : v.payments.fold(0, (sum, p) => sum + p.amount);
+
+  double _balance(MockVoucher v) {
+    final left = v.amount - _released(v);
+    return left < 0 ? 0 : left;
+  }
+
+  bool _partlyPaid(MockVoucher v) =>
+      v.status == 'approved' && v.payments.isNotEmpty && _balance(v) > 0.001;
+
+  /// Files a signed acknowledgement against its payment. The fixture keeps
+  /// no file (uploads are refused in mock mode); it records that one exists.
+  Map<String, dynamic> _fileAcknowledgement(MockVoucher v, MockPayment p) {
+    final me = _current!;
+    final allowed =
+        me.role == 'company_admin' ||
+        p.paidById == me.id ||
+        _actions(v)['pay'] == true;
+    if (!allowed) {
+      throw ApiException(
+        403,
+        'Only the cashier who made this payment, an administrator or someone '
+        'who can pay this voucher may file its acknowledgement.',
+      );
+    }
+    final now = DateTime.now().toIso8601String();
+    v.attachments.add(
+      'Signed acknowledgement ${v.number.replaceAll('/', '-')}-${p.sequence}.jpg',
+    );
+    v.acknowledgementFor[v.attachments.length - 1] = p.id;
+    p.acknowledgedAt ??= now;
     return {'data': _voucherJson(v, detailed: true)};
   }
 
@@ -1045,6 +1167,13 @@ class MockApi {
           labelSw: 'Imeghairiwa',
           tag: 'tag-neutral',
         );
+      case 'approved' when _partlyPaid(v):
+        return (
+          key: 'partially_paid',
+          label: 'Partially paid',
+          labelSw: 'Imelipwa sehemu',
+          tag: 'tag-accent-2',
+        );
       case 'approved':
         return (
           key: 'awaiting_payment',
@@ -1136,6 +1265,11 @@ class MockApi {
       'amount': v.amount,
       'currency': v.currency,
       'amount_text': _money(v.amount, v.currency),
+      'amount_paid': _released(v),
+      'amount_paid_text': _money(_released(v), v.currency),
+      'balance': _balance(v),
+      'balance_text': _money(_balance(v), v.currency),
+      'is_partially_paid': _partlyPaid(v),
       'amount_in_words': _words(v.amount),
       'payment_method': v.paymentMethod,
       'account_ref': v.accountRef,
@@ -1201,6 +1335,39 @@ class MockApi {
               'name': v.attachments[i],
               'size': '${180 + i * 46} KB',
               'is_image': v.attachments[i].endsWith('.jpg'),
+              'document_type': v.acknowledgementFor.containsKey(i)
+                  ? 'payment_acknowledgement'
+                  : null,
+              'voucher_payment_id': v.acknowledgementFor[i],
+            },
+        ],
+      if (detailed)
+        'payments': [
+          for (final p in v.payments)
+            {
+              'id': p.id,
+              'sequence': p.sequence,
+              'reference': '${v.number}/${p.sequence}',
+              'amount': p.amount,
+              'amount_text': _money(p.amount, v.currency),
+              'balance_after': p.balanceAfter,
+              'balance_after_text': _money(p.balanceAfter, v.currency),
+              'payment_method': p.paymentMethod,
+              'payment_reference': p.paymentReference,
+              'cheque_number': p.chequeNumber,
+              'received_by': p.receivedBy,
+              'receiver_id_number': p.receiverIdNumber,
+              'payment_date': p.paidAt.substring(0, 10),
+              'paid_at': p.paidAt,
+              'paid_by': p.paidByName,
+              'note': p.note,
+              'acknowledged_at': p.acknowledgedAt,
+              'acknowledgement_url':
+                  '/vouchers/${v.id}/payments/${p.id}/acknowledgement',
+              'acknowledgement_attachment_ids': [
+                for (final entry in v.acknowledgementFor.entries)
+                  if (entry.value == p.id) entry.key + 1,
+              ],
             },
         ],
       if (detailed)
@@ -1431,6 +1598,7 @@ class MockApi {
       'rejected': 'rejected',
       'changes_requested': 'requested changes on',
       'paid': 'paid',
+      'part_paid': 'part-paid',
       'cancelled': 'cancelled',
     };
 

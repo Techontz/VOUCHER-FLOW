@@ -223,11 +223,70 @@ class Attachment {
     : id = _toInt(json['id']),
       name = '${json['name']}',
       size = '${json['size']}',
-      isImage = json['is_image'] == true;
+      isImage = json['is_image'] == true,
+      documentType = _as<String>(json['document_type']),
+      voucherPaymentId = _as<num>(json['voucher_payment_id'])?.toInt();
 
   final int id;
   final String name, size;
   final bool isImage;
+
+  /// `payment_acknowledgement` for a signed cash receipt; null otherwise.
+  final String? documentType;
+
+  /// The payment a signed acknowledgement belongs to.
+  final int? voucherPaymentId;
+
+  bool get isAcknowledgement => documentType == 'payment_acknowledgement';
+}
+
+/// One release of money against a voucher. A voucher approved for 10m may be
+/// paid 9m now and the 1m balance later — each is its own record.
+class VoucherPayment {
+  VoucherPayment.fromJson(Map<String, dynamic> json)
+    : id = _toInt(json['id']),
+      sequence = _toInt(json['sequence']),
+      reference = '${json['reference'] ?? ''}',
+      amount = _toDouble(json['amount']),
+      amountText = '${json['amount_text'] ?? ''}',
+      balanceAfter = _toDouble(json['balance_after']),
+      balanceAfterText = '${json['balance_after_text'] ?? ''}',
+      paymentMethod = _as<String>(json['payment_method']),
+      paymentReference = _as<String>(json['payment_reference']),
+      chequeNumber = _as<String>(json['cheque_number']),
+      receivedBy = _as<String>(json['received_by']),
+      receiverIdNumber = _as<String>(json['receiver_id_number']),
+      paymentDate = _toDate(json['payment_date']),
+      paidAt = _toDate(json['paid_at']),
+      // Sent as a name; tolerate an object too.
+      paidBy = json['paid_by'] is Map
+          ? _nested(json['paid_by'], 'name')
+          : _as<String>(json['paid_by']),
+      note = _as<String>(json['note']),
+      acknowledgedAt = _toDate(json['acknowledged_at']),
+      acknowledgementUrl = _as<String>(json['acknowledgement_url']),
+      acknowledgementAttachmentIds =
+          (json['acknowledgement_attachment_ids'] as List? ?? [])
+              .map(_toInt)
+              .toList();
+
+  final int id, sequence;
+  final String reference, amountText, balanceAfterText;
+  final double amount, balanceAfter;
+  final String? paymentMethod,
+      paymentReference,
+      chequeNumber,
+      receivedBy,
+      receiverIdNumber,
+      paidBy,
+      note,
+      acknowledgementUrl;
+  final DateTime? paymentDate, paidAt, acknowledgedAt;
+  final List<int> acknowledgementAttachmentIds;
+
+  /// A signed copy has been filed against this payment.
+  bool get isAcknowledged =>
+      acknowledgedAt != null || acknowledgementAttachmentIds.isNotEmpty;
 }
 
 class VoucherComment {
@@ -258,6 +317,13 @@ class Voucher {
       amount = _toDouble(json['amount']),
       currency = '${json['currency'] ?? 'TZS'}',
       amountText = '${json['amount_text']}',
+      amountPaid = _toDouble(json['amount_paid']),
+      amountPaidText = _as<String>(json['amount_paid_text']),
+      balance = json['balance'] == null ? null : _toDouble(json['balance']),
+      balanceText = _as<String>(json['balance_text']),
+      isPartiallyPaid =
+          json['is_partially_paid'] == true ||
+          json['status_key'] == 'partially_paid',
       amountInWords = _as<String>(json['amount_in_words']),
       paymentMethod = _as<String>(json['payment_method']),
       accountRef = _as<String>(json['account_ref']),
@@ -302,6 +368,10 @@ class Voucher {
           .toList(),
       comments = (json['comments'] as List? ?? [])
           .map((e) => VoucherComment.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      payments = (json['payments'] is List ? json['payments'] as List : [])
+          .whereType<Map>()
+          .map((e) => VoucherPayment.fromJson(Map<String, dynamic>.from(e)))
           .toList();
 
   final int id, voucherTypeId, requesterId, attachmentsCount;
@@ -332,12 +402,30 @@ class Voucher {
   final double amount;
   final bool currentStepCanApprove, isEditable, isTerminal;
 
+  /// Released so far, and what remains. Older payloads carry neither: a paid
+  /// voucher then owes nothing, anything else owes the whole amount.
+  final double amountPaid;
+  final double? balance;
+  final String? amountPaidText, balanceText;
+
+  /// Some money released, the rest still owed.
+  final bool isPartiallyPaid;
+
+  /// What is still owed on this voucher.
+  double get outstanding =>
+      balance ?? (status == 'paid' ? 0 : amount - amountPaid);
+
+  /// The chip tag: a part-paid voucher reads as a warning, whatever the
+  /// server's tag, because money is still owed on it.
+  String get displayTag => isPartiallyPaid ? 'tag-warn' : statusTag;
+
   bool get isCash => kind == 'cash';
   final DateTime? voucherDate, submittedAt, approvedAt, paidAt, createdAt;
   final VoucherActions actions;
   final List<TimelineEntry> timeline;
   final List<Attachment> attachments;
   final List<VoucherComment> comments;
+  final List<VoucherPayment> payments;
 }
 
 class AppNotificationItem {

@@ -124,13 +124,19 @@ class VoucherRepository {
     required String method,
     String? reference,
     String? receivedBy,
+    String? receiverIdNumber,
     String? comment,
+    double? amount,
   }) => act(
     id,
     'pay',
     body: {
       'payment_method': method,
+      // Left out, the server pays the whole balance; less pays part now.
+      'amount': ?amount,
       if (isCash) 'received_by': receivedBy,
+      if (isCash && (receiverIdNumber ?? '').isNotEmpty)
+        'receiver_id_number': receiverIdNumber,
       if (!isCash) 'payment_reference': reference,
       if (!isCash && method.toLowerCase().contains('cheque'))
         'cheque_number': reference,
@@ -143,6 +149,32 @@ class VoucherRepository {
 
   Future<void> attach(int id, List<http.MultipartFile> files) =>
       _api.upload('/vouchers/$id/attachments', files);
+
+  /// The printable cash acknowledgement for one payment, as PDF bytes.
+  Future<Uint8List> acknowledgementPdf(
+    int id,
+    int paymentId, {
+    String? lang,
+  }) async => Uint8List.fromList(
+    await _api.bytes('/vouchers/$id/payments/$paymentId/acknowledgement', {
+      'lang': ?lang,
+    }),
+  );
+
+  /// Files the receiver's signed copy against its payment. Field name `file`.
+  Future<Voucher> uploadAcknowledgement(
+    int id,
+    int paymentId,
+    http.MultipartFile file,
+  ) async {
+    final payload = await _api.upload(
+      '/vouchers/$id/payments/$paymentId/acknowledgement',
+      [file],
+    );
+    return Voucher.fromJson(
+      (payload as Map<String, dynamic>)['data'] as Map<String, dynamic>,
+    );
+  }
 
   Future<Uint8List> pdf(int id, {bool download = false}) async =>
       Uint8List.fromList(

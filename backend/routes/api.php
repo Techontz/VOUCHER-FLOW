@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\VoucherAttachmentController;
 use App\Http\Controllers\Api\VoucherCommentController;
 use App\Http\Controllers\Api\VoucherController;
 use App\Http\Controllers\Api\VoucherDocumentController;
+use App\Http\Controllers\Api\VoucherPaymentController;
 use App\Http\Controllers\Api\VoucherTypeController;
 use App\Http\Controllers\Api\WorkflowController;
 use Illuminate\Routing\Middleware\SubstituteBindings;
@@ -96,6 +97,9 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
         Route::get('{voucher}/pdf/download', [VoucherDocumentController::class, 'download'])->name('pdf.download');
 
         Route::post('{voucher}/attachments', [VoucherAttachmentController::class, 'store'])->middleware('subscription');
+
+        Route::get('{voucher}/payments/{payment}/acknowledgement', [VoucherPaymentController::class, 'acknowledgement'])->name('payments.acknowledgement');
+        Route::post('{voucher}/payments/{payment}/acknowledgement', [VoucherPaymentController::class, 'storeAcknowledgement'])->middleware('subscription');
         Route::get('{voucher}/attachments/{attachment}', [VoucherAttachmentController::class, 'show'])->name('attachments.show');
         Route::delete('{voucher}/attachments/{attachment}', [VoucherAttachmentController::class, 'destroy']);
 
