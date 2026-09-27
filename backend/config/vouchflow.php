@@ -19,6 +19,14 @@ return [
     |   php artisan db:seed --class=DemoSeeder --force
     |
     */
+    /*
+    | 24-hour voucher reminders (in-app, plus email when mail is configured).
+    */
+    'reminders' => [
+        'enabled' => filter_var(env('VOUCHFLOW_REMINDERS', true), FILTER_VALIDATE_BOOLEAN),
+        'email' => filter_var(env('VOUCHFLOW_REMINDER_EMAILS', true), FILTER_VALIDATE_BOOLEAN),
+    ],
+
     'seed_demo' => filter_var(env('SEED_DEMO', false), FILTER_VALIDATE_BOOLEAN),
 
     /*
@@ -49,6 +57,15 @@ return [
     |
     */
     'two_factor' => filter_var(env('VOUCHFLOW_TWO_FACTOR', true), FILTER_VALIDATE_BOOLEAN),
+
+    // Addresses on these reserved domains (RFC 2606 — demo and test accounts)
+    // can never receive a code, so they sign in with the password alone. A
+    // domain matches itself and any subdomain; set the variable to an empty
+    // string to require a code from everyone.
+    'two_factor_skip_domains' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+        'VOUCHFLOW_TWO_FACTOR_SKIP_DOMAINS',
+        'test,example,invalid,localhost,example.com,example.net,example.org',
+    ))))),
 
     'trial_days' => (int) env('VOUCHFLOW_TRIAL_DAYS', 14),
     'max_upload_mb' => (int) env('VOUCHFLOW_MAX_UPLOAD_MB', 10),

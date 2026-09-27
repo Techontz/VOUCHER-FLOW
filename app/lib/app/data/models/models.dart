@@ -166,20 +166,24 @@ class VoucherActions {
       cancel = json?['cancel'] == true,
       pay = json?['pay'] == true,
       print = json?['print'] == true,
-      download = json?['download'] == true;
+      download = json?['download'] == true,
+      attach = json?['attach'] == true || json?['edit'] == true;
 
-  final bool edit,
-      delete,
-      submit,
-      sign,
-      submitSigned,
-      approve,
-      reject,
-      requestChanges,
-      cancel,
-      pay,
-      print,
-      download;
+  final bool
+  edit,
+  delete,
+  submit,
+  sign,
+  submitSigned,
+  approve,
+  reject,
+  requestChanges,
+  cancel,
+  pay,
+  print,
+  download,
+  /// Documents may be added — also after approval and payment, for receipts.
+  attach;
 
   bool get hasWorkflowAction =>
       sign || submitSigned || approve || reject || requestChanges || pay;

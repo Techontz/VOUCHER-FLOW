@@ -207,6 +207,8 @@ export interface VoucherActions {
   request_changes: boolean;
   /** The cashier releases funds and closes the voucher. */
   pay: boolean;
+  /** Documents may be added — also after approval and payment, for receipts. */
+  attach?: boolean;
   cancel: boolean;
   comment: boolean;
   print: boolean;

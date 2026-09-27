@@ -32,7 +32,8 @@ class VfTranslations extends Translations {
 
     // Two-step sign-in verification.
     'verify.title': 'Verify it is you',
-    'verify.choose': 'For your security, we need to confirm this sign-in. Choose where to receive a 6-digit code.',
+    'verify.choose':
+        'For your security, we need to confirm this sign-in. Choose where to receive a 6-digit code.',
     'verify.sentTo': 'We sent a 6-digit code to @destination.',
     'verify.byEmail': 'Email',
     'verify.bySms': 'Text message (SMS)',
@@ -47,17 +48,25 @@ class VfTranslations extends Translations {
     'verify.expiresNote': 'The code is valid for 10 minutes.',
     'verify.demoCode': 'Demo data: the code is always @code.',
     'verify.error.enterCode': 'Enter the 6-digit code.',
-    'verify.error.invalid': 'That code is not correct. @count attempts remaining.',
-    'verify.error.invalidLast': 'That code is not correct. This is your last attempt.',
+    'verify.error.invalid':
+        'That code is not correct. @count attempts remaining.',
+    'verify.error.invalidLast':
+        'That code is not correct. This is your last attempt.',
     'verify.error.invalidPlain': 'That code is not correct.',
     'verify.error.codeExpired': 'This code has expired. Request a new one.',
     'verify.error.noCode': 'Choose how to receive your code first.',
-    'verify.error.tooManyAttempts': 'Too many incorrect codes. Sign in again to continue.',
-    'verify.error.challengeExpired': 'Your sign-in has expired. Sign in again to continue.',
-    'verify.error.accountUnavailable': 'This account is not available. Contact your administrator.',
-    'verify.error.tooManySends': 'Too many codes have been requested. Sign in again to continue.',
-    'verify.error.cooldown': 'Please wait @seconds seconds before requesting another code.',
-    'verify.error.deliveryFailed': 'We could not send the code. Try again or use a different method.',
+    'verify.error.tooManyAttempts':
+        'Too many incorrect codes. Sign in again to continue.',
+    'verify.error.challengeExpired':
+        'Your sign-in has expired. Sign in again to continue.',
+    'verify.error.accountUnavailable':
+        'This account is not available. Contact your administrator.',
+    'verify.error.tooManySends':
+        'Too many codes have been requested. Sign in again to continue.',
+    'verify.error.cooldown':
+        'Please wait @seconds seconds before requesting another code.',
+    'verify.error.deliveryFailed':
+        'We could not send the code. Try again or use a different method.',
 
     'queue.title': 'Awaiting you',
     'queue.stalled': 'Stalled',
@@ -150,6 +159,25 @@ class VfTranslations extends Translations {
     'voucher.category': 'Category',
     'voucher.costCentre': 'Cost centre',
     'voucher.department': 'Department',
+    'bulk.title': 'Approve several at once',
+    'bulk.intro':
+        'Review each voucher (tap the arrow to open it), then tick the ones to approve together.',
+    'bulk.selectAll': 'Select all',
+    'bulk.open': 'Open voucher',
+    'bulk.none': 'No vouchers are waiting for your approval.',
+    'bulk.approveN': 'Approve @count',
+    'bulk.confirmTitle': 'Approve @count vouchers?',
+    'bulk.confirmBody':
+        'Each voucher is approved exactly as it would be on its own — with your signature, timeline entry and notifications.',
+    'bulk.comment': 'Comment for all (optional)',
+    'bulk.reviewed': 'I have reviewed each of these vouchers and approve them.',
+    'bulk.done': '@count approved',
+    'bulk.skipped': '@count skipped — open them individually.',
+    'voucher.addReceiptCamera': 'Photograph receipt',
+    'voucher.addReceiptGallery': 'Add from gallery',
+    'voucher.receiptAdded': 'Document added',
+    'voucher.receiptNote':
+        'Receipts and supporting documents can still be added after approval and payment.',
     'voucher.ownDepartment': 'Vouchers are raised in your own department',
     'voucher.date': 'Date',
     'voucher.requester': 'Requester',
@@ -280,7 +308,8 @@ class VfTranslations extends Translations {
         'Renew the subscription to continue creating and approving vouchers.',
 
     'msg.signed': 'Voucher signed',
-    'msg.signedBody': 'Forward it to the next approval step when you are ready.',
+    'msg.signedBody':
+        'Forward it to the next approval step when you are ready.',
     'msg.forwarded': 'Signed voucher forwarded',
     'msg.approved': 'Voucher approved',
     'msg.rejected': 'Voucher rejected',
@@ -297,14 +326,20 @@ class VfTranslations extends Translations {
     'greeting.Good evening': 'Good evening',
     'dash.keyFigures': 'Key figures',
     'dash.banner.pending.one': 'You have 1 voucher waiting for your attention.',
-    'dash.banner.pending.other': 'You have @count vouchers waiting for your attention.',
-    'dash.banner.pending.employee': 'Complete your drafts and respond to any requested changes to keep them moving.',
-    'dash.banner.pending.hod': 'Each one needs your signature before it can move to the approval step.',
+    'dash.banner.pending.other':
+        'You have @count vouchers waiting for your attention.',
+    'dash.banner.pending.employee':
+        'Complete your drafts and respond to any requested changes to keep them moving.',
+    'dash.banner.pending.hod':
+        'Each one needs your signature before it can move to the approval step.',
     'dash.banner.pending.approver': 'Each one has reached your approval step.',
-    'dash.banner.pending.cashier': 'Each one is approved and ready for payment.',
-    'dash.banner.pending.admin': 'These have remained on the same step for 3 days or more.',
+    'dash.banner.pending.cashier':
+        'Each one is approved and ready for payment.',
+    'dash.banner.pending.admin':
+        'These have remained on the same step for 3 days or more.',
     'dash.banner.clear': 'Nothing needs your attention.',
-    'dash.banner.clear.employee': 'Everything you\'ve submitted is currently being processed or has already been reviewed.',
+    'dash.banner.clear.employee':
+        'Everything you\'ve submitted is currently being processed or has already been reviewed.',
     'dash.banner.clear.hod': 'No vouchers are waiting for your signature.',
     'dash.banner.clear.approver': 'No vouchers are waiting for your approval.',
     'dash.banner.clear.cashier': 'Every approved voucher has been paid.',
@@ -433,7 +468,8 @@ class VfTranslations extends Translations {
     'decision.signature': 'Your signature',
     'decision.decision': 'Your decision',
     'voucher.submitConfirm': 'Submit voucher?',
-    'voucher.submitConfirmBody': 'It goes to the head of department for signature, then to the approver for the decision. Once submitted, it can no longer be edited.',
+    'voucher.submitConfirmBody':
+        'It goes to the head of department for signature, then to the approver for the decision. Once submitted, it can no longer be edited.',
   };
 
   static const _sw = {
@@ -464,7 +500,8 @@ class VfTranslations extends Translations {
 
     // Uthibitisho wa hatua mbili wa kuingia.
     'verify.title': 'Thibitisha kuwa ni wewe',
-    'verify.choose': 'Kwa usalama wako, tunahitaji kuthibitisha kuingia huku. Chagua mahali pa kupokea msimbo wa tarakimu 6.',
+    'verify.choose':
+        'Kwa usalama wako, tunahitaji kuthibitisha kuingia huku. Chagua mahali pa kupokea msimbo wa tarakimu 6.',
     'verify.sentTo': 'Tumetuma msimbo wa tarakimu 6 kwenda @destination.',
     'verify.byEmail': 'Barua pepe',
     'verify.bySms': 'Ujumbe mfupi (SMS)',
@@ -480,16 +517,23 @@ class VfTranslations extends Translations {
     'verify.demoCode': 'Data ya majaribio: msimbo daima ni @code.',
     'verify.error.enterCode': 'Weka msimbo wa tarakimu 6.',
     'verify.error.invalid': 'Msimbo huo si sahihi. Majaribio @count yamebaki.',
-    'verify.error.invalidLast': 'Msimbo huo si sahihi. Hili ni jaribio lako la mwisho.',
+    'verify.error.invalidLast':
+        'Msimbo huo si sahihi. Hili ni jaribio lako la mwisho.',
     'verify.error.invalidPlain': 'Msimbo huo si sahihi.',
     'verify.error.codeExpired': 'Msimbo huu umeisha muda. Omba msimbo mpya.',
     'verify.error.noCode': 'Chagua kwanza njia ya kupokea msimbo wako.',
-    'verify.error.tooManyAttempts': 'Misimbo mingi isiyo sahihi. Ingia tena ili kuendelea.',
-    'verify.error.challengeExpired': 'Muda wa kuingia umeisha. Ingia tena ili kuendelea.',
-    'verify.error.accountUnavailable': 'Akaunti hii haipatikani. Wasiliana na msimamizi wako.',
-    'verify.error.tooManySends': 'Misimbo mingi imeombwa. Ingia tena ili kuendelea.',
-    'verify.error.cooldown': 'Tafadhali subiri sekunde @seconds kabla ya kuomba msimbo mwingine.',
-    'verify.error.deliveryFailed': 'Hatukuweza kutuma msimbo. Jaribu tena au tumia njia nyingine.',
+    'verify.error.tooManyAttempts':
+        'Misimbo mingi isiyo sahihi. Ingia tena ili kuendelea.',
+    'verify.error.challengeExpired':
+        'Muda wa kuingia umeisha. Ingia tena ili kuendelea.',
+    'verify.error.accountUnavailable':
+        'Akaunti hii haipatikani. Wasiliana na msimamizi wako.',
+    'verify.error.tooManySends':
+        'Misimbo mingi imeombwa. Ingia tena ili kuendelea.',
+    'verify.error.cooldown':
+        'Tafadhali subiri sekunde @seconds kabla ya kuomba msimbo mwingine.',
+    'verify.error.deliveryFailed':
+        'Hatukuweza kutuma msimbo. Jaribu tena au tumia njia nyingine.',
 
     'queue.title': 'Zinakusubiri',
     'queue.stalled': 'Zimekwama',
@@ -582,6 +626,25 @@ class VfTranslations extends Translations {
     'voucher.category': 'Kundi',
     'voucher.costCentre': 'Kituo cha gharama',
     'voucher.department': 'Idara',
+    'bulk.title': 'Idhinisha kadhaa kwa pamoja',
+    'bulk.intro':
+        'Pitia kila vocha (gusa mshale kuifungua), kisha weka alama kwenye zile za kuidhinisha pamoja.',
+    'bulk.selectAll': 'Chagua zote',
+    'bulk.open': 'Fungua vocha',
+    'bulk.none': 'Hakuna vocha zinazosubiri idhini yako.',
+    'bulk.approveN': 'Idhinisha @count',
+    'bulk.confirmTitle': 'Idhinisha vocha @count?',
+    'bulk.confirmBody':
+        'Kila vocha inaidhinishwa kama ingeidhinishwa peke yake — kwa sahihi yako, kumbukumbu na taarifa.',
+    'bulk.comment': 'Maoni kwa zote (si lazima)',
+    'bulk.reviewed': 'Nimepitia kila moja ya vocha hizi na ninaziidhinisha.',
+    'bulk.done': '@count zimeidhinishwa',
+    'bulk.skipped': '@count zimerukwa — zifungue moja moja.',
+    'voucher.addReceiptCamera': 'Piga picha ya risiti',
+    'voucher.addReceiptGallery': 'Ongeza kutoka kwenye picha',
+    'voucher.receiptAdded': 'Nyaraka imeongezwa',
+    'voucher.receiptNote':
+        'Risiti na nyaraka nyingine bado zinaweza kuongezwa baada ya idhini na malipo.',
     'voucher.ownDepartment': 'Vocha huandaliwa katika idara yako tu',
     'voucher.date': 'Tarehe',
     'voucher.requester': 'Mwombaji',
@@ -729,14 +792,21 @@ class VfTranslations extends Translations {
     'greeting.Good evening': 'Habari za jioni',
     'dash.keyFigures': 'Takwimu kuu',
     'dash.banner.pending.one': 'Una vocha 1 inayosubiri uangalizi wako.',
-    'dash.banner.pending.other': 'Una vocha @count zinazosubiri uangalizi wako.',
-    'dash.banner.pending.employee': 'Kamilisha rasimu zako na ujibu mabadiliko yaliyoombwa ili ziendelee.',
-    'dash.banner.pending.hod': 'Kila moja inahitaji sahihi yako kabla ya kuendelea kwenye hatua ya idhini.',
-    'dash.banner.pending.approver': 'Kila moja imefika kwenye hatua yako ya idhini.',
-    'dash.banner.pending.cashier': 'Kila moja imeidhinishwa na iko tayari kulipwa.',
-    'dash.banner.pending.admin': 'Hizi zimekaa kwenye hatua moja kwa siku 3 au zaidi.',
+    'dash.banner.pending.other':
+        'Una vocha @count zinazosubiri uangalizi wako.',
+    'dash.banner.pending.employee':
+        'Kamilisha rasimu zako na ujibu mabadiliko yaliyoombwa ili ziendelee.',
+    'dash.banner.pending.hod':
+        'Kila moja inahitaji sahihi yako kabla ya kuendelea kwenye hatua ya idhini.',
+    'dash.banner.pending.approver':
+        'Kila moja imefika kwenye hatua yako ya idhini.',
+    'dash.banner.pending.cashier':
+        'Kila moja imeidhinishwa na iko tayari kulipwa.',
+    'dash.banner.pending.admin':
+        'Hizi zimekaa kwenye hatua moja kwa siku 3 au zaidi.',
     'dash.banner.clear': 'Hakuna kinachohitaji uangalizi wako.',
-    'dash.banner.clear.employee': 'Kila ulichowasilisha kinashughulikiwa au tayari kimepitiwa.',
+    'dash.banner.clear.employee':
+        'Kila ulichowasilisha kinashughulikiwa au tayari kimepitiwa.',
     'dash.banner.clear.hod': 'Hakuna vocha zinazosubiri sahihi yako.',
     'dash.banner.clear.approver': 'Hakuna vocha zinazosubiri idhini yako.',
     'dash.banner.clear.cashier': 'Kila vocha iliyoidhinishwa imelipwa.',
@@ -775,7 +845,8 @@ class VfTranslations extends Translations {
     'dash.stat.trailingRevenue': 'Mapato, miezi 12 iliyopita',
     'dash.stat.totalUsers': 'Jumla ya watumiaji',
     'dash.stat.totalVouchers': 'Jumla ya vocha',
-    'dash.stat.pendingApprovedRejected': 'Zinasubiri / zimeidhinishwa / zimekataliwa',
+    'dash.stat.pendingApprovedRejected':
+        'Zinasubiri / zimeidhinishwa / zimekataliwa',
     'dash.stat.needsAttention': 'Zinahitaji uangalizi',
     'dash.stat.outstanding': 'Hazijalipwa',
     'dash.sub.allTime': 'Tangu mwanzo',
@@ -796,7 +867,8 @@ class VfTranslations extends Translations {
     'dash.sub.vsLastMonth': '@amount mwezi uliopita',
     'dash.sub.noPriorMonth': 'Hakuna vocha mwezi uliopita',
     'dash.sub.submissionToApproval': 'Kutoka kuwasilishwa hadi kuidhinishwa',
-    'dash.sub.companyMix': '@active hai · @trial kwenye jaribio · @atRisk hatarini',
+    'dash.sub.companyMix':
+        '@active hai · @trial kwenye jaribio · @atRisk hatarini',
     'dash.sub.invoicesPaidThisMonth': 'Ankara zilizolipwa mwezi huu',
     'dash.sub.collected': 'Zilizokusanywa',
     'dash.sub.acrossCompanies': 'Katika kampuni zote',
@@ -865,6 +937,7 @@ class VfTranslations extends Translations {
     'decision.signature': 'Sahihi yako',
     'decision.decision': 'Uamuzi wako',
     'voucher.submitConfirm': 'Wasilisha vocha?',
-    'voucher.submitConfirmBody': 'Itakwenda kwa Mkuu wa Idara kwa sahihi, kisha kwa mwidhinishaji kwa uamuzi. Ikishawasilishwa, haiwezi kuhaririwa tena.',
+    'voucher.submitConfirmBody':
+        'Itakwenda kwa Mkuu wa Idara kwa sahihi, kisha kwa mwidhinishaji kwa uamuzi. Ikishawasilishwa, haiwezi kuhaririwa tena.',
   };
 }

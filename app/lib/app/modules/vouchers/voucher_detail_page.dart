@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -48,6 +50,34 @@ class VoucherDetailController extends GetxController {
       error.value = 'state.offline'.tr;
     } finally {
       loading.value = false;
+    }
+  }
+
+  /// Adds a photo of a receipt or document — also after approval and payment,
+  /// when the voucher's details are locked but its paperwork is not.
+  Future<void> addDocument(ImageSource source) async {
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    busy.value = true;
+    try {
+      await repo.attach(voucherId, [
+        await http.MultipartFile.fromPath('files[]', picked.path),
+      ]);
+      await load();
+      showToast('voucher.receiptAdded'.tr);
+    } on ApiException catch (e) {
+      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
+    } catch (_) {
+      showToast(
+        'state.error'.tr,
+        body: 'state.offline'.tr,
+        kind: ToastKind.bad,
+      );
+    } finally {
+      busy.value = false;
     }
   }
 
@@ -209,7 +239,7 @@ class VoucherDetailPage extends StatelessWidget {
                 title: 'voucher.attachments'.tr,
                 icon: Icons.attach_file,
                 count: v.attachments.length,
-                child: _Details(voucher: v),
+                child: _Details(voucher: v, controller: controller),
               ),
               Disclosure(
                 title: 'voucher.timeline'.tr,
@@ -284,7 +314,9 @@ class _Header extends StatelessWidget {
 }
 
 class _Details extends StatelessWidget {
-  const _Details({required this.voucher});
+  const _Details({required this.voucher, required this.controller});
+
+  final VoucherDetailController controller;
 
   final Voucher voucher;
 
@@ -356,6 +388,39 @@ class _Details extends StatelessWidget {
                   ),
                 )
                 .toList(),
+          ),
+        ],
+        if (voucher.actions.attach) ...[
+          const SizedBox(height: 14),
+          if (voucher.status == 'approved' || voucher.status == 'paid')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'voucher.receiptNote'.tr,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          Obx(
+            () => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: controller.busy.value
+                      ? null
+                      : () => controller.addDocument(ImageSource.camera),
+                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                  label: Text('voucher.addReceiptCamera'.tr),
+                ),
+                OutlinedButton.icon(
+                  onPressed: controller.busy.value
+                      ? null
+                      : () => controller.addDocument(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined, size: 18),
+                  label: Text('voucher.addReceiptGallery'.tr),
+                ),
+              ],
+            ),
           ),
         ],
       ],

@@ -194,6 +194,8 @@ export default function VoucherDetailPage() {
     }
   }
 
+  const afterDecision = voucher?.status === "approved" || voucher?.status === "paid";
+
   async function attach(files: File[]) {
     if (!voucher || !files.length) return;
     setUploading(true);
@@ -417,16 +419,21 @@ export default function VoucherDetailPage() {
           <section className="vf-panel no-print">
             <div className="vf-panel-head">
               <h2 className="app-panel-title">{t("attachments")}{voucher.attachments && voucher.attachments.length > 0 && <span className="vf-count">{voucher.attachments.length}</span>}</h2>
-              {a?.edit && (
+              {(a?.attach ?? a?.edit) && (
                 <label className={`btn btn-secondary btn-sm${uploading ? " is-busy" : ""}`}>
                   {uploading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <Icon name="ph-paperclip" size={15} />}
-                  {t("add")}
+                  {afterDecision ? t("addReceipt") : t("add")}
                   <input type="file" multiple accept={ACCEPT_ATTRIBUTE} hidden disabled={uploading}
                     onChange={(e) => { void attach(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
                 </label>
               )}
             </div>
             <div className="vf-panel-pad">
+              {/* Receipts often arrive after the money is released, so an approved
+                  or paid voucher still takes documents — its details stay locked. */}
+              {afterDecision && a?.attach && (
+                <p className="app-muted-line" style={{ marginBottom: 10 }}><Icon name="ph-info" size={15} /> {t("attachAfterPaymentNote")}</p>
+              )}
               {voucher.attachments && voucher.attachments.length > 0 ? (
                 <ul className="vf-files">
                   {voucher.attachments.map((file) => (
@@ -441,7 +448,9 @@ export default function VoucherDetailPage() {
                         <span className="vf-file-icon"><Icon name={file.icon || "ph-file"} size={20} /></span>
                         <span className="vf-file-text">
                           <span className="vf-file-name">{file.name}</span>
-                          <span className="vf-file-size">{file.size}</span>
+                          <span className="vf-file-size">
+                            {[file.size, file.uploaded_by, file.created_at ? formatDate(file.created_at, locale) : null].filter(Boolean).join(" · ")}
+                          </span>
                         </span>
                         <Icon name="ph-arrow-square-out" size={15} style={{ color: "var(--text-faint)" }} />
                       </button>

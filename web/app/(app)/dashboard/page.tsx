@@ -189,6 +189,9 @@ export default function DashboardPage() {
                   <h2 id="queue-title">{tr(`dash.queue.${view}`, t("needsYourAction"))}</h2>
                   <span className="vf-count">{queue.length}</span>
                 </div>
+                {view === "approver" && queue.length > 1 && (
+                  <Link className="btn btn-ghost btn-sm" href="/approvals"><Icon name="ph-checks" size={14} /> {t("approveSelected")}…</Link>
+                )}
                 {queueTotal && (
                   <div className="app-queue-total">{t("total")} <strong className="tnum">{queueTotal}</strong></div>
                 )}

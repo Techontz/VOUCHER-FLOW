@@ -181,6 +181,7 @@ class WorkflowEngine
             'print' => false,
             'download' => false,
             'pay' => false,
+            'attach' => false,
         ];
 
         $isOwner = $voucher->requester_id === $user->id;
@@ -213,6 +214,15 @@ class WorkflowEngine
         if (($isOwner || $isAdmin) && $voucher->status === Voucher::STATUS_IN_REVIEW) {
             $actions['cancel'] = true;
         }
+
+        // Documents may still arrive once the money is released — a supplier's
+        // receipt usually comes after payment. So an approved or paid voucher
+        // stays open for attachments from its requester, whoever pays (or paid)
+        // it and the company admin, even though its details are locked.
+        $actions['attach'] = $actions['edit'] || (
+            in_array($voucher->status, [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID], true)
+            && ($isOwner || $isAdmin || $voucher->paid_by_id === $user->id || $this->canPay($user, $voucher))
+        );
 
         // Payment is not another review step. The approval chain ends when the
         // last approver signs off; releasing the money is a separate function,

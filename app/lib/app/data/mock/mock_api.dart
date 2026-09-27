@@ -234,6 +234,29 @@ class MockApi {
       };
     }
 
+    if (path == '/vouchers/bulk-approve' && method == 'POST') {
+      // Each voucher through the same single-approval handler, so the same
+      // refusals apply; anything refused is reported as skipped.
+      final approved = <Map<String, dynamic>>[];
+      final skipped = <Map<String, dynamic>>[];
+      for (final raw in (body['ids'] as List? ?? const [])) {
+        final id = int.tryParse('$raw') ?? 0;
+        try {
+          final result = await handle(
+            'POST',
+            '/vouchers/$id/approve',
+            body: {'comment': body['comment']},
+          );
+          approved.add({
+            'id': id,
+            'number': (result as Map)['data']?['number'],
+          });
+        } on ApiException catch (e) {
+          skipped.add({'id': id, 'number': null, 'reason': e.message});
+        }
+      }
+      return {'approved': approved, 'skipped': skipped};
+    }
     if (path == '/vouchers' && method == 'GET') return _index(query);
     if (path == '/vouchers' && method == 'POST') return _create(body);
 
@@ -814,6 +837,12 @@ class MockApi {
       a['delete'] = v.status == 'draft';
     }
     if (mine && v.status == 'in_review') a['cancel'] = true;
+    // Receipts arrive after payment: an approved or paid voucher still takes
+    // documents from its requester (and admins), as on the server.
+    a['attach'] =
+        a['edit']! ||
+        ((v.status == 'approved' || v.status == 'paid') &&
+            (mine || me.role == 'company_admin'));
 
     if (canAct && step != null) {
       if (step.canSign && !signedHere) a['sign'] = true;

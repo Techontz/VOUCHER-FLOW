@@ -73,6 +73,7 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
         Route::get('/', [VoucherController::class, 'index']);
         Route::get('pending', [VoucherController::class, 'pending']);
         Route::get('awaiting-payment', [VoucherController::class, 'awaitingPayment']);
+        Route::post('bulk-approve', [VoucherController::class, 'bulkApprove'])->middleware(['subscription', 'throttle:30,1']);
         Route::post('/', [VoucherController::class, 'store'])->middleware('subscription');
         Route::get('{voucher}', [VoucherController::class, 'show']);
         Route::put('{voucher}', [VoucherController::class, 'update'])->middleware('subscription');

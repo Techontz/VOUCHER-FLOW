@@ -125,7 +125,7 @@ class AuthController extends Controller
 
         RateLimiter::clear($key);
 
-        if (! $this->twoFactor->enabled()) {
+        if (! $this->twoFactor->requiredFor($user)) {
             return $this->completeSignIn($request, $user, $data['device_name'] ?? null);
         }
 

@@ -322,4 +322,28 @@ void main() {
       );
     },
   );
+
+  test('the CEO approves several reviewed vouchers at once', () async {
+    await signIn('emmanuel@watercom.test');
+    final pending =
+        (await api.handle('GET', '/vouchers/pending'))['data'] as List;
+    final ready = pending
+        .cast<Map<String, dynamic>>()
+        .where((v) => (v['actions'] as Map)['approve'] == true)
+        .map((v) => v['id'] as int)
+        .toList();
+    expect(ready.length, greaterThan(1));
+
+    final result =
+        await api.handle(
+              'POST',
+              '/vouchers/bulk-approve',
+              body: {'ids': ready, 'confirm': true},
+            )
+            as Map<String, dynamic>;
+    expect((result['approved'] as List).length, ready.length);
+    for (final id in ready) {
+      expect((await show(id))['status'], 'approved');
+    }
+  });
 }

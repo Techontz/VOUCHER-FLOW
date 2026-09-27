@@ -92,6 +92,20 @@ class VoucherRepository {
   Future<Voucher> approve(int id, {String? comment, String? signature}) =>
       act(id, 'approve', body: {'comment': comment, 'signature': signature});
 
+  /// Approves several reviewed vouchers in one go; each goes through the same
+  /// server-side approval as a single one. Returns what was approved and skipped.
+  Future<Map<String, dynamic>> bulkApprove(
+    List<int> ids, {
+    String? comment,
+  }) async => Map<String, dynamic>.from(
+    await _api.post('/vouchers/bulk-approve', {
+          'ids': ids,
+          'comment': comment,
+          'confirm': true,
+        })
+        as Map,
+  );
+
   Future<Voucher> reject(int id, String comment) =>
       act(id, 'reject', body: {'comment': comment});
 

@@ -37,6 +37,29 @@ class TwoFactorLogin
     }
 
     /**
+     * Whether this person must enter a code. Accounts on reserved demo/test
+     * domains cannot receive one, so they are let through on the password.
+     */
+    public function requiredFor(User $user): bool
+    {
+        if (! $this->enabled()) {
+            return false;
+        }
+
+        $domain = mb_strtolower((string) substr(strrchr((string) $user->email, '@') ?: '', 1));
+
+        foreach ((array) config('vouchflow.two_factor_skip_domains', []) as $skip) {
+            $skip = mb_strtolower(ltrim($skip, '.'));
+
+            if ($skip !== '' && ($domain === $skip || str_ends_with($domain, '.'.$skip))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Opens a challenge for a user whose password has just been accepted.
      *
      * @return array{requires_verification: true, challenge: string, channels: list<array{channel: string, destination: string}>, sent_to: ?string, expires_in: int, code_expires_in: ?int, resend_in: ?int}

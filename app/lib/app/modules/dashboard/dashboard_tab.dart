@@ -203,6 +203,19 @@ class DashboardTab extends GetView<DashboardController> {
                     ? null
                     : Text(d.queueTotalText, style: theme.textTheme.bodySmall),
               ),
+              if (view == 'approver' && d.queue.length > 1) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      await Get.toNamed(Routes.bulkApprove);
+                      await controller.load();
+                    },
+                    icon: const Icon(Icons.done_all, size: 18),
+                    label: Text('bulk.title'.tr),
+                  ),
+                ),
+              ],
               ...d.queue.map(
                 (v) => VoucherCard(voucher: v, onReturn: controller.load),
               ),

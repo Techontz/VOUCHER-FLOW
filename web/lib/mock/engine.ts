@@ -85,7 +85,7 @@ export interface Actions {
   view: boolean; edit: boolean; delete: boolean; submit: boolean;
   sign: boolean; submit_signed: boolean; approve: boolean; reject: boolean;
   request_changes: boolean; pay: boolean; cancel: boolean; comment: boolean;
-  print: boolean; download: boolean;
+  print: boolean; download: boolean; attach: boolean;
 }
 
 /** The single source the list, the detail screen and the mobile app all read. */
@@ -94,7 +94,7 @@ export function availableActions(db: MockDataset, user: MockUser, voucher: MockV
     view: true, edit: false, delete: false, submit: false,
     sign: false, submit_signed: false, approve: false, reject: false,
     request_changes: false, pay: false, cancel: false, comment: true,
-    print: false, download: false,
+    print: false, download: false, attach: false,
   };
 
   const isOwner = voucher.requester_id === user.id;
@@ -118,6 +118,12 @@ export function availableActions(db: MockDataset, user: MockUser, voucher: MockV
   if ((isOwner || isAdmin) && (voucher.status === "in_review" || voucher.status === "approved")) {
     a.cancel = true;
   }
+
+  // Receipts arrive after payment: an approved or paid voucher still takes
+  // documents from its requester, whoever pays it, and admins.
+  const payer = (db.workflows.find((w) => w.id === voucher.workflow_id)?.steps ?? [])
+    .some((s) => s.can_pay && canActOnStep(db, user, voucher, s));
+  a.attach = a.edit || ((voucher.status === "approved" || voucher.status === "paid") && (isOwner || isAdmin || payer));
 
   if (!step || !canActOnStep(db, user, voucher, step)) return a;
 

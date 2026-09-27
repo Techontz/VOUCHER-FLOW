@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'app/modules/approvals/bulk_approve_page.dart';
 import 'app/core/theme.dart';
 import 'app/core/translations.dart';
 import 'app/data/services/api_service.dart';
@@ -84,6 +85,7 @@ class VouchFlowApp extends StatelessWidget {
           }),
         ),
         GetPage(name: Routes.voucher, page: () => const VoucherDetailPage()),
+        GetPage(name: Routes.bulkApprove, page: () => const BulkApprovePage()),
         GetPage(
           name: Routes.branding,
           page: () => const BrandingPage(),

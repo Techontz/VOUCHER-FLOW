@@ -685,8 +685,8 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
          * server, and api.download() already says so.
          */
         case "attachments": {
-          if (!actions.edit) {
-            throw new MockError(403, "Attachments can only be added while the voucher is editable.");
+          if (!actions.attach) {
+            throw new MockError(403, "You cannot add attachments to this voucher.");
           }
 
           const raw = body["files[]"] ?? body.files;
@@ -758,6 +758,31 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
 
       return { data: voucherResource(store.db, store.db.vouchers.find((v) => v.id === id)!, user, true) };
     }
+  }
+
+  // Bulk approval: each voucher through the same single-approval handler, so
+  // the same refusals apply; anything refused is reported as skipped.
+  if (method === "POST" && path === "/vouchers/bulk-approve") {
+    if (!body.confirm) throw new MockError(422, "Confirm that you have reviewed these vouchers.", { confirm: ["Confirm that you have reviewed these vouchers."] });
+    const ids = (Array.isArray(body.ids) ? body.ids : []).map(Number);
+    const approved: { id: number; number: string }[] = [];
+    const skipped: { id: number; number: string | null; reason: string }[] = [];
+    for (const vid of ids) {
+      try {
+        const detail = handle("GET", `/vouchers/${vid}`, {}, {}, token) as {
+          data: { number: string; actions?: { approve?: boolean; sign?: boolean }; current_step?: { capabilities?: Record<string, boolean> } | null };
+        };
+        const approving = Boolean(detail.data.current_step?.capabilities?.approve);
+        // Never sign a step that cannot then approve: a sign-only step is not bulk-approvable.
+        if (!detail.data.actions?.approve && !(detail.data.actions?.sign && approving)) throw new Error("Not awaiting your approval.");
+        if (!detail.data.actions?.approve) handle("POST", `/vouchers/${vid}/sign`, {}, {}, token);
+        handle("POST", `/vouchers/${vid}/approve`, { comment: body.comment ?? null }, {}, token);
+        approved.push({ id: vid, number: detail.data.number });
+      } catch (err) {
+        skipped.push({ id: vid, number: null, reason: err instanceof Error ? err.message : "Could not be approved." });
+      }
+    }
+    return { approved, skipped, message: `${approved.length} approved, ${skipped.length} skipped.` };
   }
 
   if (method === "POST" && path === "/vouchers") {

@@ -271,6 +271,87 @@ class VoucherController extends Controller
     }
 
     /**
+     * Approves several vouchers in one go, after the approver has reviewed them.
+     *
+     * Each voucher goes through exactly the same engine call as a single
+     * approval — same permission checks, signature, timeline, notifications and
+     * audit entry — one at a time, so one refusal never blocks the others. A
+     * step that must be signed before it approves is signed with the
+     * approver's saved signature; without one, that voucher is left for them
+     * to open and sign individually. Anything the caller may not approve right
+     * now (another step, another department, another company) is skipped and
+     * reported, never approved.
+     */
+    public function bulkApprove(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:50'],
+            'ids.*' => ['integer', 'distinct'],
+            'comment' => ['nullable', 'string', 'max:2000'],
+            'confirm' => ['accepted'],
+        ], [
+            'confirm.accepted' => 'Confirm that you have reviewed these vouchers.',
+        ]);
+
+        $user = $request->user();
+        $approved = [];
+        $skipped = [];
+
+        // The tenant scope keeps other companies' vouchers out of this lookup.
+        $vouchers = Voucher::with('workflow.steps')->whereIn('id', $data['ids'])->get()->keyBy('id');
+
+        foreach ($data['ids'] as $id) {
+            $voucher = $vouchers->get($id);
+
+            if (! $voucher || Gate::forUser($user)->denies('view', $voucher)) {
+                $skipped[] = ['id' => $id, 'number' => null, 'reason' => 'Not found.'];
+
+                continue;
+            }
+
+            $actions = $this->engine->availableActions($user, $voucher);
+            $step = $this->engine->stepAt($voucher, $voucher->current_step_position);
+            $needsSignature = ! $actions['approve'] && $actions['sign'] && $step?->can_approve;
+
+            if (! $actions['approve'] && ! $needsSignature) {
+                $skipped[] = ['id' => $id, 'number' => $voucher->number, 'reason' => 'Not awaiting your approval.'];
+
+                continue;
+            }
+
+            if ($needsSignature && ! $user->signature_data) {
+                $skipped[] = ['id' => $id, 'number' => $voucher->number, 'reason' => 'This step needs your signature. Save a signature in your profile, or open the voucher to sign it.'];
+
+                continue;
+            }
+
+            try {
+                if ($needsSignature) {
+                    $voucher = $this->engine->sign($voucher, $user, null);
+                }
+
+                $this->engine->approve($voucher->fresh(), $user, $data['comment'] ?? null);
+                $approved[] = ['id' => $id, 'number' => $voucher->number];
+            } catch (\Throwable $e) {
+                report($e);
+                $skipped[] = ['id' => $id, 'number' => $voucher->number, 'reason' => $e instanceof \RuntimeException ? $e->getMessage() : 'Could not be approved.'];
+            }
+        }
+
+        if ($approved) {
+            $this->audit->log('voucher.bulk_approved', 'Approved '.count($approved).' vouchers in one action', null, null, [
+                'vouchers' => array_column($approved, 'number'),
+            ]);
+        }
+
+        return response()->json([
+            'approved' => $approved,
+            'skipped' => $skipped,
+            'message' => count($approved).' approved, '.count($skipped).' skipped.',
+        ]);
+    }
+
+    /**
      * Records the release of money against an approved voucher.
      *
      * What is asked for depends on the instrument: a bank voucher needs the

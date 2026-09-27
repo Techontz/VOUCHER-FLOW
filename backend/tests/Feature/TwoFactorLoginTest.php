@@ -343,6 +343,23 @@ class TwoFactorLoginTest extends TestCase
         Notification::assertNothingSent();
     }
 
+    public function test_accounts_on_reserved_demo_domains_skip_the_code(): void
+    {
+        $t = $this->makeTenant('Acme Trading');
+        $t['employee']->forceFill(['email' => 'demo@acme.test'])->save();
+        $t['ceo']->forceFill(['email' => 'ceo@acme.co.tz'])->save();
+        config(['vouchflow.two_factor_skip_domains' => ['test', 'example.com']]);
+
+        $this->login('demo@acme.test')
+            ->assertOk()
+            ->assertJsonStructure(['token', 'user', 'company'])
+            ->assertJsonMissingPath('requires_verification');
+
+        $this->login('ceo@acme.co.tz')
+            ->assertOk()
+            ->assertJsonPath('requires_verification', true);
+    }
+
     public function test_the_otp_endpoints_can_no_longer_sign_anyone_in(): void
     {
         $t = $this->makeTenant('Acme Trading');

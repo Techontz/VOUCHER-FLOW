@@ -36,6 +36,7 @@ const NAV: Record<Role, NavItem[]> = {
   // A manager is department-bound like an HOD: approvals for their own department.
   manager: [
     { href: "/dashboard", label: "approvals", icon: "ph-list-checks", badge: "pending" },
+    { href: "/approvals", label: "bulkApprove", short: "approvals", icon: "ph-checks" },
     { href: "/vouchers", label: "deptRegister", short: "vouchers", icon: "ph-receipt" },
     { href: "/vouchers/new", label: "createVoucher", icon: "ph-plus-circle" },
     { href: "/reports", label: "reports", icon: "ph-chart-line" },
@@ -44,6 +45,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   ceo: [
     { href: "/dashboard", label: "finalApprovals", short: "approvals", icon: "ph-seal-check", badge: "pending" },
+    { href: "/approvals", label: "bulkApprove", short: "approvals", icon: "ph-checks" },
     { href: "/vouchers", label: "voucherRegister", short: "vouchers", icon: "ph-receipt" },
     { href: "/vouchers/new", label: "createVoucher", icon: "ph-plus-circle" },
     { href: "/reports", label: "reports", icon: "ph-chart-line" },
@@ -59,6 +61,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   finance: [
     { href: "/dashboard", label: "approvals", icon: "ph-list-checks", badge: "pending" },
+    { href: "/approvals", label: "bulkApprove", short: "approvals", icon: "ph-checks" },
     { href: "/vouchers", label: "voucherRegister", short: "vouchers", icon: "ph-receipt" },
     { href: "/payments", label: "paymentQueue", short: "payments", icon: "ph-wallet", badge: "payments" },
     { href: "/vouchers/new", label: "createVoucher", icon: "ph-plus-circle" },
@@ -68,6 +71,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   director: [
     { href: "/dashboard", label: "approvals", icon: "ph-list-checks", badge: "pending" },
+    { href: "/approvals", label: "bulkApprove", short: "approvals", icon: "ph-checks" },
     { href: "/vouchers", label: "voucherRegister", short: "vouchers", icon: "ph-receipt" },
     { href: "/reports", label: "reports", icon: "ph-chart-line" },
     { href: "/notifications", label: "notifications", icon: "ph-bell", badge: "notifications" },
