@@ -1,1806 +1,942 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
-import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
 import '../../data/models/models.dart';
-import '../../data/services/api_service.dart';
-import '../../data/services/session_service.dart';
-import '../../data/services/voucher_repository.dart';
 import '../../widgets/common.dart';
 import '../../widgets/server_voucher_document.dart';
+import '../../widgets/stamps.dart';
 import '../../widgets/voucher_document.dart';
-import '../../widgets/signature_pad.dart';
+import '../../widgets/vf/vf.dart';
+import 'detail_bits.dart';
+import 'detail_controller.dart';
+import 'detail_dialogs.dart';
+import 'detail_sections.dart';
+import 'edit_voucher_page.dart' show openEditVoucher;
 
-class VoucherDetailController extends GetxController {
-  VoucherDetailController(this.voucherId);
+export 'detail_controller.dart' show VoucherDetailController;
 
-  final int voucherId;
-  final repo = Get.find<VoucherRepository>();
-  final session = Get.find<SessionService>();
-
-  final voucher = Rxn<Voucher>();
-  final loading = true.obs;
-  final error = RxnString();
-  final busy = false.obs;
-  final commentField = TextEditingController();
-
-  String? savedSignature;
-
-  @override
-  void onInit() {
-    super.onInit();
-    load();
-    repo
-        .savedSignature()
-        .then((value) => savedSignature = value)
-        .catchError((_) => null);
-  }
-
-  Future<void> load() async {
-    loading.value = true;
-    error.value = null;
-    try {
-      voucher.value = await repo.show(voucherId);
-    } on ApiException catch (e) {
-      error.value = e.isForbidden ? 'state.notAuthorisedBody'.tr : e.message;
-    } catch (_) {
-      error.value = 'state.offline'.tr;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  /// Adds a photo of a receipt or document — also after approval and payment,
-  /// when the voucher's details are locked but its paperwork is not.
-  Future<void> addDocument(ImageSource source) async {
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-    if (picked == null) return;
-    busy.value = true;
-    try {
-      await repo.attach(voucherId, [
-        await http.MultipartFile.fromPath('files[]', picked.path),
-      ]);
-      await load();
-      showToast('voucher.receiptAdded'.tr);
-    } on ApiException catch (e) {
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
-    } catch (_) {
-      showToast(
-        'state.error'.tr,
-        body: 'state.offline'.tr,
-        kind: ToastKind.bad,
-      );
-    } finally {
-      busy.value = false;
-    }
-  }
-
-  Future<void> run(
-    Future<Voucher> Function() action,
-    String title, [
-    String? body,
-  ]) async {
-    busy.value = true;
-    try {
-      voucher.value = await action();
-      showToast(title, body: body);
-      await session.refreshUnread();
-    } on ApiException catch (e) {
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
-    } catch (_) {
-      showToast(
-        'state.error'.tr,
-        body: 'state.offline'.tr,
-        kind: ToastKind.bad,
-      );
-    } finally {
-      busy.value = false;
-    }
-  }
-
-  /// Records one payment — all of the balance or part of it — then offers the
-  /// acknowledgement the receiver signs for that payment.
-  Future<void> pay({
-    required String method,
-    String? reference,
-    String? receivedBy,
-    String? receiverIdNumber,
-    String? comment,
-    double? amount,
-  }) async {
-    final v = voucher.value;
-    if (v == null) return;
-    final before = v.payments.map((p) => p.id).toSet();
-    busy.value = true;
-    Voucher updated;
-    try {
-      updated = await repo.pay(
-        voucherId,
-        isCash: v.isCash,
-        method: method,
-        reference: reference,
-        receivedBy: receivedBy,
-        receiverIdNumber: receiverIdNumber,
-        comment: comment,
-        amount: amount,
-      );
-      voucher.value = updated;
-      await session.refreshUnread();
-    } on ApiException catch (e) {
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
-      return;
-    } catch (_) {
-      showToast(
-        'state.error'.tr,
-        body: 'state.offline'.tr,
-        kind: ToastKind.bad,
-      );
-      return;
-    } finally {
-      busy.value = false;
-    }
-
-    final fresh = updated.payments.where((p) => !before.contains(p.id));
-    final payment = fresh.isNotEmpty
-        ? fresh.reduce((a, b) => a.sequence >= b.sequence ? a : b)
-        : null;
-
-    showToast(
-      updated.isPartiallyPaid ? 'pay.partRecorded'.tr : 'pay.record'.tr,
-      body: updated.isPartiallyPaid
-          ? 'pay.balanceShort'.trParams({
-              'amount':
-                  updated.balanceText ??
-                  Fmt.money(updated.outstanding, updated.currency),
-            })
-          : '${updated.number} · ${payment?.amountText ?? updated.amountText}',
-    );
-    if (payment == null) return;
-
-    final printNow = await Get.dialog<bool>(
-      AlertDialog(
-        title: Text('pay.recordedTitle'.tr),
-        content: Text(
-          'pay.printAckPrompt'.trParams({
-            'amount': payment.amountText,
-            'reference': payment.reference,
-          }),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: Text('pay.later'.tr),
-          ),
-          FilledButton.icon(
-            onPressed: () => Get.back(result: true),
-            icon: const Icon(Icons.print_outlined, size: 18),
-            label: Text('pay.printAck'.tr),
-          ),
-        ],
-      ),
-    );
-    if (printNow == true) await printAcknowledgement(payment);
-  }
-
-  /// Prints the acknowledgement the receiver signs when taking the money.
-  Future<void> printAcknowledgement(VoucherPayment payment) async {
-    try {
-      final bytes = await repo.acknowledgementPdf(
-        voucherId,
-        payment.id,
-        lang: session.locale.value == 'sw' ? 'sw' : null,
-      );
-      await Printing.layoutPdf(
-        onLayout: (_) async => bytes,
-        name: 'acknowledgement-${payment.reference.replaceAll('/', '-')}',
-      );
-    } on ApiException catch (e) {
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
-    } catch (_) {
-      showToast(
-        'state.error'.tr,
-        body: 'state.offline'.tr,
-        kind: ToastKind.bad,
-      );
-    }
-  }
-
-  /// Files a photo of the receiver's signed acknowledgement against its
-  /// payment. The server decides who may; a refusal is shown, not hidden.
-  Future<void> uploadAcknowledgement(
-    VoucherPayment payment,
-    ImageSource source,
-  ) async {
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-    if (picked == null) return;
-    busy.value = true;
-    try {
-      voucher.value = await repo.uploadAcknowledgement(
-        voucherId,
-        payment.id,
-        await http.MultipartFile.fromPath('file', picked.path),
-      );
-      showToast('pay.ackUploaded'.tr, body: payment.reference);
-    } on ApiException catch (e) {
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
-    } catch (_) {
-      showToast(
-        'state.error'.tr,
-        body: 'state.offline'.tr,
-        kind: ToastKind.bad,
-      );
-    } finally {
-      busy.value = false;
-    }
-  }
-
-  /// Whether to offer filing a signed copy: an administrator, anyone who can
-  /// pay this voucher, or the cashier who made the payment.
-  bool canFileAcknowledgement(VoucherPayment payment) {
-    final me = session.user.value;
-    final v = voucher.value;
-    if (me == null || v == null) return false;
-    return me.role == 'company_admin' ||
-        v.actions.pay ||
-        (me.isCashier && payment.paidBy == me.name);
-  }
-
-  Future<void> postComment() async {
-    final text = commentField.text.trim();
-    if (text.isEmpty) return;
-    try {
-      await repo.comment(voucherId, text);
-      commentField.clear();
-      await load();
-    } on ApiException catch (e) {
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
-    }
-  }
-
-  Future<void> printPdf() async {
-    try {
-      final bytes = await repo.pdf(voucherId);
-      await Printing.layoutPdf(
-        onLayout: (_) async => bytes,
-        name: voucher.value?.number ?? 'voucher',
-      );
-    } on ApiException catch (e) {
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
-    }
-  }
-
-  Future<void> sharePdf() async {
-    final v = voucher.value;
-    final number = v?.number ?? 'voucher';
-    try {
-      final bytes = await repo.pdf(voucherId, download: true);
-      await Share.shareXFiles(
-        [
-          XFile.fromData(
-            bytes,
-            name: '$number.pdf',
-            mimeType: 'application/pdf',
-          ),
-        ],
-        subject: number,
-        text: v?.purpose,
-      );
-    } on ApiException {
-      // The PDF is generated server-side. Until it exists, share the voucher's
-      // own particulars rather than nothing.
-      if (v == null) return;
-      await Share.share(
-        [
-          '${v.number} · ${v.statusLabel}',
-          '${v.purpose} — ${v.payee}',
-          v.amountText,
-          if (v.amountInWords != null) v.amountInWords!,
-          if (v.verificationCode != null)
-            '${'voucher.verification'.tr}: ${v.verificationCode}',
-        ].join('\n'),
-        subject: v.number,
-      );
-    }
-  }
-
-  @override
-  void onClose() {
-    commentField.dispose();
-    super.onClose();
-  }
-}
-
-class VoucherDetailPage extends StatelessWidget {
+/// One voucher, arranged around the decision in front of the reader — the
+/// web's voucher page on a phone:
+///
+///   header      what it is, what it costs, where it stands, print/PDF/share
+///   decision    what this person may do now — straight from `voucher.actions`
+///   progress    who prepared, signed, approved and paid, and when
+///   details     the request, payments, attachments and discussion
+///   document    the voucher as the server prints it, in the company template
+///
+/// Nothing here is decided by role: every action comes from the workflow
+/// engine's `actions`, and every consequential one goes through a dialog that
+/// restates the voucher and amount.
+class VoucherDetailPage extends StatefulWidget {
   const VoucherDetailPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final id = Get.arguments as int;
-    final controller = Get.put(VoucherDetailController(id), tag: '$id');
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Obx(
-          () => Text(controller.voucher.value?.number ?? 'voucher.new'.tr),
-        ),
-        actions: [
-          Obx(() {
-            final v = controller.voucher.value;
-            if (v == null) return const SizedBox.shrink();
-            return Row(
-              children: [
-                if (v.actions.print)
-                  IconButton(
-                    tooltip: 'act.print'.tr,
-                    onPressed: controller.printPdf,
-                    icon: const Icon(Icons.print_outlined),
-                  ),
-                if (v.actions.download)
-                  IconButton(
-                    tooltip: 'act.share'.tr,
-                    onPressed: controller.sharePdf,
-                    icon: const Icon(Icons.ios_share),
-                  ),
-              ],
-            );
-          }),
-        ],
-      ),
-      body: Obx(() {
-        if (controller.loading.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (controller.error.value != null) {
-          return ErrorView(
-            message: controller.error.value!,
-            onRetry: controller.load,
-          );
-        }
-
-        final v = controller.voucher.value!;
-        return RefreshIndicator(
-          onRefresh: controller.load,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 120),
-            children: [
-              _Header(voucher: v),
-              const SizedBox(height: 18),
-
-              /* The document is the page. Everything secondary folds away
-                 beneath it, so what is on screen is what will print. */
-              // The server's rendering, in the company's voucher template;
-              // the native sheet stands in while it loads or if it cannot.
-              ServerVoucherDocument(
-                load: () => controller.repo.pdf(v.id),
-                refreshKey: [
-                  v.status,
-                  v.timeline.length,
-                  v.attachments.length,
-                  v.payments.length,
-                  v.amountPaid,
-                ].join('|'),
-                fallback: DocumentFrame(
-                  child: VoucherDocument(
-                    voucher: v,
-                    company: Get.find<SessionService>().company.value,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              if (v.payments.isNotEmpty || v.isPartiallyPaid)
-                Disclosure(
-                  title: 'pay.payments'.tr,
-                  icon: Icons.payments_outlined,
-                  count: v.payments.length,
-                  initiallyOpen: v.isPartiallyPaid,
-                  child: _Payments(voucher: v, controller: controller),
-                ),
-              Disclosure(
-                title: 'voucher.attachments'.tr,
-                icon: Icons.attach_file,
-                count: v.attachments.length,
-                child: _Details(voucher: v, controller: controller),
-              ),
-              Disclosure(
-                title: 'voucher.timeline'.tr,
-                icon: Icons.timeline_outlined,
-                count: v.timeline.length,
-                child: _Timeline(voucher: v),
-              ),
-              Disclosure(
-                title: 'voucher.comments'.tr,
-                icon: Icons.chat_bubble_outline,
-                count: v.comments.length,
-                child: _Comments(controller: controller, voucher: v),
-              ),
-            ],
-          ),
-        );
-      }),
-      bottomNavigationBar: Obx(() {
-        final v = controller.voucher.value;
-        if (v == null || !(v.actions.hasWorkflowAction || v.actions.submit)) {
-          return const SizedBox.shrink();
-        }
-        return _ActionBar(controller: controller, voucher: v);
-      }),
-    );
-  }
+  State<VoucherDetailPage> createState() => _VoucherDetailPageState();
 }
 
-/// Identity only. The document beneath carries the rest, so repeating the
-/// purpose, description and amount here would just push it off the screen.
-class _Header extends StatelessWidget {
-  const _Header({required this.voucher});
+class _VoucherDetailPageState extends State<VoucherDetailPage> {
+  late final int id = Get.arguments as int;
+  late final VoucherDetailController c = Get.put(
+    VoucherDetailController(id),
+    tag: '$id',
+  );
 
-  final Voucher voucher;
+  final _decisionKey = GlobalKey();
+  final _decisionHidden = false.obs;
+
+  @override
+  void dispose() {
+    Get.delete<VoucherDetailController>(tag: '$id');
+    super.dispose();
+  }
+
+  /// The sticky action bar only earns its place once the decision panel has
+  /// scrolled away — showing both at once is the same button twice.
+  bool _onScroll(ScrollNotification n) {
+    final box = _decisionKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) {
+      _decisionHidden.value = false;
+      return false;
+    }
+    final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+    final top = MediaQuery.paddingOf(context).top + VfSize.topBarH;
+    _decisionHidden.value = bottom < top;
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          voucher.number,
-          style: theme.textTheme.displaySmall,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    return Obx(() {
+      final v = c.voucher.value;
+      return VouchFlowPushedScaffold(
+        title: v?.number ?? dt('voucher'),
+        body: _body(context, v),
+        bottomBar: v == null ? null : _stickyBar(context, v),
+      );
+    });
+  }
+
+  Widget _body(BuildContext context, Voucher? v) {
+    if (c.loading.value && v == null) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(
+          VfSize.pagePad,
+          16,
+          VfSize.pagePad,
+          32,
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 6,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            KindChip(kind: voucher.kind, dense: false),
-            StatusChip(label: voucher.statusLabel, tag: voucher.displayTag),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          [
-            voucher.voucherTypeLabel,
-            voucher.departmentName,
-            Fmt.date(voucher.voucherDate),
-          ].whereType<String>().join(' · '),
-          style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: 10),
-        Text(voucher.amountText, style: theme.textTheme.headlineMedium),
-        if (voucher.isPartiallyPaid) ...[
-          const SizedBox(height: 4),
-          Text(
-            [
-              'pay.paidSoFarShort'.trParams({
-                'amount':
-                    voucher.amountPaidText ??
-                    Fmt.money(voucher.amountPaid, voucher.currency),
-              }),
-              'pay.balanceShort'.trParams({
-                'amount':
-                    voucher.balanceText ??
-                    Fmt.money(voucher.outstanding, voucher.currency),
-              }),
-            ].join(' · '),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: VfColors.warn,
-              fontWeight: FontWeight.w600,
+        children: const [VouchFlowLoadingState(rows: 3, rowHeight: 180)],
+      );
+    }
+    if (v == null) {
+      return ListView(
+        padding: const EdgeInsets.all(VfSize.pagePad),
+        children: [
+          if (c.forbidden.value)
+            VouchFlowCard(
+              child: VouchFlowEmptyState(
+                icon: PhosphorIconsRegular.lockKey,
+                title: dt('notAuthorised'),
+                body: c.error.value,
+                actionLabel: dt('register'),
+                onAction: () => Navigator.of(context).maybePop(),
+              ),
+            )
+          else
+            VouchFlowErrorState(
+              message: c.error.value ?? 'state.error'.tr,
+              onRetry: c.load,
+              retryLabel: 'action.retry'.tr,
             ),
-          ),
         ],
-      ],
-    );
-  }
-}
+      );
+    }
 
-class _Details extends StatelessWidget {
-  const _Details({required this.voucher, required this.controller});
-
-  final VoucherDetailController controller;
-
-  final Voucher voucher;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <(String, String)>[
-      ('voucher.payee'.tr, voucher.payee),
-      ('voucher.requester'.tr, voucher.requesterName ?? '—'),
-      ('voucher.method'.tr, voucher.paymentMethod ?? '—'),
-      ('voucher.category'.tr, voucher.category ?? '—'),
-      ('voucher.reference'.tr, voucher.accountRef ?? '—'),
-      ('voucher.costCentre'.tr, voucher.costCentre ?? '—'),
-      if (voucher.paymentReference != null)
-        ('pay.reference'.tr, voucher.paymentReference!),
-      if (voucher.paidAt != null) ('pay.on'.tr, Fmt.dateTime(voucher.paidAt)),
-      if (voucher.paidBy != null) ('pay.by'.tr, voucher.paidBy!),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Divider(),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 26,
-          runSpacing: 14,
-          children: rows
-              .map(
-                (row) => SizedBox(
-                  width: 150,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        row.$1.toUpperCase(),
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        row.$2,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ],
-                  ),
-                ),
+    final wide = MediaQuery.sizeOf(context).width >= 760;
+    final aside = [
+      KeyedSubtree(
+        key: _decisionKey,
+        child: DecisionPanel(controller: c, voucher: v),
+      ),
+      const SizedBox(height: 16),
+      DetailPanel(
+        title: dt('approvalProgress'),
+        child: v.timeline.isEmpty
+            ? Text(
+                dt('notStarted'),
+                style: VfType.small.copyWith(color: context.vf.muted),
               )
-              .toList(),
-        ),
-        if (voucher.attachments.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          Text(
-            'voucher.attachments'.tr,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: voucher.attachments
-                .map(
-                  (file) => Chip(
-                    avatar: Icon(
-                      file.isAcknowledgement
-                          ? Icons.verified_outlined
-                          : file.isImage
-                          ? Icons.image_outlined
-                          : Icons.picture_as_pdf_outlined,
-                      size: 16,
-                    ),
-                    label: Text('${file.name} · ${file.size}'),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
-        if (voucher.actions.attach) ...[
-          const SizedBox(height: 14),
-          if (voucher.status == 'approved' || voucher.status == 'paid')
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'voucher.receiptNote'.tr,
-                style: Theme.of(context).textTheme.bodySmall,
+            : ApprovalTrack(
+                rows: v.timeline,
+                youActHere: _hasDecision(v) && v.status != 'draft',
               ),
-            ),
-          Obx(
-            () => Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: controller.busy.value
-                      ? null
-                      : () => controller.addDocument(ImageSource.camera),
-                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                  label: Text('voucher.addReceiptCamera'.tr),
-                ),
-                OutlinedButton.icon(
-                  onPressed: controller.busy.value
-                      ? null
-                      : () => controller.addDocument(ImageSource.gallery),
-                  icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  label: Text('voucher.addReceiptGallery'.tr),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Every release of money against the voucher, with its acknowledgement.
-///
-/// Approved · paid so far · balance on top; beneath, one tile per payment
-/// with who took the money, and whether their signed copy is on file.
-class _Payments extends StatelessWidget {
-  const _Payments({required this.voucher, required this.controller});
-
-  final Voucher voucher;
-  final VoucherDetailController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final paid = voucher.payments.isEmpty
-        ? voucher.amountPaid
-        : voucher.payments.fold<double>(0, (sum, p) => sum + p.amount);
-    final paidSoFar = voucher.amountPaid > 0 ? voucher.amountPaid : paid;
-
-    Widget figure(String label, String value, {Color? colour}) => Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label.toUpperCase(), style: theme.textTheme.labelSmall),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: theme.textTheme.titleSmall?.copyWith(color: colour),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
       ),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Divider(),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            figure('pay.approvedAmount'.tr, voucher.amountText),
-            const SizedBox(width: 10),
-            figure(
-              'pay.paidSoFar'.tr,
-              voucher.amountPaidText ?? Fmt.money(paidSoFar, voucher.currency),
-            ),
-            const SizedBox(width: 10),
-            figure(
-              'pay.balance'.tr,
-              voucher.balanceText ??
-                  Fmt.money(voucher.outstanding, voucher.currency),
-              colour: voucher.outstanding > 0 ? VfColors.warn : VfColors.ok,
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        if (voucher.payments.isEmpty)
-          Text('pay.noPayments'.tr, style: theme.textTheme.bodySmall)
-        else
-          ...voucher.payments.map(
-            (p) => _PaymentTile(
-              payment: p,
-              voucher: voucher,
-              controller: controller,
-            ),
-          ),
+    ];
+    final main = [
+      RequestDetailsPanel(voucher: v),
+      if (v.payments.isNotEmpty ||
+          v.status == 'approved' ||
+          v.status == 'paid') ...[
+        const SizedBox(height: 16),
+        PaymentsPanel(controller: c, voucher: v),
       ],
-    );
-  }
-}
-
-class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({
-    required this.payment,
-    required this.voucher,
-    required this.controller,
-  });
-
-  final VoucherPayment payment;
-  final Voucher voucher;
-  final VoucherDetailController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final p = payment;
-    final reference = p.paymentReference ?? p.chequeNumber;
-
-    final rows = <(String, String)>[
-      ('pay.on'.tr, Fmt.date(p.paymentDate ?? p.paidAt)),
-      (
-        'voucher.method'.tr,
-        [p.paymentMethod, reference].whereType<String>().join(' · '),
-      ),
-      if (p.receivedBy != null)
-        (
-          'pay.receivedBy'.tr,
-          p.receiverIdNumber == null
-              ? p.receivedBy!
-              : '${p.receivedBy} (${'pay.idShort'.tr} ${p.receiverIdNumber})',
-        ),
-      if (p.paidBy != null) ('pay.by'.tr, p.paidBy!),
-      ('pay.balanceAfter'.tr, p.balanceAfterText),
-      if (p.note != null && p.note!.trim().isNotEmpty)
-        ('voucher.comments'.tr, p.note!),
+      const SizedBox(height: 16),
+      AttachmentsPanel(controller: c, voucher: v),
+      const SizedBox(height: 16),
+      CommentsPanel(controller: c, voucher: v),
+      const SizedBox(height: 16),
+      _DocumentPanel(controller: c, voucher: v),
+      const SizedBox(height: 16),
+      AuditTrail(voucher: v),
     ];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.vfElev1,
-        border: Border.all(color: context.vfLine),
-        borderRadius: BorderRadius.circular(VfTheme.rLg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: RefreshIndicator(
+        onRefresh: c.load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            VfSize.pagePad,
+            16,
+            VfSize.pagePad,
+            40,
+          ),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'pay.paymentN'.trParams({'n': '${p.sequence}'}) +
-                          (p.reference.isEmpty ? '' : ' · ${p.reference}'),
-                      style: theme.textTheme.bodySmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(p.amountText, style: theme.textTheme.titleLarge),
+                    DocumentHeader(controller: c, voucher: v),
+                    const SizedBox(height: 16),
+                    if (wide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: main,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          SizedBox(
+                            width: 330,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: aside,
+                            ),
+                          ),
+                        ],
+                      )
+                    else ...[
+                      ...aside,
+                      const SizedBox(height: 16),
+                      ...main,
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              StatusChip(
-                label: p.isAcknowledged
-                    ? 'pay.ackSigned'.tr
-                    : 'pay.ackAwaiting'.tr,
-                tag: p.isAcknowledged ? 'tag-accent' : 'tag-warn',
-                dense: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ...rows.map(
-            (row) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 118,
-                    child: Text(row.$1, style: theme.textTheme.bodySmall),
-                  ),
-                  Expanded(
-                    child: Text(
-                      row.$2.isEmpty ? '—' : row.$2,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ),
-          if (p.acknowledgedAt != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                'pay.ackFiledOn'.trParams({
-                  'date': Fmt.dateTime(p.acknowledgedAt),
-                }),
-                style: theme.textTheme.bodySmall?.copyWith(color: VfColors.ok),
-              ),
-            ),
-          const SizedBox(height: 10),
-          Obx(
-            () => Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: controller.busy.value
-                      ? null
-                      : () => controller.printAcknowledgement(p),
-                  icon: const Icon(Icons.print_outlined, size: 18),
-                  label: Text('pay.printAck'.tr),
-                ),
-                if (controller.canFileAcknowledgement(p))
-                  OutlinedButton.icon(
-                    onPressed: controller.busy.value
-                        ? null
-                        : () => _pickAcknowledgementSource(controller, p),
-                    icon: const Icon(Icons.upload_file_outlined, size: 18),
-                    label: Text(
-                      p.isAcknowledged
-                          ? 'pay.ackReplace'.tr
-                          : 'pay.ackUpload'.tr,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
 
-/// Camera or gallery for the signed copy.
-Future<void> _pickAcknowledgementSource(
-  VoucherDetailController controller,
-  VoucherPayment payment,
-) async {
-  final source = await Get.bottomSheet<ImageSource>(
-    SafeArea(
-      child: Builder(
-        builder: (context) => Container(
-          color: Theme.of(context).colorScheme.surface,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: Text(
-                  'pay.ackUpload'.tr,
-                  style: Theme.of(context).textTheme.titleMedium,
+  Widget? _stickyBar(BuildContext context, Voucher v) {
+    final primary = primaryDecision(v);
+    if (primary == null) return null;
+    return Obx(() {
+      if (!_decisionHidden.value) return const SizedBox.shrink();
+      final t = context.vf;
+      return Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          border: Border(top: BorderSide(color: t.border)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 16,
+              offset: Offset(0, -6),
+              spreadRadius: -10,
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Row(
+              children: [
+                if (v.actions.reject) ...[
+                  Tooltip(
+                    message: dt('reject'),
+                    child: Material(
+                      color: t.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(VfSize.radiusL),
+                        side: BorderSide(
+                          color: Color.lerp(
+                            t.dangerStrong,
+                            t.borderStrong,
+                            .55,
+                          )!,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => showReasonDialog(context, c, reject: true),
+                        child: SizedBox(
+                          width: VfSize.controlH,
+                          height: VfSize.controlH,
+                          child: Icon(
+                            PhosphorIconsRegular.x,
+                            size: 18,
+                            color: t.dangerStrong,
+                            semanticLabel: dt('reject'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: VouchFlowButton(
+                    label: primary.label,
+                    icon: primary.icon,
+                    expand: true,
+                    onPressed: () => primary.open(context, c),
+                  ),
                 ),
-                subtitle: Text('pay.ackUploadHint'.tr),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera_outlined),
-                title: Text('voucher.addReceiptCamera'.tr),
-                onTap: () => Get.back(result: ImageSource.camera),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: Text('voucher.addReceiptGallery'.tr),
-                onTap: () => Get.back(result: ImageSource.gallery),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-    ),
-  );
-  if (source == null) return;
-  await controller.uploadAcknowledgement(payment, source);
+      );
+    });
+  }
 }
 
-class _Timeline extends StatelessWidget {
-  const _Timeline({required this.voucher});
+bool _hasDecision(Voucher v) {
+  final a = v.actions;
+  return a.submit ||
+      a.sign ||
+      a.submitSigned ||
+      a.approve ||
+      a.reject ||
+      a.requestChanges ||
+      a.pay;
+}
 
+/// The one thing this person is asked to do, first among the actions.
+({
+  String label,
+  IconData icon,
+  Future<void> Function(BuildContext, VoucherDetailController) open,
+})?
+primaryDecision(Voucher v) {
+  final a = v.actions;
+  if (a.pay) {
+    return (
+      label: v.isPartiallyPaid
+          ? dt('payRemainingBalance')
+          : (v.isCash ? dt('releaseFunds') : dt('recordPayment')),
+      icon: PhosphorIconsRegular.wallet,
+      open: showPayDialog,
+    );
+  }
+  if (a.approve) {
+    return (
+      label: dt('approveVoucher'),
+      icon: PhosphorIconsRegular.sealCheck,
+      open: showApproveDialog,
+    );
+  }
+  if (a.sign) {
+    return (
+      label: dt('signVoucher'),
+      icon: PhosphorIconsRegular.signature,
+      open: showSignDialog,
+    );
+  }
+  if (a.submitSigned) {
+    return (
+      label: dt('submitSigned'),
+      icon: PhosphorIconsRegular.paperPlaneTilt,
+      open: (ctx, c) =>
+          showCommentActionDialog(ctx, c, CommentAction.submitSigned),
+    );
+  }
+  if (a.submit) {
+    return (
+      label: dt('submitApproval'),
+      icon: PhosphorIconsRegular.paperPlaneTilt,
+      open: (ctx, c) => showCommentActionDialog(ctx, c, CommentAction.submit),
+    );
+  }
+  return null;
+}
+
+/* ───────────────────────────────────────────────────────── the header ── */
+
+/// The document's identity, its figure, and what can be done with it.
+class DocumentHeader extends StatelessWidget {
+  const DocumentHeader({
+    super.key,
+    required this.controller,
+    required this.voucher,
+  });
+
+  final VoucherDetailController controller;
   final Voucher voucher;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final locale = Get.find<SessionService>().locale.value;
+    final t = context.vf;
+    final v = voucher;
+    final a = v.actions;
+    final facts = <(String, String)>[
+      (dt('payee'), v.payee),
+      (dt('requestedBy'), v.requesterName ?? '—'),
+      (dt('department'), v.departmentName ?? '—'),
+      (dt('date'), Fmt.date(v.voucherDate)),
+      (dt('paymentMethod'), v.paymentMethod ?? '—'),
+    ];
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        border: Border.all(color: theme.dividerColor),
-        borderRadius: BorderRadius.circular(2),
-      ),
+    Widget fact((String, String) f) => Padding(
+      padding: const EdgeInsets.fromLTRB(14, 9, 14, 9),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'voucher.timeline'.tr.toUpperCase(),
-            style: theme.textTheme.labelSmall,
+            f.$1,
+            style: VfType.meta.copyWith(fontSize: 12.5, color: t.muted),
           ),
-          const SizedBox(height: 14),
-          ...voucher.timeline.asMap().entries.map((entry) {
-            final row = entry.value;
-            final last = entry.key == voucher.timeline.length - 1;
+          const SizedBox(height: 2),
+          Text(
+            f.$2,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: VfType.body.copyWith(
+              fontWeight: FontWeight.w500,
+              color: t.text,
+            ),
+          ),
+        ],
+      ),
+    );
 
-            final colour = switch (row.state) {
-              'rejected' => VfColors.bad,
-              'done' => VfColors.accent500,
-              'current' => VfColors.warn,
-              _ => VfColors.lineStrong,
-            };
-            final icon = switch (row.state) {
-              'rejected' => Icons.cancel_outlined,
-              'done' => Icons.check_circle_outline,
-              'current' => Icons.hourglass_top_outlined,
-              _ => Icons.circle_outlined,
-            };
+    final rows = <Widget>[];
+    for (var i = 0; i < facts.length; i += 2) {
+      rows.add(
+        Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: t.border)),
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: fact(facts[i])),
+                if (i + 1 < facts.length) ...[
+                  VerticalDivider(width: 1, thickness: 1, color: t.border),
+                  Expanded(child: fact(facts[i + 1])),
+                ] else
+                  const Expanded(child: SizedBox()),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
-            return IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    children: [
-                      Icon(icon, size: 19, color: colour),
-                      if (!last)
-                        Expanded(
-                          child: Container(width: 1, color: theme.dividerColor),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: last ? 0 : 18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            row.step(locale).toUpperCase(),
-                            style: theme.textTheme.labelSmall,
-                          ),
-                          Text(
-                            row.label(locale),
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          Text(row.person, style: theme.textTheme.bodyMedium),
-                          Text(
-                            row.when == null
-                                ? row.action(locale)
-                                : '${row.action(locale)} · ${Fmt.dateTime(row.when)}',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${'voucher.permitted'.tr}: ${row.capabilityText}',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          if (decodeSignature(row.signature) != null) ...[
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(color: theme.dividerColor),
-                              ),
-                              child: Image.memory(
-                                decodeSignature(row.signature)!,
-                                height: 40,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, _, _) =>
-                                    const SizedBox.shrink(),
-                              ),
-                            ),
-                          ],
-                          if (row.comment != null) ...[
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.only(left: 10),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  left: BorderSide(
-                                    color: VfColors.accent500,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                row.comment!,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+    return VouchFlowCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      v.number,
+                      style: VfType.small.copyWith(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: t.text2,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.only(left: 8),
+                      decoration: BoxDecoration(
+                        border: Border(left: BorderSide(color: t.border)),
+                      ),
+                      child: Text(
+                        v.voucherTypeLabel ?? dt('voucher'),
+                        style: VfType.meta.copyWith(
+                          fontSize: 13,
+                          color: t.muted,
+                        ),
+                      ),
+                    ),
+                    VoucherKindTag(isCash: v.isCash),
+                    VoucherStatusBadge(voucher: v),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  v.purpose,
+                  style: VfType.sectionTitle.copyWith(
+                    color: t.text,
+                    fontSize: 19,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  dt('amount').toUpperCase(),
+                  style: VfType.eyebrow.copyWith(fontSize: 12, color: t.muted),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    v.amountText,
+                    style: VfType.figure.copyWith(
+                      fontSize: 26,
+                      color: t.text,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                if ((v.amountInWords ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    v.amountInWords!,
+                    style: VfType.meta.copyWith(fontSize: 13, color: t.muted),
+                  ),
+                ],
+                if (v.isPartiallyPaid && v.balanceText != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    dt('balanceAmount', {'amount': v.balanceText!}),
+                    style: VfType.meta.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: t.warning,
                     ),
                   ),
                 ],
-              ),
-            );
-          }),
-          if (voucher.verificationCode != null) ...[
-            const Divider(height: 24),
-            Text(
-              '${'voucher.verification'.tr}: ${voucher.verificationCode}',
-              style: theme.textTheme.bodySmall,
+              ],
             ),
-          ],
+          ),
+          ...rows,
+          Container(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: t.border)),
+            ),
+            child: Obx(() {
+              final working = controller.working.value;
+              return Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (a.print)
+                    VouchFlowButton(
+                      label: dt('print'),
+                      icon: PhosphorIconsRegular.printer,
+                      variant: VfButtonVariant.secondary,
+                      compact: true,
+                      loading: working == 'print',
+                      onPressed: working != null ? null : controller.printPdf,
+                    ),
+                  if (a.download) ...[
+                    VouchFlowButton(
+                      label: 'PDF',
+                      icon: PhosphorIconsRegular.downloadSimple,
+                      variant: VfButtonVariant.secondary,
+                      compact: true,
+                      loading: working == 'pdf',
+                      onPressed: working != null ? null : controller.sharePdf,
+                    ),
+                    VouchFlowIconButton(
+                      icon: PhosphorIconsRegular.shareNetwork,
+                      tooltip: dt('share'),
+                      size: 40,
+                      onPressed: controller.shareLink,
+                    ),
+                  ],
+                  if (a.edit)
+                    VouchFlowButton(
+                      label: dt('edit'),
+                      icon: PhosphorIconsRegular.pencilSimple,
+                      variant: VfButtonVariant.secondary,
+                      compact: true,
+                      onPressed: () async {
+                        if (await openEditVoucher(v.id)) await controller.load();
+                      },
+                    ),
+                  if (a.cancel)
+                    _DangerLink(
+                      icon: PhosphorIconsRegular.prohibit,
+                      label: dt('cancelVoucher'),
+                      onTap: () => showCommentActionDialog(
+                        context,
+                        controller,
+                        CommentAction.cancel,
+                      ),
+                    ),
+                  if (a.delete)
+                    _DangerLink(
+                      icon: PhosphorIconsRegular.trash,
+                      label: dt('delete'),
+                      onTap: () async {
+                        final gone = await showDeleteDialog(
+                          context,
+                          controller,
+                        );
+                        if (gone && context.mounted) {
+                          Navigator.of(context).maybePop(true);
+                        }
+                      },
+                    ),
+                ],
+              );
+            }),
+          ),
         ],
       ),
     );
   }
 }
 
-class _Comments extends StatelessWidget {
-  const _Comments({required this.controller, required this.voucher});
+class _DangerLink extends StatelessWidget {
+  const _DangerLink({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
-  final VoucherDetailController controller;
-  final Voucher voucher;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('voucher.comments'.tr, style: theme.textTheme.titleMedium),
-        const SizedBox(height: 10),
-        ...voucher.comments.map(
-          (comment) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 15,
-                  backgroundColor: VfColors.accent700,
-                  child: Text(
-                    comment.authorInitials,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: VfColors.accentInk,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${comment.authorName} · ${Fmt.relative(comment.createdAt)}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      Text(comment.body, style: theme.textTheme.bodyMedium),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+    final t = context.vf;
+    return TextButton.icon(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        foregroundColor: t.dangerStrong,
+        minimumSize: const Size(44, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(VfSize.radiusL),
         ),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller.commentField,
-                decoration: InputDecoration(
-                  hintText: 'voucher.addComment'.tr,
-                  isDense: true,
-                ),
-                onSubmitted: (_) => controller.postComment(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              onPressed: controller.postComment,
-              icon: const Icon(Icons.send, size: 18),
-            ),
-          ],
-        ),
-      ],
+      ),
+      icon: Icon(icon, size: 15),
+      label: Text(label, style: VfType.label.copyWith(color: t.dangerStrong)),
     );
   }
 }
 
-/// The action bar mirrors the API's own permission flags — the app never
-/// decides for itself what a step may do.
-class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.controller, required this.voucher});
+/* ─────────────────────────────────────────────────────── the decision ── */
+
+/// What this person may do now — or, with nothing to do, where it stands.
+class DecisionPanel extends StatelessWidget {
+  const DecisionPanel({
+    super.key,
+    required this.controller,
+    required this.voucher,
+  });
 
   final VoucherDetailController controller;
   final Voucher voucher;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final a = voucher.actions;
-    final signOnly =
-        (a.sign || a.submitSigned) &&
-        !a.approve &&
-        !voucher.currentStepCanApprove;
+    final t = context.vf;
+    final v = voucher;
+    final a = v.actions;
+    final primary = primaryDecision(v);
 
-    return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Signing and deciding are different acts: a sign-only step is
-          // headed "Your signature" and says plainly who decides.
-          if (signOnly || a.approve || a.reject)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+    if (!_hasDecision(v)) {
+      final paid = v.status == 'paid';
+      return VouchFlowCard(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: paid ? t.successSoft : t.surface3,
+                borderRadius: BorderRadius.circular(VfSize.radiusM),
+              ),
+              child: Icon(
+                paid
+                    ? PhosphorIconsRegular.checkCircle
+                    : v.isTerminal
+                    ? PhosphorIconsRegular.archive
+                    : PhosphorIconsRegular.hourglassMedium,
+                size: 20,
+                color: paid ? t.success : t.text2,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    (signOnly ? 'decision.signature' : 'decision.decision').tr
-                        .toUpperCase(),
-                    style: theme.textTheme.labelSmall,
+                    v.isTerminal ? v.statusLabel : dt('noAction'),
+                    style: VfType.cardTitle.copyWith(color: t.text),
                   ),
-                  if (signOnly) ...[
-                    const SizedBox(height: 4),
-                    Text('sign.noApprove'.tr, style: theme.textTheme.bodySmall),
-                  ],
+                  const SizedBox(height: 2),
+                  Text(
+                    v.isTerminal ? dt('historyInReports') : v.statusLabel,
+                    style: VfType.small.copyWith(color: t.muted),
+                  ),
                 ],
               ),
             ),
-          Row(
-            children: [
-              if (a.requestChanges)
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () =>
-                        _reason(context, controller, isReject: false),
-                    child: Text(
-                      'act.requestChanges'.tr,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              if (a.requestChanges && a.reject) const SizedBox(width: 8),
-              if (a.reject)
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: VfColors.bad,
-                      side: const BorderSide(color: VfColors.bad),
-                    ),
-                    onPressed: () =>
-                        _reason(context, controller, isReject: true),
-                    child: Text('act.reject'.tr),
-                  ),
-                ),
-            ],
-          ),
-          if (a.requestChanges || a.reject) const SizedBox(height: 8),
-          if (a.submit)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () async {
-                  final confirmed = await Get.dialog<bool>(
-                    AlertDialog(
-                      title: Text('voucher.submitConfirm'.tr),
-                      content: Text('voucher.submitConfirmBody'.tr),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Get.back(result: false),
-                          child: Text('action.cancel'.tr),
-                        ),
-                        FilledButton(
-                          onPressed: () => Get.back(result: true),
-                          child: Text('voucher.submit'.tr),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirmed != true) return;
-                  await controller.run(
-                    () => controller.repo.submit(voucher.id),
-                    'msg.submitted'.tr,
-                  );
-                },
-                icon: const Icon(Icons.send_outlined, size: 18),
-                label: Text('voucher.submit'.tr),
-              ),
-            ),
-          if (a.sign)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _sign(context, controller, approve: false),
-                icon: const Icon(Icons.draw_outlined, size: 18),
-                label: Text('act.sign'.tr),
-              ),
-            ),
-          if (a.submitSigned)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => controller.run(
-                  () => controller.repo.submitSigned(voucher.id),
-                  'msg.forwarded'.tr,
-                ),
-                icon: const Icon(Icons.forward_outlined, size: 18),
-                label: Text('act.submitSigned'.tr),
-              ),
-            ),
-          if (a.approve)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _sign(context, controller, approve: true),
-                icon: const Icon(Icons.verified_outlined, size: 18),
-                label: Text('act.approve'.tr),
-              ),
-            ),
-          if (a.pay) ...[
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _recordPayment(context, controller, voucher),
-                icon: const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 18,
-                ),
-                label: Text(
-                  voucher.isPartiallyPaid
-                      ? 'pay.payBalance'.tr
-                      : voucher.isCash
-                      ? 'pay.release'.tr
-                      : 'pay.record'.tr,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            VfNote(
-              voucher.isPartiallyPaid
-                  ? 'pay.balanceShort'.trParams({
-                      'amount':
-                          voucher.balanceText ??
-                          Fmt.money(voucher.outstanding, voucher.currency),
-                    })
-                  : 'pay.note'.tr,
-            ),
           ],
-        ],
+        ),
+      );
+    }
+
+    // A signing-only step: the holder signs (and may send back), never decides.
+    final signOnly =
+        (a.sign || a.submitSigned) &&
+        !a.approve &&
+        v.currentStepName != null &&
+        !v.currentStepCanApprove;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(VfSize.radiusL),
+        border: Border.all(color: t.border),
+        boxShadow: t.cardShadow,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: t.primary, width: 3)),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 16, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: t.primarySoft,
+                    borderRadius: BorderRadius.circular(VfSize.radiusM),
+                  ),
+                  child: Icon(
+                    primary?.icon ?? PhosphorIconsRegular.handPointing,
+                    size: 20,
+                    color: t.primaryText,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      VouchFlowEyebrow(
+                        signOnly ? dt('yourSignature') : dt('yourDecision'),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        v.currentStepName ?? v.statusLabel,
+                        style: VfType.cardTitle.copyWith(
+                          color: t.text,
+                          fontSize: 17,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (a.submitSigned) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: t.surface2,
+                  border: Border.all(color: t.border),
+                  borderRadius: BorderRadius.circular(VfSize.radiusM),
+                ),
+                child: Row(
+                  children: [
+                    const Stamp(kind: StampKind.signed, scale: .8, tilt: -.05),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        dt('signedByYou'),
+                        style: VfType.small.copyWith(color: t.text2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            if (primary != null)
+              VouchFlowButton(
+                label: primary.label,
+                icon: primary.icon,
+                expand: true,
+                height: 48,
+                onPressed: () => primary.open(context, controller),
+              ),
+            // A step that both signs and approves offers signing as its own act.
+            if (a.sign && primary?.icon != PhosphorIconsRegular.signature) ...[
+              const SizedBox(height: 8),
+              VouchFlowButton(
+                label: dt('signVoucher'),
+                icon: PhosphorIconsRegular.signature,
+                variant: VfButtonVariant.secondary,
+                expand: true,
+                onPressed: () => showSignDialog(context, controller),
+              ),
+            ],
+            if (a.requestChanges || a.reject) ...[
+              const SizedBox(height: 8),
+              DialogActions(
+                reverseWhenStacked: false,
+                children: [
+                  if (a.requestChanges)
+                    VouchFlowButton(
+                      label: dt('requestChanges'),
+                      icon: PhosphorIconsRegular.arrowUUpLeft,
+                      variant: VfButtonVariant.secondary,
+                      expand: true,
+                      onPressed: () => showReasonDialog(context, controller, reject: false),
+                    ),
+                  if (a.reject)
+                    VouchFlowButton(
+                      label: dt('reject'),
+                      icon: PhosphorIconsRegular.x,
+                      variant: VfButtonVariant.danger,
+                      expand: true,
+                      onPressed: () => showReasonDialog(context, controller, reject: true),
+                    ),
+                ],
+              ),
+            ],
+            if (signOnly) ...[
+              const SizedBox(height: 12),
+              Text(
+                dt('signOnlyNote'),
+                style: VfType.small.copyWith(fontSize: 13, color: t.muted),
+              ),
+            ],
+            if (a.pay) ...[
+              const SizedBox(height: 12),
+              Text(
+                v.isPartiallyPaid && v.balanceText != null
+                    ? dt('balanceAmount', {'amount': v.balanceText!})
+                    : dt('payNote'),
+                style: VfType.small.copyWith(
+                  fontSize: 13,
+                  color: v.isPartiallyPaid ? t.warning : t.muted,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Owns the lifetime of the controllers a sheet builds.
-///
-/// `Get.bottomSheet`'s future completes the moment the sheet is popped, while
-/// its exit transition is still building — disposing controllers there throws
-/// "used after being disposed" mid-animation. A State disposes only once the
-/// route is genuinely gone.
-class _SheetScope extends StatefulWidget {
-  const _SheetScope({required this.onDispose, required this.child});
+/* ────────────────────────────────────────────────────── the document ── */
 
-  final List<VoidCallback> onDispose;
-  final Widget child;
+/// The printed voucher, in the company's template — folded away until asked
+/// for, as on the web. The server's own PDF, rasterised; the native sheet
+/// stands in while it loads, offline, or where the step may not print.
+class _DocumentPanel extends StatefulWidget {
+  const _DocumentPanel({required this.controller, required this.voucher});
+
+  final VoucherDetailController controller;
+  final Voucher voucher;
 
   @override
-  State<_SheetScope> createState() => _SheetScopeState();
+  State<_DocumentPanel> createState() => _DocumentPanelState();
 }
 
-class _SheetScopeState extends State<_SheetScope> {
-  @override
-  void dispose() {
-    for (final release in widget.onDispose) {
-      release();
-    }
-    super.dispose();
-  }
+class _DocumentPanelState extends State<_DocumentPanel> {
+  bool open = false;
+  bool opened = false;
 
   @override
-  Widget build(BuildContext context) => widget.child;
-}
-
-/// Records a payment against an approved voucher — the whole balance, or
-/// part of it now and the rest later.
-///
-/// This step never decides anything — the approval already happened. It
-/// captures how much money left, how, and the reference it left under.
-Future<void> _recordPayment(
-  BuildContext context,
-  VoucherDetailController controller,
-  Voucher voucher,
-) async {
-  final outstanding = voucher.outstanding;
-  final reference = TextEditingController();
-  final receivedBy = TextEditingController();
-  final receiverId = TextEditingController();
-  final comment = TextEditingController();
-  final amountField = TextEditingController(
-    text: outstanding % 1 == 0
-        ? Fmt.plain(outstanding)
-        : outstanding.toStringAsFixed(2),
-  );
-  final method = (voucher.isCash ? 'Cash — office float' : 'Bank transfer').obs;
-  final ready = false.obs;
-  final amount = RxnDouble(outstanding);
-
-  double? parseAmount() {
-    final raw = amountField.text.replaceAll(RegExp(r'[,\s]'), '');
-    return raw.isEmpty ? null : double.tryParse(raw);
-  }
-
-  String? amountError() {
-    final value = amount.value;
-    if (value == null || value <= 0) return 'pay.amountInvalid'.tr;
-    if (value > outstanding + 0.001) {
-      return 'pay.amountTooHigh'.trParams({
-        'amount': Fmt.money(outstanding, voucher.currency),
-      });
-    }
-    return null;
-  }
-
-  // A cash voucher has no transfer reference to quote; what it has is a person
-  // who took the notes. Each format gates on the field it can actually supply,
-  // and every payment on a sensible amount.
-  void revalidate() {
-    amount.value = parseAmount();
-    ready.value =
-        amountError() == null &&
-        (voucher.isCash
-            ? receivedBy.text.trim().isNotEmpty
-            : reference.text.trim().isNotEmpty);
-  }
-
-  reference.addListener(revalidate);
-  receivedBy.addListener(revalidate);
-  amountField.addListener(revalidate);
-
-  final methods = voucher.isCash
-      ? const ['Cash — office float', 'Cash — branch float']
-      : const ['Bank transfer', 'Cheque', 'Mobile money'];
-
-  String? trimmed(TextEditingController c) =>
-      c.text.trim().isEmpty ? null : c.text.trim();
-
-  await Get.bottomSheet<void>(
-    isScrollControlled: true,
-    _SheetScope(
-      onDispose: [
-        reference.dispose,
-        receivedBy.dispose,
-        receiverId.dispose,
-        comment.dispose,
-        amountField.dispose,
-      ],
-      child: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 18,
-            right: 18,
-            top: 4,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  voucher.isPartiallyPaid
-                      ? 'pay.payBalance'.tr
-                      : voucher.isCash
-                      ? 'pay.release'.tr
-                      : 'pay.record'.tr,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 14),
-                VfPanel(
-                  padding: const EdgeInsets.all(14),
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final v = widget.voucher;
+    return VouchFlowCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            button: true,
+            expanded: open,
+            child: InkWell(
+              onTap: () => setState(() {
+                open = !open;
+                opened = true;
+              }),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 56),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${voucher.number} · ${voucher.payee}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              voucher.amountText,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            if (voucher.isPartiallyPaid) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                [
-                                  'pay.paidSoFarShort'.trParams({
-                                    'amount':
-                                        voucher.amountPaidText ??
-                                        Fmt.money(
-                                          voucher.amountPaid,
-                                          voucher.currency,
-                                        ),
-                                  }),
-                                  'pay.balanceShort'.trParams({
-                                    'amount': Fmt.money(
-                                      outstanding,
-                                      voucher.currency,
-                                    ),
-                                  }),
-                                ].join(' · '),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: VfColors.warn),
-                              ),
-                            ],
-                          ],
-                        ),
+                      Icon(
+                        PhosphorIconsRegular.fileText,
+                        size: 18,
+                        color: t.text2,
                       ),
                       const SizedBox(width: 10),
-                      KindChip(kind: voucher.kind, dense: false),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Obx(() {
-                  final error = amountError();
-                  final value = amount.value;
-                  return TextField(
-                    controller: amountField,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'pay.amountNow'.tr,
-                      prefixText: '${voucher.currency} ',
-                      errorText: amountField.text.isEmpty ? null : error,
-                      helperText: error == null && value != null
-                          ? 'pay.balanceAfterPayment'.trParams({
-                              'amount': Fmt.money(
-                                (outstanding - value).clamp(0, outstanding),
-                                voucher.currency,
-                              ),
-                            })
-                          : null,
-                    ),
-                  );
-                }),
-                const SizedBox(height: 12),
-                Obx(
-                  () => DropdownButtonFormField<String>(
-                    initialValue: method.value,
-                    decoration: InputDecoration(labelText: 'pay.from'.tr),
-                    items: methods
-                        .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                        .toList(),
-                    onChanged: (v) => method.value = v ?? method.value,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (voucher.isCash) ...[
-                  TextField(
-                    controller: receivedBy,
-                    decoration: InputDecoration(
-                      labelText: 'pay.receivedBy'.tr,
-                      hintText: voucher.payee,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: receiverId,
-                    decoration: InputDecoration(
-                      labelText: 'pay.receiverId'.tr,
-                      hintText: 'pay.optional'.tr,
-                    ),
-                  ),
-                ] else
-                  Obx(
-                    () => TextField(
-                      controller: reference,
-                      decoration: InputDecoration(
-                        // The label follows the METHOD, not the format: only a
-                        // cheque has a cheque number.
-                        labelText: method.value.toLowerCase().contains('cheque')
-                            ? 'pay.cheque'.tr
-                            : 'pay.reference'.tr,
-                        hintText: method.value.toLowerCase().contains('cheque')
-                            ? '004471'
-                            : 'CRDB-TRX-8841207',
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: comment,
-                  minLines: 2,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'voucher.addComment'.tr,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                VfNote(voucher.isCash ? 'pay.ackNote'.tr : 'pay.note'.tr),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: Get.back,
-                        child: Text('action.cancel'.tr),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Obx(
-                        () => FilledButton(
-                          onPressed: ready.value
-                              ? () {
-                                  final value = amount.value!;
-                                  // The whole balance is the server's default;
-                                  // only a part payment names its amount.
-                                  final part = value < outstanding - 0.001;
-                                  final args = (
-                                    method: method.value,
-                                    reference: trimmed(reference),
-                                    receivedBy: trimmed(receivedBy),
-                                    receiverId: trimmed(receiverId),
-                                    comment: trimmed(comment),
-                                  );
-                                  Get.back();
-                                  controller.pay(
-                                    method: args.method,
-                                    reference: args.reference,
-                                    receivedBy: args.receivedBy,
-                                    receiverIdNumber: args.receiverId,
-                                    comment: args.comment,
-                                    amount: part ? value : null,
-                                  );
-                                }
-                              : null,
-                          child: Text(
-                            (amount.value ?? outstanding) < outstanding - 0.001
-                                ? 'pay.payPart'.tr
-                                : 'pay.markPaid'.tr,
-                          ),
+                      Expanded(
+                        child: Text(
+                          dt('voucherDocument'),
+                          style: VfType.cardTitle.copyWith(color: t.text),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-/// Sign (and optionally approve) — the statement must be ticked before the
-/// action is enabled, matching the web client and the design.
-Future<void> _sign(
-  BuildContext context,
-  VoucherDetailController controller, {
-  required bool approve,
-}) async {
-  final pad = SignaturePadController();
-  final comment = TextEditingController();
-  final statement = false.obs;
-  final useSaved = (controller.savedSignature != null).obs;
-  final saveForNext = true.obs;
-
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (sheetContext) => _SheetScope(
-      onDispose: [pad.dispose, comment.dispose],
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 18,
-          right: 18,
-          top: 4,
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 18,
-        ),
-        child: SingleChildScrollView(
-          child: Obx(() {
-            final canAct =
-                statement.value && (useSaved.value || pad.isNotEmpty);
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  approve ? 'act.approve'.tr : 'act.sign'.tr,
-                  style: Theme.of(sheetContext).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${controller.voucher.value!.number} · ${controller.voucher.value!.amountText}',
-                  style: Theme.of(sheetContext).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 16),
-
-                if (decodeSignature(controller.savedSignature) != null)
-                  SegmentedButton<bool>(
-                    segments: [
-                      ButtonSegment(value: true, label: Text('sign.saved'.tr)),
-                      ButtonSegment(value: false, label: Text('sign.draw'.tr)),
+                      Text(
+                        open ? dt('hideDocument') : dt('showDocument'),
+                        style: VfType.meta.copyWith(color: t.muted),
+                      ),
+                      const SizedBox(width: 6),
+                      AnimatedRotation(
+                        turns: open ? .5 : 0,
+                        duration: const Duration(milliseconds: 160),
+                        child: Icon(
+                          PhosphorIconsRegular.caretDown,
+                          size: 16,
+                          color: t.text2,
+                        ),
+                      ),
                     ],
-                    selected: {useSaved.value},
-                    onSelectionChanged: (s) => useSaved.value = s.first,
-                    showSelectedIcon: false,
-                  ),
-                const SizedBox(height: 12),
-
-                if (useSaved.value && controller.savedSignature != null)
-                  Container(
-                    height: 110,
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: VfColors.lineStrong),
-                    ),
-                    child: Image.memory(
-                      decodeSignature(controller.savedSignature)!,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
-                  )
-                else ...[
-                  AnimatedBuilder(
-                    animation: pad,
-                    builder: (_, _) => SignaturePad(controller: pad),
-                  ),
-                  CheckboxListTile(
-                    value: saveForNext.value,
-                    onChanged: (v) => saveForNext.value = v ?? true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    dense: true,
-                    title: Text(
-                      'sign.saveForNext'.tr,
-                      style: const TextStyle(fontSize: 13.5),
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 8),
-                TextField(
-                  controller: comment,
-                  maxLines: 2,
-                  decoration: InputDecoration(labelText: 'sign.comment'.tr),
-                ),
-                const SizedBox(height: 8),
-                CheckboxListTile(
-                  value: statement.value,
-                  onChanged: (v) => statement.value = v ?? false,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  dense: true,
-                  title: Text(
-                    approve ? 'sign.approveStatement'.tr : 'sign.statement'.tr,
-                    style: const TextStyle(fontSize: 13),
                   ),
                 ),
-                if (!approve) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'sign.noApprove'.tr,
-                    style: Theme.of(sheetContext).textTheme.bodySmall,
-                  ),
-                ],
-                const SizedBox(height: 14),
-                FilledButton(
-                  onPressed: !canAct
-                      ? null
-                      : () async {
-                          // Capture everything the sheet owns, then close it, so no
-                          // BuildContext is used after an await.
-                          final navigator = Navigator.of(sheetContext);
-                          final drawn = useSaved.value
-                              ? null
-                              : await pad.toPng();
-                          navigator.pop();
-
-                          final signature = drawn == null
-                              ? null
-                              : VoucherRepository.encodeSignature(drawn);
-                          final id = controller.voucherId;
-                          final text = comment.text.trim().isEmpty
-                              ? null
-                              : comment.text.trim();
-
-                          if (approve) {
-                            await controller.run(
-                              () => controller.repo.approve(
-                                id,
-                                comment: text,
-                                signature: signature,
-                              ),
-                              'msg.approved'.tr,
-                            );
-                          } else {
-                            await controller.run(
-                              () => controller.repo.sign(
-                                id,
-                                signature: signature,
-                                comment: text,
-                                save: saveForNext.value,
-                              ),
-                              'msg.signed'.tr,
-                              'msg.signedBody'.tr,
-                            );
-                          }
-                        },
-                  child: Text(approve ? 'act.approve'.tr : 'act.sign'.tr),
-                ),
-              ],
-            );
-          }),
-        ),
-      ),
-    ),
-  );
-}
-
-/// Reject or request changes — both require a written reason for the record.
-Future<void> _reason(
-  BuildContext context,
-  VoucherDetailController controller, {
-  required bool isReject,
-}) async {
-  final reason = TextEditingController();
-
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (sheetContext) => _SheetScope(
-      onDispose: [reason.dispose],
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 18,
-          right: 18,
-          top: 4,
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 18,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              isReject ? 'act.reject'.tr : 'act.requestChanges'.tr,
-              style: Theme.of(sheetContext).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reason,
-              maxLines: 4,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: isReject
-                    ? 'sign.rejectReason'.tr
-                    : 'sign.changesNeeded'.tr,
               ),
             ),
-            const SizedBox(height: 14),
-            FilledButton(
-              style: isReject
-                  ? FilledButton.styleFrom(backgroundColor: VfColors.bad)
-                  : null,
-              onPressed: () {
-                final text = reason.text.trim();
-                if (text.length < 3) return;
-                Navigator.of(sheetContext).pop();
-
-                final id = controller.voucherId;
-                if (isReject) {
-                  controller.run(
-                    () => controller.repo.reject(id, text),
-                    'msg.rejected'.tr,
-                  );
-                } else {
-                  controller.run(
-                    () => controller.repo.requestChanges(id, text),
-                    'msg.changes'.tr,
-                  );
-                }
-              },
-              child: Text(isReject ? 'act.reject'.tr : 'act.requestChanges'.tr),
+          ),
+          if (opened)
+            Offstage(
+              offstage: !open,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: ServerVoucherDocument(
+                  title: v.number,
+                  load: () => widget.controller.repo.pdf(v.id),
+                  refreshKey: [
+                    v.status,
+                    v.updatedAt?.toIso8601String(),
+                    v.timeline.length,
+                    v.attachments.length,
+                    v.payments.length,
+                    v.amountPaid,
+                    currentLocale,
+                  ].join('|'),
+                  fallback: DocumentFrame(
+                    child: VoucherDocument(
+                      voucher: v,
+                      company: widget.controller.session.company.value,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }

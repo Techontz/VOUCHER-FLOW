@@ -25,6 +25,13 @@ class VouchFlowStepper extends StatefulWidget {
 
 class _VouchFlowStepperState extends State<VouchFlowStepper> {
   final _keys = <int, GlobalKey>{};
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(covariant VouchFlowStepper old) {
@@ -254,7 +261,7 @@ class VouchFlowSelectCard extends StatelessWidget {
 }
 
 /// A segmented tab row, the web's `.app-tabs` (underlined current tab).
-class VouchFlowTabs extends StatelessWidget {
+class VouchFlowTabs extends StatefulWidget {
   const VouchFlowTabs({super.key, required this.labels, required this.current, required this.onChanged, this.icons});
 
   final List<String> labels;
@@ -263,16 +270,66 @@ class VouchFlowTabs extends StatelessWidget {
   final ValueChanged<int> onChanged;
 
   @override
+  State<VouchFlowTabs> createState() => _VouchFlowTabsState();
+}
+
+class _VouchFlowTabsState extends State<VouchFlowTabs> {
+  final _keys = <int, GlobalKey>{};
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  GlobalKey _key(int i) => _keys.putIfAbsent(i, GlobalKey.new);
+
+  @override
+  void initState() {
+    super.initState();
+    _reveal();
+  }
+
+  @override
+  void didUpdateWidget(covariant VouchFlowTabs old) {
+    super.didUpdateWidget(old);
+    if (old.current != widget.current) _reveal();
+  }
+
+  /// Keeps the current tab on screen when it is chosen in code (a deep link,
+  /// a "view all" button) rather than by a tap on the row.
+  void _reveal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final tab = _keys[widget.current]?.currentContext?.findRenderObject() as RenderBox?;
+      final row = context.findRenderObject() as RenderBox?;
+      if (!mounted || tab == null || row == null || !_scroll.hasClients) return;
+      // Only the row scrolls sideways; the page around it stays put.
+      final left = tab.localToGlobal(Offset.zero, ancestor: row).dx;
+      final target = _scroll.offset + left - (row.size.width - tab.size.width) / 2;
+      final pos = _scroll.position;
+      _scroll.animateTo(
+        target.clamp(pos.minScrollExtent, pos.maxScrollExtent),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.vf;
+    final labels = widget.labels, icons = widget.icons, current = widget.current, onChanged = widget.onChanged;
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.border))),
       child: SingleChildScrollView(
+        controller: _scroll,
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
             for (var i = 0; i < labels.length; i++)
               InkWell(
+                key: _key(i),
                 onTap: () => onChanged(i),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -282,7 +339,7 @@ class VouchFlowTabs extends StatelessWidget {
                   child: Row(
                     children: [
                       if (icons != null) ...[
-                        Icon(icons![i], size: 17, color: i == current ? t.primaryText : t.muted),
+                        Icon(icons[i], size: 17, color: i == current ? t.primaryText : t.muted),
                         const SizedBox(width: 6),
                       ],
                       Text(

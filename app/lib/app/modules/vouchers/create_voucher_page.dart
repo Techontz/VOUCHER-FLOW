@@ -1,281 +1,696 @@
-import 'dart:io';
+import 'dart:async';
+import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
 import '../../data/models/models.dart';
+import '../../data/models/vouchers_models.dart';
 import '../../data/services/api_service.dart';
+import '../../data/services/create_repository.dart';
 import '../../data/services/session_service.dart';
 import '../../data/services/voucher_repository.dart';
 import '../../routes/routes.dart';
-import '../../widgets/common.dart';
+import '../../widgets/common.dart' show Fmt, showToast, ToastKind;
+import '../../widgets/vf/vf.dart';
+import 'create_steps.dart';
+import 'edit_voucher_page.dart';
+import 'preview_frame_stub.dart' if (dart.library.js_interop) 'preview_frame_web.dart';
+import 'voucher_form_bits.dart';
 
-/// The design's five-step mobile capture flow: type → payment → description →
-/// attachments → review, then submit.
+const voucherMethods = ['Bank Transfer', 'Mobile Money', 'Cash', 'Cheque'];
+const voucherCurrencies = ['TZS', 'USD', 'KES', 'EUR'];
+const voucherCategories = [
+  'Fuel',
+  'Transport',
+  'Vehicle maintenance',
+  'Travel & accommodation',
+  'Meals & refreshments',
+  'Office supplies & stationery',
+  'Internet & communications',
+  'Procurement',
+  'Logistics',
+  'Staff welfare',
+  'Equipment',
+  'Repairs & maintenance',
+  'Utilities',
+  'Professional fees',
+  'Premises',
+  'Other',
+];
+
+/// Which fields each step owns, in order — the server's refusal of a field
+/// takes the reader back to its step.
+const _stepFields = [
+  ['voucher_type_id', 'kind'],
+  ['voucher_date', 'department_id', 'category', 'payee', 'purpose', 'description'],
+  [
+    'amount',
+    'currency',
+    'payment_method',
+    'account_ref',
+    'payee_bank',
+    'payee_account_name', //
+    'payee_account_number', 'payee_bank_branch', 'cash_float',
+  ],
+  ['files', 'notes_to_approver'],
+  <String>[],
+];
+
+/// The server's upload rules (web lib/attachments.ts).
+const maxUploadMb = 10;
+const maxFilesPerUpload = 10;
+const _extensionTypes = {
+  'pdf': 'application/pdf',
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'png': 'image/png',
+  'webp': 'image/webp',
+  'heic': 'image/heic',
+};
+
+/// A supporting document picked on the device, not yet uploaded.
+class PickedDocument {
+  PickedDocument({required this.name, required this.size, required this.file});
+
+  final String name;
+  final int size;
+  final XFile file;
+
+  String get extension => name.contains('.') ? name.split('.').last.toLowerCase() : '';
+  bool get isImage => (_extensionTypes[extension] ?? '').startsWith('image/');
+}
+
+/// A picked file the server would refuse, and why: `type`, `size`, `count`.
+typedef RejectedDocument = ({String name, String reason});
+
+String formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1048576) return '${(bytes / 1024).round()} KB';
+  return '${(bytes / 1048576).toStringAsFixed(1)} MB';
+}
+
+/// The guided five-step create flow (web `/vouchers/new`): type → details →
+/// payment → documents → review, with the server-rendered live preview.
 class CreateVoucherController extends GetxController {
-  final repo = Get.find<VoucherRepository>();
+  final vouchers = Get.find<VoucherRepository>();
+  final repo = CreateRepository.to;
   final session = Get.find<SessionService>();
 
   final step = 0.obs;
-  final busy = false.obs;
-  final types = <VoucherType>[].obs;
+  final busy = RxnString();
+
+  /// Bumped on every edit, so the words, review and preview follow the form.
+  final rev = 0.obs;
+
+  final types = <VoucherTypeOption>[].obs;
+  final typesLoaded = false.obs;
+  final typesError = RxnString();
   final departments = <Department>[].obs;
+  final workflows = <RouteWorkflow>[].obs;
+
+  final kind = 'bank'.obs;
   final typeId = RxnInt();
   final departmentId = RxnInt();
-  final attachments = <File>[].obs;
-  final fieldErrors = <String, String>{}.obs;
+  final category = 'Logistics'.obs;
+  final method = 'Bank Transfer'.obs;
+  final currency = 'TZS'.obs;
+  final voucherDate = DateTime.now().obs;
 
   final payee = TextEditingController();
   final purpose = TextEditingController();
   final description = TextEditingController();
   final amount = TextEditingController();
-  final reference = TextEditingController();
+  final accountRef = TextEditingController();
+  final payeeBank = TextEditingController();
+  final payeeAccountName = TextEditingController();
+  final payeeAccountNumber = TextEditingController();
+  final payeeBankBranch = TextEditingController();
+  final cashFloat = TextEditingController();
   final notes = TextEditingController();
 
-  /// Bank or cash — the two corporate formats, chosen first.
-  final kind = 'bank'.obs;
-  final method = 'Bank Transfer'.obs;
-  final category = 'Logistics'.obs;
-  final currency = 'TZS'.obs;
+  final files = <PickedDocument>[].obs;
+  final rejected = <RejectedDocument>[].obs;
 
-  static const methods = ['Bank Transfer', 'Mobile Money', 'Cash', 'Cheque'];
-  static const categories = [
-    'Fuel',
-    'Transport',
-    'Vehicle maintenance',
-    'Travel & accommodation',
-    'Meals & refreshments',
-    'Office supplies & stationery',
-    'Internet & communications',
-    'Procurement',
-    'Logistics',
-    'Staff welfare',
-    'Equipment',
-    'Repairs & maintenance',
-    'Utilities',
-    'Professional fees',
-    'Premises',
-    'Other',
+  final serverErrors = <String, String>{}.obs;
+  final localErrors = <String, String>{}.obs;
+
+  final previewHtml = RxnString();
+  final previewFailed = false.obs;
+  Timer? _previewTimer;
+  String? _previewKey;
+  int _previewTicket = 0;
+
+  final scroll = ScrollController();
+  Worker? _watch;
+
+  List<TextEditingController> get _texts => [
+    payee,
+    purpose,
+    description,
+    amount,
+    accountRef,
+    payeeBank,
+    payeeAccountName, //
+    payeeAccountNumber, payeeBankBranch, cashFloat, notes,
   ];
 
-  static const stepTitles = [
-    'step.type',
-    'step.payment',
-    'step.details',
-    'step.attachments',
-    'step.review',
-  ];
+  VoucherTypeOption? get selectedType => types.firstWhereOrNull((t) => t.id == typeId.value);
+  Department? get department => departments.firstWhereOrNull((d) => d.id == departmentId.value);
+  double get amountValue => parseAmount(amount.text);
+  String get words => amountInWords(amountValue, currency.value);
+  bool get onReview => step.value == 4;
+  bool get sw => Get.locale?.languageCode == 'sw';
 
-  double get amountValue =>
-      double.tryParse(amount.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+  List<String> get route => routeFor(resolveWorkflow(workflows, typeId.value), amountValue, sw: sw);
 
-  VoucherType? get selectedType =>
-      types.firstWhereOrNull((t) => t.id == typeId.value);
+  String? errorFor(String name) => serverErrors[name] ?? localErrors[name];
 
   @override
   void onInit() {
     super.onInit();
     currency.value = session.company.value?.currency ?? 'TZS';
     departmentId.value = session.me.departmentId;
-
-    _loadOptions();
+    for (final c in _texts) {
+      c.addListener(touch);
+    }
+    _watch = everAll([kind, typeId, category, method, currency, voucherDate], (_) => touch());
+    loadOptions();
+    _schedulePreview(immediate: true);
   }
 
-  Future<void> _loadOptions() async {
+  /// Something on the form changed.
+  void touch() {
+    rev.value++;
+    _schedulePreview();
+  }
+
+  Future<void> loadOptions() async {
+    typesError.value = null;
     try {
       final loaded = await repo.types();
       types.assignAll(loaded);
       typeId.value ??= loaded.firstOrNull?.id;
+    } on ApiException catch (e) {
+      typesError.value = e.message;
     } catch (_) {
-      // The step simply shows nothing to choose; the user can retry by reopening.
+      typesError.value = 'create.offline'.tr;
+    } finally {
+      typesLoaded.value = true;
     }
     try {
-      departments.assignAll(await repo.departments());
+      departments.assignAll(await vouchers.departments());
+      departmentId.value = session.me.departmentId;
     } catch (_) {}
+    final companyId = session.company.value?.id;
+    if (companyId != null) {
+      try {
+        workflows.assignAll(await repo.workflows(companyId));
+      } catch (_) {
+        // The route is an aid on the review step; its absence never blocks.
+      }
+    }
   }
 
-  bool get canAdvance => switch (step.value) {
-    0 => typeId.value != null,
-    1 => payee.text.trim().isNotEmpty && amountValue > 0,
-    2 => purpose.text.trim().isNotEmpty,
-    _ => true,
+  void chooseKind(String value) {
+    kind.value = value;
+    method.value = value == 'bank' ? 'Bank Transfer' : 'Cash';
+  }
+
+  /* ── steps ──────────────────────────────────────────────────────────── */
+
+  /// What must be true before leaving a step — what the server insists on.
+  Map<String, String> _problemsAt(int index) {
+    final out = <String, String>{};
+    if (index == 1) {
+      if (payee.text.trim().isEmpty) out['payee'] = 'create.required'.tr;
+      if (purpose.text.trim().isEmpty) out['purpose'] = 'create.required'.tr;
+    }
+    if (index == 2 && amountValue <= 0) {
+      out['amount'] = 'create.amountRequired'.tr;
+    }
+    return out;
+  }
+
+  /// Moving forward checks every step being passed; moving back never does.
+  void go(int next) {
+    if (next > step.value) {
+      for (var i = step.value; i < next; i++) {
+        final problems = _problemsAt(i);
+        if (problems.isNotEmpty) {
+          localErrors.assignAll(problems);
+          _setStep(i);
+          return;
+        }
+      }
+    }
+    localErrors.clear();
+    _setStep(next);
+  }
+
+  void _setStep(int value) {
+    step.value = value;
+    if (scroll.hasClients) {
+      scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    }
+  }
+
+  /* ── documents ─────────────────────────────────────────────────────── */
+
+  /// Merges newly picked files into those already chosen, refusing what the
+  /// server would refuse — before the voucher exists, not after.
+  void addFiles(List<PickedDocument> picked) {
+    if (picked.isEmpty) return;
+    final out = <RejectedDocument>[];
+    final list = [...files];
+    for (final f in picked) {
+      if (!_extensionTypes.containsKey(f.extension)) {
+        out.add((name: f.name, reason: 'type'));
+      } else if (f.size > maxUploadMb * 1024 * 1024) {
+        out.add((name: f.name, reason: 'size'));
+      } else if (list.any((e) => e.name == f.name && e.size == f.size)) {
+        continue;
+      } else if (list.length >= maxFilesPerUpload) {
+        out.add((name: f.name, reason: 'count'));
+      } else {
+        list.add(f);
+      }
+    }
+    files.assignAll(list);
+    rejected.assignAll(out);
+  }
+
+  void removeFile(PickedDocument f) {
+    files.remove(f);
+    rejected.clear();
+  }
+
+  Future<void> browseFiles() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: _extensionTypes.keys.toList(),
+        withData: kIsWeb,
+      );
+      if (result == null) return;
+      addFiles([
+        for (final f in result.files)
+          PickedDocument(
+            name: f.name,
+            size: f.size,
+            file: f.bytes != null ? XFile.fromData(f.bytes!, name: f.name) : XFile(f.path!, name: f.name),
+          ),
+      ]);
+    } catch (_) {
+      showToast('create.filesNotAdded'.tr, kind: ToastKind.bad);
+    }
+  }
+
+  Future<void> takePhoto() async {
+    try {
+      final shot = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85);
+      if (shot == null) return;
+      var name = shot.name;
+      if (!name.contains('.')) name = '$name.jpg';
+      addFiles([PickedDocument(name: name, size: await shot.length(), file: shot)]);
+    } catch (_) {
+      showToast('create.filesNotAdded'.tr, kind: ToastKind.bad);
+    }
+  }
+
+  /* ── preview ───────────────────────────────────────────────────────── */
+
+  /// The draft as the server renders it — shared by the card and full size.
+  Map<String, dynamic> get draft => {
+    'number': selectedType?.nextNumberPreview ?? '—',
+    'voucher_type_id': typeId.value,
+    'department_id': departmentId.value,
+    'payee': _orNull(payee),
+    'purpose': _orNull(purpose),
+    'description': _orNull(description),
+    'amount': amountValue,
+    'currency': currency.value,
+    'kind': kind.value,
+    'payment_method': method.value,
+    'account_ref': _orNull(accountRef),
+    'category': category.value,
+    'voucher_date': apiDate(voucherDate.value),
+    'notes_to_approver': _orNull(notes),
+    if (kind.value == 'bank') ...{
+      'payee_bank': _orNull(payeeBank),
+      'payee_account_name': _orNull(payeeAccountName),
+      'payee_account_number': _orNull(payeeAccountNumber),
+      'payee_bank_branch': _orNull(payeeBankBranch),
+    } else
+      'cash_float': _orNull(cashFloat),
   };
 
-  void next() {
-    if (!canAdvance) return;
-    if (step.value < 4) step.value++;
+  static String? _orNull(TextEditingController c) => c.text.isEmpty ? null : c.text;
+
+  void _schedulePreview({bool immediate = false}) {
+    _previewTimer?.cancel();
+    _previewTimer = Timer(Duration(milliseconds: immediate ? 0 : 400), refreshPreview);
   }
 
-  void back() {
-    if (step.value > 0) step.value--;
+  Future<void> refreshPreview({bool force = false}) async {
+    final body = draft;
+    final key = jsonEncode(body);
+    if (!force && key == _previewKey && previewHtml.value != null) return;
+    _previewKey = key;
+    final ticket = ++_previewTicket;
+    if (force) previewFailed.value = false;
+    try {
+      final html = await repo.documentPreview(body);
+      if (ticket != _previewTicket) return;
+      previewHtml.value = html;
+      previewFailed.value = false;
+    } catch (_) {
+      if (ticket == _previewTicket) previewFailed.value = true;
+    }
   }
 
-  Future<void> addPhoto(ImageSource source) async {
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-    if (picked != null) attachments.add(File(picked.path));
-  }
+  /* ── save ──────────────────────────────────────────────────────────── */
 
   Future<void> save({required bool submit}) async {
-    busy.value = true;
-    fieldErrors.clear();
+    if (busy.value != null) return;
+    busy.value = submit ? 'submit' : 'draft';
+    serverErrors.clear();
     try {
-      final voucher = await repo.create({
+      final voucher = await vouchers.create({
         'kind': kind.value,
+        'payee_bank': payeeBank.text,
+        'payee_account_name': payeeAccountName.text,
+        'payee_account_number': payeeAccountNumber.text,
+        'payee_bank_branch': payeeBankBranch.text,
+        'cash_float': cashFloat.text,
         'voucher_type_id': typeId.value,
         'department_id': departmentId.value,
-        'payee': payee.text.trim(),
-        'purpose': purpose.text.trim(),
-        'description': description.text.trim(),
+        'payee': payee.text,
+        'purpose': purpose.text,
+        'description': description.text,
         'amount': amountValue,
         'currency': currency.value,
         'payment_method': method.value,
-        'account_ref': reference.text.trim(),
+        'account_ref': accountRef.text,
         'category': category.value,
-        'notes_to_approver': notes.text.trim(),
+        'voucher_date': apiDate(voucherDate.value),
+        'notes_to_approver': notes.text,
       });
 
-      if (attachments.isNotEmpty) {
-        final files = <http.MultipartFile>[];
-        for (final file in attachments) {
-          files.add(await http.MultipartFile.fromPath('files[]', file.path));
+      if (files.isNotEmpty) {
+        try {
+          final parts = <http.MultipartFile>[];
+          for (final f in files) {
+            parts.add(http.MultipartFile.fromBytes('files[]', await f.file.readAsBytes(), filename: f.name));
+          }
+          await vouchers.attach(voucher.id, parts);
+        } catch (e) {
+          // The voucher exists now: staying would invite a duplicate. Go to the
+          // draft, where documents can be added again, and say what failed.
+          final detail = e is ApiException ? (e.errors.values.firstOrNull?.firstOrNull ?? e.message) : null;
+          showToast(
+            'create.docsNotAttached'.tr,
+            body: '${voucher.number} — ${detail ?? 'create.docsNotAttachedBody'.tr}',
+            kind: ToastKind.bad,
+          );
+          Get.offNamed(Routes.voucher, arguments: voucher.id);
+          return;
         }
-        await repo.attach(voucher.id, files);
       }
 
       if (submit) {
-        final sent = await repo.submit(voucher.id);
-        showToast(
-          'msg.submitted'.tr,
-          body: '${sent.number} · ${sent.statusLabel}',
-        );
+        final sent = await vouchers.submit(voucher.id);
+        showToast('create.submitted'.tr, body: '${sent.number} — ${sent.statusLabel}');
       } else {
         showToast(
-          'voucher.saveDraft'.tr,
-          body: voucher.number,
+          'create.draftSaved'.tr,
+          body: 'create.draftSavedBody'.trParams({'number': voucher.number}),
           kind: ToastKind.warn,
         );
       }
-
       Get.offNamed(Routes.voucher, arguments: voucher.id);
     } on ApiException catch (e) {
-      fieldErrors.assignAll(e.errors.map((k, v) => MapEntry(k, v.first)));
-      showToast('state.error'.tr, body: e.message, kind: ToastKind.bad);
+      serverErrors.assignAll(e.errors.map((k, v) => MapEntry(k, v.isEmpty ? '' : v.first)));
+      final fields = e.errors.keys;
+      final at = _stepFields.indexWhere((owned) => owned.any((f) => fields.any((x) => x == f || x.startsWith('$f.'))));
+      if (at >= 0) _setStep(at);
+      showToast('create.couldNotSave'.tr, body: e.message, kind: ToastKind.bad);
+      busy.value = null;
     } catch (_) {
-      showToast(
-        'state.error'.tr,
-        body: 'state.offline'.tr,
-        kind: ToastKind.bad,
-      );
-    } finally {
-      busy.value = false;
+      showToast('create.couldNotSave'.tr, body: 'create.offline'.tr, kind: ToastKind.bad);
+      busy.value = null;
     }
   }
 
   @override
   void onClose() {
-    for (final c in [payee, purpose, description, amount, reference, notes]) {
+    _previewTimer?.cancel();
+    _watch?.dispose();
+    for (final c in _texts) {
       c.dispose();
     }
+    scroll.dispose();
     super.onClose();
   }
 }
 
-class CreateVoucherPage extends GetView<CreateVoucherController> {
+/// `/voucher/new`. With an int argument (a voucher id) it opens that voucher's
+/// edit form instead — the web's `/vouchers/{id}/edit`.
+class CreateVoucherPage extends StatelessWidget {
   const CreateVoucherPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is int) return EditVoucherPage(voucherId: args);
+    return _CreateVoucherView(controller: Get.find<CreateVoucherController>());
+  }
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('voucher.create'.tr),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(46),
-          child: Obx(
-            () => Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: List.generate(5, (i) {
-                      return Expanded(
-                        child: Container(
-                          height: 3,
-                          margin: EdgeInsets.only(right: i == 4 ? 0 : 4),
-                          color: i <= controller.step.value
-                              ? theme.colorScheme.primary
-                              : theme.dividerColor,
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${'step.label'.tr} ${controller.step.value + 1} ${'step.of'.tr} 5 · '
-                    '${CreateVoucherController.stepTitles[controller.step.value].tr}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
+class _CreateVoucherView extends StatelessWidget {
+  const _CreateVoucherView({required this.controller});
+
+  final CreateVoucherController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final c = controller;
+    final steps = [
+      VfStep('create.stepType'.tr),
+      VfStep('create.stepDetails'.tr),
+      VfStep('create.stepPayment'.tr),
+      VfStep('create.stepDocs'.tr),
+      VfStep('create.stepReview'.tr),
+    ];
+
+    return VouchFlowPushedScaffold(
+      title: 'create.createVoucher'.tr,
+      bottomBar: _ActionBar(controller: c),
+      body: LayoutBuilder(
+        builder: (context, box) {
+          final wide = box.maxWidth >= 600;
+          return ListView(
+            controller: c.scroll,
+            padding: EdgeInsets.fromLTRB(
+              VfSize.pagePad,
+              20,
+              VfSize.pagePad,
+              28 + MediaQuery.viewInsetsOf(context).bottom,
             ),
-          ),
-        ),
-      ),
-      body: Obx(
-        () => switch (controller.step.value) {
-          0 => _TypeStep(controller: controller),
-          1 => _PaymentStep(controller: controller),
-          2 => _DetailStep(controller: controller),
-          3 => _AttachmentStep(controller: controller),
-          _ => _ReviewStep(controller: controller),
-        },
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(18, 8, 18, 14),
-        child: Obx(
-          () => Row(
             children: [
-              if (controller.step.value > 0)
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: controller.busy.value ? null : controller.back,
-                    child: Text('action.back'.tr),
-                  ),
-                ),
-              if (controller.step.value > 0) const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: FilledButton(
-                  onPressed: controller.busy.value || !controller.canAdvance
-                      ? null
-                      : () => controller.step.value < 4
-                            ? controller.next()
-                            : controller.save(submit: true),
-                  child: controller.busy.value
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: VfTheme.onPrimary(context),
-                          ),
-                        )
-                      : Text(
-                          controller.step.value < 4
-                              ? 'action.continue'.tr
-                              : 'voucher.submit'.tr,
+              Obx(() {
+                final type = c.selectedType;
+                return Text.rich(
+                  TextSpan(
+                    text: 'create.newVoucher'.tr.toUpperCase(),
+                    children: [
+                      if (type != null) ...[
+                        TextSpan(
+                          text: '  •  ',
+                          style: TextStyle(color: t.faint),
                         ),
+                        TextSpan(
+                          text: type.nextNumberPreview,
+                          style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
+                        ),
+                      ],
+                    ],
+                  ),
+                  style: VfType.eyebrow.copyWith(color: t.muted, fontSize: 13),
+                );
+              }),
+              const SizedBox(height: 6),
+              Text('create.createVoucher'.tr, style: VfType.pageTitle.copyWith(color: t.text)),
+              const SizedBox(height: 16),
+              Obx(() => VouchFlowStepper(steps: steps, current: c.step.value, onTap: c.go)),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  borderRadius: BorderRadius.circular(VfSize.radiusCard),
+                  border: Border.all(color: t.border),
+                  boxShadow: t.cardShadow,
+                ),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+                child: Obx(() {
+                  // Follow every edit and every list the steps read.
+                  c.rev.value;
+                  c.types.length;
+                  c.typesLoaded.value;
+                  c.typesError.value;
+                  c.departments.length;
+                  c.workflows.length;
+                  c.files.length;
+                  c.rejected.length;
+                  c.serverErrors.length;
+                  c.localErrors.length;
+                  return KeyedSubtree(
+                    key: ValueKey(c.step.value),
+                    child: switch (c.step.value) {
+                      0 => TypeStep(c: c, wide: wide),
+                      1 => DetailsStep(c: c, wide: wide),
+                      2 => PaymentStep(c: c, wide: wide),
+                      3 => DocumentsStep(c: c),
+                      _ => ReviewStep(c: c),
+                    },
+                  );
+                }),
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 680),
+                  child: _PreviewCard(controller: c),
                 ),
               ),
             ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Save draft on the left; Back and Next (Submit on review) on the right.
+class _ActionBar extends StatelessWidget {
+  const _ActionBar({required this.controller});
+
+  final CreateVoucherController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final c = controller;
+    return Container(
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(t.surface2.withValues(alpha: .7), t.surface),
+        border: Border(top: BorderSide(color: t.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final narrow = box.maxWidth < 350;
+              return Obx(() {
+                final busy = c.busy.value;
+                final step = c.step.value;
+                final review = step == 4;
+                final forward = review
+                    ? VouchFlowButton(
+                        label: 'create.submitVoucher'.tr,
+                        icon: narrow ? null : PhosphorIconsRegular.paperPlaneTilt,
+                        height: 46,
+                        loading: busy == 'submit',
+                        onPressed: busy != null ? null : () => c.save(submit: true),
+                      )
+                    : VouchFlowButton(
+                        label: 'create.next'.tr,
+                        trailingIcon: PhosphorIconsRegular.arrowRight,
+                        height: 46,
+                        onPressed: () => c.go(step + 1),
+                      );
+                final saveDraft = VouchFlowButton(
+                  label: 'create.saveDraft'.tr,
+                  variant: VfButtonVariant.secondary,
+                  height: 46,
+                  loading: busy == 'draft',
+                  onPressed: busy != null ? null : () => c.save(submit: false),
+                );
+                return Row(
+                  children: [
+                    // On the narrowest phones the draft button gives way to an
+                    // icon so the way forward never truncates.
+                    if (box.maxWidth < 320)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: t.surface,
+                          border: Border.all(color: t.borderStrong),
+                          borderRadius: BorderRadius.circular(VfSize.radiusL),
+                        ),
+                        child: busy == 'draft'
+                            ? const SizedBox(
+                                width: 46,
+                                height: 46,
+                                child: Padding(
+                                  padding: EdgeInsets.all(13),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : VouchFlowIconButton(
+                                icon: PhosphorIconsRegular.floppyDisk,
+                                tooltip: 'create.saveDraft'.tr,
+                                size: 46,
+                                color: t.text,
+                                onPressed: busy != null ? null : () => c.save(submit: false),
+                              ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: box.maxWidth * .42),
+                        child: saveDraft,
+                      ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (step > 0) ...[
+                            if (narrow)
+                              VouchFlowIconButton(
+                                icon: PhosphorIconsRegular.arrowLeft,
+                                tooltip: 'create.back'.tr,
+                                size: 46,
+                                color: t.text2,
+                                onPressed: busy != null ? null : () => c.go(step - 1),
+                              )
+                            else
+                              VouchFlowButton(
+                                label: 'create.back'.tr,
+                                icon: PhosphorIconsRegular.arrowLeft,
+                                variant: VfButtonVariant.ghost,
+                                height: 46,
+                                onPressed: busy != null ? null : () => c.go(step - 1),
+                              ),
+                            const SizedBox(width: 6),
+                          ],
+                          Flexible(child: forward),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              });
+            },
           ),
         ),
       ),
@@ -283,368 +698,125 @@ class CreateVoucherPage extends GetView<CreateVoucherController> {
   }
 }
 
-class _TypeStep extends StatelessWidget {
-  const _TypeStep({required this.controller});
-
-  final CreateVoucherController controller;
-
-  @override
-  Widget build(BuildContext context) => Obx(
-    () => ListView(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      children: [
-        Text('voucher.kind'.tr, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 10),
-        ChoiceCard(
-          selected: controller.kind.value == 'bank',
-          onTap: () {
-            controller.kind.value = 'bank';
-            controller.method.value = 'Bank Transfer';
-          },
-          icon: Icons.account_balance_outlined,
-          label: 'voucher.bank'.tr,
-          sub: 'voucher.bankSub'.tr,
-        ),
-        const SizedBox(height: 8),
-        ChoiceCard(
-          selected: controller.kind.value == 'cash',
-          onTap: () {
-            controller.kind.value = 'cash';
-            controller.method.value = 'Cash';
-          },
-          icon: Icons.payments_outlined,
-          label: 'voucher.cash'.tr,
-          sub: 'voucher.cashSub'.tr,
-        ),
-        const SizedBox(height: 22),
-        Text('voucher.type'.tr, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
-        RadioGroup<int>(
-          groupValue: controller.typeId.value,
-          onChanged: (v) => controller.typeId.value = v,
-          child: Column(
-            children: controller.types
-                .map(
-                  (type) => RadioListTile<int>(
-                    value: type.id,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(type.label),
-                    subtitle: Text(
-                      type.nextNumberPreview,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<int?>(
-          // The department is pre-filled from the signed-in user before the
-          // list arrives; offering a value with no matching item throws.
-          initialValue:
-              controller.departments.any(
-                (d) => d.id == controller.departmentId.value,
-              )
-              ? controller.departmentId.value
-              : null,
-          decoration: InputDecoration(
-            labelText: 'voucher.department'.tr,
-            helperText: 'voucher.ownDepartment'.tr,
-          ),
-          items: [
-            const DropdownMenuItem<int?>(value: null, child: Text('—')),
-            ...controller.departments.map(
-              (d) => DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
-            ),
-          ],
-          // A voucher stays in the requester's own department; the API
-          // refuses any other, so the field is shown but not editable.
-          onChanged: null,
-        ),
-      ],
-    ),
-  );
-}
-
-class _PaymentStep extends StatelessWidget {
-  const _PaymentStep({required this.controller});
-
-  final CreateVoucherController controller;
-
-  @override
-  Widget build(BuildContext context) => Obx(
-    () => ListView(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      children: [
-        TextField(
-          controller: controller.payee,
-          onChanged: (_) => controller.fieldErrors.refresh(),
-          decoration: InputDecoration(
-            labelText: 'voucher.payee'.tr,
-            errorText: controller.fieldErrors['payee'],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: controller.amount,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                onChanged: (_) => controller.fieldErrors.refresh(),
-                decoration: InputDecoration(
-                  labelText: 'voucher.amount'.tr,
-                  errorText: controller.fieldErrors['amount'],
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                initialValue: controller.currency.value,
-                decoration: InputDecoration(labelText: 'voucher.currency'.tr),
-                items: const ['TZS', 'USD', 'KES', 'EUR']
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                    .toList(),
-                onChanged: (v) => controller.currency.value = v ?? 'TZS',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        DropdownButtonFormField<String>(
-          initialValue: controller.method.value,
-          decoration: InputDecoration(labelText: 'voucher.method'.tr),
-          items: CreateVoucherController.methods
-              .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-              .toList(),
-          onChanged: (v) => controller.method.value = v ?? 'Bank Transfer',
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: controller.reference,
-          decoration: InputDecoration(labelText: 'voucher.reference'.tr),
-        ),
-      ],
-    ),
-  );
-}
-
-class _DetailStep extends StatelessWidget {
-  const _DetailStep({required this.controller});
-
-  final CreateVoucherController controller;
-
-  @override
-  Widget build(BuildContext context) => Obx(
-    () => ListView(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      children: [
-        TextField(
-          controller: controller.purpose,
-          onChanged: (_) => controller.fieldErrors.refresh(),
-          decoration: InputDecoration(
-            labelText: 'voucher.purpose'.tr,
-            errorText: controller.fieldErrors['purpose'],
-          ),
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: controller.description,
-          maxLines: 4,
-          decoration: InputDecoration(labelText: 'voucher.description'.tr),
-        ),
-        const SizedBox(height: 14),
-        DropdownButtonFormField<String>(
-          initialValue: controller.category.value,
-          decoration: InputDecoration(labelText: 'voucher.category'.tr),
-          items: CreateVoucherController.categories
-              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-              .toList(),
-          onChanged: (v) => controller.category.value = v ?? 'Logistics',
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: controller.notes,
-          maxLines: 3,
-          decoration: InputDecoration(labelText: 'voucher.notes'.tr),
-        ),
-      ],
-    ),
-  );
-}
-
-class _AttachmentStep extends StatelessWidget {
-  const _AttachmentStep({required this.controller});
-
-  final CreateVoucherController controller;
-
-  @override
-  Widget build(BuildContext context) => Obx(
-    () => ListView(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => controller.addPhoto(ImageSource.camera),
-                icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                label: const Text('Camera'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => controller.addPhoto(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library_outlined, size: 18),
-                label: const Text('Gallery'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (controller.attachments.isEmpty)
-          Text(
-            'Photograph the receipt or invoice. PDF and images up to 10 MB.',
-            style: Theme.of(context).textTheme.bodySmall,
-          )
-        else
-          ...controller.attachments.map(
-            (file) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: Image.file(
-                  file,
-                  width: 46,
-                  height: 46,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              title: Text(
-                file.path.split('/').last,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: () => controller.attachments.remove(file),
-              ),
-            ),
-          ),
-      ],
-    ),
-  );
-}
-
-class _ReviewStep extends StatelessWidget {
-  const _ReviewStep({required this.controller});
+/// The sheet that will print, rendered by the server in the company's own
+/// voucher template and updating as the form is filled in.
+class _PreviewCard extends StatelessWidget {
+  const _PreviewCard({required this.controller});
 
   final CreateVoucherController controller;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Obx(() {
-      final rows = <(String, String)>[
-        ('voucher.type'.tr, controller.selectedType?.label ?? '—'),
-        ('voucher.payee'.tr, controller.payee.text),
-        ('voucher.purpose'.tr, controller.purpose.text),
-        ('voucher.method'.tr, controller.method.value),
-        ('voucher.category'.tr, controller.category.value),
-        (
-          'voucher.reference'.tr,
-          controller.reference.text.isEmpty ? '—' : controller.reference.text,
-        ),
-        ('voucher.attachments'.tr, '${controller.attachments.length}'),
-      ];
-
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+    final t = context.vf;
+    final c = controller;
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(VfSize.radiusCard),
+        border: Border.all(color: t.border),
+        boxShadow: t.cardShadow,
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            color: Colors.white,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  Get.find<SessionService>().company.value?.name ?? '',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: Color(0xFF201E1D),
-                  ),
-                ),
-                const Divider(
-                  color: Color(0xFF201E1D),
-                  thickness: 2,
-                  height: 16,
-                ),
-                Text(
-                  controller.selectedType?.nextNumberPreview ?? '',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF605D5D),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  controller.purpose.text,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Color(0xFF201E1D),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  Fmt.money(controller.amountValue, controller.currency.value),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 22,
-                    color: Color(0xFF201E1D),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          ...rows.map(
-            (row) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 130,
-                    child: Text(
-                      row.$1.toUpperCase(),
-                      style: theme.textTheme.labelSmall,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(row.$2, style: theme.textTheme.bodyLarge),
-                  ),
-                ],
+          Row(
+            children: [
+              Expanded(child: VouchFlowEyebrow('create.livePreview'.tr)),
+              VouchFlowIconButton(
+                icon: PhosphorIconsRegular.arrowsOutSimple,
+                tooltip: 'create.fullSize'.tr,
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute<void>(builder: (_) => _FullPreviewPage(controller: c))),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 10),
-          OutlinedButton(
-            onPressed: controller.busy.value
-                ? null
-                : () => controller.save(submit: false),
-            child: Text('voucher.saveDraft'.tr),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: t.surface3,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: t.border),
+              ),
+              child: Obx(() {
+                final html = c.previewHtml.value;
+                if (html == null && c.previewFailed.value) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+                    child: VouchFlowErrorState(
+                      message: 'create.previewFailed'.tr,
+                      retryLabel: 'create.retry'.tr,
+                      onRetry: () => c.refreshPreview(force: true),
+                    ),
+                  );
+                }
+                final skeleton = AspectRatio(
+                  aspectRatio: kA4Width / kA4Height,
+                  child: ColoredBox(color: t.surface2),
+                );
+                if (html == null) return skeleton;
+                // The document mounts once the page has finished sliding in, so
+                // the web view never rides the route transition.
+                final route = ModalRoute.of(context)?.animation;
+                return AnimatedBuilder(
+                  animation: route ?? kAlwaysCompleteAnimation,
+                  builder: (context, _) {
+                    if (!(route?.isCompleted ?? true)) return skeleton;
+                    if (kIsWeb) {
+                      return LayoutBuilder(
+                        builder: (_, box) => previewFrame(html: html, width: box.maxWidth),
+                      );
+                    }
+                    return VouchFlowDocumentView(html: html, fit: VfDocumentFit.content);
+                  },
+                );
+              }),
+            ),
           ),
         ],
-      );
-    });
+      ),
+    );
   }
 }
+
+/// The preview full size: pinch to zoom, scroll the whole sheet.
+class _FullPreviewPage extends StatelessWidget {
+  const _FullPreviewPage({required this.controller});
+
+  final CreateVoucherController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    final type = c.selectedType;
+    return VouchFlowPushedScaffold(
+      title: type != null ? '${type.label} · ${type.nextNumberPreview}' : 'create.livePreview'.tr,
+      body: Obx(() {
+        final html = c.previewHtml.value;
+        if (html == null) {
+          return c.previewFailed.value
+              ? Padding(
+                  padding: const EdgeInsets.all(VfSize.pagePad),
+                  child: VouchFlowErrorState(
+                    message: 'create.previewFailed'.tr,
+                    retryLabel: 'create.retry'.tr,
+                    onRetry: () => c.refreshPreview(force: true),
+                  ),
+                )
+              : const Center(child: CircularProgressIndicator());
+        }
+        return VouchFlowDocumentView(html: html, fit: VfDocumentFit.fill, interactive: true);
+      }),
+    );
+  }
+}
+
+/// A money figure the way the web prints it.
+String previewMoney(CreateVoucherController c) => Fmt.money(c.amountValue, c.currency.value);
+
+/// The session's user, for the read-only requester field.
+AppUser currentUser() => Get.find<SessionService>().me;

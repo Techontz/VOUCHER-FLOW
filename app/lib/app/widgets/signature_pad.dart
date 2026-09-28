@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/theme.dart';
 
@@ -85,6 +86,7 @@ void _paintStrokes(Canvas canvas, List<List<Offset>> strokes, Color colour) {
 class _SignaturePadState extends State<SignaturePad> {
   @override
   Widget build(BuildContext context) {
+    final t = context.vf;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -93,38 +95,47 @@ class _SignaturePadState extends State<SignaturePad> {
             widget.controller._size = Size(constraints.maxWidth, widget.height);
             return Container(
               height: widget.height,
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: VfColors.lineStrong),
-                borderRadius: BorderRadius.circular(2),
+                // Paper, whatever the appearance: the mark is printed.
+                color: VfDoc.paper,
+                border: Border.all(color: t.borderStrong, width: 1.5),
+                borderRadius: BorderRadius.circular(VfSize.radiusL),
               ),
-              child: GestureDetector(
-                onPanStart: (d) => widget.controller._start(d.localPosition),
-                onPanUpdate: (d) => widget.controller._extend(d.localPosition),
-                child: AnimatedBuilder(
-                  animation: widget.controller,
-                  builder: (_, _) => CustomPaint(
-                    painter: _SignaturePainter(widget.controller._strokes),
-                    size: Size.infinite,
+              child: Semantics(
+                label: 'detail.signWithFinger'.tr,
+                child: GestureDetector(
+                  onPanStart: (d) => widget.controller._start(d.localPosition),
+                  onPanUpdate: (d) => widget.controller._extend(d.localPosition),
+                  child: AnimatedBuilder(
+                    animation: widget.controller,
+                    builder: (_, _) => CustomPaint(
+                      painter: _SignaturePainter(widget.controller._strokes),
+                      size: Size.infinite,
+                    ),
                   ),
                 ),
               ),
             );
           },
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Row(
           children: [
             Expanded(
               child: Text(
-                'sign.hint'.tr,
-                style: Theme.of(context).textTheme.bodySmall,
+                'detail.signWithFinger'.tr,
+                style: VfType.meta.copyWith(color: t.muted),
               ),
             ),
             TextButton.icon(
               onPressed: widget.controller.clear,
-              icon: const Icon(Icons.backspace_outlined, size: 16),
-              label: Text('action.clear'.tr),
+              style: TextButton.styleFrom(
+                foregroundColor: t.text2,
+                minimumSize: const Size(44, 44),
+              ),
+              icon: const Icon(PhosphorIconsRegular.eraser, size: 16),
+              label: Text('detail.clearSignature'.tr, style: VfType.label),
             ),
           ],
         ),

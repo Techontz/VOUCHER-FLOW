@@ -191,7 +191,8 @@ class VoucherActions {
 
 class TimelineEntry {
   TimelineEntry.fromJson(Map<String, dynamic> json)
-    : name = '${json['name']}',
+    : position = _toInt(json['position']),
+      name = '${json['name']}',
       nameSw = _as<String>(json['name_sw']),
       sub = '${json['sub']}',
       subSw = '${json['sub_sw'] ?? json['sub']}',
@@ -208,6 +209,7 @@ class TimelineEntry {
       capabilityPay = _cap(json['capabilities'], 'pay'),
       state = '${json['state']}';
 
+  final int position;
   final String name, sub, subSw, person, act, actSw, capabilityText, state;
   final String? nameSw, comment, signature, personTitle;
   final bool capabilitySign, capabilityApprove, capabilityPay;
@@ -224,12 +226,20 @@ class Attachment {
       name = '${json['name']}',
       size = '${json['size']}',
       isImage = json['is_image'] == true,
+      mimeType = _as<String>(json['mime_type']),
+      uploadedBy = _as<String>(json['uploaded_by']),
+      createdAt = _toDate(json['created_at']),
       documentType = _as<String>(json['document_type']),
       voucherPaymentId = _as<num>(json['voucher_payment_id'])?.toInt();
 
   final int id;
   final String name, size;
   final bool isImage;
+  final String? mimeType, uploadedBy;
+  final DateTime? createdAt;
+
+  bool get isPdf =>
+      mimeType == 'application/pdf' || name.toLowerCase().endsWith('.pdf');
 
   /// `payment_acknowledgement` for a signed cash receipt; null otherwise.
   final String? documentType;
@@ -262,6 +272,7 @@ class VoucherPayment {
       paidBy = json['paid_by'] is Map
           ? _nested(json['paid_by'], 'name')
           : _as<String>(json['paid_by']),
+      paidById = _as<num>(json['paid_by_id'])?.toInt(),
       note = _as<String>(json['note']),
       acknowledgedAt = _toDate(json['acknowledged_at']),
       acknowledgementUrl = _as<String>(json['acknowledgement_url']),
@@ -281,6 +292,7 @@ class VoucherPayment {
       paidBy,
       note,
       acknowledgementUrl;
+  final int? paidById;
   final DateTime? paymentDate, paidAt, acknowledgedAt;
   final List<int> acknowledgementAttachmentIds;
 
@@ -295,10 +307,13 @@ class VoucherComment {
       body = '${json['body']}',
       authorName = _nested(json['user'], 'name') ?? '—',
       authorInitials = _nested(json['user'], 'initials') ?? '',
+      authorDepartment = _nested(json['user'], 'department'),
+      authorRole = _nested(json['user'], 'role_label'),
       createdAt = _toDate(json['created_at']);
 
   final int id;
   final String body, authorName, authorInitials;
+  final String? authorDepartment, authorRole;
   final DateTime? createdAt;
 }
 
@@ -335,6 +350,15 @@ class Voucher {
       approvedAt = _toDate(json['approved_at']),
       paidAt = _toDate(json['paid_at']),
       paymentReference = _as<String>(json['payment_reference']),
+      paymentDate = _toDate(json['payment_date']),
+      rejectedAt = _toDate(json['rejected_at']),
+      updatedAt = _toDate(json['updated_at']),
+      decidedBy = _as<String>(json['decided_by']),
+      workflowId = _as<num>(json['workflow_id'])?.toInt(),
+      currentStepPosition = _as<num>(json['current_step_position'])?.toInt(),
+      currentStepRole = _nested(json['current_step'], 'role'),
+      currentStepCanSign = _stepCan(json['current_step'], 'sign'),
+      requesterJobTitle = _nested(json['requester'], 'job_title'),
       // The API sends the payer as an object, not a name.
       paidBy = _nested(json['paid_by'], 'name'),
       payeeBank = _as<String>(json['payee_bank']),
@@ -398,7 +422,12 @@ class Voucher {
       chequeNumber,
       cashFloat,
       receivedBy,
-      notesToApprover;
+      notesToApprover,
+      decidedBy,
+      currentStepRole,
+      requesterJobTitle;
+  final int? workflowId, currentStepPosition;
+  final bool currentStepCanSign;
   final double amount;
   final bool currentStepCanApprove, isEditable, isTerminal;
 
@@ -421,6 +450,7 @@ class Voucher {
 
   bool get isCash => kind == 'cash';
   final DateTime? voucherDate, submittedAt, approvedAt, paidAt, createdAt;
+  final DateTime? paymentDate, rejectedAt, updatedAt;
   final VoucherActions actions;
   final List<TimelineEntry> timeline;
   final List<Attachment> attachments;
@@ -431,25 +461,36 @@ class Voucher {
 class AppNotificationItem {
   AppNotificationItem.fromJson(Map<String, dynamic> json)
     : id = _toInt(json['id']),
+      type = '${json['type'] ?? ''}',
+      icon = '${json['icon'] ?? 'ph-bell'}',
       title = '${json['title']}',
       body = _as<String>(json['body']),
       entityType = _as<String>(json['entity_type']),
       entityId = _as<int>(json['entity_id']),
+      actionUrl = _as<String>(json['action_url']),
       isUnread = json['is_unread'] == true,
+      readAt = _toDate(json['read_at']),
       createdAt = _toDate(json['created_at']);
 
   final int id;
-  final String title;
-  final String? body, entityType;
+  final String type, title;
+
+  /// The web's Phosphor class name, e.g. `ph-seal-check`.
+  final String icon;
+  final String? body, entityType, actionUrl;
   final int? entityId;
   final bool isUnread;
-  final DateTime? createdAt;
+  final DateTime? readAt, createdAt;
 }
 
 /// String params from a JSON object (`{}` or a list when empty in PHP).
 Map<String, String> _params(dynamic value) => value is Map
     ? value.map((k, v) => MapEntry('$k', '$v'))
     : const <String, String>{};
+
+List<Map<String, dynamic>> _maps(dynamic value) => value is List
+    ? value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+    : const [];
 
 class DashboardStat {
   DashboardStat.fromJson(Map<String, dynamic> json)
@@ -482,11 +523,12 @@ class DashboardBanner {
       bodyKey = _as<String>(json['body_key']),
       body = '${json['body'] ?? ''}',
       actionKey = _as<String>((json['action'] as Map?)?['key']),
-      actionLabel = _as<String>((json['action'] as Map?)?['label']);
+      actionLabel = _as<String>((json['action'] as Map?)?['label']),
+      actionHref = _as<String>((json['action'] as Map?)?['href']);
 
   final int count;
   final String key, title, body;
-  final String? bodyKey, actionKey, actionLabel;
+  final String? bodyKey, actionKey, actionLabel, actionHref;
   final Map<String, String> params;
 }
 
@@ -509,148 +551,300 @@ class DashboardActivity {
   final String? amountText, at;
 }
 
-/// A labelled figure in a side panel: a department's spend, a payment total,
-/// a workflow step.
-class DashboardLine {
-  DashboardLine({
-    required this.label,
-    required this.value,
-    this.labelSw,
-    this.meta,
-  });
+/// A named bar: a department's approved spend, or a stage's open work.
+class DashboardBar {
+  DashboardBar.fromJson(Map<String, dynamic> json)
+    : id = _as<int>(json['id']),
+      name = '${json['name'] ?? ''}',
+      count = _toInt(json['count']),
+      total = _toDouble(json['total']),
+      totalText = _as<String>(json['total_text']),
+      share = _share(json['share']);
 
-  final String label, value;
-  final String? labelSw, meta;
-}
+  final int? id;
+  final String name;
+  final int count;
+  final double total;
+  final String? totalText;
 
-class DashboardData {
-  DashboardData.fromJson(Map<String, dynamic> json)
-    : greeting = '${json['greeting'] ?? ''}',
-      role = '${json['role'] ?? ''}',
-      view = '${(json['data'] as Map)['view'] ?? ''}',
-      headline = '${(json['data'] as Map)['headline']}',
-      sub = '${(json['data'] as Map)['sub'] ?? ''}',
-      banner = (json['data'] as Map)['banner'] is Map
-          ? DashboardBanner.fromJson(
-              Map<String, dynamic>.from((json['data'] as Map)['banner'] as Map),
-            )
-          : null,
-      stats = ((json['data'] as Map)['stats'] as List? ?? [])
-          .map((e) => DashboardStat.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      queueTotalText =
-          '${json['queue_total_text'] ?? (json['data'] as Map)['queue_total_text'] ?? ''}',
-      // The action queue is the payload's own, not a slice of the data block:
-      // a dashboard is what is on you, not what has happened.
-      queue = ((json['queue'] ?? (json['data'] as Map)['queue']) as List? ?? [])
-          .map((e) => Voucher.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      recent = ((json['data'] as Map)['recent'] as List? ?? [])
-          .map((e) => Voucher.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      activityKey = _as<String>((json['data'] as Map)['recent_activity_key']),
-      activityLabel =
-          '${(json['data'] as Map)['recent_activity_label'] ?? 'Recent activity'}',
-      activity = ((json['data'] as Map)['recent_activity'] as List? ?? [])
-          .map(
-            (e) =>
-                DashboardActivity.fromJson(Map<String, dynamic>.from(e as Map)),
-          )
-          .toList(),
-      panels = _panels(json['data'] as Map);
+  /// 0–1, from the API's "42%".
+  final double share;
 
-  final String greeting, role, view, headline, sub, queueTotalText;
-  final String activityLabel;
-  final String? activityKey;
-  final DashboardBanner? banner;
-  final List<DashboardStat> stats;
-  final List<Voucher> queue, recent;
-  final List<DashboardActivity> activity;
-
-  /// The role's side panels, keyed by their translation key.
-  final Map<String, List<DashboardLine>> panels;
-
-  static Map<String, List<DashboardLine>> _panels(Map data) {
-    final out = <String, List<DashboardLine>>{};
-
-    final signed = data['recently_signed'];
-    if (signed is List) {
-      out['dash.panel.recentlySigned'] = signed
-          .whereType<Map>()
-          .map(
-            (v) => DashboardLine(
-              label: '${v['number']}',
-              value: '${v['amount_text'] ?? ''}',
-              meta: _as<String>(v['payee']),
-            ),
-          )
-          .toList();
-    }
-
-    final departments = data['by_department'];
-    if (departments is List) {
-      out['dash.panel.deptSpending'] = departments
-          .whereType<Map>()
-          .map(
-            (d) => DashboardLine(
-              label: '${d['name']}',
-              value: '${d['total_text'] ?? d['total'] ?? ''}',
-              meta: '${d['count'] ?? ''}',
-            ),
-          )
-          .toList();
-    }
-
-    final totals = data['payment_totals'];
-    if (totals is Map) {
-      out['dash.panel.paymentTotals'] = [
-        for (final entry in const [
-          ('paid', 'dash.panel.paidTotal'),
-          ('bank', 'dash.panel.bank'),
-          ('cash', 'dash.panel.cash'),
-        ])
-          if (totals[entry.$1] is Map)
-            DashboardLine(
-              label: entry.$2,
-              value: '${(totals[entry.$1] as Map)['total_text'] ?? ''}',
-              meta: '${(totals[entry.$1] as Map)['count'] ?? 0}',
-            ),
-      ];
-    }
-
-    final workflow = data['workflow'];
-    if (workflow is Map && workflow['steps'] is List) {
-      out['dash.panel.workflow'] = (workflow['steps'] as List)
-          .whereType<Map>()
-          .map(
-            (s) => DashboardLine(
-              label: '${s['name']}',
-              labelSw: _as<String>(s['name_sw']),
-              value: 'dash.step.${s['action']}',
-            ),
-          )
-          .toList();
-    }
-
-    final subscription = data['subscription'];
-    if (subscription is Map) {
-      out['dash.panel.subscription'] = [
-        DashboardLine(
-          label: 'dash.panel.plan',
-          value: '${subscription['plan'] ?? '—'}',
-        ),
-        DashboardLine(
-          label: 'dash.panel.status',
-          value: 'subscription.${subscription['status']}',
-        ),
-        if (subscription['days_remaining'] != null)
-          DashboardLine(
-            label: 'dash.panel.daysRemaining',
-            value: '${subscription['days_remaining']}',
-          ),
-      ];
-    }
-
-    return out;
+  static double _share(dynamic value) {
+    final text = '${value ?? ''}'.replaceAll('%', '').trim();
+    final n = double.tryParse(text) ?? 0;
+    return (n / 100).clamp(0, 1).toDouble();
   }
 }
+
+/// One month of voucher value, for the seven-month column chart.
+class DashboardVolume {
+  DashboardVolume.fromJson(Map<String, dynamic> json)
+    : period = '${json['period'] ?? ''}',
+      label = '${json['label'] ?? ''}',
+      count = _toInt(json['count']),
+      total = _toDouble(json['total']),
+      isCurrent = json['is_current'] == true;
+
+  final String period, label;
+  final int count;
+  final double total;
+  final bool isCurrent;
+}
+
+/// A voucher this approver signed recently (the HOD panel).
+class DashboardSigned {
+  DashboardSigned.fromJson(Map<String, dynamic> json)
+    : id = _toInt(json['id']),
+      number = '${json['number'] ?? ''}',
+      payee = '${json['payee'] ?? ''}',
+      amountText = '${json['amount_text'] ?? ''}',
+      status = '${json['status'] ?? ''}';
+
+  final int id;
+  final String number, payee, amountText, status;
+}
+
+/// A count and a sum of payments (the cashier's totals).
+class DashboardMoneyTotal {
+  DashboardMoneyTotal.fromJson(Map<String, dynamic>? json)
+    : count = _toInt(json?['count']),
+      total = _toDouble(json?['total']),
+      totalText = '${json?['total_text'] ?? ''}';
+
+  final int count;
+  final double total;
+  final String totalText;
+}
+
+/// The company's default approval route, step by step (admin panel).
+class DashboardWorkflow {
+  DashboardWorkflow.fromJson(Map<String, dynamic> json)
+    : id = _toInt(json['id']),
+      name = '${json['name'] ?? ''}',
+      nameSw = _as<String>(json['name_sw']),
+      steps = _maps(json['steps']).map(DashboardWorkflowStep.fromJson).toList();
+
+  final int id;
+  final String name;
+  final String? nameSw;
+  final List<DashboardWorkflowStep> steps;
+}
+
+class DashboardWorkflowStep {
+  DashboardWorkflowStep.fromJson(Map<String, dynamic> json)
+    : position = _toInt(json['position']),
+      name = '${json['name'] ?? ''}',
+      nameSw = _as<String>(json['name_sw']),
+      role = '${json['role'] ?? ''}',
+      action = '${json['action'] ?? ''}';
+
+  final int position;
+  final String name, role;
+  final String? nameSw;
+
+  /// request | sign | approve | pay | review
+  final String action;
+}
+
+class DashboardSubscription {
+  DashboardSubscription.fromJson(Map<String, dynamic> json)
+    : plan = _as<String>(json['plan']),
+      status = '${json['status'] ?? ''}',
+      trialEndsAt = _toDate(json['trial_ends_at']),
+      renewsAt = _toDate(json['renews_at']),
+      daysRemaining = json['days_remaining'] == null
+          ? null
+          : _toInt(json['days_remaining']);
+
+  final String? plan;
+  final String status;
+  final DateTime? trialEndsAt, renewsAt;
+  final int? daysRemaining;
+}
+
+/// A company the platform should talk to (trial ending, payment overdue).
+class DashboardAttention {
+  DashboardAttention.fromJson(Map<String, dynamic> json)
+    : id = _toInt(json['id']),
+      name = '${json['name'] ?? ''}',
+      status = '${json['status'] ?? ''}',
+      plan = _as<String>(json['plan']),
+      usersCount = _toInt(json['users_count']),
+      note = '${json['note'] ?? ''}';
+
+  final int id, usersCount;
+  final String name, status, note;
+  final String? plan;
+}
+
+/// A company in the platform's "Recent companies" list.
+class DashboardCompany {
+  DashboardCompany.fromJson(Map<String, dynamic> json)
+    : id = _toInt(json['id']),
+      name = '${json['name'] ?? ''}',
+      plan = _as<String>(json['plan']),
+      status = '${json['status'] ?? ''}',
+      usersCount = _toInt(json['users_count']),
+      vouchersCount = _toInt(json['vouchers_count']);
+
+  final int id, usersCount, vouchersCount;
+  final String name, status;
+  final String? plan;
+}
+
+/// A subscription invoice in the platform's "Recent payments".
+class DashboardInvoice {
+  DashboardInvoice.fromJson(Map<String, dynamic> json)
+    : id = _toInt(json['id']),
+      number = '${json['number'] ?? ''}',
+      company = _as<String>(json['company']),
+      total = _toDouble(json['total']),
+      currency = '${json['currency'] ?? 'TZS'}',
+      status = '${json['status'] ?? ''}',
+      createdAt = _toDate(json['created_at']);
+
+  final int id;
+  final String number, currency, status;
+  final String? company;
+  final double total;
+  final DateTime? createdAt;
+}
+
+/// A queued voucher's place in its route, which the list model does not
+/// carry: the workflow it follows and the step it sits at.
+class DashboardQueueRoute {
+  DashboardQueueRoute.fromJson(Map<String, dynamic> json)
+    : workflowId = _as<int>(json['workflow_id']),
+      currentStepPosition = _as<int>(json['current_step_position']);
+
+  final int? workflowId, currentStepPosition;
+}
+
+/// The whole `/dashboard` payload. Which blocks are present is decided by the
+/// backend per role; every optional block is null when it was not sent.
+class DashboardData {
+  factory DashboardData.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] is Map
+        ? Map<String, dynamic>.from(json['data'] as Map)
+        : <String, dynamic>{};
+    final queueRaw = _maps(json['queue'] ?? data['queue']);
+
+    Map<String, dynamic>? map(String key) =>
+        data[key] is Map ? Map<String, dynamic>.from(data[key] as Map) : null;
+    List<T>? list<T>(String key, T Function(Map<String, dynamic>) f) =>
+        data[key] is List ? _maps(data[key]).map(f).toList() : null;
+
+    final totals = map('payment_totals');
+    final overview = map('overview');
+
+    return DashboardData._(
+      greeting: '${json['greeting'] ?? ''}',
+      role: '${json['role'] ?? ''}',
+      view: '${data['view'] ?? ''}',
+      headline: '${data['headline'] ?? ''}',
+      sub: '${data['sub'] ?? ''}',
+      banner: map('banner') == null
+          ? null
+          : DashboardBanner.fromJson(map('banner')!),
+      stats: _maps(data['stats']).map(DashboardStat.fromJson).toList(),
+      queue: queueRaw.map(Voucher.fromJson).toList(),
+      queueRoutes: queueRaw.map(DashboardQueueRoute.fromJson).toList(),
+      queueTotalText: _as<String>(
+        json['queue_total_text'] ?? data['queue_total_text'],
+      ),
+      activity: list('recent_activity', DashboardActivity.fromJson),
+      activityKey: _as<String>(data['recent_activity_key']),
+      activityLabel: '${data['recent_activity_label'] ?? 'Recent activity'}',
+      recentlySigned: list('recently_signed', DashboardSigned.fromJson),
+      byDepartment: list('by_department', DashboardBar.fromJson),
+      byStage: list('by_stage', DashboardBar.fromJson),
+      volume: list('volume', DashboardVolume.fromJson),
+      paymentTotals: totals == null
+          ? null
+          : (
+              paid: DashboardMoneyTotal.fromJson(_mapOf(totals['paid'])),
+              bank: DashboardMoneyTotal.fromJson(_mapOf(totals['bank'])),
+              cash: DashboardMoneyTotal.fromJson(_mapOf(totals['cash'])),
+            ),
+      overview: overview == null
+          ? null
+          : (
+              activeUsers: _toInt(overview['active_users']),
+              departments: _toInt(overview['departments']),
+            ),
+      hasWorkflow: data.containsKey('workflow'),
+      workflow: map('workflow') == null
+          ? null
+          : DashboardWorkflow.fromJson(map('workflow')!),
+      subscription: map('subscription') == null
+          ? null
+          : DashboardSubscription.fromJson(map('subscription')!),
+      attention: list('attention', DashboardAttention.fromJson),
+      recentCompanies: list('recent_companies', DashboardCompany.fromJson),
+      recentPayments: list('recent_payments', DashboardInvoice.fromJson),
+    );
+  }
+
+  DashboardData._({
+    required this.greeting,
+    required this.role,
+    required this.view,
+    required this.headline,
+    required this.sub,
+    required this.banner,
+    required this.stats,
+    required this.queue,
+    required this.queueRoutes,
+    required this.queueTotalText,
+    required this.activity,
+    required this.activityKey,
+    required this.activityLabel,
+    required this.recentlySigned,
+    required this.byDepartment,
+    required this.byStage,
+    required this.volume,
+    required this.paymentTotals,
+    required this.overview,
+    required this.hasWorkflow,
+    required this.workflow,
+    required this.subscription,
+    required this.attention,
+    required this.recentCompanies,
+    required this.recentPayments,
+  });
+
+  final String greeting, role, view, headline, sub, activityLabel;
+  final String? activityKey, queueTotalText;
+  final DashboardBanner? banner;
+  final List<DashboardStat> stats;
+
+  /// The work that is this user's to do right now.
+  final List<Voucher> queue;
+
+  /// Parallel to [queue]: each voucher's workflow and current step.
+  final List<DashboardQueueRoute> queueRoutes;
+
+  final List<DashboardActivity>? activity;
+  final List<DashboardSigned>? recentlySigned;
+  final List<DashboardBar>? byDepartment, byStage;
+  final List<DashboardVolume>? volume;
+  final ({
+    DashboardMoneyTotal paid,
+    DashboardMoneyTotal bank,
+    DashboardMoneyTotal cash,
+  })?
+  paymentTotals;
+  final ({int activeUsers, int departments})? overview;
+
+  /// The admin payload names `workflow` even when no default route is active.
+  final bool hasWorkflow;
+  final DashboardWorkflow? workflow;
+  final DashboardSubscription? subscription;
+  final List<DashboardAttention>? attention;
+  final List<DashboardCompany>? recentCompanies;
+  final List<DashboardInvoice>? recentPayments;
+}
+
+Map<String, dynamic>? _mapOf(dynamic value) =>
+    value is Map ? Map<String, dynamic>.from(value) : null;

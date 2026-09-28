@@ -1,5 +1,66 @@
-// Strings for the payments screens (English and Swahili), merged into
-// VfTranslations. Keys are prefixed with 'payments.' to stay out of each
-// other's way; wording follows the web client's lib/i18n.ts.
-const Map<String, String> paymentsEn = {};
-const Map<String, String> paymentsSw = {};
+// Strings for the payment queue (English and Swahili), merged into
+// VfTranslations. Keys are prefixed with 'payments.'; wording is copied from
+// the web client's lib/i18n.ts.
+const Map<String, String> paymentsEn = {
+  'payments.awaitingPayment': 'Awaiting payment',
+  'payments.bankTransfers': 'Bank transfers due',
+  'payments.cashDue': 'Cash due',
+  'payments.paidThisMonth': 'Paid this month',
+  'payments.paidVouchers': 'Paid vouchers',
+  'payments.viewAllPaid': 'View all paid vouchers',
+  'payments.approveNextNote': 'Approving releases this voucher to the cashier for payment.',
+  'payments.payNote': 'Funds released and reference recorded against the voucher.',
+  'payments.nothingAwaiting': 'Nothing awaiting you',
+  'payments.nothingAwaitingBody': 'Every voucher assigned to you has been signed or decided. New ones appear here immediately.',
+  'payments.voucherRegister': 'Voucher register',
+  'payments.exportBtn': 'Export',
+  'payments.voucherWord': 'voucher',
+  'payments.vouchersWord': 'vouchers',
+  'payments.all': 'All',
+  'payments.bank': 'Bank',
+  'payments.cash': 'Cash',
+  'payments.showing': 'Showing',
+  'payments.page': 'Page',
+  'payments.of': 'of',
+  'payments.back': 'Back',
+  'payments.next': 'Next',
+  'payments.exportReady': 'Export ready',
+  'payments.exportFailed': 'Could not build the export',
+  'payments.voucherFormat': 'Format',
+  'payments.bankOne': '1 bank voucher',
+  'payments.bankMany': '@count bank vouchers',
+  'payments.cashOne': '1 cash voucher',
+  'payments.cashMany': '@count cash vouchers',
+};
+
+const Map<String, String> paymentsSw = {
+  'payments.awaitingPayment': 'Inasubiri malipo',
+  'payments.bankTransfers': 'Uhamisho wa benki unaosubiri',
+  'payments.cashDue': 'Taslimu inayodaiwa',
+  'payments.paidThisMonth': 'Zilizolipwa mwezi huu',
+  'payments.paidVouchers': 'Vocha zilizolipwa',
+  'payments.viewAllPaid': 'Ona vocha zote zilizolipwa',
+  'payments.approveNextNote': 'Kuidhinisha kunapeleka vocha hii kwa mhasibu kwa malipo.',
+  'payments.payNote': 'Fedha zimetolewa na kumbukumbu imeandikwa kwenye vocha.',
+  'payments.nothingAwaiting': 'Hakuna kinachokusubiri',
+  'payments.nothingAwaitingBody': 'Kila vocha iliyokupewa imesainiwa au imeamuliwa. Mpya zinaonekana hapa mara moja.',
+  'payments.voucherRegister': 'Daftari la vocha',
+  'payments.exportBtn': 'Hamisha',
+  'payments.voucherWord': 'vocha',
+  'payments.vouchersWord': 'vocha',
+  'payments.all': 'Zote',
+  'payments.bank': 'Benki',
+  'payments.cash': 'Taslimu',
+  'payments.showing': 'Inaonyesha',
+  'payments.page': 'Ukurasa',
+  'payments.of': 'kati ya',
+  'payments.back': 'Nyuma',
+  'payments.next': 'Ifuatayo',
+  'payments.exportReady': 'Faili iko tayari',
+  'payments.exportFailed': 'Imeshindikana kutayarisha faili',
+  'payments.voucherFormat': 'Aina ya malipo',
+  'payments.bankOne': '1 vocha ya benki',
+  'payments.bankMany': 'vocha @count za benki',
+  'payments.cashOne': '1 vocha ya taslimu',
+  'payments.cashMany': 'vocha @count za taslimu',
+};

@@ -27,7 +27,17 @@ class SessionService extends GetxService {
   final booting = true.obs;
 
   bool get isSignedIn => user.value != null;
-  AppUser get me => user.value!;
+
+  /// The signed-in person. After signing out (or a 401) the screens still on
+  /// their way out may rebuild once more; they keep seeing the departing user
+  /// rather than failing on an empty session.
+  AppUser get me {
+    final u = user.value;
+    if (u != null) return _lastMe = u;
+    return _lastMe!;
+  }
+
+  AppUser? _lastMe;
 
   Future<SessionService> init() async {
     locale.value = _api.locale;
@@ -54,6 +64,7 @@ class SessionService extends GetxService {
     }
     // Development only: a requested appearance wins over the stored one.
     if (DevHooks.theme != null) _applyTheme(_modeFrom(DevHooks.theme));
+    if (DevHooks.locale != null) await setLocale(DevHooks.locale!, persist: false);
     booting.value = false;
     return this;
   }
@@ -102,6 +113,10 @@ class SessionService extends GetxService {
             as Map<String, dynamic>;
     await _startSession(data);
   }
+
+  /// Starts a session from any response that carries `token`, `user` and
+  /// `company` — registration answers with one, as the web's applySession.
+  Future<void> startSessionFrom(Map<String, dynamic> data) => _startSession(data);
 
   Future<void> _startSession(Map<String, dynamic> data) async {
     await _api.setToken('${data['token']}');

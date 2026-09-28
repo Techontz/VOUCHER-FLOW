@@ -1,45 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/dev_hooks.dart';
+import '../../core/theme.dart';
 import '../../data/services/session_service.dart';
 import '../../routes/routes.dart';
+import 'auth_widgets.dart';
 
 /// Decides where to land once the stored session has been checked.
-class SplashPage extends StatelessWidget {
+class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final session = Get.find<SessionService>();
+  State<SplashPage> createState() => _SplashPageState();
+}
 
-    ever<bool>(session.booting, (booting) {
-      if (!booting) {
-        Get.offAllNamed(session.isSignedIn ? Routes.shell : Routes.login);
-      }
+class _SplashPageState extends State<SplashPage> {
+  final _session = Get.find<SessionService>();
+  Worker? _worker;
+  bool _left = false;
+
+  /// Public pages a development build may open straight away (screenshots).
+  static const _publicPushes = {Routes.register, Routes.forgotPassword};
+
+  @override
+  void initState() {
+    super.initState();
+    _worker = ever<bool>(_session.booting, (booting) {
+      if (!booting) _leave();
     });
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!session.booting.value) {
-        Get.offAllNamed(session.isSignedIn ? Routes.shell : Routes.login);
-      }
+      if (!_session.booting.value) _leave();
     });
+  }
 
+  void _leave() {
+    if (_left) return;
+    _left = true;
+    if (_session.isSignedIn) {
+      Get.offAllNamed(Routes.shell);
+      return;
+    }
+    final locale = DevHooks.locale;
+    if (locale != null) _session.setLocale(locale, persist: false);
+    Get.offAllNamed(Routes.login);
+    final push = DevHooks.push;
+    if (push != null && _publicPushes.contains(push)) Get.toNamed(push);
+  }
+
+  @override
+  void dispose() {
+    _worker?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
     return Scaffold(
+      backgroundColor: t.drawer,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'VouchFlow',
-              style: Theme.of(
-                context,
-              ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 18),
-            const SizedBox(
+            const VfWordmark(size: 44, onDark: true),
+            const SizedBox(height: 22),
+            SizedBox(
               width: 22,
               height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: t.palette.textDark,
+              ),
             ),
           ],
         ),

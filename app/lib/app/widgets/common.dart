@@ -4,10 +4,18 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/theme.dart';
+import 'vf/vf.dart';
 
-/// The design's status chip.
+/*
+ * The shared widgets older screens are built from. Their constructors are
+ * unchanged; underneath, each one now draws the web client's component
+ * (widgets/vf) so every screen reads as the same product as the website.
+ */
+
+/// A status pill — the web's `.badge` in the voucher's `tag-*` tone.
 class StatusChip extends StatelessWidget {
   const StatusChip({
     super.key,
@@ -21,31 +29,12 @@ class StatusChip extends StatelessWidget {
   final bool dense;
 
   @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: dense ? 8 : 10,
-        vertical: dense ? 2 : 4,
-      ),
-      decoration: BoxDecoration(
-        color: VfStatus.background(tag, brightness),
-        border: Border.all(color: VfStatus.border(tag, brightness)),
-        borderRadius: BorderRadius.circular(VfTheme.rSm),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: dense ? 11 : 11.5,
-          fontWeight: FontWeight.w500,
-          color: VfStatus.foreground(tag, brightness),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      VouchFlowStatusBadge(label: label, tag: tag);
 }
 
-/// The v2 statistic card: iconed label, tabular value and an optional trend.
+/// A statistic card — the web's `.vf-kpi`: label, big figure, an optional
+/// trend and a quieter line, with a round tinted icon on the right.
 class StatTile extends StatelessWidget {
   const StatTile({
     super.key,
@@ -61,119 +50,143 @@ class StatTile extends StatelessWidget {
   final String? sub, trend, icon;
   final bool? up;
 
-  static const _icons = <String, IconData>{
-    'receipt': Icons.receipt_long_outlined,
-    'hourglass': Icons.hourglass_bottom_outlined,
-    'check': Icons.check_circle_outline,
-    'coins': Icons.savings_outlined,
-    'wallet': Icons.account_balance_wallet_outlined,
-    'money': Icons.payments_outlined,
-    'bank': Icons.account_balance_outlined,
-    'signature': Icons.draw_outlined,
-    'undo': Icons.undo_outlined,
-    'seal': Icons.verified_outlined,
-    'chart': Icons.show_chart,
+  /// Short names older screens use, and the web's own `ph-*` names.
+  static final _icons = <String, IconData>{
+    'receipt': PhosphorIconsRegular.receipt,
+    'hourglass': PhosphorIconsRegular.hourglass,
+    'check': PhosphorIconsRegular.checkCircle,
+    'coins': PhosphorIconsRegular.coins,
+    'wallet': PhosphorIconsRegular.wallet,
+    'money': PhosphorIconsRegular.money,
+    'bank': PhosphorIconsRegular.bank,
+    'signature': PhosphorIconsRegular.signature,
+    'undo': PhosphorIconsRegular.arrowUUpLeft,
+    'seal': PhosphorIconsRegular.sealCheck,
+    'chart': PhosphorIconsRegular.chartLine,
+    'ph-receipt': PhosphorIconsRegular.receipt,
+    'ph-hourglass': PhosphorIconsRegular.hourglass,
+    'ph-hourglass-medium': PhosphorIconsRegular.hourglassMedium,
+    'ph-check-circle': PhosphorIconsRegular.checkCircle,
+    'ph-seal-check': PhosphorIconsRegular.sealCheck,
+    'ph-coins': PhosphorIconsRegular.coins,
+    'ph-wallet': PhosphorIconsRegular.wallet,
+    'ph-money': PhosphorIconsRegular.money,
+    'ph-bank': PhosphorIconsRegular.bank,
+    'ph-signature': PhosphorIconsRegular.signature,
+    'ph-arrow-u-up-left': PhosphorIconsRegular.arrowUUpLeft,
+    'ph-x-circle': PhosphorIconsRegular.xCircle,
+    'ph-chart-line': PhosphorIconsRegular.chartLine,
+    'ph-chart-bar': PhosphorIconsRegular.chartBar,
+    'ph-users': PhosphorIconsRegular.users,
+    'ph-buildings': PhosphorIconsRegular.buildings,
+    'ph-clock': PhosphorIconsRegular.clock,
   };
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.vf;
     final rising = up ?? true;
-    final trendColour = rising ? VfColors.ok : VfColors.bad;
+    final trendColour = rising ? t.success : t.danger;
+    final hasFoot = (sub != null && sub!.isNotEmpty) || (trend != null && trend!.isNotEmpty);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: context.vfElev1,
-        border: Border.all(color: context.vfLine),
-        borderRadius: BorderRadius.circular(VfTheme.rLg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+    Widget plate(double size) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: t.primarySoftStrong, shape: BoxShape.circle),
+      child: Icon(_icons[icon] ?? PhosphorIconsRegular.chartBar, size: size * .5, color: t.primary),
+    );
+
+    Widget labelText() => Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: VfType.small.copyWith(color: t.text2, fontSize: 14, height: 1.3),
+    );
+
+    final figure = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(value, maxLines: 1, style: VfType.figure.copyWith(color: t.text, fontSize: 24)),
+    );
+
+    final foot = !hasFoot
+        ? null
+        : Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: context.vfAccentTint,
-                  border: Border.all(color: context.vfLine),
-                  borderRadius: BorderRadius.circular(8),
+              if (trend != null && trend!.isNotEmpty)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      rising ? PhosphorIconsRegular.trendUp : PhosphorIconsRegular.trendDown,
+                      size: 13,
+                      color: trendColour,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      trend!,
+                      style: VfType.meta.copyWith(fontSize: 13, fontWeight: FontWeight.w500, color: trendColour),
+                    ),
+                  ],
                 ),
-                child: Icon(
-                  _icons[icon] ?? Icons.show_chart,
-                  size: 15,
-                  color: context.vfAccent,
-                ),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  label.toUpperCase(),
-                  style: theme.textTheme.labelSmall,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
+              if (sub != null && sub!.isNotEmpty)
+                Text(sub!, style: VfType.meta.copyWith(fontSize: 13, color: t.muted)),
             ],
-          ),
-          const SizedBox(height: 10),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value, style: theme.textTheme.headlineSmall),
-          ),
-          if ((sub != null && sub!.isNotEmpty) || trend != null) ...[
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
+          );
+
+    return VouchFlowCard(
+      padding: const EdgeInsets.all(16),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // In a narrow two-up grid the icon joins the label's line and the
+          // figure takes the card's full width (the web's `data-long` card).
+          if (box.maxWidth < 220) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                if (trend != null && trend!.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: trendColour.withValues(alpha: .15),
-                      borderRadius: BorderRadius.circular(VfTheme.rSm),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          rising ? Icons.trending_up : Icons.trending_down,
-                          size: 12,
-                          color: trendColour,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          trend!,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: trendColour,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (sub != null && sub!.isNotEmpty)
-                  Text(sub!, style: theme.textTheme.bodySmall),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: labelText()),
+                    const SizedBox(width: 8),
+                    plate(32),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                figure,
+                if (foot != null) ...[const SizedBox(height: 6), foot],
               ],
-            ),
-          ],
-        ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    labelText(),
+                    const SizedBox(height: 4),
+                    figure,
+                    if (foot != null) ...[const SizedBox(height: 6), foot],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              plate(44),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-/// Bank or cash — the two corporate voucher formats.
+/// Bank or cash — the two corporate voucher formats (the web's `.vf-kind`).
 class KindChip extends StatelessWidget {
   const KindChip({super.key, required this.kind, this.dense = true});
 
@@ -182,31 +195,31 @@ class KindChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.vf;
     final cash = kind == 'cash';
-    final colour = cash ? VfColors.warn : context.vfAccent;
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: dense ? 7 : 9, vertical: 2),
+      height: dense ? 22 : 26,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: colour.withValues(alpha: .15),
-        borderRadius: BorderRadius.circular(VfTheme.rSm),
+        color: t.surface3,
+        borderRadius: BorderRadius.circular(VfSize.radiusXs),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            cash ? Icons.payments_outlined : Icons.account_balance_outlined,
-            size: dense ? 12 : 14,
-            color: colour,
+            cash ? PhosphorIconsRegular.money : PhosphorIconsRegular.bank,
+            size: dense ? 13 : 15,
+            color: t.text,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 5),
           Text(
-            (cash ? 'voucher.cashShort'.tr : 'voucher.bankShort'.tr)
-                .toUpperCase(),
-            style: TextStyle(
-              fontSize: dense ? 10.5 : 11.5,
-              fontWeight: FontWeight.w600,
-              letterSpacing: .4,
-              color: colour,
+            cash ? 'voucher.cashShort'.tr : 'voucher.bankShort'.tr,
+            style: VfType.meta.copyWith(
+              fontSize: dense ? 12 : 13,
+              fontWeight: FontWeight.w500,
+              color: t.text,
+              height: 1.2,
             ),
           ),
         ],
@@ -215,7 +228,7 @@ class KindChip extends StatelessWidget {
   }
 }
 
-/// The elevated surface almost every block sits on.
+/// The surface almost every block sits on — the web's `.vf-panel`.
 class VfPanel extends StatelessWidget {
   const VfPanel({super.key, required this.child, this.padding});
 
@@ -223,13 +236,8 @@ class VfPanel extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: padding ?? const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: context.vfElev1,
-      border: Border.all(color: context.vfLine),
-      borderRadius: BorderRadius.circular(VfTheme.rLg),
-    ),
+  Widget build(BuildContext context) => VouchFlowCard(
+    padding: padding ?? const EdgeInsets.all(VfSize.cardPad),
     child: child,
   );
 }
@@ -252,60 +260,17 @@ class ChoiceCard extends StatelessWidget {
   final String? sub;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(VfTheme.rLg),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: selected ? context.vfAccentTint : context.vfElev1,
-          border: Border.all(
-            color: selected ? VfColors.accent400 : context.vfLine,
-          ),
-          borderRadius: BorderRadius.circular(VfTheme.rLg),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: context.vfElev2,
-                border: Border.all(color: context.vfLine),
-                borderRadius: BorderRadius.circular(VfTheme.rMd),
-              ),
-              child: Icon(
-                icon,
-                size: 18,
-                color: selected ? context.vfAccent : context.vfMuted,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(label, style: theme.textTheme.titleSmall),
-                  if (sub != null) Text(sub!, style: theme.textTheme.bodySmall),
-                ],
-              ),
-            ),
-            Icon(
-              selected ? Icons.check_circle : Icons.circle_outlined,
-              size: 20,
-              color: selected ? context.vfAccent : context.vfMuted,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => VouchFlowSelectCard(
+    title: label,
+    subtitle: sub,
+    selected: selected,
+    onTap: onTap,
+    icon: icon,
+  );
 }
 
-/// Soft rule-led callout for scope, workflow and payment notes.
+/// A quiet callout for scope, workflow and payment notes — the web's
+/// `.vf-note`. A [tone] colour tints it (a warning, say).
 class VfNote extends StatelessWidget {
   const VfNote(this.text, {super.key, this.tone});
 
@@ -314,21 +279,33 @@ class VfNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colour = tone ?? context.vfAccent;
+    final t = context.vf;
+    final colour = tone;
     return Container(
-      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
+      padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
       decoration: BoxDecoration(
-        color: colour.withValues(alpha: .07),
-        border: Border(left: BorderSide(color: colour, width: 2)),
-        borderRadius: const BorderRadius.horizontal(
-          right: Radius.circular(VfTheme.rMd),
-        ),
+        color: colour == null ? t.surface2 : Color.alphaBlend(colour.withValues(alpha: .10), t.surface),
+        border: Border.all(color: colour == null ? t.border : colour.withValues(alpha: .30)),
+        borderRadius: BorderRadius.circular(VfSize.radiusL),
       ),
-      child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(PhosphorIconsRegular.info, size: 17, color: colour ?? t.muted),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: VfType.small.copyWith(fontSize: 14, color: t.text2, height: 1.5)),
+          ),
+        ],
+      ),
     );
   }
 }
 
+/// A section heading inside a page.
 class SectionHeader extends StatelessWidget {
   const SectionHeader({super.key, required this.title, this.trailing});
 
@@ -338,24 +315,18 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-        ),
-        ?trailing,
-      ],
-    ),
+    child: VouchFlowSectionHeader(title: title, trailing: trailing),
   );
 }
 
+/// Nothing to show — the web's empty state: a soft round icon plate, a
+/// title, a line and an optional action.
 class EmptyView extends StatelessWidget {
   const EmptyView({
     super.key,
     required this.title,
     this.body,
-    this.icon = Icons.inbox_outlined,
+    this.icon = PhosphorIconsRegular.tray,
     this.action,
   });
 
@@ -365,37 +336,22 @@ class EmptyView extends StatelessWidget {
   final Widget? action;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: VfColors.lineStrong),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            if (body != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                body!,
-                style: theme.textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-            ],
-            if (action != null) ...[const SizedBox(height: 20), action!],
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        VouchFlowEmptyState(title: title, body: body, icon: icon),
+        if (action != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+            child: action!,
+          ),
+      ],
+    ),
+  );
 }
 
+/// A failed load, with the server's wording and a retry.
 class ErrorView extends StatelessWidget {
   const ErrorView({super.key, required this.message, this.onRetry});
 
@@ -405,66 +361,69 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 40, color: VfColors.bad),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          if (onRetry != null) ...[
-            const SizedBox(height: 18),
-            OutlinedButton(onPressed: onRetry, child: Text('action.retry'.tr)),
-          ],
-        ],
+      padding: const EdgeInsets.all(VfSize.pagePad),
+      child: VouchFlowErrorState(
+        message: message,
+        onRetry: onRetry,
+        retryLabel: 'action.retry'.tr,
       ),
     ),
   );
 }
 
-/// A short, non-blocking message. Colour follows the action's outcome.
+/// A short, non-blocking message in the web's toast look: a surface card with
+/// a tone-coloured icon, a title and a line, rising above the tab bar.
 void showToast(String title, {String? body, ToastKind kind = ToastKind.ok}) {
-  final colour = switch (kind) {
-    ToastKind.ok => VfColors.accent600,
-    ToastKind.warn => VfColors.warn,
-    ToastKind.bad => VfColors.bad,
+  final t = Get.isDarkMode
+      ? VfTokens.dark(VfColors.palette)
+      : VfTokens.light(VfColors.palette);
+  final (IconData icon, Color colour) = switch (kind) {
+    ToastKind.ok => (PhosphorIconsFill.checkCircle, t.successStrong),
+    ToastKind.warn => (PhosphorIconsFill.info, t.warningStrong),
+    ToastKind.bad => (PhosphorIconsFill.warningCircle, t.dangerStrong),
   };
 
   Get.closeAllSnackbars();
-  Get.rawSnackbar(
-    titleText: Text(
-      title,
-      style: const TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: 15,
-        color: Colors.white,
+  Get.showSnackbar(
+    GetSnackBar(
+      titleText: Text(
+        title,
+        style: VfType.bodyStrong.copyWith(color: t.text, height: 1.35),
       ),
+      messageText: body == null || body.isEmpty
+          ? const SizedBox.shrink()
+          : Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                body,
+                style: VfType.small.copyWith(fontSize: 14, color: t.text2),
+              ),
+            ),
+      icon: Icon(icon, size: 21, color: colour),
+      shouldIconPulse: false,
+      mainButton: IconButton(
+        tooltip: 'action.close'.tr,
+        onPressed: () => Get.closeCurrentSnackbar(),
+        icon: Icon(PhosphorIconsRegular.x, size: 15, color: t.muted),
+      ),
+      backgroundColor: t.surface,
+      borderColor: t.border,
+      borderWidth: 1,
+      borderRadius: VfSize.radiusL,
+      boxShadows: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: t.isDark ? .5 : .12),
+          blurRadius: 15,
+          spreadRadius: -3,
+          offset: const Offset(0, 10),
+        ),
+      ],
+      maxWidth: 420,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+      padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
+      duration: const Duration(seconds: 3),
+      snackPosition: SnackPosition.BOTTOM,
     ),
-    messageText: body == null
-        ? const SizedBox.shrink()
-        : Text(
-            body,
-            style: const TextStyle(fontSize: 13.5, color: Colors.white70),
-          ),
-    backgroundColor: VfColors.elev3,
-    // A hairline in the toast's own accent, so the panel separates from the
-    // dark ground it now usually sits on.
-    borderColor: colour.withValues(alpha: .55),
-    borderWidth: 1,
-    margin: const EdgeInsets.all(12),
-    borderRadius: VfTheme.rMd,
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    duration: const Duration(seconds: 3),
-    snackPosition: SnackPosition.BOTTOM,
-    icon: Icon(switch (kind) {
-      ToastKind.ok => Icons.check_circle_outline,
-      ToastKind.warn => Icons.schedule,
-      ToastKind.bad => Icons.error_outline,
-    }, color: colour),
   );
 }
 
@@ -518,7 +477,7 @@ Uint8List? decodeSignature(String? dataUrl) {
   }
 }
 
-/// A collapsible secondary section.
+/// A collapsible secondary section — the web's `.vf-disclosure` panel.
 ///
 /// Attachments, comments, the timeline and the audit trail matter, but they
 /// are not the voucher — giving each a permanent slab pushes the document
@@ -549,66 +508,68 @@ class _DisclosureState extends State<Disclosure> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.vf;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: context.vfElev1,
-        border: Border.all(color: context.vfLine),
-        borderRadius: BorderRadius.circular(VfTheme.rLg),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _open = !_open),
-            borderRadius: BorderRadius.circular(VfTheme.rLg),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
-              child: Row(
-                children: [
-                  if (widget.icon != null) ...[
-                    Icon(widget.icon, size: 17, color: context.vfMuted),
-                    const SizedBox(width: 10),
-                  ],
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: theme.textTheme.titleSmall,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: VouchFlowCard(
+        padding: EdgeInsets.zero,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Semantics(
+              button: true,
+              expanded: _open,
+              child: InkWell(
+                onTap: () => setState(() => _open = !_open),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 13, 14, 13),
+                    child: Row(
+                      children: [
+                        if (widget.icon != null) ...[
+                          Icon(widget.icon, size: 18, color: t.text2),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: Text(
+                            widget.title,
+                            style: VfType.cardTitle.copyWith(color: t.text),
+                          ),
+                        ),
+                        if ((widget.count ?? 0) > 0)
+                          Container(
+                            margin: const EdgeInsets.only(right: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: t.surface3,
+                              borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                            ),
+                            child: Text(
+                              '${widget.count}',
+                              style: VfType.meta.copyWith(color: t.text2, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        AnimatedRotation(
+                          turns: _open ? .5 : 0,
+                          duration: const Duration(milliseconds: 160),
+                          child: Icon(PhosphorIconsRegular.caretDown, size: 16, color: t.text2),
+                        ),
+                      ],
                     ),
                   ),
-                  if ((widget.count ?? 0) > 0)
-                    Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: context.vfElev3,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text(
-                        '${widget.count}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                  Icon(
-                    _open ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    size: 20,
-                    color: context.vfMuted,
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-          if (_open)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: widget.child,
-            ),
-        ],
+            if (_open)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: widget.child,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -626,30 +587,27 @@ class DocumentFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Builder(
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: context.vfElev2,
-            border: Border.all(color: context.vfLine),
-            borderRadius: BorderRadius.circular(VfTheme.rLg),
+    final t = context.vf;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: t.surface2,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(VfSize.radiusL),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(VfSize.radiusXs),
+        // The sheet is scaled as a whole rather than reflowed, so the
+        // printed geometry survives the phone.
+        child: AspectRatio(
+          aspectRatio: 794 / 1123,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.topCenter,
+            child: child,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            // The sheet is scaled as a whole rather than reflowed, so the
-            // printed geometry survives the phone.
-            child: AspectRatio(
-              aspectRatio: 794 / 1123,
-              child: FittedBox(
-                fit: BoxFit.contain,
-                alignment: Alignment.topCenter,
-                child: child,
-              ),
-            ),
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

@@ -47,7 +47,10 @@ class ShellController extends GetxController {
   late final List<VfNavItem> items = navFor(session.me.role);
   late final List<VfNavItem> tabs = tabsFor(session.me.role);
 
-  late final VoucherListController register = Get.put(VoucherListController(), tag: 'register');
+  late final VoucherListController register = Get.put(
+    VoucherListController(),
+    tag: 'register',
+  );
 
   bool get canCreate => session.me.canCreateVouchers;
 
@@ -72,11 +75,15 @@ class ShellController extends GetxController {
   void refreshCurrent() {
     switch (current.value) {
       case '/dashboard':
-        if (Get.isRegistered<DashboardController>()) Get.find<DashboardController>().load();
+        if (Get.isRegistered<DashboardController>()) {
+          Get.find<DashboardController>().load();
+        }
       case '/vouchers':
         register.load();
       case '/notifications':
-        if (Get.isRegistered<NotificationsController>()) Get.find<NotificationsController>().load();
+        if (Get.isRegistered<NotificationsController>()) {
+          Get.find<NotificationsController>().load();
+        }
     }
   }
 
@@ -107,7 +114,9 @@ class ShellController extends GetxController {
     super.onInit();
     // Development only (profile web builds): open on a given page.
     final route = DevHooks.route;
-    if (route != null && items.any((i) => i.href == route)) current.value = route;
+    if (route != null && items.any((i) => i.href == route)) {
+      current.value = route;
+    }
   }
 
   @override
@@ -159,7 +168,10 @@ class ShellPage extends GetView<ShellController> {
         backgroundColor: t.background,
         appBar: _TopBar(controller: controller),
         drawer: _Drawer(controller: controller),
-        body: KeyedSubtree(key: ValueKey(href), child: shellPageFor(href, controller)),
+        body: KeyedSubtree(
+          key: ValueKey(href),
+          child: shellPageFor(href, controller),
+        ),
         bottomNavigationBar: _TabBar(controller: controller),
       );
     });
@@ -181,14 +193,19 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
     final session = controller.session;
     return Obx(() {
       final me = session.user.value;
-      final name = me?.isSuperAdmin == true ? 'nav.platformName'.tr : (session.company.value?.name ?? 'app.name'.tr);
+      final name = me?.isSuperAdmin == true
+          ? 'nav.platformName'.tr
+          : (session.company.value?.name ?? 'app.name'.tr);
       final dark = session.themeMode.value == ThemeMode.dark;
       return AppBar(
         backgroundColor: t.chrome,
         toolbarHeight: VfSize.topBarH,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
-        bottom: PreferredSize(preferredSize: const Size.fromHeight(1), child: Container(height: 1, color: t.chromeLine)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: t.chromeLine),
+        ),
         title: Row(
           children: [
             const SizedBox(width: 6),
@@ -202,7 +219,12 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
             ),
             const SizedBox(width: 4),
             Expanded(
-              child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: VfType.cardTitle.copyWith(color: Colors.white)),
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: VfType.cardTitle.copyWith(color: Colors.white),
+              ),
             ),
             VouchFlowIconButton(
               icon: dark ? PhosphorIconsRegular.sun : PhosphorIconsRegular.moon,
@@ -274,7 +296,11 @@ class _UserMenu extends StatelessWidget {
           children: [
             VouchFlowAvatar(initials: me.initials, size: 36),
             const SizedBox(width: 2),
-            const Icon(PhosphorIconsRegular.caretDown, size: 15, color: Color(0xFF94A3B8)),
+            const Icon(
+              PhosphorIconsRegular.caretDown,
+              size: 15,
+              color: Color(0xFF94A3B8),
+            ),
           ],
         ),
       ),
@@ -284,15 +310,31 @@ class _UserMenu extends StatelessWidget {
   void _open(BuildContext context) {
     final session = controller.session;
     final me = session.me;
-    final profileLabel = controller.items.firstWhereOrNull((i) => i.href == '/profile')?.label ?? 'nav.profile';
+    final profileLabel =
+        controller.items.firstWhereOrNull((i) => i.href == '/profile')?.label ??
+        'nav.profile';
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       builder: (ctx) {
         final t = ctx.vf;
-        Widget item(IconData icon, String label, VoidCallback onTap, {bool danger = false}) => ListTile(
-          leading: Icon(icon, size: 20, color: danger ? t.dangerStrong : t.faint),
-          title: Text(label, style: VfType.body.copyWith(color: danger ? t.dangerStrong : t.text)),
+        Widget item(
+          IconData icon,
+          String label,
+          VoidCallback onTap, {
+          bool danger = false,
+        }) => ListTile(
+          leading: Icon(
+            icon,
+            size: 20,
+            color: danger ? t.dangerStrong : t.faint,
+          ),
+          title: Text(
+            label,
+            style: VfType.body.copyWith(
+              color: danger ? t.dangerStrong : t.text,
+            ),
+          ),
           onTap: () {
             Navigator.of(ctx).pop();
             onTap();
@@ -314,8 +356,16 @@ class _UserMenu extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(me.name, style: VfType.bodyStrong.copyWith(color: t.text)),
-                          Text(me.email, maxLines: 1, overflow: TextOverflow.ellipsis, style: VfType.meta.copyWith(color: t.muted)),
+                          Text(
+                            me.name,
+                            style: VfType.bodyStrong.copyWith(color: t.text),
+                          ),
+                          Text(
+                            me.email,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: VfType.meta.copyWith(color: t.muted),
+                          ),
                         ],
                       ),
                     ),
@@ -323,24 +373,41 @@ class _UserMenu extends StatelessWidget {
                 ),
               ),
               Divider(color: t.border),
-              item(PhosphorIconsRegular.userCircle, profileLabel.tr, () => controller.go('/profile')),
+              item(
+                PhosphorIconsRegular.userCircle,
+                profileLabel.tr,
+                () => controller.go('/profile'),
+              ),
               Obx(
                 () => item(
                   PhosphorIconsRegular.bell,
-                  session.unread.value > 0 ? '${'nav.notifications'.tr} (${session.unread.value})' : 'nav.notifications'.tr,
+                  session.unread.value > 0
+                      ? '${'nav.notifications'.tr} (${session.unread.value})'
+                      : 'nav.notifications'.tr,
                   () => controller.go('/notifications'),
                 ),
               ),
               Divider(color: t.border),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 6,
+                ),
                 child: Row(
                   children: [
-                    Expanded(child: Text('nav.language'.tr, style: VfType.body.copyWith(color: t.text2))),
+                    Expanded(
+                      child: Text(
+                        'nav.language'.tr,
+                        style: VfType.body.copyWith(color: t.text2),
+                      ),
+                    ),
                     Obx(
                       () => SegmentedButton<String>(
                         showSelectedIcon: false,
-                        segments: const [ButtonSegment(value: 'en', label: Text('EN')), ButtonSegment(value: 'sw', label: Text('SW'))],
+                        segments: const [
+                          ButtonSegment(value: 'en', label: Text('EN')),
+                          ButtonSegment(value: 'sw', label: Text('SW')),
+                        ],
                         selected: {session.locale.value},
                         onSelectionChanged: (s) => session.setLocale(s.first),
                       ),
@@ -349,20 +416,44 @@ class _UserMenu extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 6,
+                ),
                 child: Row(
                   children: [
-                    Expanded(child: Text('nav.appearance'.tr, style: VfType.body.copyWith(color: t.text2))),
+                    Expanded(
+                      child: Text(
+                        'nav.appearance'.tr,
+                        style: VfType.body.copyWith(color: t.text2),
+                      ),
+                    ),
                     Obx(
                       () => SegmentedButton<ThemeMode>(
                         showSelectedIcon: false,
                         segments: [
-                          ButtonSegment(value: ThemeMode.light, icon: const Icon(PhosphorIconsRegular.sun, size: 16), label: Text('nav.light'.tr)),
-                          ButtonSegment(value: ThemeMode.dark, icon: const Icon(PhosphorIconsRegular.moon, size: 16), label: Text('nav.dark'.tr)),
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            icon: const Icon(
+                              PhosphorIconsRegular.sun,
+                              size: 16,
+                            ),
+                            label: Text('nav.light'.tr),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            icon: const Icon(
+                              PhosphorIconsRegular.moon,
+                              size: 16,
+                            ),
+                            label: Text('nav.dark'.tr),
+                          ),
                         ],
                         selected: {session.themeMode.value},
                         onSelectionChanged: (s) {
-                          if (s.first != session.themeMode.value) session.toggleTheme();
+                          if (s.first != session.themeMode.value) {
+                            session.toggleTheme();
+                          }
                         },
                       ),
                     ),
@@ -413,14 +504,23 @@ class _Drawer extends StatelessWidget {
               Container(
                 height: 76,
                 padding: const EdgeInsets.fromLTRB(20, 0, 10, 0),
-                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.chromeLine))),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: t.chromeLine)),
+                ),
                 child: Row(
                   children: [
                     Container(
                       width: 40,
                       height: 40,
-                      decoration: BoxDecoration(color: t.primary, borderRadius: BorderRadius.circular(VfSize.radiusL)),
-                      child: const Icon(PhosphorIconsBold.checkFat, color: Colors.white, size: 20),
+                      decoration: BoxDecoration(
+                        color: t.primary,
+                        borderRadius: BorderRadius.circular(VfSize.radiusL),
+                      ),
+                      child: const Icon(
+                        PhosphorIconsBold.checkFat,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -428,15 +528,31 @@ class _Drawer extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('app.name'.tr, style: VfType.sectionTitle.copyWith(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20)),
-                          Text(me.roleLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: VfType.meta.copyWith(color: t.chromeMuted)),
+                          Text(
+                            'app.name'.tr,
+                            style: VfType.sectionTitle.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                            ),
+                          ),
+                          Text(
+                            me.roleLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: VfType.meta.copyWith(color: t.chromeMuted),
+                          ),
                         ],
                       ),
                     ),
                     IconButton(
                       tooltip: 'nav.closeMenu'.tr,
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(PhosphorIconsRegular.x, color: t.chromeMuted, size: 18),
+                      icon: Icon(
+                        PhosphorIconsRegular.x,
+                        color: t.chromeMuted,
+                        size: 18,
+                      ),
                     ),
                   ],
                 ),
@@ -449,7 +565,13 @@ class _Drawer extends StatelessWidget {
                     for (final entry in groups.entries) ...[
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                        child: Text(groupLabel[entry.key]!.tr.toUpperCase(), style: VfType.eyebrow.copyWith(fontSize: 11, color: t.chromeLabel)),
+                        child: Text(
+                          groupLabel[entry.key]!.tr.toUpperCase(),
+                          style: VfType.eyebrow.copyWith(
+                            fontSize: 11,
+                            color: t.chromeLabel,
+                          ),
+                        ),
                       ),
                       ..._entries(context, entry.value, current),
                     ],
@@ -463,7 +585,11 @@ class _Drawer extends StatelessWidget {
     );
   }
 
-  List<Widget> _entries(BuildContext context, List<VfNavItem> items, String current) {
+  List<Widget> _entries(
+    BuildContext context,
+    List<VfNavItem> items,
+    String current,
+  ) {
     final out = <Widget>[];
     for (final item in items) {
       if (parentOf(item, items) != null) continue;
@@ -476,12 +602,21 @@ class _Drawer extends StatelessWidget {
           badge: controller.badgeFor(item),
           onTap: () => _open(context, item.href),
           caretOpen: children.isEmpty ? null : open,
-          onCaret: () => open ? controller.closedGroups.add(item.href) : controller.closedGroups.remove(item.href),
+          onCaret: () => open
+              ? controller.closedGroups.add(item.href)
+              : controller.closedGroups.remove(item.href),
         ),
       );
       if (open) {
         for (final c in children) {
-          out.add(_NavRow(item: c, active: false, badge: controller.badgeFor(c), onTap: () => _open(context, c.href)));
+          out.add(
+            _NavRow(
+              item: c,
+              active: false,
+              badge: controller.badgeFor(c),
+              onTap: () => _open(context, c.href),
+            ),
+          );
         }
       }
     }
@@ -505,10 +640,16 @@ class _WorkspaceCard extends StatelessWidget {
     final me = session.me;
     final company = session.company.value;
     final isPlatform = me.isSuperAdmin;
-    final name = isPlatform ? 'nav.platformName'.tr : (company?.name ?? 'app.name'.tr);
+    final name = isPlatform
+        ? 'nav.platformName'.tr
+        : (company?.name ?? 'app.name'.tr);
     final sub = isPlatform
         ? 'nav.groupPlatform'.tr
-        : [company?.plan?.name, company?.status].whereType<String>().where((s) => s.isNotEmpty).map((s) => s[0].toUpperCase() + s.substring(1)).join(' · ');
+        : [company?.plan?.name, company?.status]
+              .whereType<String>()
+              .where((s) => s.isNotEmpty)
+              .map((s) => s[0].toUpperCase() + s.substring(1))
+              .join(' · ');
     final isAdmin = me.role == 'company_admin';
 
     final card = Container(
@@ -524,29 +665,63 @@ class _WorkspaceCard extends StatelessWidget {
             width: 42,
             height: 42,
             clipBehavior: Clip.antiAlias,
-            padding: company?.logoMarkUrl != null && !isPlatform ? const EdgeInsets.all(3) : null,
+            padding: company?.logoMarkUrl != null && !isPlatform
+                ? const EdgeInsets.all(3)
+                : null,
             decoration: BoxDecoration(
-              color: company?.logoMarkUrl != null && !isPlatform ? Colors.white : t.primary,
+              color: company?.logoMarkUrl != null && !isPlatform
+                  ? Colors.white
+                  : t.primary,
               borderRadius: BorderRadius.circular(VfSize.radiusM),
             ),
             alignment: Alignment.center,
             child: company?.logoMarkUrl != null && !isPlatform
-                ? Image.network(company!.logoMarkUrl!, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox())
+                ? Image.network(
+                    company!.logoMarkUrl!,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => const SizedBox(),
+                  )
                 : isPlatform
-                ? const Icon(PhosphorIconsRegular.globeHemisphereEast, color: Colors.white, size: 18)
-                : Text(name.characters.first.toUpperCase(), style: VfType.bodyStrong.copyWith(color: Colors.white)),
+                ? const Icon(
+                    PhosphorIconsRegular.globeHemisphereEast,
+                    color: Colors.white,
+                    size: 18,
+                  )
+                : Text(
+                    name.characters.first.toUpperCase(),
+                    style: VfType.bodyStrong.copyWith(color: Colors.white),
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: VfType.bodyStrong.copyWith(fontSize: 14, color: Colors.white)),
-                if (sub.isNotEmpty) Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: VfType.meta.copyWith(color: t.chromeMuted)),
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: VfType.bodyStrong.copyWith(
+                    fontSize: 14,
+                    color: Colors.white,
+                  ),
+                ),
+                if (sub.isNotEmpty)
+                  Text(
+                    sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.meta.copyWith(color: t.chromeMuted),
+                  ),
               ],
             ),
           ),
-          if (isAdmin) Icon(PhosphorIconsRegular.caretDown, size: 16, color: t.chromeMuted),
+          if (isAdmin)
+            Icon(
+              PhosphorIconsRegular.caretDown,
+              size: 16,
+              color: t.chromeMuted,
+            ),
           const SizedBox(width: 6),
         ],
       ),
@@ -564,9 +739,30 @@ class _WorkspaceCard extends StatelessWidget {
                 controller.go(href);
               },
               itemBuilder: (_) => [
-                PopupMenuItem(value: '/settings', child: _menuRow(context, PhosphorIconsRegular.buildings, 'nav.companyProfile'.tr)),
-                PopupMenuItem(value: '/branding', child: _menuRow(context, PhosphorIconsRegular.palette, 'nav.branding'.tr)),
-                PopupMenuItem(value: '/subscription', child: _menuRow(context, PhosphorIconsRegular.crownSimple, 'nav.subscription'.tr)),
+                PopupMenuItem(
+                  value: '/settings',
+                  child: _menuRow(
+                    context,
+                    PhosphorIconsRegular.buildings,
+                    'nav.companyProfile'.tr,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: '/branding',
+                  child: _menuRow(
+                    context,
+                    PhosphorIconsRegular.palette,
+                    'nav.branding'.tr,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: '/subscription',
+                  child: _menuRow(
+                    context,
+                    PhosphorIconsRegular.crownSimple,
+                    'nav.subscription'.tr,
+                  ),
+                ),
               ],
               child: card,
             ),
@@ -574,12 +770,23 @@ class _WorkspaceCard extends StatelessWidget {
   }
 
   Widget _menuRow(BuildContext context, IconData icon, String label) => Row(
-    children: [Icon(icon, size: 18, color: context.vf.faint), const SizedBox(width: 12), Text(label)],
+    children: [
+      Icon(icon, size: 18, color: context.vf.faint),
+      const SizedBox(width: 12),
+      Text(label),
+    ],
   );
 }
 
 class _NavRow extends StatelessWidget {
-  const _NavRow({required this.item, required this.active, required this.onTap, this.badge, this.caretOpen, this.onCaret});
+  const _NavRow({
+    required this.item,
+    required this.active,
+    required this.onTap,
+    this.badge,
+    this.caretOpen,
+    this.onCaret,
+  });
 
   final VfNavItem item;
   final bool active;
@@ -603,14 +810,28 @@ class _NavRow extends StatelessWidget {
           hoverColor: t.chromeHover,
           child: Container(
             height: 48,
-            decoration: active ? const BoxDecoration(border: Border(left: BorderSide(color: Color(0xFF93C5FD), width: 4))) : null,
-            padding: EdgeInsets.only(left: active ? 12 : 16, right: caretOpen == null ? 12 : 4),
+            decoration: active
+                ? const BoxDecoration(
+                    border: Border(
+                      left: BorderSide(color: Color(0xFF93C5FD), width: 4),
+                    ),
+                  )
+                : null,
+            padding: EdgeInsets.only(
+              left: active ? 12 : 16,
+              right: caretOpen == null ? 12 : 4,
+            ),
             child: Row(
               children: [
                 Icon(active ? item.activeIcon : item.icon, size: 20, color: fg),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(item.label.tr, maxLines: 1, overflow: TextOverflow.ellipsis, style: VfType.label.copyWith(fontSize: 15, color: fg)),
+                  child: Text(
+                    item.label.tr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.label.copyWith(fontSize: 15, color: fg),
+                  ),
                 ),
                 if (badge != null)
                   Container(
@@ -618,17 +839,31 @@ class _NavRow extends StatelessWidget {
                     height: 22,
                     padding: const EdgeInsets.symmetric(horizontal: 7),
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: active ? Colors.white : const Color(0xFF2563EB), borderRadius: BorderRadius.circular(VfSize.radiusPill)),
+                    decoration: BoxDecoration(
+                      color: active ? Colors.white : const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                    ),
                     child: Text(
                       badge! > 99 ? '99+' : '$badge',
-                      style: VfType.meta.copyWith(fontSize: 12, fontWeight: FontWeight.w600, color: active ? t.primary : Colors.white),
+                      style: VfType.meta.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: active ? t.primary : Colors.white,
+                      ),
                     ),
                   ),
                 if (caretOpen != null)
                   IconButton(
-                    tooltip: '${item.label.tr}: ${caretOpen! ? 'nav.collapse'.tr : 'nav.expand'.tr}',
+                    tooltip:
+                        '${item.label.tr}: ${caretOpen! ? 'nav.collapse'.tr : 'nav.expand'.tr}',
                     onPressed: onCaret,
-                    icon: Icon(caretOpen! ? PhosphorIconsRegular.caretUp : PhosphorIconsRegular.caretDown, size: 15, color: t.chromeMuted),
+                    icon: Icon(
+                      caretOpen!
+                          ? PhosphorIconsRegular.caretUp
+                          : PhosphorIconsRegular.caretDown,
+                      size: 15,
+                      color: t.chromeMuted,
+                    ),
                   ),
               ],
             ),
@@ -651,22 +886,48 @@ class _TabBar extends StatelessWidget {
     return Obx(() {
       final tabs = controller.tabs;
       final index = tabs.indexWhere((i) => i.href == controller.current.value);
-      return Container(
-        decoration: BoxDecoration(border: Border(top: BorderSide(color: t.border))),
-        child: NavigationBar(
-          selectedIndex: index < 0 ? 0 : index,
-          indicatorColor: index < 0 ? Colors.transparent : null,
-          onDestinationSelected: (i) => controller.go(tabs[i].href),
-          destinations: [
-            for (final item in tabs)
-              NavigationDestination(
-                icon: _badge(context, item, Icon(item.icon)),
-                selectedIcon: _badge(context, item, Icon(item.activeIcon)),
-                label: (item.short ?? item.label).tr,
-                tooltip: item.label.tr,
+      // A page reached from the drawer (Reports, Employees, …) is not a tab:
+      // NavigationBar still needs an index, so tab 0 is drawn as unselected.
+      final none = index < 0;
+      final bar = NavigationBar(
+        selectedIndex: none ? 0 : index,
+        onDestinationSelected: (i) => controller.go(tabs[i].href),
+        destinations: [
+          for (final item in tabs)
+            NavigationDestination(
+              icon: _badge(context, item, Icon(item.icon)),
+              selectedIcon: _badge(
+                context,
+                item,
+                Icon(none ? item.icon : item.activeIcon),
               ),
-          ],
+              label: (item.short ?? item.label).tr,
+              tooltip: item.label.tr,
+            ),
+        ],
+      );
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: t.border)),
         ),
+        child: !none
+            ? bar
+            : NavigationBarTheme(
+                data: NavigationBarTheme.of(context).copyWith(
+                  indicatorColor: Colors.transparent,
+                  labelTextStyle: WidgetStatePropertyAll(
+                    VfType.meta.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: t.muted,
+                    ),
+                  ),
+                  iconTheme: WidgetStatePropertyAll(
+                    IconThemeData(size: 21, color: t.muted),
+                  ),
+                ),
+                child: bar,
+              ),
       );
     });
   }

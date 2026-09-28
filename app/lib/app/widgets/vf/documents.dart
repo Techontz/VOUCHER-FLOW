@@ -54,8 +54,7 @@ class _VouchFlowDocumentViewState extends State<VouchFlowDocumentView> {
       NavigationDelegate(
         onPageFinished: (_) => _measure(),
         // A document never navigates anywhere.
-        onNavigationRequest: (r) =>
-            r.url.startsWith('about:') || r.url.startsWith('data:')
+        onNavigationRequest: (r) => r.url.startsWith('about:') || r.url.startsWith('data:')
             ? NavigationDecision.navigate
             : NavigationDecision.prevent,
       ),
@@ -120,7 +119,6 @@ class _VouchFlowDocumentViewState extends State<VouchFlowDocumentView> {
         final height = (widget.fit == VfDocumentFit.page ? kA4Height : _contentHeight) * scale;
         final Widget view = kIsWeb
             ? platformDocumentFrame(
-                key: ValueKey(_loaded),
                 html: _loaded ?? '',
                 scale: scale,
                 interactive: widget.interactive,
@@ -181,7 +179,14 @@ class VouchFlowTemplateCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(VfSize.radiusXl),
         border: Border.all(color: selected ? t.primary : t.borderStrong, width: selected ? 2 : 1),
         boxShadow: selected
-            ? [BoxShadow(color: t.primary.withValues(alpha: .3), blurRadius: 24, spreadRadius: -12, offset: const Offset(0, 10))]
+            ? [
+                BoxShadow(
+                  color: t.primary.withValues(alpha: .3),
+                  blurRadius: 24,
+                  spreadRadius: -12,
+                  offset: const Offset(0, 10),
+                ),
+              ]
             : null,
       ),
       clipBehavior: Clip.antiAlias,
@@ -198,7 +203,10 @@ class VouchFlowTemplateCard extends StatelessWidget {
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                     child: html == null
-                        ? AspectRatio(aspectRatio: kA4Width / kA4Height, child: ColoredBox(color: t.surface3))
+                        ? AspectRatio(
+                            aspectRatio: kA4Width / kA4Height,
+                            child: ColoredBox(color: t.surface3),
+                          )
                         : VouchFlowDocumentView(html: html!, placeholderReplacements: placeholderReplacements),
                   ),
                   if (selected || isCurrent)
@@ -220,7 +228,11 @@ class VouchFlowTemplateCard extends StatelessWidget {
                             ],
                             Text(
                               selected ? selectedLabel : currentLabel,
-                              style: VfType.meta.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                              style: VfType.meta.copyWith(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
                           ],
                         ),
@@ -251,8 +263,11 @@ class VouchFlowTemplateCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: onPreview,
                     icon: const Icon(PhosphorIconsRegular.eye, size: 16),
-                    label: Text(previewLabel),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
+                    label: Text(previewLabel, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
                   ),
                 ),
                 if (onSelect != null) ...[
@@ -262,12 +277,22 @@ class VouchFlowTemplateCard extends StatelessWidget {
                         ? TextButton.icon(
                             onPressed: null,
                             icon: Icon(PhosphorIconsRegular.checkCircle, size: 16, color: t.primaryText),
-                            label: Text(selectedLabel, style: TextStyle(color: t.primaryText)),
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                            label: Text(
+                              selectedLabel,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: t.primaryText),
+                            ),
                           )
                         : FilledButton(
                             onPressed: onSelect,
-                            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(0, 40))),
-                            child: Text(selectLabel),
+                            style: const ButtonStyle(
+                              minimumSize: WidgetStatePropertyAll(Size(0, 40)),
+                              padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 10)),
+                            ),
+                            child: Text(selectLabel, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis),
                           ),
                   ),
                 ],

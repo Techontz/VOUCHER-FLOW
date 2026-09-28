@@ -1,11 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/session_service.dart';
 import '../../routes/routes.dart';
+import '../../widgets/vf/vf.dart';
+import 'auth_widgets.dart';
+import 'login_brand.dart';
+
+/// One seeded account per step of the default route, plus the two admin
+/// scopes — the web's DEMO list. Offered only by the offline mock
+/// ([VfConfig.useMock]); a live build never shows accounts or the password.
+class DemoAccount {
+  const DemoAccount(this.label, this.person, this.email, this.icon, this.note);
+  final String label, person, email, note;
+  final IconData icon;
+}
 
 class LoginController extends GetxController {
   final session = Get.find<SessionService>();
@@ -13,38 +26,65 @@ class LoginController extends GetxController {
   final email = TextEditingController();
   final password = TextEditingController();
   final busy = false.obs;
-  final error = RxnString();
-  final obscure = true.obs;
 
-  /// One account per step of the default route, plus the administrator.
-  /// One account per step of the default route, plus the administrator.
+  /// Signed in; the dashboard is opening.
+  final done = false.obs;
+
+  /// A message for the alert above the form (not tied to one field).
+  final error = RxnString();
+  final fieldErrors = <String, String>{}.obs;
+  final obscure = true.obs;
+  final remember = true.obs;
+
+  static const demoPassword = 'Password123!';
+
   static const demoAccounts = [
-    (
-      'Employee · Frank',
+    DemoAccount(
+      'auth.demo.employee',
+      'Frank Kessy',
       'frank@watercom.test',
-      'raises vouchers, sees only their own',
+      PhosphorIconsRegular.user,
+      'auth.demo.employeeNote',
     ),
-    (
-      'HOD · Joseph',
+    DemoAccount(
+      'auth.demo.hod',
+      'Joseph Mrisho',
       'joseph@watercom.test',
-      'reviews and signs — never approves',
+      PhosphorIconsRegular.signature,
+      'auth.demo.hodNote',
     ),
-    (
-      'MD · Emmanuel',
+    DemoAccount(
+      'auth.demo.md',
+      'Emmanuel Massawe',
       'emmanuel@watercom.test',
-      'approves or rejects — the final say',
+      PhosphorIconsRegular.sealCheck,
+      'auth.demo.mdNote',
     ),
-    (
-      'Cashier · Mwajuma',
+    DemoAccount(
+      'auth.demo.cashier',
+      'Mwajuma Hamisi',
       'mwajuma@watercom.test',
-      'releases the funds, records the reference',
+      PhosphorIconsRegular.wallet,
+      'auth.demo.cashierNote',
     ),
-    (
-      'Administrator · Neema',
+    DemoAccount(
+      'auth.demo.admin',
+      'Neema Shirima',
       'admin@watercom.test',
-      'runs Watercom (T) Limited',
+      PhosphorIconsRegular.buildings,
+      'auth.demo.adminNote',
+    ),
+    DemoAccount(
+      'auth.demo.super',
+      'Grace Kimaro',
+      'super@vouchflow.test',
+      PhosphorIconsRegular.globeHemisphereEast,
+      'auth.demo.superNote',
     ),
   ];
+
+  /// The picked demo account, to mark it.
+  final pickedDemo = RxnString();
 
   @override
   void onInit() {
@@ -54,34 +94,48 @@ class LoginController extends GetxController {
     if (handedBack is String && handedBack.isNotEmpty) {
       error.value = handedBack;
     }
+    email.addListener(() {
+      if (pickedDemo.value != null && pickedDemo.value != email.text) {
+        pickedDemo.value = null;
+      }
+    });
   }
 
   void useDemo(String address) {
+    if (!VfConfig.useMock) return;
     email.text = address;
-    password.text = 'Password123!';
+    password.text = demoPassword;
+    pickedDemo.value = address;
   }
 
   Future<void> submit() async {
-    if (email.text.trim().isEmpty || password.text.isEmpty) {
-      error.value = 'Enter your email and password.';
-      return;
-    }
-
+    if (busy.value || done.value) return;
     busy.value = true;
     error.value = null;
+    fieldErrors.clear();
     try {
       final challenge = await session.signIn(email.text.trim(), password.text);
       if (challenge == null) {
+        done.value = true;
         Get.offAllNamed(Routes.shell);
       } else {
         // The password was right; the second step confirms it is the user.
+        busy.value = false;
         Get.toNamed(Routes.verifyLogin, arguments: challenge);
       }
     } on ApiException catch (e) {
-      error.value = e.field('email') ?? e.message;
+      final byField = {
+        if (e.field('email') != null) 'email': e.field('email')!,
+        if (e.field('password') != null) 'password': e.field('password')!,
+      };
+      if (byField.isEmpty) {
+        error.value = e.message;
+      } else {
+        fieldErrors.assignAll(byField);
+      }
+      busy.value = false;
     } catch (_) {
       error.value = 'state.offline'.tr;
-    } finally {
       busy.value = false;
     }
   }
@@ -94,189 +148,316 @@ class LoginController extends GetxController {
   }
 }
 
+/// Sign in — the web's /login on a phone: hero, the form in a card, then the
+/// product detail.
 class LoginPage extends GetView<LoginController> {
   const LoginPage({super.key});
 
   @override
+  Widget build(BuildContext context) =>
+      LoginFrame(card: _LoginForm(controller: controller));
+}
+
+class _LoginForm extends StatelessWidget {
+  const _LoginForm({required this.controller});
+
+  final LoginController controller;
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final session = Get.find<SessionService>();
+    final t = context.vf;
+    final c = controller;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'VouchFlow',
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+    return AutofillGroup(
+      child: Obx(() {
+        final emailError = c.fieldErrors['email'];
+        final passwordError = c.fieldErrors['password'];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'auth.welcome'.tr,
+              style: VfType.pageTitle.copyWith(
+                fontSize: 26,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -.5,
+                color: t.text,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'auth.welcomeSub'.tr,
+              style: VfType.body.copyWith(color: t.muted),
+            ),
+            const SizedBox(height: 28),
+
+            if (c.error.value != null) ...[
+              VouchFlowAlert(
+                message: c.error.value!,
+                tone: VfTone.bad,
+                icon: PhosphorIconsRegular.warningCircle,
+              ),
+              const SizedBox(height: 20),
+            ],
+            if (c.done.value) ...[
+              VouchFlowAlert(
+                message: 'auth.signedInOpening'.tr,
+                tone: VfTone.ok,
+                icon: PhosphorIconsRegular.checkCircle,
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            AuthLabel('auth.emailAddress'.tr),
+            const SizedBox(height: 8),
+            AuthInput(
+              controller: c.email,
+              placeholder: 'auth.emailPh'.tr,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email,
+              ],
+              invalid: emailError != null,
+              semanticLabel: 'auth.emailAddress'.tr,
+            ),
+            if (emailError != null) _FieldError(emailError),
+            const SizedBox(height: 20),
+
+            AuthLabel(
+              'auth.password'.tr,
+              trailing: AuthLink(
+                'auth.forgot'.tr,
+                size: 13,
+                onTap: () => Get.toNamed(Routes.forgotPassword),
+              ),
+            ),
+            const SizedBox(height: 4),
+            AuthInput(
+              controller: c.password,
+              placeholder: 'auth.passwordPh'.tr,
+              obscure: c.obscure.value,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              onSubmitted: (_) => c.submit(),
+              invalid: passwordError != null,
+              semanticLabel: 'auth.password'.tr,
+              suffix: RevealButton(
+                revealed: !c.obscure.value,
+                onTap: c.obscure.toggle,
+              ),
+            ),
+            if (passwordError != null) _FieldError(passwordError),
+            const SizedBox(height: 12),
+
+            // As on the web: a preference only; the session is kept either way.
+            InkWell(
+              onTap: c.remember.toggle,
+              borderRadius: BorderRadius.circular(VfSize.radiusS),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: c.remember.value,
+                        onChanged: (_) => c.remember.toggle(),
                       ),
-                      Obx(
-                        () => SegmentedButton<String>(
-                          style: const ButtonStyle(
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          segments: const [
-                            ButtonSegment(value: 'en', label: Text('EN')),
-                            ButtonSegment(value: 'sw', label: Text('SW')),
-                          ],
-                          selected: {session.locale.value},
-                          onSelectionChanged: (s) => session.setLocale(s.first),
-                          showSelectedIcon: false,
-                        ),
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        'auth.rememberMe'.tr,
+                        style: VfType.body.copyWith(color: t.text2),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            VouchFlowButton(
+              label: c.busy.value && !c.done.value
+                  ? 'auth.signingIn'.tr
+                  : 'auth.signIn'.tr,
+              icon: c.done.value ? PhosphorIconsBold.check : null,
+              trailingIcon: c.done.value || c.busy.value
+                  ? null
+                  : PhosphorIconsRegular.arrowRight,
+              loading: c.busy.value && !c.done.value,
+              height: 48,
+              expand: true,
+              onPressed: c.busy.value ? null : c.submit,
+            ),
+
+            const SizedBox(height: 26),
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              children: [
+                Text(
+                  'auth.newTo'.tr,
+                  style: VfType.body.copyWith(fontSize: 14, color: t.muted),
+                ),
+                AuthLink(
+                  'auth.registerCompany'.tr,
+                  onTap: () => Get.toNamed(Routes.register),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'auth.staffNote'.tr,
+              textAlign: TextAlign.center,
+              style: VfType.small.copyWith(fontSize: 13, color: t.faint),
+            ),
+
+            if (VfConfig.useMock) ...[
+              const SizedBox(height: 26),
+              _DemoAccounts(controller: c),
+            ],
+          ],
+        );
+      }),
+    );
+  }
+}
+
+class _FieldError extends StatelessWidget {
+  const _FieldError(this.message);
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              PhosphorIconsRegular.warningCircle,
+              size: 15,
+              color: t.dangerStrong,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              message,
+              style: VfType.meta.copyWith(color: t.dangerStrong),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The demo sign-in panel — offline mock only, as the web shows it only
+/// outside a live production build.
+class _DemoAccounts extends StatelessWidget {
+  const _DemoAccounts({required this.controller});
+  final LoginController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: t.surface2,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'auth.demoSignInAs'.tr.toUpperCase(),
+            style: VfType.eyebrow.copyWith(fontSize: 12, color: t.muted),
+          ),
+          const SizedBox(height: 12),
+          for (final a in LoginController.demoAccounts)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Obx(() {
+                final on = controller.pickedDemo.value == a.email;
+                return Material(
+                  color: on ? t.primarySoft : t.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: on ? t.primary : t.border,
+                      width: on ? 1.5 : 1,
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text('auth.subtitle'.tr, style: theme.textTheme.bodySmall),
-                  const SizedBox(height: 28),
-
-                  Obx(
-                    () => controller.error.value == null
-                        ? const SizedBox.shrink()
-                        : Container(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => controller.useDemo(a.email),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 30,
+                            height: 30,
                             decoration: BoxDecoration(
-                              // A tint, not the full colour: the icon and the
-                              // message are drawn in it, and on a solid rose
-                              // ground both disappeared.
-                              color: VfColors.bad.withValues(alpha: .14),
-                              border: Border.all(
-                                color: VfColors.bad.withValues(alpha: .5),
-                              ),
-                              borderRadius: BorderRadius.circular(2),
+                              color: t.primarySoftStrong,
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Row(
+                            child: Icon(a.icon, size: 16, color: t.primaryText),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  size: 18,
-                                  color: VfColors.bad,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    controller.error.value!,
-                                    style: const TextStyle(
-                                      color: VfColors.bad,
-                                      fontSize: 13.5,
-                                    ),
+                                Text.rich(
+                                  TextSpan(
+                                    text: a.label.tr,
+                                    children: [
+                                      TextSpan(
+                                        text: ' · ${a.person}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w400,
+                                          color: t.muted,
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                  style: VfType.bodyStrong.copyWith(
+                                    fontSize: 14.5,
+                                    color: t.text,
+                                  ),
+                                ),
+                                Text(
+                                  a.note.tr,
+                                  style: VfType.meta.copyWith(color: t.muted),
                                 ),
                               ],
                             ),
                           ),
-                  ),
-
-                  TextField(
-                    controller: controller.email,
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    textInputAction: TextInputAction.next,
-                    decoration: InputDecoration(labelText: 'auth.email'.tr),
-                  ),
-                  const SizedBox(height: 14),
-                  Obx(
-                    () => TextField(
-                      controller: controller.password,
-                      obscureText: controller.obscure.value,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => controller.submit(),
-                      decoration: InputDecoration(
-                        labelText: 'auth.password'.tr,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            controller.obscure.value
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                          ),
-                          onPressed: () => controller.obscure.toggle(),
-                        ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Obx(
-                    () => FilledButton(
-                      onPressed: controller.busy.value
-                          ? null
-                          : controller.submit,
-                      child: controller.busy.value
-                          ? SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: VfTheme.onPrimary(context),
-                              ),
-                            )
-                          : Text('action.signIn'.tr),
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-                  Text(
-                    'auth.demo'.tr.toUpperCase(),
-                    style: theme.textTheme.labelSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  ...LoginController.demoAccounts.map(
-                    (account) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: InkWell(
-                        onTap: () => controller.useDemo(account.$2),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: theme.dividerColor),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                account.$1,
-                                style: theme.textTheme.titleSmall,
-                              ),
-                              Text(
-                                '${account.$2} · ${account.$3}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Password for every demo account: Password123!'
-                    '${VfConfig.useMock ? '  ·  Running on local demo data.' : ''}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
+                );
+              }),
             ),
-          ),
-        ),
+          const SizedBox(height: 6),
+          Text('auth.demoNote'.tr, style: VfType.meta.copyWith(color: t.muted)),
+        ],
       ),
     );
   }

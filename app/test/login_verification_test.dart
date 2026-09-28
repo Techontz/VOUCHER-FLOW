@@ -202,6 +202,13 @@ void main() {
       );
     }
 
+    Future<void> tap(WidgetTester tester, Finder finder) async {
+      await tester.ensureVisible(finder);
+      await tester.pump();
+      await tester.tap(finder);
+      await tester.pump();
+    }
+
     Future<void> wait(WidgetTester tester) async {
       // The mock answers after up to 300 ms, twice over for a sign-in.
       for (var i = 0; i < 8; i++) {
@@ -227,20 +234,20 @@ void main() {
       expect(find.text('Text message (SMS)'), findsOneWidget);
       expect(find.text('+255 7•• ••• 418'), findsOneWidget);
 
-      await tester.tap(find.text('Text message (SMS)'));
-      await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Send code'));
+      await tap(tester, find.text('Text message (SMS)'));
+      await tap(tester, find.text('Send code'));
       await wait(tester);
 
       expect(
-        find.text('We sent a 6-digit code to +255 7•• ••• 418.'),
+        find.textContaining('We sent a six-digit code to +255 7•• ••• 418.'),
         findsOneWidget,
       );
       expect(find.textContaining('Resend code in'), findsOneWidget);
       expect(find.text('Use a different method'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), '123456');
-      await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
+      await tester.pump();
+      await tap(tester, find.text('Verify and sign in'));
       await wait(tester);
       expect(
         find.text('That code is not correct. 4 attempts remaining.'),
@@ -248,7 +255,8 @@ void main() {
       );
 
       await tester.enterText(find.byType(TextField), MockApi.mockLoginCode);
-      await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
+      await tester.pump();
+      await tap(tester, find.text('Verify and sign in'));
       await wait(tester);
       await tester.pumpAndSettle();
 
@@ -270,17 +278,19 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('We sent a 6-digit code to j•••@watercom.test.'),
+        find.textContaining('We sent a six-digit code to j•••@watercom.test.'),
         findsOneWidget,
       );
       expect(find.text('Use a different method'), findsNothing);
-      expect(find.text('Resend code in 30 s'), findsOneWidget);
+      expect(find.text('Resend code in 30s'), findsOneWidget);
 
-      // Too short to send.
+      // Too short to send: Verify stays disabled, as on the web.
       await tester.enterText(find.byType(TextField), '12');
-      await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
       await tester.pump();
-      expect(find.text('Enter the 6-digit code.'), findsOneWidget);
+      await tap(tester, find.text('Verify and sign in'));
+      await tester.pump();
+      expect(session.isSignedIn, isFalse);
+      expect(find.textContaining('not correct'), findsNothing);
 
       // Leaving stops the countdown timer.
       Get.find<VerifyLoginController>().backToLogin();

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../models/detail_models.dart';
 import '../models/models.dart';
 import 'api_service.dart';
 
@@ -142,6 +143,58 @@ class VoucherRepository {
         'cheque_number': reference,
       'note': comment,
     },
+  );
+
+  /// Withdraws a submitted voucher (the requester's own, before a decision).
+  Future<Voucher> cancel(int id, {String? comment}) =>
+      act(id, 'cancel', body: {'comment': comment});
+
+  /// Deletes a draft for good.
+  Future<void> delete(int id) => _api.delete('/vouchers/$id');
+
+  /// One page of the register, with the list's totals — for the payment queue.
+  Future<VoucherPage> page({
+    String? status,
+    String? kind,
+    int page = 1,
+    int perPage = 20,
+    String? paidFrom,
+    String? paidTo,
+  }) async => VoucherPage.fromJson(
+    Map<String, dynamic>.from(
+      await _api.get('/vouchers', {
+            'status': ?status,
+            if ((kind ?? '').isNotEmpty) 'kind': kind,
+            'page': page,
+            'per_page': perPage,
+            'paid_from': ?paidFrom,
+            'paid_to': ?paidTo,
+          })
+          as Map,
+    ),
+  );
+
+  /// The company's approval routes, for the progress line on queue rows.
+  Future<List<WorkflowInfo>> workflows() async =>
+      _list(await _api.get('/workflows'), WorkflowInfo.fromJson);
+
+  /// Approves several vouchers, typed.
+  Future<BulkApproveResult> bulkApproveVouchers(
+    List<int> ids, {
+    String? comment,
+  }) async => BulkApproveResult.fromJson(await bulkApprove(ids, comment: comment));
+
+  /// A stored attachment or filed acknowledgement, as bytes.
+  Future<Uint8List> attachmentBytes(int id, int attachmentId) async =>
+      Uint8List.fromList(await _api.bytes('/vouchers/$id/attachments/$attachmentId'));
+
+  /// A report export (pdf, xlsx or csv) built by the server.
+  Future<Uint8List> exportReport(
+    String kind,
+    Map<String, dynamic> params,
+    String format,
+  ) async => Uint8List.fromList(
+    await _api.bytes('/reports/$kind/export', {...params, 'format': format}),
   );
 
   Future<void> comment(int id, String body) =>

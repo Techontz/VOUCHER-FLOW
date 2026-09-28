@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
+import 'buttons.dart';
 import 'surfaces.dart';
 
 /// One labelled line in a dialog's summary (the web's `Dialog summary`).
@@ -100,14 +101,7 @@ class VouchFlowDialog extends StatelessWidget {
               if (child != null) ...[const SizedBox(height: 16), child!],
               if (actions.isNotEmpty) ...[
                 const SizedBox(height: 20),
-                Row(
-                  children: [
-                    for (var i = 0; i < actions.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 10),
-                      Expanded(child: actions[i]),
-                    ],
-                  ],
-                ),
+                VouchFlowActions(children: actions),
               ],
             ],
           ),
@@ -169,14 +163,7 @@ Future<T?> showVouchFlowBottomSheet<T>(
                   top: false,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < actions.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 10),
-                          Expanded(child: actions[i]),
-                        ],
-                      ],
-                    ),
+                    child: VouchFlowActions(children: actions),
                   ),
                 ),
             ],
@@ -185,4 +172,53 @@ Future<T?> showVouchFlowBottomSheet<T>(
       );
     },
   );
+}
+
+/// A dialog's buttons side by side while their labels fit, stacked (the
+/// confirming, last one first) when they would be cut short on a narrow phone.
+class VouchFlowActions extends StatelessWidget {
+  const VouchFlowActions({super.key, required this.children, this.reverseWhenStacked = true});
+
+  final List<Widget> children;
+  final bool reverseWhenStacked;
+
+  static double _need(Widget w) {
+    if (w is! VouchFlowButton) return 120;
+    final painter = TextPainter(
+      text: TextSpan(text: w.label, style: VfType.bodyStrong),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return painter.width + 36 + (w.icon != null ? 26 : 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 10.0;
+        final each = (c.maxWidth - gap * (children.length - 1)) / children.length;
+        if (children.every((w) => _need(w) <= each)) {
+          return Row(
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) const SizedBox(width: gap),
+                Expanded(child: children[i]),
+              ],
+            ],
+          );
+        }
+        final ordered = reverseWhenStacked ? children.reversed.toList() : children;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < ordered.length; i++) ...[
+              if (i > 0) const SizedBox(height: 8),
+              ordered[i],
+            ],
+          ],
+        );
+      },
+    );
+  }
 }

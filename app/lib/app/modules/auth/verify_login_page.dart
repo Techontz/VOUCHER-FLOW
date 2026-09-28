@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/config.dart';
 import '../../core/theme.dart';
@@ -10,10 +10,15 @@ import '../../data/mock/mock_api.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/session_service.dart';
 import '../../routes/routes.dart';
+import '../../widgets/vf/vf.dart';
+import 'auth_widgets.dart';
+import 'login_brand.dart';
 import 'login_page.dart';
 
-/// The second step of signing in: a 6-digit code sent by email or SMS.
-/// Reached from [LoginController] with the [LoginChallenge] as the argument.
+/// The second step of signing in (the web's LoginVerification): choose where
+/// the code goes when the account has both an email address and a phone,
+/// then enter it. Reached from [LoginController] with the [LoginChallenge]
+/// as the argument; the challenge lives only here, never in storage.
 class VerifyLoginController extends GetxController {
   VerifyLoginController([LoginChallenge? challenge])
     : challenge = challenge ?? Get.arguments as LoginChallenge;
@@ -23,17 +28,43 @@ class VerifyLoginController extends GetxController {
 
   final code = TextEditingController();
 
-  /// The channel the current code went to; null while the user chooses.
-  final sentTo = RxnString();
-  final destination = ''.obs;
+  /// Failures after which the challenge is gone and only a fresh sign-in helps.
+  static const _terminal = {
+    'too_many_attempts': 'auth.2s.errTooManyAttempts',
+    'challenge_expired': 'auth.2s.errExpired',
+    'account_unavailable': 'auth.2s.errUnavailable',
+    'too_many_sends': 'auth.2s.errTooManySends',
+  };
 
-  /// The channel picked on the choice step, before a code is sent.
-  final picked = RxnString();
+  /// Recoverable failures, worded in the active language.
+  static const _recoverable = {
+    'invalid_code': 'auth.2s.errInvalid',
+    'code_expired': 'auth.2s.errCodeExpired',
+    'no_code': 'auth.2s.errNoCode',
+    'resend_cooldown': 'auth.2s.errCooldown',
+    'delivery_failed': 'auth.2s.errDelivery',
+  };
+
+  /// The channel the current code went to.
+  final sentTo = RxnString();
+  final destination = RxnString();
+
+  /// On the choice between email and SMS.
+  final choosing = false.obs;
+
+  /// The channel picked on the choice step.
+  final picked = 'email'.obs;
+
+  /// How long the current code lasts, in minutes.
+  final codeMinutes = RxnInt();
 
   final verifying = false.obs;
   final sending = false.obs;
   final error = RxnString();
   final notice = RxnString();
+
+  /// The code as typed, so the Verify button follows it.
+  final typed = ''.obs;
 
   /// Seconds before another code may be requested.
   final resendLeft = 0.obs;
@@ -45,41 +76,39 @@ class VerifyLoginController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    picked.value = challenge.channels.firstOrNull?.channel;
-
-    final already = challenge.sentTo;
-    if (already != null) {
-      sentTo.value = already;
-      destination.value = challenge.channelFor(already)?.destination ?? '';
-      _startCountdown(challenge.resendIn ?? 0);
-    } else if (!hasChoice && challenge.channels.isNotEmpty) {
-      // One way to reach the user and nothing sent yet: send it now.
-      unawaited(send(challenge.channels.first.channel));
-    }
+    sentTo.value = challenge.sentTo;
+    destination.value = challenge.channelFor(challenge.sentTo)?.destination;
+    choosing.value = challenge.sentTo == null;
+    picked.value =
+        challenge.sentTo ?? challenge.channels.firstOrNull?.channel ?? 'email';
+    codeMinutes.value = _minutes(challenge.codeExpiresIn);
+    _startCountdown(challenge.resendIn ?? 0);
+    code.addListener(() => typed.value = code.text);
   }
 
+  static int? _minutes(int? seconds) =>
+      seconds == null || seconds <= 0 ? null : (seconds / 60).round();
+
+  String channelLabel(String channel) =>
+      channel == 'sms' ? 'auth.2s.viaSms'.tr : 'auth.2s.viaEmail'.tr;
+
   /// Sends (or re-sends) a code by [channel].
-  Future<void> send(String channel) async {
+  Future<void> send(String channel, {bool resend = false}) async {
     if (sending.value) return;
     sending.value = true;
     error.value = null;
     notice.value = null;
-    final resending = sentTo.value == channel;
     try {
       final result = await session.sendLoginCode(challenge.challenge, channel);
       sentTo.value = result.sentTo;
       destination.value = result.destination;
-      code.clear();
+      codeMinutes.value = _minutes(result.codeExpiresIn);
       _startCountdown(result.resendIn ?? 0);
-      if (resending) {
-        notice.value = 'verify.resent'.trParams({
-          'destination': result.destination,
-        });
-      }
-    } on ApiException catch (e) {
+      code.clear();
+      choosing.value = false;
+      if (resend) notice.value = 'auth.2s.resent'.tr;
+    } catch (e) {
       _handle(e);
-    } catch (_) {
-      error.value = 'state.offline'.tr;
     } finally {
       sending.value = false;
     }
@@ -87,29 +116,31 @@ class VerifyLoginController extends GetxController {
 
   Future<void> resend() async {
     final channel = sentTo.value;
-    if (channel == null || resendLeft.value > 0) return;
-    await send(channel);
+    if (channel == null || resendLeft.value > 0 || busy) return;
+    await send(channel, resend: true);
   }
 
   /// Back to the choice between email and SMS.
   void useDifferentMethod() {
-    picked.value = challenge.channels
-        .where((c) => c.channel != sentTo.value)
-        .firstOrNull
-        ?.channel;
-    sentTo.value = null;
-    code.clear();
     error.value = null;
     notice.value = null;
+    code.clear();
+    choosing.value = true;
+  }
+
+  /// The form's one action: send the code on the choice step, verify after.
+  Future<void> submit() async {
+    if (choosing.value) {
+      await send(picked.value);
+      return;
+    }
+    await verify();
   }
 
   Future<void> verify() async {
     if (busy) return;
     final value = code.text.trim();
-    if (!RegExp(r'^\d{6}$').hasMatch(value)) {
-      error.value = 'verify.error.enterCode'.tr;
-      return;
-    }
+    if (value.length < 6) return;
 
     verifying.value = true;
     error.value = null;
@@ -118,65 +149,55 @@ class VerifyLoginController extends GetxController {
       await session.verifyLogin(challenge.challenge, value);
       _ticker?.cancel();
       Get.offAllNamed(Routes.shell);
-    } on ApiException catch (e) {
+    } catch (e) {
       _handle(e);
-    } catch (_) {
-      error.value = 'state.offline'.tr;
-    } finally {
       verifying.value = false;
     }
   }
 
-  /// Turns the API's `reason` into a message in the user's language, falling
-  /// back to the server's own wording for anything unrecognised.
-  void _handle(ApiException e) {
-    switch (e.reason) {
-      case 'invalid_code':
-        final left = e.intValue('attempts_remaining');
-        error.value = left == null
-            ? 'verify.error.invalidPlain'.tr
-            : left == 1
-            ? 'verify.error.invalidLast'.tr
-            : 'verify.error.invalid'.trParams({'count': '$left'});
-        code.clear();
-      case 'code_expired':
-        error.value = 'verify.error.codeExpired'.tr;
-        code.clear();
-        resendLeft.value = 0;
-        _ticker?.cancel();
-      case 'no_code':
-        error.value = 'verify.error.noCode'.tr;
-        sentTo.value = null;
-      case 'resend_cooldown':
-        final wait = e.intValue('retry_after') ?? 30;
-        _startCountdown(wait);
-        error.value = 'verify.error.cooldown'.trParams({'seconds': '$wait'});
-      case 'delivery_failed':
-        error.value = 'verify.error.deliveryFailed'.tr;
-      case 'too_many_attempts':
-        backToLogin('verify.error.tooManyAttempts'.tr);
-      case 'challenge_expired':
-        backToLogin('verify.error.challengeExpired'.tr);
-      case 'account_unavailable':
-        backToLogin('verify.error.accountUnavailable'.tr);
-      case 'too_many_sends':
-        backToLogin('verify.error.tooManySends'.tr);
-      default:
-        error.value = e.field('code') ?? e.field('channel') ?? e.message;
+  /// Turns an API failure into a message, or hands back to the password step.
+  void _handle(Object e) {
+    if (e is! ApiException) {
+      error.value = 'state.offline'.tr;
+      return;
     }
+    final reason = e.reason;
+    if (reason != null && _terminal.containsKey(reason)) {
+      backToLogin(_terminal[reason]!.tr);
+      return;
+    }
+    if (reason == 'resend_cooldown') {
+      final retry = e.intValue('retry_after') ?? 0;
+      if (retry > 0) _startCountdown(retry);
+    }
+    if (reason == 'no_code' && hasChoice) choosing.value = true;
+
+    var message = reason != null && _recoverable.containsKey(reason)
+        ? _recoverable[reason]!.tr
+        : (e.field('channel') ?? e.message);
+    if (reason == 'invalid_code') {
+      final left = e.intValue('attempts_remaining');
+      if (left != null && left > 0) {
+        message +=
+            ' ${left == 1 ? 'auth.2s.attemptLeft'.tr : 'auth.2s.attemptsLeft'.trParams({'n': '$left'})}';
+      }
+      code.clear();
+    }
+    error.value = message;
   }
 
   /// Leaves this step; the password must be entered again. [message] is shown
   /// on the sign-in page.
   void backToLogin([String? message]) {
     _ticker?.cancel();
+    final text = message == null || message.isEmpty ? null : message;
     if (Get.isRegistered<LoginController>()) {
       final login = Get.find<LoginController>();
-      login.error.value = message;
+      login.error.value = text;
       login.password.clear();
       Get.until((route) => route.settings.name == Routes.login);
     } else {
-      Get.offAllNamed(Routes.login, arguments: message);
+      Get.offAllNamed(Routes.login, arguments: text);
     }
   }
 
@@ -206,328 +227,295 @@ class VerifyLoginPage extends GetView<VerifyLoginController> {
   const VerifyLoginPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final session = Get.find<SessionService>();
-
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) controller.backToLogin();
-      },
-      child: Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'VouchFlow',
-                            style: theme.textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        Obx(
-                          () => SegmentedButton<String>(
-                            style: const ButtonStyle(
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            segments: const [
-                              ButtonSegment(value: 'en', label: Text('EN')),
-                              ButtonSegment(value: 'sw', label: Text('SW')),
-                            ],
-                            selected: {session.locale.value},
-                            onSelectionChanged: (s) =>
-                                session.setLocale(s.first),
-                            showSelectedIcon: false,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text('verify.title'.tr, style: theme.textTheme.bodySmall),
-                    const SizedBox(height: 28),
-
-                    Obx(
-                      () => controller.error.value == null
-                          ? const SizedBox.shrink()
-                          : _Banner(
-                              message: controller.error.value!,
-                              color: VfColors.bad,
-                              icon: Icons.error_outline,
-                            ),
-                    ),
-                    Obx(
-                      () => controller.notice.value == null
-                          ? const SizedBox.shrink()
-                          : _Banner(
-                              message: controller.notice.value!,
-                              color: VfColors.ok,
-                              icon: Icons.check_circle_outline,
-                            ),
-                    ),
-
-                    Obx(
-                      () => controller.sentTo.value == null
-                          ? _ChooseChannel(controller: controller)
-                          : _EnterCode(controller: controller),
-                    ),
-
-                    const SizedBox(height: 18),
-                    Obx(
-                      () => TextButton(
-                        onPressed: controller.verifying.value
-                            ? null
-                            : () => controller.backToLogin(),
-                        child: Text('verify.backToLogin'.tr),
-                      ),
-                    ),
-                    if (VfConfig.useMock) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'verify.demoCode'.trParams({
-                          'code': MockApi.mockLoginCode,
-                        }),
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && !controller.verifying.value) controller.backToLogin();
+    },
+    child: LoginFrame(card: _VerifyCard(controller: controller)),
+  );
 }
 
-/// The step before a code exists: pick email or SMS.
-class _ChooseChannel extends StatelessWidget {
-  const _ChooseChannel({required this.controller});
-
+class _VerifyCard extends StatelessWidget {
+  const _VerifyCard({required this.controller});
   final VerifyLoginController controller;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final t = context.vf;
+    final c = controller;
 
-    return Obx(
-      () => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('verify.choose'.tr, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 14),
-          ...controller.challenge.channels.map((option) {
-            final selected = controller.picked.value == option.channel;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: InkWell(
-                onTap: controller.sending.value
-                    ? null
-                    : () => controller.picked.value = option.channel,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: selected ? VfColors.accent : theme.dividerColor,
-                      width: selected ? 1.5 : 1,
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        option.channel == 'sms'
-                            ? Icons.sms_outlined
-                            : Icons.mail_outline,
-                        size: 20,
-                        color: selected ? VfColors.accent : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              option.channel == 'sms'
-                                  ? 'verify.bySms'.tr
-                                  : 'verify.byEmail'.tr,
-                              style: theme.textTheme.titleSmall,
-                            ),
-                            Text(
-                              option.destination,
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        selected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
-                        size: 20,
-                        color: selected ? VfColors.accent : theme.hintColor,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed:
-                controller.sending.value || controller.picked.value == null
-                ? null
-                : () => controller.send(controller.picked.value!),
-            child: controller.sending.value
-                ? _Spinner(color: VfTheme.onPrimary(context))
-                : Text('verify.sendCode'.tr),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The code field, Verify, resend and the switch to the other channel.
-class _EnterCode extends StatelessWidget {
-  const _EnterCode({required this.controller});
-
-  final VerifyLoginController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Obx(
-      () => Column(
+    return Obx(() {
+      final choosing = c.choosing.value;
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'verify.sentTo'.trParams({
-              'destination': controller.destination.value,
-            }),
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 4),
-          Text('verify.expiresNote'.tr, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 18),
-          TextField(
-            controller: controller.code,
-            autofocus: true,
-            enabled: !controller.verifying.value,
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.done,
-            autofillHints: const [AutofillHints.oneTimeCode],
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(6),
-            ],
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge?.copyWith(
-              letterSpacing: 10,
+            'auth.2s.title'.tr,
+            style: VfType.pageTitle.copyWith(
+              fontSize: 26,
               fontWeight: FontWeight.w600,
+              letterSpacing: -.5,
+              color: t.text,
             ),
-            onSubmitted: (_) => controller.verify(),
-            decoration: InputDecoration(labelText: 'verify.code'.tr),
           ),
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: controller.busy ? null : controller.verify,
-            child: controller.verifying.value
-                ? _Spinner(color: VfTheme.onPrimary(context))
-                : Text('verify.submit'.tr),
+          const SizedBox(height: 6),
+          Text(
+            choosing ? 'auth.2s.choose'.tr : 'auth.2s.sub'.tr,
+            style: VfType.body.copyWith(color: t.muted),
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              TextButton(
-                onPressed: controller.busy || controller.resendLeft.value > 0
-                    ? null
-                    : controller.resend,
-                child: controller.sending.value
-                    ? const _Spinner()
-                    : Text(
-                        controller.resendLeft.value > 0
-                            ? 'verify.resendIn'.trParams({
-                                'seconds': '${controller.resendLeft.value}',
-                              })
-                            : 'verify.resend'.tr,
-                      ),
-              ),
-              if (controller.hasChoice)
-                TextButton(
-                  onPressed: controller.busy
+          const SizedBox(height: 28),
+
+          if (c.error.value != null) ...[
+            VouchFlowAlert(
+              message: c.error.value!,
+              tone: VfTone.bad,
+              icon: PhosphorIconsRegular.warningCircle,
+            ),
+            const SizedBox(height: 20),
+          ] else if (c.notice.value != null) ...[
+            VouchFlowAlert(
+              message: c.notice.value!,
+              tone: VfTone.ok,
+              icon: PhosphorIconsRegular.checkCircle,
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          if (choosing) ...[
+            for (final option in c.challenge.channels)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ChannelChoice(
+                  icon: option.channel == 'sms'
+                      ? PhosphorIconsRegular.deviceMobile
+                      : PhosphorIconsRegular.envelopeSimple,
+                  label: c.channelLabel(option.channel),
+                  destination: option.destination,
+                  selected: c.picked.value == option.channel,
+                  onTap: c.sending.value
                       ? null
-                      : controller.useDifferentMethod,
-                  child: Text('verify.otherMethod'.tr),
+                      : () => c.picked.value = option.channel,
                 ),
-            ],
+              ),
+            const SizedBox(height: 10),
+            VouchFlowButton(
+              label: c.sending.value
+                  ? 'auth.loading'.tr
+                  : 'auth.2s.sendCode'.tr,
+              trailingIcon: PhosphorIconsRegular.arrowRight,
+              loading: c.sending.value,
+              height: 48,
+              expand: true,
+              onPressed: c.busy ? null : c.submit,
+            ),
+          ] else ...[
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '${'auth.2s.sentTo'.tr} '),
+                  TextSpan(
+                    text:
+                        c.destination.value ??
+                        (c.sentTo.value == null
+                            ? ''
+                            : c.channelLabel(c.sentTo.value!)),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: t.text,
+                    ),
+                  ),
+                  const TextSpan(text: '.'),
+                  if (c.codeMinutes.value != null)
+                    TextSpan(
+                      text:
+                          ' ${'auth.2s.validFor'.trParams({'n': '${c.codeMinutes.value}'})}',
+                    ),
+                ],
+              ),
+              style: VfType.body.copyWith(color: t.muted, height: 1.55),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'auth.2s.codeLabel'.tr,
+              style: VfType.label.copyWith(
+                fontWeight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+            const SizedBox(height: 8),
+            OtpField(
+              controller: c.code,
+              enabled: !c.verifying.value,
+              invalid: c.error.value != null,
+              autofocus: true,
+              onSubmitted: (_) => c.verify(),
+              semanticLabel: 'auth.2s.codeLabel'.tr,
+            ),
+            const SizedBox(height: 20),
+            VouchFlowButton(
+              label: c.verifying.value
+                  ? 'auth.2s.verifying'.tr
+                  : 'auth.2s.verify'.tr,
+              trailingIcon: PhosphorIconsRegular.arrowRight,
+              loading: c.verifying.value,
+              height: 48,
+              expand: true,
+              onPressed: c.busy || c.typed.value.length < 6 ? null : c.verify,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              runSpacing: 4,
+              spacing: 8,
+              children: [
+                VouchFlowButton(
+                  label: c.resendLeft.value > 0
+                      ? 'auth.2s.resendIn'.trParams({
+                          'n': '${c.resendLeft.value}',
+                        })
+                      : 'auth.2s.resend'.tr,
+                  icon: PhosphorIconsRegular.arrowClockwise,
+                  variant: VfButtonVariant.ghost,
+                  compact: true,
+                  onPressed:
+                      c.busy || c.resendLeft.value > 0 || c.sentTo.value == null
+                      ? null
+                      : c.resend,
+                ),
+                if (c.hasChoice)
+                  VouchFlowButton(
+                    label: 'auth.2s.otherMethod'.tr,
+                    icon: PhosphorIconsRegular.swap,
+                    variant: VfButtonVariant.ghost,
+                    compact: true,
+                    onPressed: c.busy ? null : c.useDifferentMethod,
+                  ),
+              ],
+            ),
+          ],
+
+          if (VfConfig.useMock) ...[
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    PhosphorIconsRegular.info,
+                    size: 14,
+                    color: t.muted,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'auth.2s.demoHint'.trParams({
+                      'code': MockApi.mockLoginCode,
+                    }),
+                    style: VfType.small.copyWith(color: t.muted),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 22),
+          Center(
+            child: VouchFlowButton(
+              label: 'auth.2s.back'.tr,
+              icon: PhosphorIconsRegular.arrowLeft,
+              variant: VfButtonVariant.ghost,
+              compact: true,
+              onPressed: c.verifying.value ? null : () => c.backToLogin(),
+            ),
           ),
         ],
-      ),
-    );
+      );
+    });
   }
 }
 
-class _Spinner extends StatelessWidget {
-  const _Spinner({this.color});
-
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 18,
-    height: 18,
-    child: CircularProgressIndicator(strokeWidth: 2, color: color),
-  );
-}
-
-/// The login page's message box, in [color].
-class _Banner extends StatelessWidget {
-  const _Banner({
-    required this.message,
-    required this.color,
+/// One way to receive the code (the web's `.vf-choice`).
+class _ChannelChoice extends StatelessWidget {
+  const _ChannelChoice({
     required this.icon,
+    required this.label,
+    required this.destination,
+    required this.selected,
+    required this.onTap,
   });
 
-  final String message;
-  final Color color;
   final IconData icon;
+  final String label, destination;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 16),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: .14),
-      border: Border.all(color: color.withValues(alpha: .5)),
-      borderRadius: BorderRadius.circular(2),
-    ),
-    child: Row(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(message, style: TextStyle(color: color, fontSize: 13.5)),
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Semantics(
+      button: true,
+      selected: selected,
+      inMutuallyExclusiveGroup: true,
+      child: Material(
+        color: selected ? t.primarySoft : t.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: selected ? t.primary : t.borderStrong,
+            width: selected ? 1.5 : 1,
+          ),
         ),
-      ],
-    ),
-  );
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: selected ? t.primarySoftStrong : t.surface3,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: selected ? t.primaryText : t.text2,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: VfType.bodyStrong.copyWith(color: t.text),
+                      ),
+                      Text(
+                        destination,
+                        style: VfType.small.copyWith(color: t.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  selected
+                      ? PhosphorIconsFill.checkCircle
+                      : PhosphorIconsRegular.circle,
+                  size: 22,
+                  color: selected ? t.primary : t.faint,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

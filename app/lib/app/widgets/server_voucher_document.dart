@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:printing/printing.dart';
 
 import '../core/theme.dart';
@@ -17,7 +18,11 @@ class ServerVoucherDocument extends StatefulWidget {
     required this.load,
     required this.refreshKey,
     required this.fallback,
+    this.title = '',
   });
+
+  /// Heads the full-screen view (the voucher number).
+  final String title;
 
   /// Fetches the PDF bytes.
   final Future<Uint8List> Function() load;
@@ -69,29 +74,84 @@ class _ServerVoucherDocumentState extends State<ServerVoucherDocument> {
       return widget.fallback;
     }
 
+    final t = context.vf;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: context.vfElev2,
-        border: Border.all(color: context.vfLine),
-        borderRadius: BorderRadius.circular(VfTheme.rLg),
+        color: t.surface2,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(VfSize.radiusL),
       ),
       child: Column(
         children: [
           for (var i = 0; i < pages.length; i++) ...[
             if (i > 0) const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.memory(
-                pages[i],
-                fit: BoxFit.fitWidth,
-                width: double.infinity,
-                gaplessPlayback: true,
-                filterQuality: FilterQuality.medium,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: VfDoc.paper,
+                borderRadius: BorderRadius.circular(VfSize.radiusXs),
+                boxShadow: t.cardShadow,
+              ),
+              child: GestureDetector(
+                // Tap a page to read it full screen, pinch to zoom.
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    fullscreenDialog: true,
+                    builder: (_) =>
+                        _FullDocument(pages: pages, title: widget.title),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(VfSize.radiusXs),
+                  child: Image.memory(
+                    pages[i],
+                    fit: BoxFit.fitWidth,
+                    width: double.infinity,
+                    gaplessPlayback: true,
+                    filterQuality: FilterQuality.medium,
+                  ),
+                ),
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _FullDocument extends StatelessWidget {
+  const _FullDocument({required this.pages, required this.title});
+
+  final List<Uint8List> pages;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Scaffold(
+      backgroundColor: t.surface2,
+      appBar: AppBar(
+        backgroundColor: t.chrome,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+          icon: const Icon(PhosphorIconsRegular.x, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          title,
+          style: VfType.cardTitle.copyWith(color: Colors.white),
+        ),
+      ),
+      body: InteractiveViewer(
+        maxScale: 5,
+        child: ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: pages.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (_, i) => Image.memory(pages[i], fit: BoxFit.fitWidth),
+        ),
       ),
     );
   }
