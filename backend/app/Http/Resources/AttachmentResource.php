@@ -23,6 +23,9 @@ class AttachmentResource extends JsonResource
             ]),
             'uploaded_by' => $this->whenLoaded('uploader', fn () => $this->uploader?->name),
             'created_at' => $this->created_at?->toIso8601String(),
+            // A signed payment acknowledgement, and which payment it covers.
+            'document_type' => $this->document_type,
+            'voucher_payment_id' => $this->voucher_payment_id,
         ];
     }
 }

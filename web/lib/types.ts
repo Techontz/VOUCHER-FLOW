@@ -1,6 +1,6 @@
 /** v2 routes a voucher Employee → HOD → CEO → Cashier. */
 export type Role =
-  | "super_admin" | "company_admin" | "employee" | "hod" | "ceo" | "cashier" | "finance" | "director";
+  | "super_admin" | "company_admin" | "employee" | "hod" | "manager" | "ceo" | "cashier" | "finance" | "director";
 
 export interface User {
   id: number;
@@ -72,11 +72,33 @@ export interface Company {
   bank_account_number: string | null;
   bank_branch: string | null;
   primary_color: string;
-  accent_color: string;
+  accent_color: string | null;
   theme: "light" | "dark";
+  /* Profile and document fields the API also returns (CompanyResource). */
+  secondary_color?: string | null;
+  voucher_header_text?: string | null;
+  trading_name?: string | null;
+  initials?: string;
+  has_logo?: boolean;
+  alternative_phone?: string | null;
+  postal_address?: string | null;
+  city?: string | null;
+  region?: string | null;
+  registration_number?: string | null;
+  business_license_number?: string | null;
+  contact_person?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  swift_code?: string | null;
   /** The interface palette this company works in; see styles/app.css. */
   color_theme: ColorTheme;
   voucher_footer_text: string | null;
+  /** The voucher design new documents render in; see VoucherTemplate. */
+  voucher_template?: string;
+  voucher_template_name?: string;
+  voucher_template_changes_used?: number;
+  voucher_template_changes_allowed?: number;
+  voucher_template_changes_remaining?: number;
   status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   is_usable: boolean;
   is_expired: boolean;
@@ -103,8 +125,8 @@ export interface Department {
   is_active: boolean;
   hod_user_id: number | null;
   manager_user_id: number | null;
-  hod?: { id: number; name: string } | null;
-  manager?: { id: number; name: string } | null;
+  hod?: { id: number; name: string; status?: string } | null;
+  manager?: { id: number; name: string; status?: string } | null;
   users_count?: number;
   vouchers_count?: number;
   spend?: number;
@@ -116,10 +138,10 @@ export interface WorkflowStep {
   name: string;
   name_sw: string | null;
   label: string;
-  role: "employee" | "hod" | "ceo" | "cashier" | "finance" | "director" | "custom";
+  role: "employee" | "hod" | "manager" | "ceo" | "cashier" | "finance" | "director" | "custom";
   role_label: string;
   assigned_user_id: number | null;
-  assigned_user?: { id: number; name: string } | null;
+  assigned_user?: { id: number; name: string; role?: string; status?: string } | null;
   assignee_hint: string | null;
   can_sign: boolean;
   can_approve: boolean;
@@ -137,14 +159,45 @@ export interface WorkflowStep {
 export interface Workflow {
   id: number;
   name: string;
+  name_sw?: string | null;
+  label?: string;
   description: string | null;
+  /** null = the route for every voucher type without a route of its own. */
   voucher_type_id: number | null;
+  voucher_type?: { id: number; name: string; name_sw: string | null } | null;
   is_default: boolean;
   is_active: boolean;
   version: number;
   route_summary?: string;
   steps: WorkflowStep[];
+  vouchers_count?: number;
+  in_flight_count?: number;
   updated_at: string | null;
+}
+
+/** Why a workflow step would find nobody in a department. */
+export type RoutingGap =
+  | "no_hod" | "inactive_hod" | "no_manager" | "inactive_manager"
+  | "inactive_person" | "missing_person" | "no_person_named" | "no_one_with_role";
+
+/** GET /workflows/{id}/routing — who acts at each step, per department. */
+export interface WorkflowRouting {
+  workflow_id: number;
+  steps: {
+    id: number; position: number; name: string; name_sw: string | null;
+    role: WorkflowStep["role"]; role_label: string;
+    is_request_step: boolean; is_payment_step: boolean;
+    assignment: "requester" | "named" | "department_head" | "department_manager" | "role" | "unassigned";
+    min_amount: number | null; max_amount: number | null;
+  }[];
+  departments: {
+    id: number; name: string; is_active: boolean;
+    hod: { id: number; name: string; role: string; status: string } | null;
+    manager: { id: number; name: string; role: string; status: string } | null;
+    cells: { step_id: number; people: { id: number; name: string; role: string }[]; gap: RoutingGap | null }[];
+    gaps: number;
+  }[];
+  gaps: number;
 }
 
 export interface VoucherType {
@@ -176,6 +229,8 @@ export interface VoucherActions {
   request_changes: boolean;
   /** The cashier releases funds and closes the voucher. */
   pay: boolean;
+  /** Documents may be added — also after approval and payment, for receipts. */
+  attach?: boolean;
   cancel: boolean;
   comment: boolean;
   print: boolean;
@@ -213,6 +268,43 @@ export interface Attachment {
   url: string;
   uploaded_by?: string;
   created_at: string | null;
+  /** "payment_acknowledgement" for a receiver's signed copy; null otherwise. */
+  document_type?: "payment_acknowledgement" | string | null;
+  /** The payment a signed acknowledgement covers. */
+  voucher_payment_id?: number | null;
+}
+
+/**
+ * One release of money against a voucher. A voucher approved for 10,000,000
+ * may be paid 9,000,000 now and 1,000,000 later — two payments, each with its
+ * own receiver, reference and signed acknowledgement.
+ */
+export interface VoucherPayment {
+  id: number;
+  /** 1, 2, … in the order the money left. */
+  sequence: number;
+  /** The voucher number with the sequence, e.g. "PV-2026-000083/1". */
+  reference: string;
+  amount: number;
+  amount_text: string;
+  balance_after: number;
+  balance_after_text: string;
+  payment_method: string | null;
+  payment_reference: string | null;
+  cheque_number: string | null;
+  received_by: string | null;
+  receiver_id_number: string | null;
+  payment_date: string | null;
+  paid_at: string | null;
+  /** The cashier's name. */
+  paid_by: string | null;
+  /** The cashier who released this payment (older servers send only the name). */
+  paid_by_id?: number | null;
+  note: string | null;
+  /** When the receiver's signed copy was filed; null while it is outstanding. */
+  acknowledged_at: string | null;
+  acknowledgement_url: string;
+  acknowledgement_attachment_ids: number[];
 }
 
 export interface Comment {
@@ -239,6 +331,14 @@ export interface Voucher {
   amount: number;
   currency: string;
   amount_text: string;
+  /** Released so far — the whole amount once paid, part of it while a balance remains. */
+  amount_paid?: number;
+  amount_paid_text?: string;
+  /** Still owed. Zero once paid. */
+  balance?: number;
+  balance_text?: string;
+  /** Approved, some money out, some still owed (status_key "partially_paid"). */
+  is_partially_paid?: boolean;
   amount_in_words: string | null;
   payment_method: string | null;
   account_ref: string | null;
@@ -266,6 +366,10 @@ export interface Voucher {
   approved_at: string | null;
   rejected_at: string | null;
   paid_at: string | null;
+  /** The day the money moved, as recorded by the cashier. */
+  payment_date?: string | null;
+  /** List rows only: who refused or returned the voucher, when it was. */
+  decided_by?: string | null;
   payment_reference: string | null;
   /**
    * Who released the money. The API sends the person ({ id, name, job_title });
@@ -288,6 +392,8 @@ export interface Voucher {
   timeline?: TimelineRow[];
   attachments?: Attachment[];
   comments?: Comment[];
+  /** Detailed voucher only: every release of money, in order. */
+  payments?: VoucherPayment[];
   workflow?: Workflow;
 }
 
@@ -382,13 +488,45 @@ export interface Usage {
 }
 
 export interface DashboardStat {
+  /** Stable translation key, e.g. "dash.stat.awaitingApproval". */
+  key?: string;
+  params?: Record<string, string | number>;
   label: string;
   value: string;
   sub: string;
+  sub_key?: string | null;
+  sub_params?: Record<string, string | number>;
   icon?: string;
   trend?: string | null;
   up?: boolean | null;
 }
+
+/** Which dashboard the backend built — decided by workflow steps, not only by role. */
+export type DashboardView = "employee" | "hod" | "approver" | "cashier" | "admin" | "platform";
+
+export interface DashboardBanner {
+  count: number;
+  key: string;
+  params?: Record<string, string | number>;
+  title: string;
+  body_key: string;
+  body: string;
+  action: { key: string; label: string; href: string } | null;
+}
+
+export interface DashboardActivity {
+  id: number;
+  action: string;
+  action_label: string;
+  actor_id: number | null;
+  actor: string | null;
+  voucher_id: number;
+  voucher_number: string | null;
+  amount_text: string | null;
+  at: string | null;
+}
+
+export interface DashboardMoneyTotal { count: number; total: number; total_text: string }
 
 export interface DashboardPayload {
   role: Role;
@@ -400,9 +538,24 @@ export interface DashboardPayload {
     recent?: Voucher[];
     queue?: Voucher[];
     volume?: { period: string; label: string; count: number; total: number; is_current: boolean }[];
-    by_department?: { id: number; name: string; count: number; total: number; share: string }[];
+    by_department?: { id: number; name: string; count: number; total: number; total_text?: string; share: string }[];
     by_stage?: { name: string; count: number; total: number; share: string }[];
     attention?: { id: number; name: string; status: string; plan: string | null; users_count: number; note: string }[];
+    view?: DashboardView;
+    banner?: DashboardBanner | null;
+    queue_total_text?: string;
+    recent_activity?: DashboardActivity[];
+    recent_activity_key?: string;
+    recent_activity_label?: string;
+    recently_signed?: { id: number; number: string; payee: string; amount_text: string; status: string }[];
+    departments?: { id: number; name: string; total: number; total_text: string }[];
+    payment_totals?: { paid: DashboardMoneyTotal; bank: DashboardMoneyTotal; cash: DashboardMoneyTotal };
+    overview?: { active_users: number; departments: number };
+    workflow?: {
+      id: number; name: string; name_sw?: string | null;
+      steps: { position: number; name: string; name_sw?: string | null; role: string; action: "request" | "sign" | "approve" | "pay" | "review" }[];
+    } | null;
+    subscription?: { plan: string | null; status: string; trial_ends_at: string | null; renews_at: string | null; days_remaining: number | null } | null;
     recent_companies?: any[];
     recent_payments?: any[];
   };
@@ -428,4 +581,74 @@ export interface Paginated<T> {
     collected?: number;
     outstanding?: number;
   };
+}
+
+/* — two-step sign-in (POST /auth/login → /auth/login/send-code → /auth/login/verify) — */
+
+export type LoginChannel = "email" | "sms";
+
+export interface LoginChannelOption {
+  channel: LoginChannel;
+  /** Masked, e.g. "f•••@watercom.test" or "+255 7•• ••• 418". */
+  destination: string;
+}
+
+/** What /auth/login returns instead of a token when a code is required. */
+export interface LoginChallenge {
+  requires_verification: true;
+  /** Opaque; kept in memory only, never persisted. */
+  challenge: string;
+  channels: LoginChannelOption[];
+  /** Set when there was only one channel and the code has already gone. */
+  sent_to: LoginChannel | null;
+  /** Challenge lifetime, seconds. */
+  expires_in: number;
+  code_expires_in: number | null;
+  resend_in: number | null;
+}
+
+/** POST /auth/login/send-code */
+export interface LoginCodeSent {
+  sent_to: LoginChannel;
+  destination: string;
+  code_expires_in: number;
+  resend_in: number;
+  sends_remaining: number;
+}
+
+/** One voucher design from the server's catalogue. Presentation only. */
+export interface VoucherTemplate {
+  key: string;
+  number: number;
+  name: string;
+  name_sw: string;
+  description: string;
+  description_sw: string;
+  is_default: boolean;
+}
+
+export interface VoucherTemplateChange {
+  id: number;
+  previous_template: string | null;
+  previous_template_name: string | null;
+  new_template: string;
+  new_template_name: string;
+  changed_by: number | null;
+  changed_by_name: string | null;
+  changed_by_role: string | null;
+  source: "registration" | "company_admin" | "super_admin" | "platform_create";
+  reason: string | null;
+  counted: boolean;
+  created_at: string | null;
+}
+
+/** A company's design and what it may still do about it. */
+export interface VoucherTemplateState {
+  template: string;
+  template_name: string;
+  changes_used: number;
+  changes_allowed: number;
+  changes_remaining: number;
+  templates: VoucherTemplate[];
+  history: VoucherTemplateChange[];
 }

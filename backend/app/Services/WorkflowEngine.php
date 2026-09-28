@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherApproval;
+use App\Models\VoucherAttachment;
+use App\Models\VoucherPayment;
 use App\Models\VoucherType;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
@@ -92,11 +94,19 @@ class WorkflowEngine
 
     /* ------------------------------------------------------------- assignment */
 
-    /** The people who may act at a step, resolved against this voucher. */
+    /**
+     * The people who may act at a step, resolved against this voucher.
+     *
+     * A named person, a department head or a department manager who is no
+     * longer active resolves to nobody — a suspended account must not keep
+     * approving — and the company admin's override then applies.
+     */
     public function assigneesFor(Voucher $voucher, WorkflowStep $step): Collection
     {
         if ($step->assigned_user_id) {
-            $user = User::where('company_id', $voucher->company_id)->find($step->assigned_user_id);
+            $user = User::where('company_id', $voucher->company_id)
+                ->where('status', 'active')
+                ->find($step->assigned_user_id);
 
             return new Collection($user ? [$user] : []);
         }
@@ -111,15 +121,20 @@ class WorkflowEngine
         };
 
         if ($candidate) {
-            $user = User::where('company_id', $voucher->company_id)->find($candidate);
+            $user = User::where('company_id', $voucher->company_id)
+                ->when($step->role !== 'employee', fn ($query) => $query->where('status', 'active'))
+                ->find($candidate);
 
             if ($user) {
                 return new Collection([$user]);
             }
         }
 
-        // Fall back to everyone in the tenant holding the step's role.
-        if ($step->role === 'custom') {
+        // Fall back to everyone in the tenant holding the step's role — except
+        // for department-bound roles: an HOD or manager step belongs to the
+        // voucher's own department and never passes to another department's
+        // head. With nobody there, the company admin acts as the override.
+        if (in_array($step->role, ['custom', 'hod', 'manager'], true)) {
             return new Collection;
         }
 
@@ -168,6 +183,7 @@ class WorkflowEngine
             'print' => false,
             'download' => false,
             'pay' => false,
+            'attach' => false,
         ];
 
         $isOwner = $voucher->requester_id === $user->id;
@@ -200,6 +216,15 @@ class WorkflowEngine
         if (($isOwner || $isAdmin) && $voucher->status === Voucher::STATUS_IN_REVIEW) {
             $actions['cancel'] = true;
         }
+
+        // Documents may still arrive once the money is released — a supplier's
+        // receipt usually comes after payment. So an approved or paid voucher
+        // stays open for attachments from its requester, whoever pays (or paid)
+        // it and the company admin, even though its details are locked.
+        $actions['attach'] = $actions['edit'] || (
+            in_array($voucher->status, [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID], true)
+            && ($isOwner || $isAdmin || $voucher->paid_by_id === $user->id || $this->canPay($user, $voucher))
+        );
 
         // Payment is not another review step. The approval chain ends when the
         // last approver signs off; releasing the money is a separate function,
@@ -263,54 +288,138 @@ class WorkflowEngine
      * Approved → paid. The end of the lifecycle: the money has moved, and the
      * voucher leaves the cashier's queue for the reports.
      */
+    /**
+     * Releases money against an approved voucher — all of it, or part of it.
+     *
+     * Each release is its own VoucherPayment with its receiver, reference and
+     * the balance left after it, so a voucher approved for 10,000,000 can be
+     * paid 9,000,000 now and 1,000,000 later without anyone ever appearing to
+     * have received more than they did. While a balance remains the voucher
+     * stays approved (still in the payment queue, shown as partially paid);
+     * the payment that clears it closes the voucher as paid.
+     */
     public function pay(Voucher $voucher, User $actor, array $details, ?string $signatureData = null): Voucher
     {
         $this->guard($voucher->status === Voucher::STATUS_APPROVED, 'Only an approved voucher can be paid.');
         $this->guard($voucher->paid_at === null, 'This voucher has already been paid.');
         $this->guard($this->canPay($actor, $voucher), 'You may not release payment on this voucher.');
 
+        $balance = $voucher->balance();
+        $amount = isset($details['amount']) ? round((float) $details['amount'], 2) : $balance;
+
+        $this->guard($amount > 0, 'Enter an amount greater than zero.');
+        $this->guard($amount <= $balance + 0.001, 'The amount is more than the balance outstanding ('.number_format($balance, 2).').');
+
         $step = $this->applicableSteps($voucher)->first(fn (WorkflowStep $s) => $s->can_pay);
 
-        return DB::transaction(function () use ($voucher, $actor, $details, $signatureData, $step) {
+        return DB::transaction(function () use ($voucher, $actor, $details, $signatureData, $step, $amount, $balance) {
             $signature = $signatureData ?: $actor->signature_data;
+            $remaining = round($balance - $amount, 2);
+            $settled = $remaining <= 0.001;
+            $money = fn (float $v) => $voucher->currency.' '.number_format($v);
 
-            $this->record($voucher, $actor, 'paid', $details['note'] ?? null, $signature, $step);
+            $payment = VoucherPayment::create([
+                'company_id' => $voucher->company_id,
+                'voucher_id' => $voucher->id,
+                'sequence' => (int) $voucher->payments()->max('sequence') + 1,
+                'amount' => $amount,
+                'balance_after' => max(0, $remaining),
+                'currency' => $voucher->currency,
+                'payment_method' => $details['payment_method'] ?? $voucher->payment_method,
+                'payment_reference' => $details['payment_reference'] ?? null,
+                'cheque_number' => $details['cheque_number'] ?? null,
+                'received_by' => $details['received_by'] ?? null,
+                'receiver_id_number' => $details['receiver_id_number'] ?? null,
+                'payment_date' => $details['payment_date'] ?? now()->toDateString(),
+                'note' => $details['note'] ?? null,
+                'paid_by_id' => $actor->id,
+                'paid_at' => now(),
+            ]);
 
-            $voucher->forceFill([
+            $note = $settled
+                ? ($details['note'] ?? null)
+                : trim('Part payment '.$money($amount).' — balance '.$money($remaining).' outstanding. '.($details['note'] ?? ''));
+            $this->record($voucher, $actor, $settled ? 'paid' : 'part_paid', $note ?: null, $signature, $step);
+
+            $voucher->forceFill(array_filter([
+                'amount_paid' => round((float) $voucher->amount_paid + $amount, 2),
+                // The voucher's own payment fields describe the latest release.
+                'payment_reference' => $payment->payment_reference ?? $voucher->payment_reference,
+                'payment_date' => $payment->payment_date?->toDateString(),
+                'payment_method' => $payment->payment_method,
+                'cheque_number' => $payment->cheque_number ?? $voucher->cheque_number,
+                'received_by' => $payment->received_by ?? $voucher->received_by,
+            ], fn ($v) => $v !== null) + ($settled ? [
                 'status' => Voucher::STATUS_PAID,
                 'paid_at' => now(),
                 'paid_by_id' => $actor->id,
-                'payment_reference' => $details['payment_reference'] ?? null,
-                'payment_date' => $details['payment_date'] ?? now()->toDateString(),
-                'payment_method' => $details['payment_method'] ?? $voucher->payment_method,
-                'cheque_number' => $details['cheque_number'] ?? $voucher->cheque_number,
-                'received_by' => $details['received_by'] ?? $voucher->received_by,
                 'current_step_position' => null,
                 'step_signed_at' => null,
-            ])->save();
+            ] : []))->save();
 
             $this->audit->log(
-                'voucher.paid',
-                "Released payment on voucher {$voucher->number}",
+                $settled ? 'voucher.paid' : 'voucher.part_paid',
+                $settled
+                    ? "Released payment on voucher {$voucher->number}"
+                    : "Released part payment of {$money($amount)} on voucher {$voucher->number}; {$money($remaining)} outstanding",
                 $voucher,
-                ['status' => Voucher::STATUS_APPROVED],
-                ['status' => Voucher::STATUS_PAID, 'reference' => $voucher->payment_reference],
+                ['status' => Voucher::STATUS_APPROVED, 'amount_paid' => (float) $voucher->getOriginal('amount_paid')],
+                ['status' => $voucher->status, 'amount_paid' => (float) $voucher->amount_paid, 'payment' => $payment->sequence, 'reference' => $payment->payment_reference],
             );
 
-            $this->notifier->toUser(
-                $voucher->requester,
-                'voucher.paid',
-                "{$voucher->number} has been paid",
-                "{$voucher->number} imelipwa",
-                "{$actor->name} released {$voucher->currency} ".number_format((float) $voucher->amount)
-                    .($voucher->payment_reference ? " · ref {$voucher->payment_reference}" : '').'.',
-                "{$actor->name} ametoa {$voucher->currency} ".number_format((float) $voucher->amount)
-                    .($voucher->payment_reference ? " · kumb. {$voucher->payment_reference}" : '').'.',
-                $voucher,
-                'ph-check-circle',
-            );
+            $ref = $payment->payment_reference;
+
+            if ($settled) {
+                $this->notifier->toUser(
+                    $voucher->requester,
+                    'voucher.paid',
+                    "{$voucher->number} has been paid",
+                    "{$voucher->number} imelipwa",
+                    "{$actor->name} paid {$money($amount)}".($payment->sequence > 1 ? ', settling the balance' : '')
+                        .($ref ? ". Payment reference: {$ref}" : '').'.',
+                    "{$actor->name} amelipa {$money($amount)}".($payment->sequence > 1 ? ', na kumaliza salio' : '')
+                        .($ref ? ". Kumbukumbu ya malipo: {$ref}" : '').'.',
+                    $voucher,
+                    'ph-check-circle',
+                );
+            } else {
+                $this->notifier->toUser(
+                    $voucher->requester,
+                    'voucher.part_paid',
+                    "{$voucher->number} has been partly paid",
+                    "{$voucher->number} imelipwa sehemu",
+                    "{$actor->name} paid {$money($amount)} of {$money((float) $voucher->amount)}. The balance of {$money($remaining)} is still outstanding.",
+                    "{$actor->name} amelipa {$money($amount)} kati ya {$money((float) $voucher->amount)}. Salio la {$money($remaining)} bado halijalipwa.",
+                    $voucher,
+                    'ph-coins',
+                );
+            }
 
             return $voucher->fresh();
+        });
+    }
+
+    /**
+     * Records that the receiver's signed acknowledgement for a payment is on file.
+     */
+    public function acknowledgePayment(VoucherPayment $payment, User $actor, VoucherAttachment $document): VoucherPayment
+    {
+        return DB::transaction(function () use ($payment, $actor, $document) {
+            $voucher = $payment->voucher;
+            $first = $payment->acknowledged_at === null;
+
+            $payment->forceFill(['acknowledged_at' => $payment->acknowledged_at ?? now()])->save();
+
+            if ($first) {
+                $this->record($voucher, $actor, 'acknowledged',
+                    "Signed acknowledgement for payment {$payment->sequence} ({$voucher->currency} ".number_format((float) $payment->amount).') received from '.($payment->received_by ?: 'the receiver').'.',
+                    null, null);
+            }
+
+            $this->audit->log('voucher.payment_acknowledged',
+                "Signed acknowledgement {$document->original_name} filed for payment {$payment->sequence} on {$voucher->number}", $voucher);
+
+            return $payment->fresh();
         });
     }
 
@@ -385,8 +494,8 @@ class WorkflowEngine
                 'voucher.signed',
                 "{$voucher->number} signed by {$actor->name}",
                 "{$voucher->number} imesainiwa na {$actor->name}",
-                "{$step->name} complete. The voucher continues along the approval route.",
-                "{$step->name} imekamilika. Vocha inaendelea kwenye njia ya idhini.",
+                "Your voucher has been signed at the {$step->name} step and will move to the next approval step.",
+                "Vocha yako imesainiwa katika hatua ya {$step->name} na itaendelea kwenye hatua inayofuata ya idhini.",
                 $voucher,
                 'ph-signature',
             );
@@ -456,10 +565,10 @@ class WorkflowEngine
             $this->notifier->toUser(
                 $voucher->requester,
                 'voucher.rejected',
-                "{$voucher->number} was rejected",
+                "{$voucher->number} has been rejected",
                 "{$voucher->number} imekataliwa",
-                "{$actor->name}: {$comment}",
-                "{$actor->name}: {$comment}",
+                "{$actor->name} rejected this voucher: {$comment}",
+                "{$actor->name} ameikataa vocha hii: {$comment}",
                 $voucher,
                 'ph-x-circle',
             );
@@ -487,10 +596,10 @@ class WorkflowEngine
             $this->notifier->toUser(
                 $voucher->requester,
                 'voucher.changes_requested',
-                "{$voucher->number} needs changes",
-                "{$voucher->number} inahitaji mabadiliko",
-                "{$actor->name}: {$comment}",
-                "{$actor->name}: {$comment}",
+                "Changes requested on {$voucher->number}",
+                "Mabadiliko yameombwa kwenye {$voucher->number}",
+                "{$actor->name} requested changes: {$comment}",
+                "{$actor->name} ameomba mabadiliko: {$comment}",
                 $voucher,
                 'ph-arrow-u-up-left',
             );
@@ -559,10 +668,10 @@ class WorkflowEngine
         $this->notifier->toUser(
             $voucher->requester,
             'voucher.approved',
-            "{$voucher->number} approved",
+            "{$voucher->number} has been approved",
             "{$voucher->number} imeidhinishwa",
-            'Approved and sent for payment.',
-            'Imeidhinishwa na kupelekwa kwa malipo.',
+            'Your voucher has been approved and is now awaiting payment.',
+            'Vocha yako imeidhinishwa na sasa inasubiri malipo.',
             $voucher,
             'ph-seal-check',
         );
@@ -576,8 +685,8 @@ class WorkflowEngine
                     'voucher.awaiting_payment',
                     "{$voucher->number} is ready for payment",
                     "{$voucher->number} ipo tayari kulipwa",
-                    "{$voucher->currency} ".number_format((float) $voucher->amount)." to {$voucher->payee}.",
-                    "{$voucher->currency} ".number_format((float) $voucher->amount)." kwa {$voucher->payee}.",
+                    "Approved for payment: {$voucher->currency} ".number_format((float) $voucher->amount)." to {$voucher->payee}.",
+                    "Imeidhinishwa kulipwa: {$voucher->currency} ".number_format((float) $voucher->amount)." kwa {$voucher->payee}.",
                     $voucher,
                     'ph-wallet',
                 );
@@ -594,8 +703,8 @@ class WorkflowEngine
             $this->notifier->toUser(
                 $assignee,
                 'voucher.awaiting',
-                "{$voucher->number} needs your {$verb}",
-                "{$voucher->number} inahitaji {$verbSw} yako",
+                "{$voucher->number} is awaiting your {$verb}",
+                "{$voucher->number} inasubiri {$verbSw} yako",
                 "{$voucher->requester?->name} submitted {$voucher->currency} ".number_format((float) $voucher->amount)." — {$voucher->purpose}.",
                 "{$voucher->requester?->name} alituma {$voucher->currency} ".number_format((float) $voucher->amount)." — {$voucher->purpose}.",
                 $voucher,

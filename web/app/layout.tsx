@@ -24,7 +24,7 @@ export const viewport: Viewport = {
  * nothing has been stored — the operating system's preference is deliberately
  * not consulted. The company's colour theme is restored the same way.
  */
-const THEME_BOOTSTRAP = `(function(){var d=document.documentElement;try{var t=localStorage.getItem("vouchflow.theme");d.dataset.theme=(t==="light"||t==="dark")?t:"dark";var a=localStorage.getItem("vouchflow.accent");if(/^(blue|emerald|violet|rose)$/.test(a||""))d.dataset.accent=a;}catch(e){d.dataset.theme="dark";}})();`;
+const THEME_BOOTSTRAP = `(function(){var d=document.documentElement;try{var t=localStorage.getItem("vouchflow.theme");d.dataset.theme=(t==="light"||t==="dark")?t:"dark";var a=localStorage.getItem("vouchflow.accent");if(/^(blue|emerald|violet|rose)$/.test(a||""))d.dataset.accent=a;var sb=localStorage.getItem("vouchflow.sidebar");if(sb==="1"||(sb===null&&innerWidth<1280))d.dataset.sidebar="collapsed";}catch(e){d.dataset.theme="dark";}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -35,10 +35,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
         />
         <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
         <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+        <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
       </head>
       <body>
         <AppProvider>

@@ -25,8 +25,8 @@ export type Tone = "neutral" | "info" | "warn" | "ok" | "bad";
  */
 export function Icon({
   name, size = 18, color, style, weight = "regular",
-}: { name: string; size?: number; color?: string; style?: React.CSSProperties; weight?: "regular" | "fill" }) {
-  const base = weight === "fill" ? "ph-fill" : "ph";
+}: { name: string; size?: number; color?: string; style?: React.CSSProperties; weight?: "regular" | "fill" | "bold" }) {
+  const base = weight === "fill" ? "ph-fill" : weight === "bold" ? "ph-bold" : "ph";
   return <i className={`${base} ${name}`} aria-hidden="true" style={{ fontSize: size, color, lineHeight: 1, ...style }} />;
 }
 
@@ -94,9 +94,12 @@ export function StatBlock({ label, value, sub, icon = "ph-chart-bar", trend, up,
     </>
   );
 
+  // Money totals are longer than counts; they take the card's full width
+  // (AGIZA sets them a size down) instead of being cut off beside the icon.
+  const long = value.length > 9 ? "" : undefined;
   return href
-    ? <a className="vf-kpi" href={href}>{body}</a>
-    : <div className="vf-kpi">{body}</div>;
+    ? <a className="vf-kpi" href={href} data-long={long}>{body}</a>
+    : <div className="vf-kpi" data-long={long}>{body}</div>;
 }
 
 export function StatGrid({ children }: { children: ReactNode }) {

@@ -8,7 +8,15 @@ import {
 } from "./api";
 import { translate, type Locale, type MessageKey } from "./i18n";
 import type { Theme } from "./api";
-import type { Company, User } from "./types";
+import type { Company, LoginChallenge, User } from "./types";
+
+/**
+ * What a correct password leads to: straight in (two-step sign-in is off on
+ * the server) or a one-time code still to enter.
+ */
+export type SignInResult =
+  | { status: "signed_in"; user: User }
+  | { status: "verify"; challenge: LoginChallenge };
 
 export interface Toast {
   id: number;
@@ -27,7 +35,9 @@ interface AppState {
   t: (key: MessageKey) => string;
   setLocale: (locale: Locale) => void;
   toggleTheme: () => void;
-  signIn: (email: string, password: string) => Promise<User>;
+  signIn: (email: string, password: string) => Promise<SignInResult>;
+  /** Completes a two-step sign-in with the emailed or texted code. */
+  verifyLogin: (challenge: string, code: string) => Promise<User>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
   refreshUnread: () => Promise<void>;
@@ -191,9 +201,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUnread, applyTheme]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const data = await api.post<{ token: string; user: User; company: Company | null }>("/auth/login", {
+    const data = await api.post<{ token: string; user: User; company: Company | null } | LoginChallenge>("/auth/login", {
       email,
       password,
+      device_name: "web",
+    });
+    if ("requires_verification" in data && data.requires_verification) {
+      return { status: "verify", challenge: data } as SignInResult;
+    }
+    const session = data as { token: string; user: User; company: Company | null };
+    applySession(session.token, session.user, session.company);
+    return { status: "signed_in", user: session.user } as SignInResult;
+  }, [applySession]);
+
+  const verifyLogin = useCallback(async (challenge: string, code: string) => {
+    const data = await api.post<{ token: string; user: User; company: Company | null }>("/auth/login/verify", {
+      challenge,
+      code,
       device_name: "web",
     });
     applySession(data.token, data.user, data.company);
@@ -215,11 +239,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppState>(() => ({
     user, company, ready, locale, theme, unread, t,
-    setLocale, toggleTheme, signIn, signOut, refresh, refreshUnread, applySession,
+    setLocale, toggleTheme, signIn, verifyLogin, signOut, refresh, refreshUnread, applySession,
     toasts, toast, dismissToast, reportError,
   }), [
     user, company, ready, locale, theme, unread, t,
-    setLocale, toggleTheme, signIn, signOut, refresh, refreshUnread, applySession,
+    setLocale, toggleTheme, signIn, verifyLogin, signOut, refresh, refreshUnread, applySession,
     toasts, toast, dismissToast, reportError,
   ]);
 

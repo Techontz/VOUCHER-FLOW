@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { LoginBrand } from "@/components/login-brand";
+import { LoginVerification } from "@/components/login-verification";
+import type { LoginChallenge } from "@/lib/types";
 import { Icon, LanguageToggle, Spinner, ThemeToggle } from "@/components/ui";
 
 /**
@@ -64,6 +66,8 @@ export default function LoginPage() {
   const [reveal, setReveal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  /** Set when the password was right but a one-time code is still required. */
+  const [challenge, setChallenge] = useState<LoginChallenge | null>(null);
 
   const pickDemo = (demoEmail: string) => {
     setEmail(demoEmail);
@@ -80,7 +84,12 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      await signIn(email, password);
+      const result = await signIn(email, password);
+      if (result.status === "verify") {
+        setChallenge(result.challenge);
+        setBusy(false);
+        return;
+      }
       setDone(true);
       router.push("/dashboard");
     } catch (err) {
@@ -103,7 +112,24 @@ export default function LoginPage() {
           <ThemeToggle />
         </div>
 
-        <div className="vf-login-body">
+        {challenge ? (
+          <div className="vf-login-body" key="verify">
+            <LoginVerification
+              challenge={challenge}
+              showDemoHint={process.env.NEXT_PUBLIC_API_MODE !== "live"}
+              onVerified={() => {
+                setDone(true);
+                router.push("/dashboard");
+              }}
+              onRestart={(message) => {
+                setChallenge(null);
+                setPassword("");
+                setError(message ? new Error(message) : null);
+              }}
+            />
+          </div>
+        ) : (
+        <div className="vf-login-body" key="password">
           <header className="vf-login-head">
             <h1>{t("loginWelcome")}</h1>
             <p>{t("loginSub")}</p>
@@ -186,6 +212,7 @@ export default function LoginPage() {
 
           {SHOW_DEMO_ACCOUNTS && <DemoAccounts selected={email} onPick={pickDemo} />}
         </div>
+        )}
 
         <footer className="vf-login-foot">
           <Icon name="ph-shield-check" size={15} />

@@ -19,13 +19,42 @@ class LoginController extends GetxController {
   /// One account per step of the default route, plus the administrator.
   /// One account per step of the default route, plus the administrator.
   static const demoAccounts = [
-    ('Employee · Frank', 'frank@watercom.test', 'raises vouchers, sees only their own'),
-    ('HOD · Joseph', 'joseph@watercom.test', 'reviews and signs — never approves'),
-    ('MD · Emmanuel', 'emmanuel@watercom.test', 'approves or rejects — the final say'),
-    ('Cashier · Mwajuma', 'mwajuma@watercom.test', 'releases the funds, records the reference'),
-    ('Administrator · Neema', 'admin@watercom.test', 'runs Watercom (T) Limited'),
+    (
+      'Employee · Frank',
+      'frank@watercom.test',
+      'raises vouchers, sees only their own',
+    ),
+    (
+      'HOD · Joseph',
+      'joseph@watercom.test',
+      'reviews and signs — never approves',
+    ),
+    (
+      'MD · Emmanuel',
+      'emmanuel@watercom.test',
+      'approves or rejects — the final say',
+    ),
+    (
+      'Cashier · Mwajuma',
+      'mwajuma@watercom.test',
+      'releases the funds, records the reference',
+    ),
+    (
+      'Administrator · Neema',
+      'admin@watercom.test',
+      'runs Watercom (T) Limited',
+    ),
   ];
 
+  @override
+  void onInit() {
+    super.onInit();
+    // A message handed back by the verification step, e.g. an expired sign-in.
+    final handedBack = Get.arguments;
+    if (handedBack is String && handedBack.isNotEmpty) {
+      error.value = handedBack;
+    }
+  }
 
   void useDemo(String address) {
     email.text = address;
@@ -41,8 +70,13 @@ class LoginController extends GetxController {
     busy.value = true;
     error.value = null;
     try {
-      await session.signIn(email.text.trim(), password.text);
-      Get.offAllNamed(Routes.shell);
+      final challenge = await session.signIn(email.text.trim(), password.text);
+      if (challenge == null) {
+        Get.offAllNamed(Routes.shell);
+      } else {
+        // The password was right; the second step confirms it is the user.
+        Get.toNamed(Routes.verifyLogin, arguments: challenge);
+      }
     } on ApiException catch (e) {
       error.value = e.field('email') ?? e.message;
     } catch (_) {

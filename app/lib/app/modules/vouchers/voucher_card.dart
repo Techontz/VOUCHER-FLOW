@@ -73,6 +73,23 @@ class VoucherCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+            // Part paid: what the cashier still owes is the figure that matters.
+            if (voucher.isPartiallyPaid) ...[
+              const SizedBox(height: 2),
+              Text(
+                'pay.balanceShort'.trParams({
+                  'amount':
+                      voucher.balanceText ??
+                      Fmt.money(voucher.outstanding, voucher.currency),
+                }),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: VfColors.warn,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
             const SizedBox(height: 6),
             Wrap(
               spacing: 8,
@@ -80,7 +97,7 @@ class VoucherCard extends StatelessWidget {
               children: [
                 StatusChip(
                   label: voucher.statusLabel,
-                  tag: voucher.statusTag,
+                  tag: voucher.displayTag,
                   dense: true,
                 ),
               ],
@@ -103,7 +120,11 @@ class VoucherCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     voucher.actions.pay
-                        ? (voucher.isCash ? 'pay.release'.tr : 'pay.record'.tr)
+                        ? (voucher.isPartiallyPaid
+                              ? 'pay.payBalance'.tr
+                              : voucher.isCash
+                              ? 'pay.release'.tr
+                              : 'pay.record'.tr)
                         : voucher.actions.approve
                         ? 'act.approve'.tr
                         : voucher.actions.submitSigned

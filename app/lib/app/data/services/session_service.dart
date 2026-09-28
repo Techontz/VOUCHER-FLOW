@@ -47,15 +47,52 @@ class SessionService extends GetxService {
     return this;
   }
 
-  Future<void> signIn(String email, String password) async {
+  static const _deviceName = 'VouchFlow mobile';
+
+  /// Checks the password. Returns null when the account is signed in straight
+  /// away, or the [LoginChallenge] to complete when a code is required.
+  Future<LoginChallenge?> signIn(String email, String password) async {
     final data =
         await _api.post('/auth/login', {
               'email': email,
               'password': password,
-              'device_name': 'VouchFlow mobile',
+              'device_name': _deviceName,
             })
             as Map<String, dynamic>;
 
+    if (data['requires_verification'] == true) {
+      return LoginChallenge.fromJson(data);
+    }
+
+    await _startSession(data);
+    return null;
+  }
+
+  /// Sends a sign-in code by [channel] ('email' or 'sms').
+  Future<CodeDispatch> sendLoginCode(String challenge, String channel) async {
+    final data =
+        await _api.post('/auth/login/send-code', {
+              'challenge': challenge,
+              'channel': channel,
+            })
+            as Map<String, dynamic>;
+    return CodeDispatch.fromJson(data);
+  }
+
+  /// Completes the second step and signs in exactly as a password-only
+  /// sign-in does.
+  Future<void> verifyLogin(String challenge, String code) async {
+    final data =
+        await _api.post('/auth/login/verify', {
+              'challenge': challenge,
+              'code': code,
+              'device_name': _deviceName,
+            })
+            as Map<String, dynamic>;
+    await _startSession(data);
+  }
+
+  Future<void> _startSession(Map<String, dynamic> data) async {
     await _api.setToken('${data['token']}');
     _apply(data);
     await refreshUnread();
@@ -160,4 +197,72 @@ class SessionService extends GetxService {
     company.value = null;
     unread.value = 0;
   }
+}
+
+/// One way a sign-in code can reach the user, with the address masked.
+class VerificationChannel {
+  const VerificationChannel(this.channel, this.destination);
+
+  factory VerificationChannel.fromJson(Map<String, dynamic> json) =>
+      VerificationChannel('${json['channel']}', '${json['destination'] ?? ''}');
+
+  final String channel;
+  final String destination;
+}
+
+/// The pending second step of a sign-in: the password was right, a code is
+/// still needed. [challenge] is opaque and only ever sent back.
+class LoginChallenge {
+  const LoginChallenge({
+    required this.challenge,
+    required this.channels,
+    this.sentTo,
+    this.expiresIn,
+    this.codeExpiresIn,
+    this.resendIn,
+  });
+
+  factory LoginChallenge.fromJson(Map<String, dynamic> json) => LoginChallenge(
+    challenge: '${json['challenge']}',
+    channels: ((json['channels'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(VerificationChannel.fromJson)
+        .toList(),
+    sentTo: json['sent_to'] as String?,
+    expiresIn: (json['expires_in'] as num?)?.toInt(),
+    codeExpiresIn: (json['code_expires_in'] as num?)?.toInt(),
+    resendIn: (json['resend_in'] as num?)?.toInt(),
+  );
+
+  final String challenge;
+  final List<VerificationChannel> channels;
+
+  /// Set when the code has already been sent — the only channel on offer.
+  final String? sentTo;
+  final int? expiresIn, codeExpiresIn, resendIn;
+
+  VerificationChannel? channelFor(String? name) =>
+      channels.where((c) => c.channel == name).firstOrNull;
+}
+
+/// The API's answer to a code being sent.
+class CodeDispatch {
+  const CodeDispatch({
+    required this.sentTo,
+    required this.destination,
+    this.codeExpiresIn,
+    this.resendIn,
+    this.sendsRemaining,
+  });
+
+  factory CodeDispatch.fromJson(Map<String, dynamic> json) => CodeDispatch(
+    sentTo: '${json['sent_to']}',
+    destination: '${json['destination'] ?? ''}',
+    codeExpiresIn: (json['code_expires_in'] as num?)?.toInt(),
+    resendIn: (json['resend_in'] as num?)?.toInt(),
+    sendsRemaining: (json['sends_remaining'] as num?)?.toInt(),
+  );
+
+  final String sentTo, destination;
+  final int? codeExpiresIn, resendIn, sendsRemaining;
 }

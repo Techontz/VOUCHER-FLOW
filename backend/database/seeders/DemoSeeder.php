@@ -17,11 +17,12 @@ use App\Services\VoucherNumberGenerator;
 use App\Services\WorkflowEngine;
 use App\Support\TenantContext;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Demo data across three tenants.
+ * Demo data across four tenants.
  *
  * The second tenant deliberately runs a four-step route with Finance in the
  * middle, so the configurable-workflow behaviour is visible rather than claimed —
@@ -76,6 +77,17 @@ class DemoSeeder extends Seeder
 
     private const SLUG_TRIAL = 'baobab-business-solutions';
 
+    private const SLUG_KILIMANJARO = 'kilimanjaro-logistics';
+
+    /**
+     * Kilimanjaro draws from its own sequence, re-seeded right before its plan
+     * is drawn. The tenants built before it consume a different number of
+     * draws on a rerun than on a first run (an existing voucher skips the
+     * draws its creation would have made), so sharing the global sequence
+     * would hand Kilimanjaro a different plan the second time round.
+     */
+    private const KILIMANJARO_SEED = 20260927;
+
     /** Fixed seed for the historical spread, so the demo is reproducible. */
     private const RANDOM_SEED = 20260101;
 
@@ -94,12 +106,13 @@ class DemoSeeder extends Seeder
             $primary = $this->buildPrimaryTenant($business);
             $second = $this->buildSecondTenant($enterprise);
             $trial = $this->buildTrialTenant($starter);
+            $kilimanjaro = $this->buildKilimanjaroTenant($business);
 
             // Demo numbers were handed out from the script, so each tenant's
             // live counters must be moved past them. Without this the first
             // voucher a real user raises would be issued a number that is
             // already on a seeded row.
-            foreach ([$primary, $second, $trial] as $company) {
+            foreach ([$primary, $second, $trial, $kilimanjaro] as $company) {
                 $this->syncNumberCounters($company);
             }
 
@@ -367,6 +380,12 @@ class DemoSeeder extends Seeder
         return $this->tenant->forCompany($company, function () use ($company, $admin, $plan, $fresh) {
             $company->forceFill(['status' => 'active', 'primary_color' => '#1f6f4a'])->save();
 
+            // Demo tenants show different voucher designs; a reseed never
+            // overrides a design someone has since changed.
+            if ($fresh) {
+                $company->forceFill(['voucher_template' => 'modern'])->save();
+            }
+
             if ($plan && $fresh) {
                 $this->payments->subscribe($company, $plan, 'annual');
             }
@@ -449,6 +468,624 @@ class DemoSeeder extends Seeder
         return $company;
     }
 
+    /* ------------------------------------------------------------ tenant four */
+
+    /**
+     * A full-size logistics company on the default route, with nine months of
+     * history behind it — enough that dashboards, reports and every queue look
+     * like a business that has been running the product for a while.
+     *
+     * Every voucher is driven through the real WorkflowEngine as the resolved
+     * actor, with the clock moved to the moment each action happened, so the
+     * approvals, timeline, notifications and audit rows carry coherent dates
+     * rather than all stamping "now".
+     */
+    private function buildKilimanjaroTenant(?Plan $plan): Company
+    {
+        ['company' => $company, 'admin' => $admin, 'fresh' => $fresh] = $this->resolveTenant(
+            self::SLUG_KILIMANJARO,
+            [
+                'name' => 'Kilimanjaro Logistics Ltd',
+                'legal_name' => 'KILIMANJARO LOGISTICS LIMITED',
+                'email' => 'info@kilimanjaro.test',
+                'phone' => '+255 22 286 4410',
+                'address' => 'Plot 14, Mivinjeni Road, Kurasini · Dar es Salaam, Tanzania',
+                'currency' => 'TZS',
+            ],
+            [
+                'name' => 'Esther Mbwambo',
+                'email' => 'admin@kilimanjaro.test',
+                'password' => 'Password123!',
+                'job_title' => 'Company Administrator',
+                'phone' => '+255 754 210 118',
+            ],
+            $plan,
+        );
+
+        return $this->tenant->forCompany($company, function () use ($company, $admin, $plan, $fresh) {
+            $company->forceFill([
+                'status' => 'active',
+                'trading_name' => 'Kilimanjaro Logistics',
+                'tin' => '124-907-352',
+                'registration_number' => '152 338 604',
+                'alternative_phone' => '+255 767 286 441',
+                'postal_address' => 'P.O. Box 45127, Dar es Salaam',
+                'city' => 'Dar es Salaam',
+                'region' => 'Kurasini, Temeke · Arusha depot, Njiro',
+                'timezone' => 'Africa/Dar_es_Salaam',
+                'contact_person' => 'Esther Mbwambo',
+                'contact_email' => 'info@kilimanjaro.test',
+                'contact_phone' => '+255 22 286 4410',
+                'bank_name' => 'CRDB Bank',
+                'bank_account_name' => 'KILIMANJARO LOGISTICS LIMITED',
+                'bank_account_number' => '0150482219700',
+                'bank_branch' => 'Azikiwe Branch',
+                'voucher_footer_text' => 'This voucher is computer generated and valid without a wet stamp. Retain the original with the EFD receipt for audit.',
+            ])->save();
+
+            // Once only, as for Watercom: a subscription and its invoice have
+            // no natural key to reconcile a rerun against.
+            if ($fresh) {
+                $company->forceFill(['voucher_template' => 'finance'])->save();
+            }
+
+            if ($plan && $fresh) {
+                $subscription = $this->payments->subscribe($company, $plan, 'monthly');
+                $invoice = $this->payments->issueInvoice($company, $subscription);
+                $this->payments->charge($invoice, ['method' => 'mobile_money', 'reference' => '255222864410']);
+            }
+
+            // name, email, role, job title, employee code, phone, home department
+            $rows = [
+                // Heads of department — one each, so every HOD step resolves.
+                ['Juma Mwakalinga', 'juma@kilimanjaro.test', 'hod', 'Head of Logistics', 'KL-0012', '+255 754 318 204', 'Logistics'],
+                ['Neema Kisanga', 'neema@kilimanjaro.test', 'hod', 'Head of Finance', 'KL-0007', '+255 713 442 918', 'Finance'],
+                ['Rehema Nyirenda', 'rehema@kilimanjaro.test', 'hod', 'Head of Human Resources', 'KL-0015', '+255 767 205 731', 'Human Resources'],
+                ['Baraka Mushi', 'baraka@kilimanjaro.test', 'hod', 'Head of Operations', 'KL-0010', '+255 755 690 142', 'Operations'],
+                ['Elia Massawe', 'elia@kilimanjaro.test', 'hod', 'Head of Procurement', 'KL-0019', '+255 784 117 356', 'Procurement'],
+                ['Grace Mollel', 'grace@kilimanjaro.test', 'hod', 'Head of Administration', 'KL-0021', '+255 715 983 420', 'Administration'],
+                ['Salim Abdallah', 'salim@kilimanjaro.test', 'hod', 'Head of Sales', 'KL-0024', '+255 658 402 177', 'Sales'],
+                ['Upendo Lyimo', 'upendo@kilimanjaro.test', 'hod', 'Head of ICT', 'KL-0028', '+255 746 551 083', 'IT'],
+                ['Daudi Kimaro', 'daudi@kilimanjaro.test', 'hod', 'Fleet & Transport Manager', 'KL-0016', '+255 689 274 615', 'Transport'],
+                ['Zawadi Temba', 'zawadi@kilimanjaro.test', 'hod', 'Head of Warehousing', 'KL-0031', '+255 762 830 594', 'Warehouse'],
+
+                // Company-wide roles.
+                ['Frank Mrema', 'frank@kilimanjaro.test', 'ceo', 'Chief Executive Officer', 'KL-0001', '+255 754 100 227', 'Administration'],
+                ['Halima Said', 'halima@kilimanjaro.test', 'cashier', 'Cashier', 'KL-0044', '+255 716 338 902', 'Finance'],
+                ['Joseph Shayo', 'joseph@kilimanjaro.test', 'finance', 'Finance Officer', 'KL-0039', '+255 767 419 350', 'Finance'],
+                ['Agnes Mwakyusa', 'agnes@kilimanjaro.test', 'manager', 'General Manager, Operations', 'KL-0004', '+255 755 207 846', 'Operations'],
+
+                // Staff who raise the vouchers.
+                ['Hamisi Mfinanga', 'hamisi@kilimanjaro.test', 'employee', 'Logistics Coordinator', 'KL-0103', '+255 713 562 019', 'Logistics'],
+                ['Irene Swai', 'irene@kilimanjaro.test', 'employee', 'Logistics Officer', 'KL-0118', '+255 784 903 461', 'Logistics'],
+                ['Emmanuel Nnko', 'emmanuel@kilimanjaro.test', 'employee', 'Dispatch Officer', 'KL-0126', '+255 767 115 832', 'Logistics'],
+                ['Mariam Ally', 'mariam@kilimanjaro.test', 'employee', 'Accounts Assistant', 'KL-0107', '+255 715 280 674', 'Finance'],
+                ['Peter Urassa', 'peter@kilimanjaro.test', 'employee', 'Accountant', 'KL-0111', '+255 754 772 305', 'Finance'],
+                ['Lucy Minja', 'lucy@kilimanjaro.test', 'employee', 'Human Resources Officer', 'KL-0122', '+255 658 330 917', 'Human Resources'],
+                ['Hassan Omary', 'hassan@kilimanjaro.test', 'employee', 'Payroll Officer', 'KL-0129', '+255 746 208 553', 'Human Resources'],
+                ['Godfrey Tarimo', 'godfrey@kilimanjaro.test', 'employee', 'Operations Supervisor', 'KL-0114', '+255 689 441 270', 'Operations'],
+                ['Anna Shirima', 'anna@kilimanjaro.test', 'employee', 'Operations Officer', 'KL-0133', '+255 762 095 318', 'Operations'],
+                ['Yusuph Mkwawa', 'yusuph@kilimanjaro.test', 'employee', 'Site Supervisor – Dodoma yard', 'KL-0141', '+255 713 867 402', 'Operations'],
+                ['Faraji Kombo', 'faraji@kilimanjaro.test', 'employee', 'Procurement Officer', 'KL-0120', '+255 784 356 129', 'Procurement'],
+                ['Rose Kweka', 'rose@kilimanjaro.test', 'employee', 'Purchasing Assistant', 'KL-0137', '+255 767 612 480', 'Procurement'],
+                ['Mwanaisha Juma', 'mwanaisha@kilimanjaro.test', 'employee', 'Office Administrator', 'KL-0109', '+255 715 904 263', 'Administration'],
+                ['Fatuma Rashid', 'fatuma@kilimanjaro.test', 'employee', 'Front Office Coordinator', 'KL-0145', '+255 754 486 710', 'Administration'],
+                ['Kelvin Makundi', 'kelvin@kilimanjaro.test', 'employee', 'Sales Executive', 'KL-0116', '+255 658 719 034', 'Sales'],
+                ['Happiness Mushi', 'happiness@kilimanjaro.test', 'employee', 'Key Account Executive', 'KL-0124', '+255 746 623 591', 'Sales'],
+                ['Jacob Laizer', 'jacob@kilimanjaro.test', 'employee', 'Business Development Officer – Arusha', 'KL-0138', '+255 689 205 476', 'Sales'],
+                ['Dennis Kavishe', 'dennis@kilimanjaro.test', 'employee', 'Systems Administrator', 'KL-0119', '+255 762 348 105', 'IT'],
+                ['Violet Mremi', 'violet@kilimanjaro.test', 'employee', 'IT Support Officer', 'KL-0147', '+255 713 590 826', 'IT'],
+                ['Ramadhani Mussa', 'ramadhani@kilimanjaro.test', 'employee', 'Senior Driver', 'KL-0152', '+255 784 061 739', 'Transport'],
+                ['Omari Chande', 'omari@kilimanjaro.test', 'employee', 'Fleet Coordinator', 'KL-0113', '+255 767 834 215', 'Transport'],
+                ['Musa Kapinga', 'musa@kilimanjaro.test', 'employee', 'Truck Driver', 'KL-0158', '+255 715 147 682', 'Transport'],
+                ['Stephen Ngowi', 'stephen@kilimanjaro.test', 'employee', 'Workshop Supervisor', 'KL-0131', '+255 754 928 340', 'Transport'],
+                ['Aisha Mohamed', 'aisha@kilimanjaro.test', 'employee', 'Warehouse Supervisor – Kurasini', 'KL-0117', '+255 658 273 916', 'Warehouse'],
+                ['Benedict Lema', 'benedict@kilimanjaro.test', 'employee', 'Inventory Controller', 'KL-0125', '+255 746 950 427', 'Warehouse'],
+                ['Paulo Mlay', 'paulo@kilimanjaro.test', 'employee', 'Stores Clerk – Arusha depot', 'KL-0149', '+255 689 612 058', 'Warehouse'],
+            ];
+
+            $people = $this->makePeople($company, $rows);
+
+            // Every department has its own head; the general manager is the
+            // manager of record, so the finance and single presets also resolve
+            // if an administrator switches the route over.
+            $manager = $people['Agnes Mwakyusa'];
+            $departments = $this->makeDepartments($company, [
+                ['Logistics', 'LOG', $people['Juma Mwakalinga'], $manager],
+                ['Finance', 'FIN', $people['Neema Kisanga'], $manager],
+                ['Human Resources', 'HR', $people['Rehema Nyirenda'], $manager],
+                ['Operations', 'OPS', $people['Baraka Mushi'], $manager],
+                ['Procurement', 'PRC', $people['Elia Massawe'], $manager],
+                ['Administration', 'ADM', $people['Grace Mollel'], $manager],
+                ['Sales', 'SLS', $people['Salim Abdallah'], $manager],
+                ['IT', 'ICT', $people['Upendo Lyimo'], $manager],
+                ['Transport', 'TRN', $people['Daudi Kimaro'], $manager],
+                ['Warehouse', 'WHS', $people['Zawadi Temba'], $manager],
+            ]);
+
+            $staff = [];
+
+            foreach ($rows as [$name, , $role, , , , $home]) {
+                $people[$name]->update(['department_id' => $departments[$home]->id]);
+
+                if ($role === User::ROLE_EMPLOYEE) {
+                    $staff[$home][] = $people[$name];
+                }
+            }
+
+            $admin->update([
+                'department_id' => $departments['Administration']->id,
+                'phone' => '+255 754 210 118',
+            ]);
+
+            $this->makeKilimanjaroVouchers($company, $departments, $staff);
+
+            return $company->fresh();
+        });
+    }
+
+    /**
+     * The catalogue Kilimanjaro's vouchers are drawn from.
+     *
+     * [type code, category, departments (null = any), purpose, payee (null =
+     * the requester), min amount, max amount, kind: bank | cash | either]
+     *
+     * @return list<array{0:string,1:string,2:?array,3:string,4:?string,5:int,6:int,7:string}>
+     */
+    private function kilimanjaroCatalogue(): array
+    {
+        return [
+            // Fuel
+            ['payment', 'Fuel', ['Transport', 'Logistics'], 'Diesel for {route} run, truck {truck}', 'Puma Energy Tanzania', 850000, 3800000, 'bank'],
+            ['payment', 'Fuel', ['Transport'], 'Bulk diesel top-up – Kurasini yard tank ({litres} litres)', 'Lake Oil Ltd', 4500000, 12500000, 'bank'],
+            ['petty_cash', 'Fuel', ['Operations', 'Sales', 'Administration'], 'Fuel for pool vehicle {car} – {town} errands', 'Oryx Energies – Mikocheni', 60000, 240000, 'cash'],
+            ['expense', 'Fuel', ['Transport'], 'Emergency diesel top-up on the road – truck {truck}', 'GBP Tanzania – Chalinze', 180000, 460000, 'cash'],
+
+            // Transport and logistics
+            ['expense', 'Transport', ['Logistics', 'Transport'], 'Road tolls and weighbridge fees – {route}', 'TANROADS', 45000, 380000, 'cash'],
+            ['petty_cash', 'Transport', ['Administration', 'Finance', 'Human Resources'], 'Bajaji and taxi fares – bank and TRA errands', 'Various transport providers', 35000, 120000, 'cash'],
+            ['payment', 'Logistics', ['Logistics'], 'Sub-contracted haulage – {route} consignment', 'Mwanza Cargo Movers Ltd', 2400000, 9800000, 'bank'],
+            ['payment', 'Logistics', ['Logistics', 'Warehouse'], 'Port handling and storage charges – container {container}', 'Tanzania Ports Authority', 1200000, 6500000, 'bank'],
+            ['payment', 'Logistics', ['Logistics'], 'Clearing and forwarding fees – container {container}', 'Bahari Clearing & Forwarding Ltd', 950000, 4200000, 'bank'],
+            ['expense', 'Logistics', ['Logistics'], 'Loading and offloading casual labour – {town} depot', 'Kurasini Casual Labour Group', 120000, 480000, 'cash'],
+
+            // Vehicle maintenance
+            ['payment', 'Vehicle maintenance', ['Transport'], 'Tyre replacement for {vehicle}, truck {truck}', 'Kibo Tyres Ltd', 1800000, 7200000, 'bank'],
+            ['payment', 'Vehicle maintenance', ['Transport'], 'Scheduled service – {vehicle} {truck}', 'CFAO Motors Tanzania', 950000, 4600000, 'bank'],
+            ['expense', 'Vehicle maintenance', ['Transport'], 'Brake pads and clutch kit – truck {truck}', 'Kariakoo Auto Spares', 280000, 1350000, 'either'],
+            ['petty_cash', 'Vehicle maintenance', ['Transport'], 'Puncture repair and wheel balancing – truck {truck}', 'Mama Tumaini Tyre Centre', 35000, 180000, 'cash'],
+
+            // Travel and accommodation
+            ['advance', 'Travel & accommodation', ['Sales', 'Operations', 'Logistics'], 'Travel advance – {town} client visits ({nights} nights)', null, 450000, 1850000, 'either'],
+            ['payment', 'Travel & accommodation', ['Sales', 'Administration'], 'Hotel accommodation – {town} ({nights} nights)', 'Mount Meru Hotel', 380000, 1650000, 'bank'],
+            ['reimbursement', 'Travel & accommodation', null, 'Bus fare and lodging refund – {town} trip', null, 85000, 420000, 'cash'],
+            ['payment', 'Travel & accommodation', ['Administration'], 'Air tickets Dar es Salaam–Kilimanjaro – management trip', 'Precision Air Services', 780000, 2900000, 'bank'],
+            ['advance', 'Travel & accommodation', ['Transport'], 'Driver trip allowance – {route} ({nights} nights)', null, 120000, 480000, 'cash'],
+
+            // Meals and refreshments
+            ['petty_cash', 'Meals & refreshments', ['Administration', 'Human Resources'], 'Refreshments for the monthly management meeting', 'Shoppers Supermarket – Masaki', 65000, 280000, 'cash'],
+            ['reimbursement', 'Meals & refreshments', ['Sales'], 'Client lunch – {client}', null, 75000, 260000, 'cash'],
+            ['expense', 'Meals & refreshments', ['Warehouse', 'Operations'], 'Meals for loading crew – overnight shift', 'Mama Ntilie Catering Services', 90000, 360000, 'cash'],
+
+            // Internet and communications
+            ['payment', 'Internet & communications', ['IT'], 'Airtel Business internet bundle – {month}', 'Airtel Tanzania PLC', 480000, 1250000, 'bank'],
+            ['payment', 'Internet & communications', ['IT'], 'Fibre link – Kurasini warehouse ({month})', 'TTCL Corporation', 650000, 1450000, 'bank'],
+            ['expense', 'Internet & communications', ['IT', 'Sales', 'Operations'], 'Vodacom airtime and data for field staff – {month}', 'Vodacom Tanzania PLC', 150000, 640000, 'either'],
+            ['payment', 'Internet & communications', ['IT', 'Transport'], 'GPS fleet tracking subscription – {month}', 'Tracknet Tanzania Ltd', 720000, 1980000, 'bank'],
+
+            // Office supplies and stationery
+            ['petty_cash', 'Office supplies & stationery', ['Administration', 'Finance', 'Human Resources'], 'Printing paper, toner and stationery – {month}', 'Kariakoo Stationers', 85000, 460000, 'cash'],
+            ['payment', 'Office supplies & stationery', ['Administration', 'Logistics'], 'Pre-printed delivery notes and waybill books', 'Colour Print (T) Ltd', 650000, 2350000, 'bank'],
+
+            // Procurement
+            ['payment', 'Procurement', ['Procurement', 'Warehouse'], 'Pallets and stretch film – {town} depot', 'Plasco Limited', 1500000, 6800000, 'bank'],
+            ['payment', 'Procurement', ['Procurement'], 'Safety boots and reflector jackets – {qty} pcs', 'Safety Solutions Tanzania', 900000, 3400000, 'bank'],
+            ['other', 'Procurement', ['Procurement', 'Operations'], 'Tarpaulins and cargo straps for flatbed trailers', 'Tanzania Tarpaulin Makers', 780000, 2900000, 'bank'],
+
+            // Staff welfare
+            ['other', 'Staff welfare', ['Human Resources'], "Drivers' annual medical fitness certificates", 'Regency Medical Centre', 1200000, 4800000, 'bank'],
+            ['expense', 'Staff welfare', ['Human Resources'], 'Drinking water and staff tea supply – {month}', 'Kilimanjaro Drinking Water Co.', 120000, 420000, 'cash'],
+            ['advance', 'Staff welfare', ['Human Resources', 'Warehouse', 'Transport'], 'Salary advance – approved staff hardship request', null, 250000, 900000, 'either'],
+            ['other', 'Staff welfare', ['Human Resources'], 'Condolence contribution – bereaved staff member', 'Staff welfare fund', 150000, 450000, 'cash'],
+
+            // Equipment
+            ['payment', 'Equipment', ['IT'], 'Laptops for the dispatch team ({qty} units)', 'Smart Technologies Ltd', 3800000, 11800000, 'bank'],
+            ['payment', 'Equipment', ['Warehouse'], 'Hand pallet trucks – Kurasini warehouse', 'Jubilee Machinery Tanzania', 2100000, 6200000, 'bank'],
+            ['other', 'Equipment', ['IT'], 'UPS batteries for the server room', 'Serengeti Computer Supplies', 680000, 2150000, 'bank'],
+
+            // Repairs and maintenance
+            ['payment', 'Repairs & maintenance', ['Warehouse'], 'Roller door repair – Kurasini warehouse bay {bay}', 'Dar Steel Doors & Fabrication', 650000, 2800000, 'bank'],
+            ['expense', 'Repairs & maintenance', ['Administration'], 'Air-conditioner servicing – head office', 'Coolcare Engineering', 240000, 980000, 'either'],
+            ['payment', 'Repairs & maintenance', ['Warehouse', 'Operations'], 'Forklift repair – hydraulic pump replacement', 'Toyota Material Handling Tanzania', 1400000, 5600000, 'bank'],
+            ['petty_cash', 'Repairs & maintenance', ['Administration', 'Warehouse'], 'Plumbing repairs – {site} washrooms', 'Fundi Petro Plumbing Works', 55000, 220000, 'cash'],
+
+            // Utilities
+            ['payment', 'Utilities', ['Warehouse', 'Administration'], 'TANESCO electricity – {site} ({month})', 'TANESCO', 780000, 3600000, 'bank'],
+            ['payment', 'Utilities', ['Administration', 'Warehouse'], 'DAWASA water bill – {site} ({month})', 'DAWASA', 120000, 540000, 'bank'],
+            ['petty_cash', 'Utilities', ['Administration', 'Warehouse'], 'LUKU prepaid electricity tokens – Arusha depot', 'TANESCO LUKU', 50000, 300000, 'cash'],
+
+            // Professional fees
+            ['payment', 'Professional fees', ['Finance'], 'Interim audit fee – {year} financial year', 'Mzizima Audit Partners', 3500000, 9800000, 'bank'],
+            ['payment', 'Professional fees', ['Human Resources', 'Administration'], 'Legal review of haulage contracts', 'Makame & Co. Advocates', 1500000, 4800000, 'bank'],
+            ['payment', 'Professional fees', ['Logistics', 'Transport'], 'LATRA transport licence renewals – {qty} trucks', 'LATRA', 450000, 2100000, 'bank'],
+
+            // Premises
+            ['payment', 'Premises', ['Administration'], 'Office rent – Arusha branch ({month})', 'Njiro Properties Ltd', 2800000, 3800000, 'bank'],
+            ['payment', 'Premises', ['Warehouse'], 'Security guarding – Kurasini warehouse ({month})', 'SGA Security Tanzania', 1850000, 3200000, 'bank'],
+            ['expense', 'Premises', ['Administration'], 'Office cleaning services – {month}', 'Usafi Bora Cleaning Services', 380000, 850000, 'bank'],
+
+            // Miscellaneous
+            ['other', 'Other', ['Finance'], 'Cheque book and bank service charges', 'CRDB Bank PLC', 35000, 180000, 'bank'],
+            ['petty_cash', 'Other', ['Sales', 'Operations', 'Logistics'], 'Courier charges – documents to {town}', 'Fargo Courier Services', 35000, 145000, 'cash'],
+            ['expense', 'Other', ['Administration'], 'Newspapers, notice boards and office sundries', 'Mwananchi Communications', 40000, 150000, 'cash'],
+        ];
+    }
+
+    /**
+     * Draws the whole demo history for Kilimanjaro, then drives each voucher
+     * through the engine in date order so the numbers read chronologically.
+     *
+     * The plan is drawn in full before anything touches the database, from a
+     * sequence seeded here, so it is identical on every run: a rerun addresses
+     * the same numbers, finds them, and leaves them exactly as they were.
+     *
+     * @param  array<string,Department>  $departments
+     * @param  array<string,list<User>>  $staff
+     */
+    private function makeKilimanjaroVouchers(Company $company, array $departments, array $staff): void
+    {
+        mt_srand(self::KILIMANJARO_SEED);
+
+        $anchor = now()->copy();
+        $limit = $anchor->copy()->subMinutes(20);
+        $pick = fn (array $list) => $list[mt_rand(0, count($list) - 1)];
+
+        // Target mix: ~57% paid, the rest spread across every queue and outcome.
+        $closed = array_merge(
+            array_fill(0, 100, 'paid'),
+            array_fill(0, 14, 'rejected'),
+            array_fill(0, 5, 'cancelled'),
+        );
+        $open = array_merge(
+            array_fill(0, 12, 'approved'),
+            array_fill(0, 9, 'awaiting_hod'),
+            array_fill(0, 4, 'signed_hold'),
+            array_fill(0, 11, 'awaiting_ceo'),
+            array_fill(0, 6, 'changes'),
+            array_fill(0, 6, 'draft'),
+        );
+
+        // Closed vouchers across the last nine months, heavier towards now.
+        // Months ago => how many (119 in all, matching $closed).
+        $monthOffsets = [];
+        foreach ([8 => 8, 7 => 9, 6 => 11, 5 => 12, 4 => 14, 3 => 16, 2 => 19, 1 => 25, 0 => 5] as $monthsAgo => $count) {
+            array_push($monthOffsets, ...array_fill(0, $count, $monthsAgo));
+        }
+
+        $shuffle = function (array $list): array {
+            for ($i = count($list) - 1; $i > 0; $i--) {
+                $j = mt_rand(0, $i);
+                [$list[$i], $list[$j]] = [$list[$j], $list[$i]];
+            }
+
+            return $list;
+        };
+
+        $closed = $shuffle($closed);
+        $monthOffsets = $shuffle($monthOffsets);
+
+        // Open work is recent — days old, some long enough to count as stalled.
+        $openAge = [
+            'draft' => [0, 8], 'awaiting_hod' => [0, 7], 'signed_hold' => [0, 5],
+            'awaiting_ceo' => [1, 10], 'changes' => [4, 60], 'approved' => [2, 60],
+        ];
+
+        // Office hours on the given day, but never later than the present.
+        $atWorkTime = function (Carbon $day) use ($limit) {
+            $at = $day->copy()->setTime(7, 30)->addMinutes(mt_rand(0, 570));
+
+            return $at->greaterThan($limit) ? $limit->copy()->subMinutes(mt_rand(20, 240)) : $at;
+        };
+
+        $dates = [];
+        foreach ($closed as $i => $status) {
+            $monthsAgo = $monthOffsets[$i];
+            $start = $anchor->copy()->startOfMonth()->subMonthsNoOverflow($monthsAgo);
+            $span = $monthsAgo === 0 ? max(1, $anchor->day - 7) : $start->daysInMonth;
+            $day = $start->copy()->addDays(mt_rand(0, $span - 1));
+
+            if ($day->isSunday()) {
+                $day->day === 1 ? $day->addDay() : $day->subDay();
+            }
+
+            $dates[] = [$status, $atWorkTime($day)];
+        }
+        foreach ($open as $status) {
+            [$min, $max] = $openAge[$status];
+            $dates[] = [$status, $atWorkTime($anchor->copy()->subDays(mt_rand($min, $max)))];
+        }
+
+        $catalogue = $this->kilimanjaroCatalogue();
+        $deptNames = array_keys($departments);
+
+        $trucks = ['T 482 DKL', 'T 915 DMF', 'T 236 EAB', 'T 710 DHK', 'T 358 DRT', 'T 604 EBC', 'T 127 DXW'];
+        $vehicles = ['Scania R460', 'Isuzu FVZ', 'Mitsubishi Fuso FJ', 'Howo 371', 'Mercedes-Benz Actros'];
+        $cars = ['T 219 DFP (Toyota Hilux)', 'T 845 DQR (Toyota Prado)', 'T 530 EAK (Suzuki Carry)'];
+        $routes = ['Dar es Salaam–Dodoma', 'Arusha–Dodoma', 'Dar es Salaam–Mwanza', 'Tanga–Moshi', 'Dar es Salaam–Mbeya', 'Arusha–Namanga', 'Morogoro–Iringa', 'Dar es Salaam–Arusha'];
+        $towns = ['Arusha', 'Dodoma', 'Mwanza', 'Moshi', 'Tanga', 'Mbeya', 'Morogoro', 'Iringa'];
+        $clients = ['Bonite Bottlers', 'Kilombero Sugar', 'Arusha Cement Traders', 'Mwanza Fish Processors', 'Tanga Fresh Dairies'];
+        $sites = ['Kurasini warehouse', 'Arusha depot', 'Head office, Kurasini', 'Dodoma transit yard'];
+        $floats = [
+            'Transport' => 'Transport yard float – Kurasini',
+            'Warehouse' => 'Warehouse float – Kurasini',
+            'Operations' => 'Dodoma yard float',
+        ];
+
+        $plan = [];
+        foreach ($dates as $index => [$status, $created]) {
+            [$typeCode, $category, $depts, $purpose, $payee, $min, $max, $kindRule] = $pick($catalogue);
+
+            $deptName = $pick($depts ?? $deptNames);
+            $requester = $pick($staff[$deptName]);
+
+            $raw = mt_rand($min, $max);
+            $step = $raw >= 1000000 ? $pick([1000, 5000, 10000, 50000]) : $pick([50, 500, 1000, 5000]);
+            $amount = max($min, (int) round($raw / $step) * $step);
+
+            $kind = match ($kindRule) {
+                'cash' => Voucher::KIND_CASH,
+                'bank' => Voucher::KIND_BANK,
+                default => $amount < 500000 && mt_rand(1, 3) > 1 ? Voucher::KIND_CASH : Voucher::KIND_BANK,
+            };
+
+            $purpose = strtr($purpose, [
+                '{truck}' => $pick($trucks),
+                '{vehicle}' => $pick($vehicles),
+                '{car}' => $pick($cars),
+                '{route}' => $pick($routes),
+                '{town}' => $pick($towns),
+                '{client}' => $pick($clients),
+                '{site}' => $pick($sites),
+                '{nights}' => (string) mt_rand(2, 5),
+                '{container}' => 'MSKU '.mt_rand(100000, 999999).'-'.mt_rand(0, 9),
+                '{litres}' => number_format(mt_rand(20, 60) * 100),
+                '{qty}' => (string) mt_rand(4, 24),
+                '{bay}' => (string) mt_rand(1, 6),
+                '{month}' => $created->format('F'),
+                '{year}' => $created->format('Y'),
+            ]);
+
+            // Timeline: created ≤ submitted ≤ HOD ≤ CEO ≤ paid, never past now.
+            $times = ['created' => $created->copy()];
+            $previous = $times['created'];
+            foreach (['submitted' => [10, 180], 'hod' => [90, 2880], 'ceo' => [120, 4320], 'paid' => [60, 5760], 'cancelled' => [600, 4320]] as $moment => [$lo, $hi]) {
+                $base = $moment === 'cancelled' ? $times['created'] : $previous;
+                $at = $base->copy()->addMinutes(mt_rand($lo, $hi));
+
+                // Past the present: land somewhere between the previous step and
+                // now rather than on now itself, so recent activity doesn't all
+                // share the seeding moment.
+                if ($at->greaterThan($limit)) {
+                    $room = max(0, (int) $base->diffInMinutes($limit));
+                    $at = $base->copy()->addMinutes((int) round($room * mt_rand(35, 90) / 100));
+                }
+                $times[$moment] = $at->lessThan($base) ? $base->copy() : $at;
+
+                if ($moment !== 'cancelled') {
+                    $previous = $times[$moment];
+                }
+            }
+
+            $plan[] = [
+                'index' => $index,
+                'status' => $status,
+                'type' => $typeCode,
+                'category' => $category,
+                'department' => $deptName,
+                'requester' => $requester,
+                'payee' => $payee ?? $requester->name,
+                'purpose' => $purpose,
+                'amount' => $amount,
+                'kind' => $kind,
+                'cheque' => $kind === Voucher::KIND_BANK && mt_rand(1, 10) === 1,
+                'float' => $floats[$deptName] ?? ($pick([true, false]) ? 'Head office petty cash' : 'Arusha depot float'),
+                'ref' => ($kind === Voucher::KIND_CASH ? 'RCPT-' : 'INV-').mt_rand(10000, 99999),
+                'times' => $times,
+                'changes_at_ceo' => mt_rand(1, 4) === 1,
+                'cancel_after_changes' => mt_rand(1, 2) === 1,
+                'hod_note' => $pick([
+                    'Checked against the department budget line.',
+                    'Quotation and delivery note verified.',
+                    'Receipts attached and checked.',
+                    'Within the approved monthly allocation.',
+                    'Confirmed with the requesting supervisor.',
+                    'Rate matches the framework agreement.',
+                ]),
+                'ceo_note' => $pick([
+                    'Approved.',
+                    'Approved – proceed with payment.',
+                    'Cleared for payment.',
+                    'Approved. Keep this within the quarterly budget.',
+                    'Approved – file the EFD receipt with the voucher.',
+                ]),
+                'reject_reason' => $pick([
+                    'Not budgeted for this quarter – resubmit in the next budget cycle.',
+                    'Three quotations are required for purchases above TZS 1,000,000.',
+                    'Duplicate of a voucher already paid this month.',
+                    'Supplier is not on the approved vendor list – route this through Procurement.',
+                    'Amount exceeds the approved per-trip allowance.',
+                    'No EFD receipt attached; a fiscal receipt is required for this expense.',
+                    'This cost is recoverable from the client under the haulage contract – invoice them instead.',
+                ]),
+                'changes_reason' => $pick([
+                    "Attach the supplier's EFD receipt before this goes up.",
+                    'Please attach the signed delivery note from the warehouse.',
+                    'Wrong cost centre – this belongs to Transport, not Logistics.',
+                    'Amount differs from the quotation. Please correct and resubmit.',
+                    'Add the truck registration and trip sheet number to the description.',
+                    'Please split fuel and tolls into separate vouchers.',
+                ]),
+                'cancel_reason' => $pick([
+                    'Raised in error – duplicate of an earlier request.',
+                    'Supplier withdrew the quotation.',
+                    'Trip postponed by the client.',
+                ]),
+                'remark' => mt_rand(1, 6) === 1 ? $pick([
+                    'Quotation attached – the supplier needs payment by Friday.',
+                    'EFD receipt uploaded.',
+                    'Urgent: the truck is off the road until this is settled.',
+                    'Please prioritise; the client is waiting on this delivery.',
+                    'Trip sheet attached for reference.',
+                ]) : null,
+                'cheque_no' => (string) mt_rand(100200, 100990),
+                'payment_ref' => (string) mt_rand(1000000, 9999999),
+            ];
+        }
+
+        // Numbers are handed out in date order, so PV-…-0001 is the oldest.
+        usort($plan, fn (array $a, array $b) => [$a['times']['created'], $a['index']] <=> [$b['times']['created'], $b['index']]);
+
+        $types = VoucherType::withoutGlobalScopes()->where('company_id', $company->id)->get()->keyBy('code');
+
+        foreach ($plan as $entry) {
+            $this->driveKilimanjaroVoucher($company, $types[$entry['type']], $departments[$entry['department']], $entry);
+        }
+    }
+
+    /** Raises one planned voucher and walks it to its planned state, on its own clock. */
+    private function driveKilimanjaroVoucher(Company $company, VoucherType $type, Department $department, array $e): void
+    {
+        // Bank => [account prefix, branches]
+        $banks = [
+            'CRDB Bank' => ['015', ['Azikiwe', 'Kariakoo', 'Mlimani City', 'Arusha']],
+            'NMB Bank' => ['201', ['Bank House', 'Kariakoo', 'Arusha Market', 'Dodoma']],
+            'NBC Bank' => ['011', ['Corporate', 'Samora Avenue', 'Moshi']],
+            'Stanbic Bank' => ['912', ['Kinondoni', 'Industrial Area', 'Arusha']],
+            'Exim Bank' => ['020', ['Samora', 'Mwanza', 'Arusha']],
+            'Azania Bank' => ['010', ['Head Office', 'Kariakoo', 'Tanga']],
+        ];
+
+        // A payee always banks in the same place with the same account.
+        $hash = crc32($e['payee']);
+        $bankName = array_keys($banks)[$hash % count($banks)];
+        [$prefix, $branches] = $banks[$bankName];
+        $account = $prefix.sprintf('%010d', $hash);
+
+        $requester = $e['requester'];
+        $times = $e['times'];
+        $isCash = $e['kind'] === Voucher::KIND_CASH;
+        $method = $isCash ? 'Cash' : ($e['cheque'] ? 'Cheque' : 'Bank Transfer');
+
+        // Numbered on the real clock, like every other demo voucher.
+        $number = $this->demoNumber($type);
+
+        $restore = Carbon::getTestNow();
+        $at = fn (Carbon $moment) => Carbon::setTestNow($moment);
+
+        try {
+            $at($times['created']);
+
+            $voucher = $this->makeVoucher($company, [
+                'number' => $number,
+                'type' => $type,
+                'requester' => $requester,
+                'department' => $department,
+                'kind' => $e['kind'],
+                'payee' => $e['payee'],
+                'purpose' => $e['purpose'],
+                'description' => $e['purpose'].'. Raised by '.$requester->name.' ('.$department->name.').',
+                'amount' => $e['amount'],
+                'method' => $method,
+                'category' => $e['category'],
+                'date' => $times['created'],
+                'ref' => $e['ref'],
+                'payee_bank' => $bankName,
+                'payee_account_number' => $account,
+                'payee_bank_branch' => $branches[$hash % count($branches)],
+                'cash_float' => $e['float'],
+            ]);
+
+            if (! $this->isNew($voucher)) {
+                return;
+            }
+
+            $status = $e['status'];
+
+            if ($status === 'draft') {
+                return;
+            }
+
+            if ($status === 'cancelled' && ! $e['cancel_after_changes']) {
+                $at($times['cancelled']);
+                $this->actAs($requester, fn () => $this->engine->cancel($voucher->fresh(), $requester, $e['cancel_reason']));
+
+                return;
+            }
+
+            $at($times['submitted']);
+            $this->submitAs($voucher, $requester);
+
+            if ($e['remark']) {
+                VoucherComment::create([
+                    'voucher_id' => $voucher->id, 'company_id' => $company->id,
+                    'user_id' => $requester->id, 'body' => $e['remark'],
+                ]);
+            }
+
+            if ($status === 'awaiting_hod') {
+                return;
+            }
+
+            $at($times['hod']);
+
+            if ($status === 'signed_hold') {
+                $this->stepThrough($voucher, 'hold', $e['hod_note']);
+
+                return;
+            }
+
+            if ($status === 'cancelled' || ($status === 'changes' && ! $e['changes_at_ceo'])) {
+                $this->stepThrough($voucher, 'changes', $e['changes_reason']);
+
+                if ($status === 'cancelled') {
+                    $at($times['ceo']);
+                    $this->actAs($requester, fn () => $this->engine->cancel($voucher->fresh(), $requester, $e['cancel_reason']));
+                }
+
+                return;
+            }
+
+            $this->stepThrough($voucher, 'forward', $e['hod_note']);
+
+            if ($status === 'awaiting_ceo') {
+                return;
+            }
+
+            $at($times['ceo']);
+
+            match ($status) {
+                'changes' => $this->stepThrough($voucher, 'changes', $e['changes_reason']),
+                'rejected' => $this->stepThrough($voucher, 'reject', $e['reject_reason']),
+                default => $this->stepThrough($voucher, 'approve', $e['ceo_note']),
+            };
+
+            if ($status !== 'paid') {
+                return;
+            }
+
+            $at($times['paid']);
+            $this->payAs($voucher, $isCash
+                ? ['payment_method' => 'Cash', 'received_by' => $e['payee'], 'payment_reference' => 'PCV-'.$e['payment_ref']]
+                : [
+                    'payment_method' => $method,
+                    'payment_reference' => strtoupper(strtok($bankName, ' ')).'-FT'.$e['payment_ref'],
+                    'cheque_number' => $e['cheque'] ? $e['cheque_no'] : null,
+                ]);
+        } finally {
+            Carbon::setTestNow($restore);
+        }
+    }
+
     /* ------------------------------------------------------------- factories */
 
     /** @return array<string,User> */
@@ -456,29 +1093,36 @@ class DemoSeeder extends Seeder
     {
         $people = [];
 
-        foreach ($rows as [$name, $email, $role, $title, $code]) {
+        foreach ($rows as $row) {
+            [$name, $email, $role, $title, $code] = $row;
+
             // Approvers keep a saved signature, so the "reuse saved signature"
             // path is exercisable in the demo as well as drawing a fresh one.
             $signs = in_array($role, User::APPROVER_ROLES, true);
 
             // Email is the account's identity everywhere else in the system;
             // it is the right key here too.
-            $people[$name] = User::updateOrCreate(
-                ['email' => $email],
-                [
-                    'company_id' => $company->id,
-                    'name' => $name,
-                    'password' => 'Password123!',
-                    'role' => $role,
-                    'job_title' => $title,
-                    'employee_code' => $code,
-                    'status' => 'active',
-                    'locale' => 'en',
-                    'email_verified_at' => now(),
-                    'signature_data' => $signs ? $this->sampleSignature() : null,
-                    'signature_updated_at' => $signs ? now() : null,
-                ],
-            );
+            $attributes = [
+                'company_id' => $company->id,
+                'name' => $name,
+                'password' => 'Password123!',
+                'role' => $role,
+                'job_title' => $title,
+                'employee_code' => $code,
+                'status' => 'active',
+                'locale' => 'en',
+                'email_verified_at' => now(),
+                'signature_data' => $signs ? $this->sampleSignature() : null,
+                'signature_updated_at' => $signs ? now() : null,
+            ];
+
+            // An optional sixth column carries a phone number. Only written
+            // when given, so rows without one leave the column as it is.
+            if (isset($row[5])) {
+                $attributes['phone'] = $row[5];
+            }
+
+            $people[$name] = User::updateOrCreate(['email' => $email], $attributes);
         }
 
         return $people;

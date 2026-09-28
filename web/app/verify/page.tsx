@@ -17,22 +17,20 @@ function VerifyInner() {
   const isReset = purpose === "password_reset";
 
   const [identifier, setIdentifier] = useState(params.get("identifier") ?? "");
-  const [digits, setDigits] = useState<string[]>(() => {
-    const prefilled = params.get("code") ?? "";
-    return Array.from({ length: 6 }, (_, i) => prefilled[i] ?? "");
-  });
+  const [digits, setDigits] = useState<string[]>(() => Array.from({ length: 6 }, () => ""));
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(!!params.get("code"));
+  // Arriving from registration means the code has already been sent.
+  const [sent, setSent] = useState(!isReset && !!params.get("identifier"));
   const [error, setError] = useState<ApiError | null>(null);
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
 
   const code = digits.join("");
 
   useEffect(() => {
-    if (params.get("code")) inputs.current[5]?.focus();
-  }, [params]);
+    if (!isReset && params.get("identifier")) inputs.current[0]?.focus();
+  }, [params, isReset]);
 
   function setDigit(index: number, value: string) {
     const clean = value.replace(/\D/g, "");
@@ -56,15 +54,9 @@ function VerifyInner() {
     try {
       const endpoint = isReset ? "/auth/forgot-password" : "/auth/otp/send";
       const body = isReset ? { email: identifier } : { identifier, purpose };
-      const res = await api.post<{ otp?: { code: string | null } }>(endpoint, body);
+      await api.post(endpoint, body);
       setSent(true);
-      const issued = res.otp?.code;
-      if (issued) {
-        setDigits(issued.split(""));
-        toast("Code sent", `Development code: ${issued}`, "warn");
-      } else {
-        toast("Code sent", "Check your inbox for the six-digit code.", "ok");
-      }
+      toast("Code sent", "Check your inbox for the six-digit code.", "ok");
     } catch (err) {
       reportError(err, "Could not send the code");
     } finally {

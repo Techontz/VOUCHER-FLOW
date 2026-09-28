@@ -48,3 +48,19 @@ test("thresholds, assignee and order are kept", () => {
   assert.deepEqual([body.steps[0].min_amount, body.steps[0].max_amount, body.steps[0].assigned_user_id], [1_000_000, 5_000_000, 42]);
   assert.deepEqual(body.steps.map((s) => s.position), [1, 2], "positions follow the edited order");
 });
+
+test("a type-specific workflow keeps its voucher type on save", () => {
+  const body = workflowPayload({ ...wf, voucher_type_id: 7 }, [step({})]);
+  assert.equal(body.voucher_type_id, 7);
+});
+
+test("'All voucher types' is sent as an explicit null", () => {
+  const body = workflowPayload({ ...wf, voucher_type_id: null }, [step({})]);
+  assert.ok("voucher_type_id" in body, "the key must be present so the server unbinds it");
+  assert.equal(body.voucher_type_id, null);
+});
+
+test("the Swahili name round-trips", () => {
+  const body = workflowPayload({ ...wf, name_sw: "Njia kuu", voucher_type_id: null }, [step({})]);
+  assert.equal(body.name_sw, "Njia kuu");
+});

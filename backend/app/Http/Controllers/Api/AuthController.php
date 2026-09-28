@@ -9,12 +9,16 @@ use App\Models\Company;
 use App\Models\OtpCode;
 use App\Models\Plan;
 use App\Models\User;
+use App\Models\VoucherTemplateChange;
+use App\Notifications\OneTimeCodeNotification;
 use App\Services\AuditLogger;
 use App\Services\CompanyProvisioner;
+use App\Services\TwoFactorLogin;
+use App\Services\VoucherTemplateManager;
 use App\Support\TenantContext;
+use App\Support\VoucherTemplates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -25,6 +29,8 @@ class AuthController extends Controller
         private readonly CompanyProvisioner $provisioner,
         private readonly TenantContext $tenant,
         private readonly AuditLogger $audit,
+        private readonly TwoFactorLogin $twoFactor,
+        private readonly VoucherTemplateManager $voucherTemplates,
     ) {}
 
     /** Registers a company together with its first administrator. */
@@ -44,6 +50,7 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'max:180'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'plan_code' => ['nullable', 'string', 'exists:plans,code'],
+            'voucher_template' => ['nullable', Rule::in(VoucherTemplates::keys())],
         ]);
 
         $plan = $data['plan_code'] ?? null
@@ -70,6 +77,8 @@ class AuthController extends Controller
             $plan,
         );
 
+        $this->voucherTemplates->initial($company, $data['voucher_template'] ?? null, $admin, VoucherTemplateChange::SOURCE_REGISTRATION);
+
         $challenge = $this->issueOtp($admin, $admin->email, 'registration');
 
         return response()->json([
@@ -81,6 +90,11 @@ class AuthController extends Controller
         ], 201);
     }
 
+    /**
+     * Checks the password. With two-step sign-in on (the default) this opens a
+     * verification challenge and returns no token; the token comes from
+     * `verifyLogin` once the one-time code is accepted.
+     */
     public function login(Request $request)
     {
         $data = $request->validate([
@@ -97,27 +111,84 @@ class AuthController extends Controller
             ]);
         }
 
-        // Email or phone, matching the design's "Email or phone" field.
+        // Email or phone, matching the design's "Email or phone" field. The same
+        // address may belong to people in two companies, so the account is the
+        // one whose password matches, never simply the first row found.
         $user = User::with('company')
             ->where(fn ($q) => $q->where('email', $data['email'])->orWhere('phone', $data['email']))
-            ->first();
+            ->orderBy('id')
+            ->get()
+            ->first(fn (User $candidate) => Hash::check($data['password'], $candidate->password));
 
-        if (! $user || ! Hash::check($data['password'], $user->password)) {
+        if (! $user) {
             RateLimiter::hit($key, 300);
 
             throw ValidationException::withMessages(['email' => ['These credentials do not match our records.']]);
         }
 
-        if ($user->status === 'suspended') {
-            throw ValidationException::withMessages(['email' => ['This account has been suspended.']]);
-        }
-
-        if ($user->company && ! $user->isSuperAdmin() && in_array($user->company->status, ['suspended', 'cancelled'], true)) {
-            throw ValidationException::withMessages(['email' => ['This company account is not active. Contact your administrator.']]);
+        if ($blocked = $this->signInBlockedReason($user)) {
+            throw ValidationException::withMessages(['email' => [$blocked]]);
         }
 
         RateLimiter::clear($key);
 
+        if (! $this->twoFactor->requiredFor($user)) {
+            return $this->completeSignIn($request, $user, $data['device_name'] ?? null);
+        }
+
+        return response()->json($this->twoFactor->start($user, $request->ip()));
+    }
+
+    /** Sends (or re-sends) the sign-in code on the channel the person chose. */
+    public function sendLoginCode(Request $request)
+    {
+        $data = $request->validate([
+            'challenge' => ['required', 'string', 'max:128'],
+            'channel' => ['required', Rule::in(['email', 'sms'])],
+        ]);
+
+        $challenge = $this->twoFactor->open($data['challenge']);
+
+        return response()->json($this->twoFactor->send($challenge, $data['channel']));
+    }
+
+    /** Exchanges a correct sign-in code for a token. */
+    public function verifyLogin(Request $request)
+    {
+        $data = $request->validate([
+            'challenge' => ['required', 'string', 'max:128'],
+            'code' => ['required', 'string', 'max:10'],
+            'device_name' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $challenge = $this->twoFactor->open($data['challenge']);
+        $user = $this->twoFactor->verify($challenge, trim($data['code']));
+
+        // The account may have been suspended while the code was in transit.
+        if ($blocked = $this->signInBlockedReason($user)) {
+            $this->twoFactor->fail(422, 'account_unavailable', $blocked, 'code');
+        }
+
+        return $this->completeSignIn($request, $user, $data['device_name'] ?? null);
+    }
+
+    /** Why this account may not sign in right now, if anything. */
+    private function signInBlockedReason(User $user): ?string
+    {
+        if ($user->status === 'suspended') {
+            return 'This account has been suspended.';
+        }
+
+        if ($user->company && ! $user->isSuperAdmin() && in_array($user->company->status, ['suspended', 'cancelled'], true)) {
+            return 'This company account is not active. Contact your administrator.';
+        }
+
+        return null;
+    }
+
+    /** Records the sign-in and issues the token the clients store. */
+    private function completeSignIn(Request $request, User $user, ?string $deviceName)
+    {
         $user->forceFill([
             'last_login_at' => now(),
             'last_login_ip' => $request->ip(),
@@ -131,7 +202,7 @@ class AuthController extends Controller
         $this->audit->log('auth.login', "{$user->name} signed in", $user, null, null, $user->company_id, $user);
 
         return response()->json([
-            'token' => $user->createToken($data['device_name'] ?? 'web')->plainTextToken,
+            'token' => $user->createToken($deviceName ?? 'web')->plainTextToken,
             'user' => new UserResource($user->load(['company.plan', 'department'])),
             'company' => $user->company ? new CompanyResource($user->company->load('plan')) : null,
         ]);
@@ -189,35 +260,47 @@ class AuthController extends Controller
 
     /* ------------------------------------------------------------------- OTP */
 
+    /**
+     * (Re)sends a registration or password-reset code. Sign-in codes have their
+     * own challenge flow and are not issued here. The answer is the same whether
+     * or not the identifier matches an account.
+     */
     public function sendOtp(Request $request)
     {
         $data = $request->validate([
             'identifier' => ['required', 'string', 'max:180'],
-            'purpose' => ['nullable', Rule::in(['registration', 'login', 'password_reset', 'two_factor'])],
+            'purpose' => ['nullable', Rule::in(['registration', 'password_reset'])],
         ]);
 
-        $user = User::where('email', $data['identifier'])->orWhere('phone', $data['identifier'])->first();
+        $purpose = $data['purpose'] ?? 'registration';
+
+        $user = User::where(fn ($q) => $q->where('email', $data['identifier'])->orWhere('phone', $data['identifier']))
+            ->when($purpose === 'registration', fn ($q) => $q->whereNull('email_verified_at')->latest('id'))
+            ->first();
 
         return response()->json([
-            'otp' => $this->issueOtp($user, $data['identifier'], $data['purpose'] ?? 'registration'),
+            'otp' => $user
+                ? $this->issueOtp($user, $data['identifier'], $purpose)
+                : ['identifier' => $data['identifier'], 'purpose' => $purpose, 'expires_in' => 600],
         ]);
     }
 
+    /** Confirms a new account's address. Never signs anyone in. */
     public function verifyOtp(Request $request)
     {
         $data = $request->validate([
             'identifier' => ['required', 'string', 'max:180'],
             'code' => ['required', 'string', 'max:10'],
-            'purpose' => ['nullable', Rule::in(['registration', 'login', 'password_reset', 'two_factor'])],
+            'purpose' => ['nullable', Rule::in(['registration'])],
         ]);
 
         $otp = OtpCode::where('identifier', $data['identifier'])
-            ->where('purpose', $data['purpose'] ?? 'registration')
+            ->where('purpose', 'registration')
             ->whereNull('consumed_at')
             ->latest('id')
             ->first();
 
-        if (! $otp || ! $otp->isUsable()) {
+        if (! $otp || ! $otp->isUsable() || ! $otp->user) {
             throw ValidationException::withMessages(['code' => ['That code has expired. Request a new one.']]);
         }
 
@@ -229,16 +312,15 @@ class AuthController extends Controller
 
         $otp->forceFill(['consumed_at' => now()])->save();
 
-        $user = $otp->user ?? User::where('email', $data['identifier'])->orWhere('phone', $data['identifier'])->first();
+        $user = $otp->user;
 
-        if ($user && ! $user->email_verified_at) {
+        if (! $user->email_verified_at) {
             $user->forceFill(['email_verified_at' => now()])->save();
         }
 
         return response()->json([
             'verified' => true,
-            'user' => $user ? new UserResource($user->load('company')) : null,
-            'token' => $user ? $user->createToken('web')->plainTextToken : null,
+            'user' => new UserResource($user->load('company')),
         ]);
     }
 
@@ -251,7 +333,9 @@ class AuthController extends Controller
         $user = User::where('email', $data['email'])->first();
 
         // Always answers the same way, so the endpoint cannot enumerate accounts.
-        $challenge = $user ? $this->issueOtp($user, $user->email, 'password_reset') : null;
+        $challenge = $user
+            ? $this->issueOtp($user, $user->email, 'password_reset')
+            : ['identifier' => $data['email'], 'purpose' => 'password_reset', 'expires_in' => 600];
 
         return response()->json([
             'message' => 'If that address matches an account, a reset code is on its way.',
@@ -273,11 +357,19 @@ class AuthController extends Controller
             ->latest('id')
             ->first();
 
-        if (! $otp || ! $otp->isUsable() || ! Hash::check($data['code'], $otp->code_hash)) {
+        if (! $otp || ! $otp->isUsable() || ! $otp->user) {
             throw ValidationException::withMessages(['code' => ['That reset code is not valid.']]);
         }
 
-        $user = User::where('email', $data['email'])->firstOrFail();
+        $otp->increment('attempts');
+
+        if (! Hash::check($data['code'], $otp->code_hash)) {
+            throw ValidationException::withMessages(['code' => ['That reset code is not valid.']]);
+        }
+
+        // The code was issued to one account; an address shared by two
+        // companies must not reset the other one.
+        $user = $otp->user;
         $user->forceFill(['password' => $data['password']])->save();
         $user->tokens()->delete();
 
@@ -308,30 +400,43 @@ class AuthController extends Controller
     }
 
     /**
-     * Issues a one-time code. With no SMS/e-mail provider wired up the code is
-     * written to the log; outside production it is also returned so the flow can
-     * be exercised end to end.
+     * Issues a one-time code and delivers it by e-mail, or by SMS when the
+     * identifier is the account's phone number. Earlier unused codes for the
+     * same account and purpose stop working. The code itself never appears in
+     * a response or in the application log.
+     *
+     * @return array{identifier: string, purpose: string, expires_in: int}
      */
-    private function issueOtp(?User $user, string $identifier, string $purpose): array
+    private function issueOtp(User $user, string $identifier, string $purpose): array
     {
         $code = (string) random_int(100000, 999999);
+        $channel = filter_var($identifier, FILTER_VALIDATE_EMAIL) ? 'email' : 'sms';
+
+        OtpCode::where('user_id', $user->id)
+            ->where('purpose', $purpose)
+            ->whereNull('consumed_at')
+            ->update(['consumed_at' => now()]);
 
         OtpCode::create([
-            'user_id' => $user?->id,
+            'user_id' => $user->id,
             'identifier' => $identifier,
-            'channel' => filter_var($identifier, FILTER_VALIDATE_EMAIL) ? 'email' : 'sms',
+            'channel' => $channel,
             'purpose' => $purpose,
             'code_hash' => Hash::make($code),
             'expires_at' => now()->addMinutes(10),
         ]);
 
-        Log::info("VouchFlow OTP for {$identifier} ({$purpose}): {$code}");
+        try {
+            $user->notify(new OneTimeCodeNotification($code, $purpose, $channel, 10));
+        } catch (\Throwable $e) {
+            // The account exists either way; the person can ask for a new code.
+            report($e);
+        }
 
         return [
             'identifier' => $identifier,
             'purpose' => $purpose,
             'expires_in' => 600,
-            'code' => app()->environment('production') ? null : $code,
         ];
     }
 }

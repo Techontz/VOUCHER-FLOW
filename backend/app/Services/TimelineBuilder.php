@@ -81,11 +81,11 @@ class TimelineBuilder
             'sub' => 'System',
             'sub_sw' => 'Mfumo',
             'person' => 'VouchFlow',
-            'act' => $finished ? 'Voucher completed' : ($rejected ? 'Closed as rejected' : ($returned ? 'Returned to requester' : 'Not completed')),
-            'act_sw' => $finished ? 'Vocha imekamilika' : ($rejected ? 'Imefungwa kama iliyokataliwa' : ($returned ? 'Imerudishwa kwa mwombaji' : 'Haijakamilika')),
+            'act' => $finished ? 'Voucher completed' : ($rejected ? 'Closed — rejected' : ($returned ? 'Returned to the requester' : 'Not yet completed')),
+            'act_sw' => $finished ? 'Vocha imekamilika' : ($rejected ? 'Imefungwa — imekataliwa' : ($returned ? 'Imerudishwa kwa mwombaji' : 'Bado haijakamilika')),
             'when' => $finished ? ($paid ? $voucher->paid_at : $voucher->approved_at)?->toIso8601String() : ($rejected ? $voucher->rejected_at?->toIso8601String() : null),
             'comment' => $finished && $voucher->verification_code
-                ? "Approval ID {$voucher->verification_code} · PDF generated with all captured marks."
+                ? "Verification code {$voucher->verification_code}. The PDF includes every recorded signature."
                 : null,
             'signature' => null,
             'capabilities' => ['print' => true, 'download' => true],
@@ -114,10 +114,10 @@ class TimelineBuilder
             $count = $voucher->attachments_count ?? $voucher->attachments()->count();
 
             return [
-                'Created & submitted',
+                'Created and submitted',
                 'Imetengenezwa na kutumwa',
                 $voucher->submitted_at?->toIso8601String(),
-                $count > 0 ? "{$count} supporting document(s) attached." : null,
+                $count > 0 ? ($count === 1 ? '1 supporting document attached.' : "{$count} supporting documents attached.") : null,
             ];
         }
 
@@ -138,13 +138,21 @@ class TimelineBuilder
             return ['Paid', 'Imelipwa', $paidEvent->acted_at?->toIso8601String(), $paidEvent->comment ?: $reference];
         }
 
+        // Part of the money released, the balance still owed.
+        $partEvent = $events->last(fn (VoucherApproval $a) => $a->action === 'part_paid');
+        if ($partEvent && $step->isPaymentStep() && $atThis) {
+            $balance = $voucher->currency.' '.number_format($voucher->balance());
+
+            return ["Partly paid — {$balance} outstanding", "Imelipwa sehemu — {$balance} bado", $partEvent->acted_at?->toIso8601String(), $partEvent->comment];
+        }
+
         if ($step->isPaymentStep() && $atThis) {
             return ['Awaiting payment', 'Inasubiri malipo', null, null];
         }
 
         $approveEvent = $events->last(fn (VoucherApproval $a) => $a->action === 'approved');
         if ($approveEvent) {
-            return ['Approved', 'Imeidhinishwa', $approveEvent->acted_at?->toIso8601String(), $approveEvent->comment ?: 'Cleared to continue.'];
+            return ['Approved', 'Imeidhinishwa', $approveEvent->acted_at?->toIso8601String(), $approveEvent->comment ?: 'Approval granted.'];
         }
 
         $forwardEvent = $events->last(fn (VoucherApproval $a) => $a->action === 'forwarded');
@@ -152,19 +160,19 @@ class TimelineBuilder
 
         if ($signEvent && $forwardEvent) {
             return [
-                'Reviewed & signed',
-                'Imepitiwa na kusainiwa',
+                'Signed and forwarded',
+                'Imesainiwa na kupelekwa mbele',
                 $signEvent->acted_at?->toIso8601String(),
-                $forwardEvent->comment ?: 'Signature applied and forwarded to the next step.',
+                $forwardEvent->comment ?: 'Signed and forwarded to the next approval step.',
             ];
         }
 
         if ($signEvent && $atThis) {
             return [
-                'Signed — not yet submitted onward',
-                'Imesainiwa — haijatumwa mbele',
+                'Signed — not yet forwarded',
+                'Imesainiwa — bado haijapelekwa mbele',
                 $signEvent->acted_at?->toIso8601String(),
-                'Signature captured. This step signs only; it makes no approval decision.',
+                'Signature recorded. This step signs only — the approval decision sits with the next approval step.',
             ];
         }
 
@@ -175,7 +183,7 @@ class TimelineBuilder
         }
 
         if ($done) {
-            return ['Passed', 'Imepita', $latest?->acted_at?->toIso8601String(), $latest?->comment];
+            return ['Completed', 'Imekamilika', $latest?->acted_at?->toIso8601String(), $latest?->comment];
         }
 
         return ['Not started', 'Haijaanza', null, null];
@@ -183,7 +191,11 @@ class TimelineBuilder
 
     private function personFor(Voucher $voucher, WorkflowStep $step, $events): string
     {
-        if ($actor = $events->last()?->actor_name) {
+        // A submission is recorded against the first approval step, but it is the
+        // requester's act, not that step's — so it never names the step's person.
+        $acted = $events->last(fn (VoucherApproval $a) => ! in_array($a->action, ['created', 'submitted', 'resubmitted'], true));
+
+        if ($actor = $acted?->actor_name) {
             return $actor;
         }
 

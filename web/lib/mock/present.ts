@@ -5,8 +5,8 @@
  */
 
 import {
-  applicableSteps, availableActions, buildTimeline, capabilityText,
-  presentStatus, roleLabel, stepAt, workflowFor,
+  applicableSteps, availableActions, balanceOf, buildTimeline, capabilityText,
+  isPartiallyPaid, presentStatus, releasedAmount, roleLabel, stepAt, workflowFor,
 } from "./engine";
 import type { MockDataset, MockStep, MockUser, MockVoucher, MockWorkflow } from "./seed";
 
@@ -95,7 +95,8 @@ export function companyResource(db: MockDataset, companyId: number | null) {
     bank_account_number: c.bank_account_number, bank_branch: c.bank_branch,
     currency: c.currency, locale: c.locale, timezone: "Africa/Dar_es_Salaam",
     logo_url: c.logo_url, logo_mark_url: c.logo_mark_url,
-    primary_color: c.primary_color, accent_color: "#22d3ee",
+    primary_color: c.primary_color, secondary_color: c.secondary_color ?? null, accent_color: c.accent_color ?? null,
+    voucher_header_text: c.voucher_header_text ?? null,
     theme: c.theme, color_theme: c.color_theme ?? "blue", voucher_footer_text: c.voucher_footer_text,
     status: c.status,
     is_usable: !["suspended", "cancelled"].includes(c.status) && (c.status !== "trial" || (daysRemaining ?? 1) > 0),
@@ -119,7 +120,7 @@ export function stepResource(step: MockStep, db: MockDataset) {
     id: step.id, position: step.position, name: step.name, name_sw: step.name_sw,
     label: step.name, role: step.role, role_label: roleLabel(step.role),
     assigned_user_id: step.assigned_user_id,
-    assigned_user: assigned ? { id: assigned.id, name: assigned.name } : null,
+    assigned_user: assigned ? { id: assigned.id, name: assigned.name, role: assigned.role, status: assigned.status } : null,
     assignee_hint: step.assignee_hint,
     can_sign: step.can_sign, can_approve: step.can_approve, can_reject: step.can_reject,
     can_request_changes: step.can_request_changes, can_pay: step.can_pay,
@@ -132,8 +133,15 @@ export function stepResource(step: MockStep, db: MockDataset) {
 
 export function workflowResource(db: MockDataset, wf: MockWorkflow) {
   return {
-    id: wf.id, name: wf.name, description: wf.description,
-    voucher_type_id: null, is_default: wf.is_default, is_active: wf.is_active,
+    id: wf.id, name: wf.name, name_sw: wf.name_sw ?? null, label: wf.name, description: wf.description,
+    voucher_type_id: wf.voucher_type_id ?? null,
+    voucher_type: (() => {
+      const type = db.voucherTypes.find((t) => t.id === wf.voucher_type_id);
+      return type ? { id: type.id, name: type.name, name_sw: type.name_sw } : null;
+    })(),
+    vouchers_count: db.vouchers.filter((v) => v.workflow_id === wf.id).length,
+    in_flight_count: db.vouchers.filter((v) => v.workflow_id === wf.id && ["draft", "in_review", "changes_requested", "approved"].includes(v.status)).length,
+    is_default: wf.is_default, is_active: wf.is_active,
     version: wf.version,
     route_summary: `${wf.steps.map((s) => roleLabel(s.role)).join(" → ")} → Completed`,
     steps: wf.steps.map((s) => stepResource(s, db)),
@@ -160,6 +168,12 @@ export function voucherResource(
     payee: v.payee, purpose: v.purpose, description: v.description,
     amount: v.amount, currency: v.currency,
     amount_text: money(v.amount, v.currency),
+    // Money can leave in parts: what has been released and what is still owed.
+    amount_paid: releasedAmount(v),
+    amount_paid_text: money(releasedAmount(v), v.currency),
+    balance: balanceOf(v),
+    balance_text: money(balanceOf(v), v.currency),
+    is_partially_paid: isPartiallyPaid(v),
     amount_in_words: amountInWords(v.amount, v.currency),
     payment_method: v.payment_method, account_ref: v.account_ref,
     category: v.category, cost_centre: v.cost_centre,
@@ -208,8 +222,24 @@ export function voucherResource(
       id: a.id, name: a.name, mime_type: a.mime, size_bytes: a.size_bytes,
       size: humanSize(a.size_bytes), is_image: a.mime.startsWith("image/"),
       icon: a.mime.startsWith("image/") ? "ph-image" : "ph-file-pdf",
-      url: `#attachment-${a.id}`, uploaded_by: requester?.name ?? null,
-      created_at: v.created_at,
+      url: `#attachment-${a.id}`, uploaded_by: a.uploaded_by ?? requester?.name ?? null,
+      created_at: a.created_at ?? v.created_at,
+      document_type: a.document_type ?? null,
+      voucher_payment_id: a.voucher_payment_id ?? null,
+    }));
+    base.payments = (v.payments ?? []).map((p) => ({
+      id: p.id, sequence: p.sequence, reference: `${v.number}/${p.sequence}`,
+      amount: p.amount, amount_text: money(p.amount, v.currency),
+      balance_after: p.balance_after, balance_after_text: money(p.balance_after, v.currency),
+      payment_method: p.payment_method, payment_reference: p.payment_reference,
+      cheque_number: p.cheque_number, received_by: p.received_by,
+      receiver_id_number: p.receiver_id_number, payment_date: p.payment_date,
+      paid_at: p.paid_at, paid_by: p.paid_by, note: p.note,
+      acknowledged_at: p.acknowledged_at,
+      acknowledgement_url: `/vouchers/${v.id}/payments/${p.id}/acknowledgement`,
+      acknowledgement_attachment_ids: v.attachments
+        .filter((a) => a.document_type === "payment_acknowledgement" && a.voucher_payment_id === p.id)
+        .map((a) => a.id),
     }));
     base.comments = v.comments.map((c) => {
       const author = db.users.find((u) => u.id === c.user_id);

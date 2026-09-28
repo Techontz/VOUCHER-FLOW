@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'app/modules/approvals/bulk_approve_page.dart';
 import 'app/core/theme.dart';
 import 'app/core/translations.dart';
 import 'app/data/services/api_service.dart';
@@ -8,6 +9,7 @@ import 'app/data/services/session_service.dart';
 import 'app/data/services/voucher_repository.dart';
 import 'app/modules/auth/login_page.dart';
 import 'app/modules/auth/splash_page.dart';
+import 'app/modules/auth/verify_login_page.dart';
 import 'app/modules/branding/branding_page.dart';
 import 'app/modules/dashboard/dashboard_tab.dart';
 import 'app/modules/notifications/notifications_tab.dart';
@@ -66,6 +68,13 @@ class VouchFlowApp extends StatelessWidget {
           binding: BindingsBuilder(() => Get.lazyPut(LoginController.new)),
         ),
         GetPage(
+          name: Routes.verifyLogin,
+          page: () => const VerifyLoginPage(),
+          binding: BindingsBuilder(
+            () => Get.lazyPut(VerifyLoginController.new),
+          ),
+        ),
+        GetPage(
           name: Routes.shell,
           page: () => const ShellPage(),
           binding: BindingsBuilder(() {
@@ -76,6 +85,7 @@ class VouchFlowApp extends StatelessWidget {
           }),
         ),
         GetPage(name: Routes.voucher, page: () => const VoucherDetailPage()),
+        GetPage(name: Routes.bulkApprove, page: () => const BulkApprovePage()),
         GetPage(
           name: Routes.branding,
           page: () => const BrandingPage(),

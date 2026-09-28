@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { API_MODE, download, printBlob, saveBlob } from "@/lib/api";
+import { api, API_MODE, download, printBlob, saveBlob } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { Icon, type Tone } from "@/components/ui";
+import { Icon, Spinner, type Tone } from "@/components/ui";
+import { Dropdown, MenuItem } from "@/components/app-ui";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { deriveProgress, type ProgressStep } from "@/lib/progress";
 import { useWorkflows } from "@/lib/use-workflows";
@@ -28,6 +29,8 @@ export function statusTone(key: string | null | undefined): Tone {
     case "awaiting_payment":
       return "ok";
     case "changes_requested":
+    // Money has moved but not all of it: someone still has to finish the job.
+    case "partially_paid":
       return "warn";
     case "rejected":
       return "bad";
@@ -120,7 +123,10 @@ export function ApprovalTrack({ rows, youActHere }: { rows: TimelineRow[]; youAc
                 {row.state === "done" || row.state === "rejected"
                   ? [act, when].filter(Boolean).join(" · ")
                   : row.state === "current"
-                    ? (youActHere ? t("waitingForYou") : act || t("inProgress"))
+                    ? (youActHere
+                      // A signing step waits for a signature, not a decision.
+                      ? (row.act === "Awaiting signature" ? t("waitingForYourSignature") : row.act?.startsWith("Signed") ? act : t("waitingForYou"))
+                      : act || t("inProgress"))
                     : t("notStarted")}
               </div>
               {row.state === "current" && youActHere && <span className="vf-track-you">{t("yourTurn")}</span>}
@@ -154,9 +160,83 @@ export function primaryAction(voucher: Voucher): { label: MessageKey; icon: stri
   return null;
 }
 
+const ROLE_NAMES: Record<string, [string, string]> = {
+  hod: ["HOD", "Mkuu wa Idara"],
+  ceo: ["CEO", "Mkurugenzi Mtendaji"],
+  manager: ["Manager", "Meneja"],
+  director: ["Director", "Mkurugenzi"],
+  finance: ["Finance", "Idara ya Fedha"],
+  cashier: ["Cashier", "Mhasibu"],
+};
+
+/**
+ * Where the voucher is now, or how it ended, in one plain phrase:
+ * "With HOD for signature", "Awaiting payment", "Paid 14 Sept 2026",
+ * "Rejected by Emmanuel Massawe". Built only from fields the list already has.
+ */
+export function voucherStage(
+  voucher: Voucher,
+  t: (key: MessageKey) => string,
+  locale: "en" | "sw",
+): string {
+  const step = voucher.current_step;
+  const role = step ? (ROLE_NAMES[step.role]?.[locale === "sw" ? 1 : 0] ?? step.name) : "";
+  const fill = (key: MessageKey, token: string, value: string) => t(key).replace(`{${token}}`, value);
+
+  switch (voucher.status_key) {
+    case "draft": return t("draftNotSubmitted");
+    case "awaiting_signature": return step ? fill("stageWithSign", "role", role) : voucher.status_label;
+    case "signed_pending_submit": return t("signedNotSubmitted");
+    case "awaiting_approval": return step ? fill("stageWithApproval", "role", role) : voucher.status_label;
+    case "awaiting_review": return step ? fill("stageWith", "step", step.name) : voucher.status_label;
+    case "awaiting_payment": return t("awaitingPayment");
+    case "partially_paid":
+      return voucher.balance_text ? fill("stagePartlyPaid", "amount", voucher.balance_text) : voucher.status_label;
+    case "paid": {
+      const on = voucher.payment_date ?? voucher.paid_at;
+      return on ? fill("stagePaidOn", "date", formatDate(on, locale)) : t("paidAct");
+    }
+    case "rejected":
+      return voucher.decided_by ? fill("stageRejectedBy", "name", voucher.decided_by) : t("rejected");
+    case "changes_requested":
+      return voucher.decided_by ? fill("stageReturnedBy", "name", voucher.decided_by) : t("stageReturned");
+    case "cancelled": return t("stageCancelled");
+    default: return voucher.status_label;
+  }
+}
+
+/**
+ * The voucher's amount, and — while it is part-paid — what is still owed
+ * underneath it, so a queue never reads as if the full sum were outstanding.
+ */
+export function VoucherAmount({ voucher, owing = false }: {
+  voucher: Voucher;
+  /** In the payment queue: "Balance TZS 1,000,000 of TZS 10,000,000". */
+  owing?: boolean;
+}) {
+  const { t } = useApp();
+  const balance = voucher.balance_text;
+  return (
+    <>
+      {voucher.amount_text}
+      {voucher.is_partially_paid && balance && (
+        <span className="vf-amount-balance">
+          {owing
+            ? t("balanceOfAmount").replace("{balance}", balance).replace("{amount}", voucher.amount_text)
+            : t("balanceAmount").replace("{amount}", balance)}
+        </span>
+      )}
+    </>
+  );
+}
+
 export function VoucherRow({
-  voucher, progress, showCta = true,
-}: { voucher: Voucher; progress?: ProgressStep[]; showCta?: boolean }) {
+  voucher, progress, showCta = true, history = false, owing = false,
+}: {
+  voucher: Voucher; progress?: ProgressStep[]; showCta?: boolean;
+  /** Show the stage/result and submitted/updated dates. */ history?: boolean;
+  /** Payment queue: spell out the balance against the approved amount. */ owing?: boolean;
+}) {
   const { t, locale } = useApp();
   const cta = showCta ? primaryAction(voucher) : null;
   const who = voucher.requester?.name;
@@ -174,10 +254,17 @@ export function VoucherRow({
         <div className="vf-row-meta">
           <span>{voucher.payee}</span>{meta ? ` · ${meta}` : ""}
         </div>
+        {history && (
+          <div className="vf-row-meta">
+            <strong style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{voucherStage(voucher, t, locale)}</strong>
+            {voucher.submitted_at ? ` · ${t("submittedOn")} ${formatDate(voucher.submitted_at, locale)}` : ""}
+            {voucher.updated_at ? ` · ${t("lastUpdated")} ${formatDate(voucher.updated_at, locale)}` : ""}
+          </div>
+        )}
         {progress && progress.length > 0 && <div className="vf-row-steps"><ProgressSteps steps={progress} /></div>}
       </div>
       <div className="vf-row-side">
-        <div className="vf-row-amount">{voucher.amount_text}</div>
+        <div className="vf-row-amount"><VoucherAmount voucher={voucher} owing={owing} /></div>
         {cta && (
           <Link href={`/vouchers/${voucher.id}`} className={`btn btn-sm ${cta.strong ? "btn-primary" : "btn-secondary"}`}>
             <Icon name={cta.icon} size={15} /> {t(cta.label)}
@@ -190,8 +277,13 @@ export function VoucherRow({
 
 /** A panel of voucher rows, with each voucher's route derived from its workflow. */
 export function VoucherList({
-  vouchers, showCta = true, withProgress = true, bare = false,
-}: { vouchers: Voucher[]; showCta?: boolean; withProgress?: boolean; /** Rows only, for a list that already sits inside a panel. */ bare?: boolean }) {
+  vouchers, showCta = true, withProgress = true, bare = false, history = false, owing = false,
+}: {
+  vouchers: Voucher[]; showCta?: boolean; withProgress?: boolean;
+  /** Rows only, for a list that already sits inside a panel. */ bare?: boolean;
+  history?: boolean;
+  /** Payment queue: show each part-paid voucher's balance against its amount. */ owing?: boolean;
+}) {
   const workflows = useWorkflows();
   const { locale } = useApp();
 
@@ -202,6 +294,8 @@ export function VoucherList({
           key={voucher.id}
           voucher={voucher}
           showCta={showCta}
+          history={history}
+          owing={owing}
           progress={withProgress ? deriveProgress(voucher, workflows, locale) : undefined}
         />
       ))}
@@ -229,10 +323,11 @@ export function VoucherTable({ vouchers, bare = false }: { vouchers: Voucher[]; 
           <tr>
             <th>{t("voucher")}</th>
             <th>{t("purpose")}</th>
-            <th>{t("payee")}</th>
             <th className="num">{t("amount")}</th>
             <th>{t("status")}</th>
-            <th>{t("date")}</th>
+            <th>{t("stageResult")}</th>
+            <th>{t("submittedOn")}</th>
+            <th>{t("lastUpdated")}</th>
           </tr>
         </thead>
         <tbody>
@@ -248,12 +343,13 @@ export function VoucherTable({ vouchers, bare = false }: { vouchers: Voucher[]; 
               </td>
               <td className="app-vt-purpose">
                 <div className="app-vt-title">{voucher.purpose}</div>
-                <div className="app-vt-meta">{[voucher.requester?.name, voucher.department?.name].filter(Boolean).join(" · ")}</div>
+                <div className="app-vt-meta">{[voucher.payee, voucher.requester?.name, voucher.department?.name].filter(Boolean).join(" · ")}</div>
               </td>
-              <td className="app-vt-payee">{voucher.payee}</td>
-              <td className="num app-vt-amount">{voucher.amount_text}</td>
+              <td className="num app-vt-amount"><VoucherAmount voucher={voucher} /></td>
               <td><StatusBadge voucher={voucher} /></td>
-              <td className="app-vt-date">{formatDate(voucher.voucher_date, locale)}</td>
+              <td className="app-vt-payee" style={{ minWidth: 150 }}>{voucherStage(voucher, t, locale)}</td>
+              <td className="app-vt-date">{voucher.submitted_at ? formatDate(voucher.submitted_at, locale) : "—"}</td>
+              <td className="app-vt-date">{formatDate(voucher.updated_at, locale)}</td>
             </tr>
           ))}
         </tbody>
@@ -265,9 +361,98 @@ export function VoucherTable({ vouchers, bare = false }: { vouchers: Voucher[]; 
     <>
       {bare ? <div className="vf-only-wide">{table}</div> : <div className="vf-panel vf-only-wide" style={{ overflow: "hidden" }}>{table}</div>}
       <div className="vf-only-narrow">
-        <VoucherList vouchers={vouchers} showCta={false} withProgress={false} bare={bare} />
+        <VoucherList vouchers={vouchers} showCta={false} withProgress={false} bare={bare} history />
       </div>
     </>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────── export ── */
+
+export type ExportFormat = "pdf" | "xlsx" | "csv";
+type ExportParams = Record<string, string | number | null | undefined>;
+
+/** Rows to CSV, with a BOM so Excel reads Swahili and the − sign correctly. */
+export function rowsToCsv(headings: string[], rows: (string | number | null)[][]): Blob {
+  const csv = [headings, ...rows]
+    .map((row) => row.map((cell) => {
+      const text = cell === null || cell === undefined ? "" : String(cell);
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }).join(","))
+    .join("\r\n");
+  return new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+}
+
+/**
+ * Downloads a report — exactly the rows the given filters select — as PDF,
+ * Excel or CSV. The server builds the file through the same visibility rules
+ * as the screen, so an export can never hold more than the caller may see.
+ */
+export function useReportExport() {
+  const { t, toast, reportError } = useApp();
+  const [busy, setBusy] = useState<ExportFormat | null>(null);
+
+  async function run(kind: string, params: ExportParams, format: ExportFormat) {
+    const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== "" && v !== null && v !== undefined));
+    const filename = `vouchflow-${kind}-${new Date().toISOString().slice(0, 10)}.${format}`;
+
+    if (API_MODE === "mock") {
+      // No server to render a file: PDF goes through the print dialog, and the
+      // CSV is built from the same report rows the server would export.
+      if (format === "pdf") {
+        toast(t("exportBtn"), t("exportMockNote"), "warn");
+        window.setTimeout(() => window.print(), 150);
+        return;
+      }
+      try {
+        const report = await api.get<{ headings: string[]; rows: (string | number | null)[][] }>(`/reports/${kind}`, clean);
+        saveBlob(rowsToCsv(report.headings, report.rows), filename.replace(/\.xlsx$/, ".csv"));
+        toast(t("exportReady"), `${report.rows.length} · CSV`, "ok");
+      } catch (err) {
+        reportError(err, t("exportFailed"));
+      }
+      return;
+    }
+
+    setBusy(format);
+    try {
+      const blob = await download(`/reports/${kind}/export`, { ...clean, format });
+      saveBlob(blob, filename);
+      toast(t("exportReady"), format.toUpperCase(), "ok");
+    } catch (err) {
+      reportError(err, t("exportFailed"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return { run, busy };
+}
+
+/** One Export button with a PDF / Excel / CSV menu. */
+export function ExportMenu({ kind, params, label }: { kind: string; params: ExportParams; label?: string }) {
+  const { t } = useApp();
+  const { run, busy } = useReportExport();
+
+  return (
+    <Dropdown
+      label={label ?? t("exportBtn")}
+      trigger={({ open, toggle, id }) => (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu" disabled={busy !== null}>
+          {busy ? <Spinner /> : <Icon name="ph-download-simple" size={14} />} {label ?? t("exportBtn")} <Icon name="ph-caret-down" size={12} />
+        </button>
+      )}
+    >
+      {(close) => (
+        <>
+          <MenuItem icon="ph-file-pdf" onSelect={() => { close(); void run(kind, params, "pdf"); }}>PDF</MenuItem>
+          {API_MODE === "live" && (
+            <MenuItem icon="ph-microsoft-excel-logo" onSelect={() => { close(); void run(kind, params, "xlsx"); }}>Excel (.xlsx)</MenuItem>
+          )}
+          <MenuItem icon="ph-file-csv" onSelect={() => { close(); void run(kind, params, "csv"); }}>CSV</MenuItem>
+        </>
+      )}
+    </Dropdown>
   );
 }
 

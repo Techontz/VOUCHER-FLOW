@@ -9,13 +9,23 @@
  *
  * The rule now is simple: every flag the backend stores goes back exactly as
  * it was loaded, unless the person editing changed it.
+ *
+ * The same went for the workflow itself: `voucher_type_id` was never sent, and
+ * every save unbound a type-specific route back to "all voucher types". It is
+ * sent now, together with the Swahili name.
  */
 
 import type { Workflow, WorkflowStep } from "./types";
 
-export function workflowPayload(workflow: Pick<Workflow, "name" | "description" | "is_default" | "is_active">, steps: WorkflowStep[]) {
+type WorkflowFields = Pick<Workflow, "name" | "description" | "is_default" | "is_active">
+  & Partial<Pick<Workflow, "name_sw" | "voucher_type_id">>;
+
+export function workflowPayload(workflow: WorkflowFields, steps: WorkflowStep[]) {
   return {
     name: workflow.name,
+    // Only sent when known: a missing key leaves the stored value untouched.
+    ...(workflow.name_sw !== undefined ? { name_sw: workflow.name_sw || null } : {}),
+    ...(workflow.voucher_type_id !== undefined ? { voucher_type_id: workflow.voucher_type_id } : {}),
     description: workflow.description,
     is_default: workflow.is_default,
     is_active: workflow.is_active,

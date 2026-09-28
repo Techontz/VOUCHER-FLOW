@@ -58,6 +58,7 @@ class Voucher extends Model
             'created_by' => 'integer',
             'updated_by' => 'integer',
             'amount' => 'decimal:2',
+            'amount_paid' => 'decimal:2',
             'voucher_date' => 'date',
             'step_signed_at' => 'datetime',
             'submitted_at' => 'datetime',
@@ -103,6 +104,34 @@ class Voucher extends Model
         return $this->hasMany(VoucherAttachment::class);
     }
 
+    /** Each release of money against this voucher, in order. */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(VoucherPayment::class)->orderBy('sequence');
+    }
+
+    /** What is still to be paid: the approved amount less everything released. */
+    public function balance(): float
+    {
+        if ($this->status === self::STATUS_PAID) {
+            return 0.0;
+        }
+
+        return max(0.0, round((float) $this->amount - (float) $this->amount_paid, 2));
+    }
+
+    /** Money released against this voucher so far — all of it, once paid. */
+    public function released(): float
+    {
+        return $this->status === self::STATUS_PAID ? (float) $this->amount : (float) $this->amount_paid;
+    }
+
+    /** Approved, some money released, some still outstanding. */
+    public function isPartiallyPaid(): bool
+    {
+        return $this->status === self::STATUS_APPROVED && (float) $this->amount_paid > 0 && $this->balance() > 0;
+    }
+
     public function comments(): HasMany
     {
         return $this->hasMany(VoucherComment::class)->orderBy('created_at');
@@ -129,6 +158,11 @@ class Voucher extends Model
     public function isPaid(): bool
     {
         return $this->status === self::STATUS_PAID;
+    }
+
+    public function isCash(): bool
+    {
+        return $this->kind === self::KIND_CASH;
     }
 
     public function isBank(): bool

@@ -52,6 +52,10 @@ export interface MockCompany {
   /** Interface palette; absent means blue, as on the API. */
   color_theme?: "blue" | "emerald" | "violet" | "rose";
   voucher_footer_text: string;
+  /** Document branding a company may add under Branding; absent means not set. */
+  secondary_color?: string | null;
+  accent_color?: string | null;
+  voucher_header_text?: string | null;
   status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   plan_code: string;
   trial_ends_at: string | null;
@@ -66,7 +70,7 @@ export interface MockStep {
   position: number;
   name: string;
   name_sw: string | null;
-  role: "employee" | "hod" | "ceo" | "cashier" | "finance" | "director" | "custom";
+  role: "employee" | "hod" | "manager" | "ceo" | "cashier" | "finance" | "director" | "custom";
   assigned_user_id: number | null;
   assignee_hint: string;
   can_sign: boolean;
@@ -85,6 +89,9 @@ export interface MockWorkflow {
   id: number;
   company_id: number;
   name: string;
+  name_sw?: string | null;
+  /** null / absent = applies to every voucher type without a route of its own. */
+  voucher_type_id?: number | null;
   description: string;
   is_default: boolean;
   is_active: boolean;
@@ -102,7 +109,8 @@ export interface MockApproval {
   actor_name: string;
   action:
     | "created" | "submitted" | "signed" | "forwarded" | "approved"
-    | "rejected" | "changes_requested" | "resubmitted" | "paid" | "cancelled";
+    | "rejected" | "changes_requested" | "resubmitted" | "paid" | "part_paid"
+    | "acknowledged" | "cancelled";
   comment: string | null;
   signature: string | null;
   acted_at: string;
@@ -147,9 +155,42 @@ export interface MockVoucher {
   cheque_number: string | null;
   cash_float: string | null;
   received_by: string | null;
+  /**
+   * Money released so far. Optional because a demo saved in localStorage
+   * before part payments existed has no such field — read it as 0.
+   */
+  amount_paid?: number;
+  /** Each release of money, in order — see VoucherPayment on the API. */
+  payments?: MockPayment[];
   created_at: string;
-  attachments: { id: number; name: string; mime: string; size_bytes: number }[];
+  attachments: {
+    id: number; name: string; mime: string; size_bytes: number;
+    /** "payment_acknowledgement" for a receiver's signed copy; otherwise absent. */
+    document_type?: string | null;
+    voucher_payment_id?: number | null;
+    uploaded_by?: string;
+    created_at?: string;
+  }[];
   comments: { id: number; user_id: number; body: string; created_at: string }[];
+}
+
+/** One release of money against a voucher — the mirror of VoucherPayment. */
+export interface MockPayment {
+  id: number;
+  sequence: number;
+  amount: number;
+  balance_after: number;
+  payment_method: string | null;
+  payment_reference: string | null;
+  cheque_number: string | null;
+  received_by: string | null;
+  receiver_id_number: string | null;
+  payment_date: string;
+  paid_at: string;
+  paid_by: string;
+  paid_by_id: number;
+  note: string | null;
+  acknowledged_at: string | null;
 }
 
 export interface MockNotification {
@@ -261,7 +302,7 @@ const STEP = (
 /** The default route a new company starts on: request → sign → approve → pay. */
 export const DEFAULT_STEPS = (): MockStep[] => [
   STEP(1, 1, "Request", "Ombi", "employee", "Voucher creator", {}),
-  STEP(2, 2, "Department review", "Ukaguzi wa idara", "hod", "Head of the requesting department",
+  STEP(2, 2, "HOD signature", "Sahihi ya Mkuu wa Idara", "hod", "Head of the requesting department",
     { can_sign: true, can_request_changes: true, requires_signature: true }),
   STEP(3, 3, "Executive approval", "Idhini ya mkurugenzi", "ceo", "Chief executive / approving manager",
     { can_approve: true, can_reject: true, can_request_changes: true }),
@@ -279,7 +320,7 @@ export const WORKFLOW_PRESETS: Record<string, { name: string; description: strin
     description: "Employee → HOD → Finance → CEO → Cashier",
     steps: () => [
       STEP(11, 1, "Request", "Ombi", "employee", "Voucher creator", {}),
-      STEP(12, 2, "Department review", "Ukaguzi wa idara", "hod", "Head of the requesting department",
+      STEP(12, 2, "HOD signature", "Sahihi ya Mkuu wa Idara", "hod", "Head of the requesting department",
         { can_sign: true, can_request_changes: true, requires_signature: true }),
       STEP(13, 3, "Finance verification", "Uhakiki wa fedha", "finance", "Finance officer",
         { can_sign: true, can_approve: true, can_reject: true, can_request_changes: true }),

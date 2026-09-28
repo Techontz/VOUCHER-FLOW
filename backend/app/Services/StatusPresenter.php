@@ -30,12 +30,14 @@ class StatusPresenter
 
             // Approved is no longer the end of the road: the money still has to
             // move, and saying "completed" here would hide the cashier's work.
-            Voucher::STATUS_APPROVED => $this->make(
-                'awaiting_payment', 'Approved — awaiting payment', 'Imeidhinishwa — inasubiri malipo', 'tag-info'
-            ),
+            // Part of the money released, the rest still owed: still in the payment
+            // queue, but no longer untouched.
+            Voucher::STATUS_APPROVED => $voucher->isPartiallyPaid()
+                ? $this->make('partially_paid', 'Partially paid', 'Imelipwa sehemu', 'tag-accent-2')
+                : $this->make('awaiting_payment', 'Approved — awaiting payment', 'Imeidhinishwa — inasubiri malipo', 'tag-info'),
 
             Voucher::STATUS_PAID => $this->make(
-                'paid', 'Paid & completed', 'Imelipwa na kukamilika', 'tag-accent'
+                'paid', 'Paid', 'Imelipwa', 'tag-accent'
             ),
 
             Voucher::STATUS_REJECTED => $this->make('rejected', 'Rejected', 'Imekataliwa', 'tag-accent-2'),

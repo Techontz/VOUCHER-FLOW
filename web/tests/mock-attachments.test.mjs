@@ -18,7 +18,9 @@ const PDF = { name: "invoice.pdf", size: 120_000, type: "application/pdf" };
 
 function signIn(email) {
   store.reset?.();
-  const out = handle("POST", "/auth/login", { email, password: "Password123!" }, {}, null);
+  // Signing in is two-step: the password opens a challenge, the code closes it.
+  const challenge = handle("POST", "/auth/login", { email, password: "Password123!" }, {}, null);
+  const out = handle("POST", "/auth/login/verify", { challenge: challenge.challenge, code: "418205" }, {}, null);
   return out.token;
 }
 
@@ -104,15 +106,25 @@ test("an empty upload is refused", () => {
   );
 });
 
-test("a voucher that is no longer editable refuses attachments", () => {
+test("a paid voucher still takes a receipt from its requester", () => {
   const token = signIn("frank@watercom.test");
   const list = handle("GET", "/vouchers", {}, { per_page: 100 }, token);
-  const settled = list.data.find((v) => v.status === "paid" || v.status === "approved");
+  const settled = list.data.find((v) => (v.status === "paid" || v.status === "approved") && v.requester_id === v.requester?.id);
   assert.ok(settled, "the fixture should contain a settled voucher");
 
+  const result = handle("POST", `/vouchers/${settled.id}/attachments`, { "files[]": [PDF] }, {}, token);
+  assert.ok(result, "a receipt can be attached after payment");
+});
+
+test("a voucher still in review refuses attachments", () => {
+  const token = signIn("frank@watercom.test");
+  const list = handle("GET", "/vouchers", {}, { per_page: 100 }, token);
+  const inReview = list.data.find((v) => v.status === "in_review");
+  assert.ok(inReview, "the fixture should contain a voucher in review");
+
   assert.throws(
-    () => handle("POST", `/vouchers/${settled.id}/attachments`, { "files[]": [PDF] }, {}, token),
-    (err) => err instanceof MockError && err.status === 403 && /editable/.test(err.message),
+    () => handle("POST", `/vouchers/${inReview.id}/attachments`, { "files[]": [PDF] }, {}, token),
+    (err) => err instanceof MockError && err.status === 403,
   );
 });
 

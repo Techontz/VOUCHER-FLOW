@@ -12,6 +12,7 @@ use App\Services\StatusPresenter;
 use App\Services\VoucherVisibility;
 use App\Support\TenantContext;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
@@ -23,7 +24,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ReportController extends Controller
 {
-    private const KINDS = ['vouchers', 'expenses', 'payments', 'departments', 'employees', 'approvals', 'monthly'];
+    private const KINDS = ['vouchers', 'expenses', 'payments', 'cash', 'departments', 'employees', 'approvals', 'monthly'];
+
+    /**
+     * Status filters a report accepts. The list's tab keys (pending, drafts,
+     * awaiting_payment) and the stored lifecycle values are both understood.
+     */
+    private const STATUS_FILTERS = [
+        'all', 'draft', 'drafts', 'pending', 'in_review', 'changes_requested',
+        'approved', 'awaiting_payment', 'paid', 'rejected', 'cancelled',
+    ];
 
     /**
      * Which reports each role may run at all.
@@ -37,8 +47,8 @@ class ReportController extends Controller
      */
     private const KINDS_BY_ROLE = [
         User::ROLE_EMPLOYEE => ['vouchers', 'expenses'],
-        User::ROLE_CASHIER => ['payments', 'vouchers', 'expenses', 'departments', 'monthly'],
-        User::ROLE_FINANCE => ['payments', 'vouchers', 'expenses', 'departments', 'employees', 'approvals', 'monthly'],
+        User::ROLE_CASHIER => ['payments', 'cash', 'vouchers', 'expenses', 'departments', 'monthly'],
+        User::ROLE_FINANCE => ['payments', 'cash', 'vouchers', 'expenses', 'departments', 'employees', 'approvals', 'monthly'],
     ];
 
     public function __construct(
@@ -63,6 +73,7 @@ class ReportController extends Controller
             'vouchers' => ['key' => 'vouchers', 'icon' => 'ph-receipt', 'title' => 'Voucher report', 'title_sw' => 'Ripoti ya vocha', 'body' => 'Every voucher with status, approver and amount', 'body_sw' => 'Kila vocha na hali, mwidhinishaji na kiasi'],
             'expenses' => ['key' => 'expenses', 'icon' => 'ph-coins', 'title' => 'Expense report', 'title_sw' => 'Ripoti ya matumizi', 'body' => 'Spend by category and cost centre', 'body_sw' => 'Matumizi kwa kundi na kituo cha gharama'],
             'payments' => ['key' => 'payments', 'icon' => 'ph-wallet', 'title' => 'Payment report', 'title_sw' => 'Ripoti ya malipo', 'body' => 'Money released, by bank and by cash', 'body_sw' => 'Fedha zilizotolewa, kwa benki na kwa taslimu'],
+            'cash' => ['key' => 'cash', 'icon' => 'ph-money', 'title' => 'Cash report', 'title_sw' => 'Ripoti ya fedha taslimu', 'body' => 'Cash vouchers paid and still outstanding, by period', 'body_sw' => 'Vocha za taslimu zilizolipwa na zinazosubiri, kwa kipindi'],
             'departments' => ['key' => 'departments', 'icon' => 'ph-buildings', 'title' => 'Department report', 'title_sw' => 'Ripoti ya idara', 'body' => 'Volume and value per department', 'body_sw' => 'Wingi na thamani kwa kila idara'],
             'employees' => ['key' => 'employees', 'icon' => 'ph-user', 'title' => 'Employee report', 'title_sw' => 'Ripoti ya mfanyakazi', 'body' => 'Requests and outcomes per person', 'body_sw' => 'Maombi na matokeo kwa kila mtu'],
             'approvals' => ['key' => 'approvals', 'icon' => 'ph-list-checks', 'title' => 'Approval report', 'title_sw' => 'Ripoti ya idhini', 'body' => 'Turnaround times and rejection reasons', 'body_sw' => 'Muda wa kushughulikia na sababu za kukataa'],
@@ -126,7 +137,7 @@ class ReportController extends Controller
             'headings' => $headings,
             'rows' => $rows,
             'summary' => $summary,
-            'filters' => $request->only(['from', 'to', 'department_id', 'status', 'voucher_type_id', 'requester_id']),
+            'filters' => $request->only(['from', 'to', 'department_id', 'status', 'voucher_type_id', 'requester_id', 'kind', 'q']),
             'generated_at' => now()->toIso8601String(),
         ]);
     }
@@ -174,6 +185,7 @@ class ReportController extends Controller
         return match ($kind) {
             'expenses' => $this->expenses($request),
             'payments' => $this->payments($request),
+            'cash' => $this->payments($request, Voucher::KIND_CASH),
             'departments' => $this->departments($request),
             'employees' => $this->employees($request),
             'approvals' => $this->approvals($request),
@@ -182,20 +194,35 @@ class ReportController extends Controller
         };
     }
 
-    private function scopedVouchers(Request $request)
+    /**
+     * The caller's visible vouchers, narrowed by the report filters.
+     *
+     * Money reports (payments, cash) date a paid voucher by the day the money
+     * moved and an outstanding one by its voucher date, so "September" means
+     * what was paid in September plus what September raised and is still owed.
+     */
+    private function scopedVouchers(Request $request, bool $byPaymentDate = false)
     {
         $query = Voucher::query()->with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps']);
 
         $this->visibility->apply($query, $request->user());
 
+        $effectiveDate = '(CASE WHEN vouchers.status = ? THEN COALESCE(vouchers.payment_date, vouchers.voucher_date) ELSE vouchers.voucher_date END)';
+        $day = fn (string $value) => Carbon::parse($value)->toDateString();
+
         return $query
-            ->when($request->query('from'), fn ($q, $v) => $q->whereDate('voucher_date', '>=', $v))
-            ->when($request->query('to'), fn ($q, $v) => $q->whereDate('voucher_date', '<=', $v))
+            ->when($request->query('from'), fn ($q, $v) => $byPaymentDate
+                ? $q->whereRaw("{$effectiveDate} >= ?", [Voucher::STATUS_PAID, $day($v)])
+                : $q->whereDate('vouchers.voucher_date', '>=', $v))
+            ->when($request->query('to'), fn ($q, $v) => $byPaymentDate
+                ? $q->whereRaw("{$effectiveDate} <= ?", [Voucher::STATUS_PAID, $day($v)])
+                : $q->whereDate('vouchers.voucher_date', '<=', $v))
             ->when($request->query('department_id'), fn ($q, $v) => $q->where('department_id', $v))
             ->when($request->query('voucher_type_id'), fn ($q, $v) => $q->where('voucher_type_id', $v))
             ->when($request->query('requester_id'), fn ($q, $v) => $q->where('requester_id', $v))
-            ->when($request->query('status'), fn ($q, $v) => $q->status($v))
+            ->when($request->query('status'), fn ($q, $v) => $q->status($this->statusKey($v)))
             ->when($request->query('kind'), fn ($q, $v) => $q->kind($v))
+            ->search($request->query('q'))
             ->when($request->query('payee'), fn ($q, $v) => $q->where('payee', 'like', '%'.$v.'%'))
             ->when($request->query('min_amount'), fn ($q, $v) => $q->where('amount', '>=', $v))
             ->when($request->query('max_amount'), fn ($q, $v) => $q->where('amount', '<=', $v))
@@ -229,7 +256,11 @@ class ReportController extends Controller
 
     private function expenses(Request $request): array
     {
-        $vouchers = $this->scopedVouchers($request)->where('status', Voucher::STATUS_APPROVED)->get();
+        // Spend is everything approved, whether or not the cashier has paid it
+        // yet — a voucher must not drop out of the expense report once paid.
+        $vouchers = $this->scopedVouchers($request)
+            ->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])
+            ->get();
 
         $rows = $vouchers->groupBy(fn (Voucher $v) => $v->category ?: 'Uncategorised')
             ->map(fn ($group, $category) => [
@@ -254,48 +285,74 @@ class ReportController extends Controller
      * because they reconcile against different things — a statement and a
      * float — and a single "paid" column hides which is which.
      */
-    private function payments(Request $request): array
+    private function payments(Request $request, ?string $onlyKind = null): array
     {
-        $vouchers = $this->scopedVouchers($request)
+        $vouchers = $this->scopedVouchers($request, byPaymentDate: true)
             ->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])
+            ->when($onlyKind, fn ($q, $k) => $q->where('kind', $k))
             ->with('paidBy')
             ->orderByDesc('payment_date')->orderByDesc('approved_at')
             ->get();
 
-        $rows = $vouchers->map(fn (Voucher $v) => [
+        $rows = $onlyKind === Voucher::KIND_CASH ? $vouchers->map(fn (Voucher $v) => [
+            $v->number,
+            $v->voucher_date?->format('Y-m-d'),
+            $v->payment_date?->format('Y-m-d') ?? '—',
+            $v->payee,
+            $v->department?->name ?? '—',
+            $v->requester?->name ?? '—',
+            (float) $v->amount,
+            $v->currency,
+            $v->released(),
+            $v->balance(),
+            $v->cash_float ?: '—',
+            $v->received_by ?: '—',
+            $v->paidBy?->name ?? '—',
+            $v->isPaid() ? 'Paid' : ($v->isPartiallyPaid() ? 'Partially paid' : 'Awaiting payment'),
+        ])->all() : $vouchers->map(fn (Voucher $v) => [
             $v->number,
             $v->isBank() ? 'Bank' : 'Cash',
             $v->payment_date?->format('Y-m-d') ?? '—',
             $v->payee,
             $v->department?->name ?? '—',
             (float) $v->amount,
+            $v->released(),
+            $v->balance(),
             $v->currency,
             $v->payment_method ?: '—',
             $v->payment_reference ?: ($v->cheque_number ?: '—'),
             $v->paidBy?->name ?? '—',
-            $v->isPaid() ? 'Paid' : 'Awaiting payment',
+            $v->isPaid() ? 'Paid' : ($v->isPartiallyPaid() ? 'Partially paid' : 'Awaiting payment'),
         ])->all();
 
         $paid = $vouchers->where('status', Voucher::STATUS_PAID);
         $outstanding = $vouchers->where('status', Voucher::STATUS_APPROVED);
         $currency = $this->tenant->company()?->currency ?? 'TZS';
+        // Money released (part payments included) and what is still owed.
+        $released = fn ($rows) => (float) $rows->sum(fn (Voucher $v) => $v->released());
+        $owed = (float) $outstanding->sum(fn (Voucher $v) => $v->balance());
 
         return [
-            'title' => 'Payment report',
-            'headings' => ['Number', 'Format', 'Paid on', 'Payee', 'Department', 'Amount', 'Currency', 'Method', 'Reference', 'Paid by', 'Status'],
+            'title' => $onlyKind === Voucher::KIND_CASH ? 'Cash report' : 'Payment report',
+            'headings' => $onlyKind === Voucher::KIND_CASH
+                ? ['Number', 'Voucher date', 'Paid on', 'Payee', 'Department', 'Requester', 'Amount', 'Currency', 'Paid so far', 'Balance', 'Cash float', 'Received by', 'Paid by', 'Status']
+                : ['Number', 'Format', 'Paid on', 'Payee', 'Department', 'Amount', 'Paid so far', 'Balance', 'Currency', 'Method', 'Reference', 'Paid by', 'Status'],
             'rows' => $rows,
             // The same shape every other report returns, plus the split that
             // only matters here: released vs still outstanding, bank vs cash.
             'summary' => $this->summary($vouchers) + [
-                'paid_total' => (float) $paid->sum('amount'),
-                'paid_total_text' => $this->money->money((float) $paid->sum('amount'), $currency),
+                'paid_total' => $released($vouchers),
+                'paid_total_text' => $this->money->money($released($vouchers), $currency),
                 'paid_count' => $paid->count(),
-                'bank_total_text' => $this->money->money((float) $paid->where('kind', Voucher::KIND_BANK)->sum('amount'), $currency),
+                'partially_paid_count' => $outstanding->filter(fn (Voucher $v) => $v->isPartiallyPaid())->count(),
+                'bank_total_text' => $this->money->money($released($vouchers->where('kind', Voucher::KIND_BANK)), $currency),
                 'bank_count' => $paid->where('kind', Voucher::KIND_BANK)->count(),
-                'cash_total_text' => $this->money->money((float) $paid->where('kind', Voucher::KIND_CASH)->sum('amount'), $currency),
+                'cash_total_text' => $this->money->money($released($vouchers->where('kind', Voucher::KIND_CASH)), $currency),
                 'cash_count' => $paid->where('kind', Voucher::KIND_CASH)->count(),
-                'outstanding_total_text' => $this->money->money((float) $outstanding->sum('amount'), $currency),
+                'outstanding_total' => $owed,
+                'outstanding_total_text' => $this->money->money($owed, $currency),
                 'outstanding_count' => $outstanding->count(),
+                'date_basis' => 'payment_date_when_paid',
             ],
         ];
     }
@@ -312,7 +369,7 @@ class ReportController extends Controller
                 $d->hod?->name ?? '—',
                 $d->manager?->name ?? '—',
                 $group->count(),
-                (float) $group->where('status', Voucher::STATUS_APPROVED)->sum('amount'),
+                (float) $group->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])->sum('amount'),
                 (float) $group->where('status', Voucher::STATUS_IN_REVIEW)->sum('amount'),
             ];
         })->all();
@@ -337,7 +394,7 @@ class ReportController extends Controller
                 $first->requester?->employee_code ?? '—',
                 $first->department?->name ?? '—',
                 $group->count(),
-                $group->where('status', Voucher::STATUS_APPROVED)->count(),
+                $group->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])->count(),
                 $group->where('status', Voucher::STATUS_REJECTED)->count(),
                 (float) $group->sum('amount'),
             ];
@@ -390,11 +447,11 @@ class ReportController extends Controller
             ->map(fn ($group, $period) => [
                 $period,
                 $group->count(),
-                $group->where('status', Voucher::STATUS_APPROVED)->count(),
+                $group->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])->count(),
                 $group->where('status', Voucher::STATUS_REJECTED)->count(),
                 $group->where('status', Voucher::STATUS_IN_REVIEW)->count(),
                 (float) $group->sum('amount'),
-                (float) $group->where('status', Voucher::STATUS_APPROVED)->sum('amount'),
+                (float) $group->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])->sum('amount'),
             ])
             ->sortKeys()->values()->all();
 
@@ -447,15 +504,27 @@ class ReportController extends Controller
             : 'All time';
     }
 
+    /** The list's words for a status, mapped onto what the scope understands. */
+    private function statusKey(string $status): string
+    {
+        return match ($status) {
+            'awaiting_payment' => Voucher::STATUS_APPROVED,
+            'in_review' => 'pending',
+            'draft' => 'drafts',
+            default => $status,
+        };
+    }
+
     private function filterRules(): array
     {
         return [
+            'q' => ['nullable', 'string', 'max:120'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
             'department_id' => ['nullable', 'integer'],
             'voucher_type_id' => ['nullable', 'integer'],
             'requester_id' => ['nullable', 'integer'],
-            'status' => ['nullable', 'string'],
+            'status' => ['nullable', Rule::in(self::STATUS_FILTERS)],
             'kind' => ['nullable', Rule::in(Voucher::KINDS)],
             'payee' => ['nullable', 'string', 'max:180'],
             'min_amount' => ['nullable', 'numeric'],

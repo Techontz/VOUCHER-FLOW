@@ -6,8 +6,8 @@
  */
 
 import {
-  actionQueueFor, applicableSteps, assigneesFor, availableActions, capabilityText,
-  idleDays, inFlight, nextStepAfter, pendingFor, presentStatus, reportableDepartments,
+  actionQueueFor, applicableSteps, assigneesFor, availableActions, balanceOf, capabilityText,
+  idleDays, nextStepAfter, pendingFor, presentStatus, reportableDepartments,
   roleLabel, stalledVouchers, stepAt, visibleVouchers, workflowFor,
 } from "./engine";
 import {
@@ -15,7 +15,7 @@ import {
   money, notificationResource, paginate, planResource, userResource, voucherResource,
   workflowResource,
 } from "./present";
-import { DEFAULT_STEPS, WORKFLOW_PRESETS, SAMPLE_SIGNATURE, type MockDataset, type MockStep, type MockUser, type MockVoucher } from "./seed";
+import { DEFAULT_STEPS, WORKFLOW_PRESETS, SAMPLE_SIGNATURE, type MockStep, type MockUser, type MockVoucher } from "./seed";
 import { store } from "./store";
 import type { Role } from "../types";
 
@@ -42,6 +42,8 @@ export class MockError extends Error {
     message: string,
     public errors: Record<string, string[]> = {},
     public code?: string,
+    /** Extra fields of the error body, e.g. `reason` and `retry_after`. */
+    public details: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -141,11 +143,128 @@ function logAction(voucher: MockVoucher, user: MockUser, action: string, step: M
   });
 }
 
+/* ═══════════════════════════════════════════════ two-step sign-in (mock) ══ */
+
+/**
+ * Mirrors backend/app/Services/TwoFactorLogin.php: a password opens a
+ * short-lived challenge, a code is sent to one of the user's channels, and only
+ * the right code turns the challenge into a token. The code is fixed here —
+ * nothing is delivered offline — and is never returned in a response.
+ */
+type LoginChannel = "email" | "sms";
+
+interface MockLoginChallenge {
+  id: string;
+  userId: number;
+  channels: LoginChannel[];
+  sentTo: LoginChannel | null;
+  sentAt: number | null;
+  sends: number;
+  attempts: number;
+  expiresAt: number;
+  codeExpiresAt: number | null;
+}
+
+export const MOCK_LOGIN_CODE = "418205";
+const LOGIN_CHALLENGE_TTL = 900;
+const LOGIN_CODE_TTL = 600;
+const LOGIN_RESEND_COOLDOWN = 30;
+const LOGIN_MAX_SENDS = 5;
+const LOGIN_MAX_ATTEMPTS = 5;
+
+/** In memory only: a reload ends the challenge, as signing in again would. */
+const loginChallenges = new Map<string, MockLoginChallenge>();
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  return `${local.slice(0, 1)}•••@${domain ?? ""}`;
+}
+
+function maskPhone(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (d.startsWith("255") && d.length >= 12) return `+255 ${d[3]}•• ••• ${d.slice(-3)}`;
+  return `••• ${d.slice(-3)}`;
+}
+
+function destinationFor(user: MockUser, channel: LoginChannel): string {
+  return channel === "sms" ? maskPhone(user.phone ?? "") : maskEmail(user.email);
+}
+
+function sendLoginCode(challenge: MockLoginChallenge, user: MockUser, channel: LoginChannel) {
+  const at = Date.now();
+  if (challenge.sends >= LOGIN_MAX_SENDS) {
+    loginChallenges.delete(challenge.id);
+    throw new MockError(429, "Too many codes have been requested. Sign in again.", {}, undefined, {
+      reason: "too_many_sends",
+    });
+  }
+  if (challenge.sentAt !== null && at - challenge.sentAt < LOGIN_RESEND_COOLDOWN * 1000) {
+    const wait = Math.ceil((challenge.sentAt + LOGIN_RESEND_COOLDOWN * 1000 - at) / 1000);
+    throw new MockError(429, `Please wait ${wait} seconds before requesting another code.`, {}, undefined, {
+      reason: "resend_cooldown", retry_after: wait,
+    });
+  }
+  challenge.sentTo = channel;
+  challenge.sentAt = at;
+  challenge.sends += 1;
+  challenge.codeExpiresAt = at + LOGIN_CODE_TTL * 1000;
+  return {
+    sent_to: channel,
+    destination: destinationFor(user, channel),
+    code_expires_in: LOGIN_CODE_TTL,
+    resend_in: LOGIN_RESEND_COOLDOWN,
+    sends_remaining: LOGIN_MAX_SENDS - challenge.sends,
+  };
+}
+
+function openLoginChallenge(user: MockUser) {
+  const channels: LoginChannel[] = user.phone ? ["email", "sms"] : ["email"];
+  const challenge: MockLoginChallenge = {
+    id: `mock-challenge-${user.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+    userId: user.id, channels, sentTo: null, sentAt: null, sends: 0, attempts: 0,
+    expiresAt: Date.now() + LOGIN_CHALLENGE_TTL * 1000, codeExpiresAt: null,
+  };
+  loginChallenges.set(challenge.id, challenge);
+
+  // With a single channel there is nothing to choose, so the code goes at once.
+  const sent = channels.length === 1 ? sendLoginCode(challenge, user, channels[0]) : null;
+
+  return {
+    requires_verification: true,
+    challenge: challenge.id,
+    channels: channels.map((channel) => ({ channel, destination: destinationFor(user, channel) })),
+    sent_to: sent?.sent_to ?? null,
+    expires_in: LOGIN_CHALLENGE_TTL,
+    code_expires_in: sent?.code_expires_in ?? null,
+    resend_in: sent?.resend_in ?? null,
+  };
+}
+
+/** The challenge named in the body, or the 422 that sends the user back to sign in. */
+function liveLoginChallenge(id: unknown): MockLoginChallenge {
+  const challenge = loginChallenges.get(String(id ?? ""));
+  if (!challenge || Date.now() > challenge.expiresAt) {
+    if (challenge) loginChallenges.delete(challenge.id);
+    const message = "This sign-in has expired. Sign in again.";
+    throw new MockError(422, message, { challenge: [message] }, undefined, { reason: "challenge_expired" });
+  }
+  return challenge;
+}
+
 /* ══════════════════════════════════════════════════════════════ handlers ══ */
 
 export function handle(method: string, path: string, body: Body = {}, query: Query = {}, token: string | null = null): unknown {
   const db = store.db;
   const seg = path.replace(/^\/+/, "").split("/");
+
+  // Voucher designs and documents are rendered by the Laravel server from its
+  // Blade templates; the in-browser fixture has nothing to render them with.
+  // Say so plainly rather than letting the path fall through to a handler
+  // that answers something else.
+  if (path.startsWith("/voucher-templates") || path.includes("/voucher-template")
+    || /^\/vouchers\/(\d+\/document|document-preview)$/.test(path)) {
+    throw new MockError(501, "Voucher designs are rendered by the VouchFlow server. Connect the live API to see them.");
+  }
   const num = (v: string | undefined) => Number(v);
   const int = (v: string | undefined, fallback: number) => (v ? Number(v) : fallback);
 
@@ -157,11 +276,55 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
 
   if (method === "POST" && path === "/auth/login") {
     const identifier = String(body.email ?? "").trim().toLowerCase();
-    const user = db.users.find((u) => u.email.toLowerCase() === identifier);
+    const digits = identifier.replace(/\D/g, "");
+    const user = db.users.find((u) => u.email.toLowerCase() === identifier
+      || (!!u.phone && digits.length >= 9 && u.phone.replace(/\D/g, "").endsWith(digits.slice(-9))));
     if (!user || String(body.password ?? "") !== "Password123!") {
       throw new MockError(422, "These credentials do not match our records.", {
         email: ["These credentials do not match our records."],
       });
+    }
+    // Password accepted — a one-time code is still required before a token.
+    return openLoginChallenge(user);
+  }
+
+  if (method === "POST" && path === "/auth/login/send-code") {
+    const challenge = liveLoginChallenge(body.challenge);
+    const channel = String(body.channel ?? "") as LoginChannel;
+    if (!challenge.channels.includes(channel)) {
+      throw new MockError(422, "Choose one of the offered verification methods.", {
+        channel: ["Choose one of the offered verification methods."],
+      });
+    }
+    const user = db.users.find((u) => u.id === challenge.userId)!;
+    return sendLoginCode(challenge, user, channel);
+  }
+
+  if (method === "POST" && path === "/auth/login/verify") {
+    const challenge = liveLoginChallenge(body.challenge);
+    const fail = (reason: string, message: string, extra: Record<string, unknown> = {}) =>
+      new MockError(422, message, { code: [message] }, undefined, { reason, ...extra });
+
+    if (!challenge.sentTo) {
+      throw fail("no_code", "No code has been sent yet. Choose where to receive it.");
+    }
+    if (challenge.codeExpiresAt !== null && Date.now() > challenge.codeExpiresAt) {
+      throw fail("code_expired", "This code has expired. Request a new one.");
+    }
+    if (String(body.code ?? "") !== MOCK_LOGIN_CODE) {
+      challenge.attempts += 1;
+      const remaining = LOGIN_MAX_ATTEMPTS - challenge.attempts;
+      if (remaining <= 0) {
+        loginChallenges.delete(challenge.id);
+        throw fail("too_many_attempts", "Too many incorrect codes. Sign in again.");
+      }
+      throw fail("invalid_code", "That code is not correct.", { attempts_remaining: remaining });
+    }
+
+    loginChallenges.delete(challenge.id);
+    const user = db.users.find((u) => u.id === challenge.userId)!;
+    if (user.status === "suspended") {
+      throw fail("account_unavailable", "This account is not available. Contact your administrator.");
     }
     store.mutate((d) => {
       const row = d.users.find((u) => u.id === user.id)!;
@@ -179,14 +342,18 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       token: authToken, user: userResource(db, admin),
       company: companyResource(db, admin.company_id),
       requires_verification: true,
-      otp: { identifier: String(body.email ?? admin.email), purpose: "registration", expires_in: 600, code: "418205" },
+      otp: { identifier: String(body.email ?? admin.email), purpose: "registration", expires_in: 600 },
     };
   }
 
   if (method === "POST" && (path === "/auth/otp/send" || path === "/auth/forgot-password")) {
+    const purpose = path === "/auth/forgot-password" ? "password_reset" : String(body.purpose ?? "registration");
+    if (purpose !== "registration" && purpose !== "password_reset") {
+      throw new MockError(422, "The selected purpose is invalid.", { purpose: ["The selected purpose is invalid."] });
+    }
     return {
       message: "If that address matches an account, a code is on its way.",
-      otp: { identifier: String(body.identifier ?? body.email ?? ""), purpose: body.purpose ?? "registration", expires_in: 600, code: "418205" },
+      otp: { identifier: String(body.identifier ?? body.email ?? ""), purpose, expires_in: 600 },
     };
   }
 
@@ -194,7 +361,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
     if (String(body.code ?? "") !== "418205") {
       throw new MockError(422, "That code is not correct.", { code: ["That code is not correct."] });
     }
-    return { verified: true, user: null, token: null };
+    return { verified: true };
   }
 
   if (method === "POST" && path === "/auth/reset-password") {
@@ -264,11 +431,15 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
 
     const status = query.status;
     if (status && status !== "all") {
-      if (status === "pending") rows = rows.filter((v) => v.status === "in_review");
-      else if (status === "drafts") rows = rows.filter((v) => v.status === "draft");
+      if (status === "pending" || status === "in_review") rows = rows.filter((v) => v.status === "in_review");
+      else if (status === "drafts" || status === "draft") rows = rows.filter((v) => v.status === "draft");
+      else if (status === "awaiting_payment") rows = rows.filter((v) => v.status === "approved");
       else rows = rows.filter((v) => v.status === status);
     }
     if (query.kind) rows = rows.filter((v) => v.kind === query.kind);
+    // The fixture records when money moved as paid_at; the API's payment_date.
+    if (query.paid_from) rows = rows.filter((v) => (v.paid_at ?? "").slice(0, 10) >= query.paid_from);
+    if (query.paid_to) rows = rows.filter((v) => !!v.paid_at && v.paid_at.slice(0, 10) <= query.paid_to);
     if (query.department_id) rows = rows.filter((v) => v.department_id === num(query.department_id));
     if (query.voucher_type_id) rows = rows.filter((v) => v.voucher_type_id === num(query.voucher_type_id));
     if (query.requester_id) rows = rows.filter((v) => v.requester_id === num(query.requester_id));
@@ -294,8 +465,11 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
     });
 
     const page = paginate(rows, int(query.page, 1), int(query.per_page, 20));
+    // Who refused or returned each row, as the API sends it on list rows.
+    const decidedBy = (v: MockVoucher) => [...db.approvals].reverse()
+      .find((a) => a.voucher_id === v.id && (a.action === "rejected" || a.action === "changes_requested"))?.actor_name ?? null;
     return {
-      data: page.data.map((v) => voucherResource(db, v, user)),
+      data: page.data.map((v) => ({ ...voucherResource(db, v, user), decided_by: decidedBy(v) })),
       meta: {
         ...page.meta,
         total_amount: rows.reduce((sum, v) => sum + v.amount, 0),
@@ -334,11 +508,82 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
           .forEach((k) => { if (body[k] !== undefined) (row as never as Body)[k] = body[k]; });
         if (body.amount !== undefined) row.amount = Number(body.amount) || 0;
         if (body.currency) row.currency = String(body.currency);
-        if (body.department_id !== undefined) row.department_id = body.department_id ? Number(body.department_id) : null;
         if (body.voucher_type_id) row.voucher_type_id = Number(body.voucher_type_id);
       });
       recordAudit("voucher.updated", `Updated voucher ${voucher.number}`, user, { type: "Voucher", id });
       return { data: voucherResource(store.db, store.db.vouchers.find((v) => v.id === id)!, user, true) };
+    }
+
+    /**
+     * The paper trail for one payment — VoucherPaymentController.
+     *
+     * The printable acknowledgement is a PDF rendered by the server, and the
+     * fixture holds no PDF engine, so GET says so plainly instead of pretending.
+     * Filing the signed copy works like any attachment: the fixture records the
+     * file's name, type and size and marks the payment acknowledged.
+     */
+    if (action === "payments" && seg[3] && seg[4] === "acknowledgement") {
+      const voucher = findVoucher(id, user);
+      const payment = (voucher.payments ?? []).find((p) => p.id === num(seg[3]));
+      if (!payment) throw new MockError(404, "Payment not found.");
+
+      if (method === "GET") {
+        throw new MockError(
+          501,
+          "The printable acknowledgement is generated by the server. Connect the API to print it.",
+          {},
+          "phase_one_frontend_only",
+        );
+      }
+
+      if (method === "POST") {
+        const mayFile = user.role === "company_admin"
+          || payment.paid_by_id === user.id
+          || availableActions(db, user, voucher).pay;
+        if (!mayFile) {
+          throw new MockError(403, "Only the cashier who paid, or a company admin, can file the signed acknowledgement.");
+        }
+
+        const raw = Array.isArray(body.file) ? body.file[0] : body.file;
+        const file = raw && typeof raw === "object" ? raw as { name: string; size: number; type: string } : null;
+        if (!file) throw new MockError(422, "Choose the signed acknowledgement to upload.", { file: ["Choose the signed acknowledgement to upload."] });
+        if (!ALLOWED_UPLOAD_MIMES.includes(file.type)) {
+          const message = "The signed acknowledgement must be a PDF or an image.";
+          throw new MockError(422, message, { file: [message] });
+        }
+        if (Number(file.size) > MAX_UPLOAD_MB * 1_048_576) {
+          const message = `The file must be under ${MAX_UPLOAD_MB} MB.`;
+          throw new MockError(422, message, { file: [message] });
+        }
+
+        const reference = `${voucher.number}/${payment.sequence}`.replace(/\//g, "-");
+        const extension = String(file.name).split(".").pop() || "pdf";
+        const first = payment.acknowledged_at === null;
+
+        store.mutate((d) => {
+          const row = d.vouchers.find((v) => v.id === id)!;
+          row.attachments.push({
+            id: store.nextId("attachment"),
+            name: `Signed acknowledgement ${reference}.${extension}`,
+            mime: String(file.type),
+            size_bytes: Number(file.size) || 0,
+            document_type: "payment_acknowledgement",
+            voucher_payment_id: payment.id,
+            uploaded_by: user.name,
+            created_at: now(),
+          });
+          const filed = row.payments!.find((p) => p.id === payment.id)!;
+          filed.acknowledged_at = filed.acknowledged_at ?? now();
+        });
+
+        if (first) {
+          logAction(voucher, user, "acknowledged", undefined,
+            `Signed acknowledgement for payment ${payment.sequence} (${money(payment.amount, voucher.currency)}) received from ${payment.received_by || "the receiver"}.`);
+        }
+        recordAudit("voucher.payment_acknowledged", `Signed acknowledgement filed for payment ${payment.sequence} on ${voucher.number}`, user, { type: "Voucher", id });
+
+        return { data: voucherResource(store.db, store.db.vouchers.find((v) => v.id === id)!, user, true) };
+      }
     }
 
     if (method === "POST" && action) {
@@ -457,27 +702,88 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
           break;
         }
 
+        /**
+         * Releases money — all of the balance, or part of it. Mirrors
+         * VoucherController@pay and WorkflowEngine::pay: each release is its
+         * own payment record, and the voucher stays approved (still in the
+         * queue, shown as partially paid) until the balance reaches zero.
+         */
         case "pay": {
           if (!actions.pay) throw new MockError(422, "This voucher is not cleared for payment.");
-          const reference = String(body.reference ?? "").trim();
-          if (!reference) {
-            throw new MockError(422, "A payment reference is required.", { reference: ["A payment reference is required."] });
+          const text = (value: unknown) => (value === undefined || value === null ? "" : String(value).trim());
+          // The API's field names, plus the fixture's older short ones.
+          const reference = text(body.payment_reference ?? body.reference);
+          const receivedBy = text(body.received_by);
+          if (voucher.kind === "bank" && !reference) {
+            throw new MockError(422, "A payment reference is required.", { payment_reference: ["A payment reference is required."] });
           }
-          logAction(voucher, user, "paid", step, comment ?? "Funds released and reference recorded against the voucher.");
+          if (voucher.kind === "cash" && !receivedBy) {
+            throw new MockError(422, "Say who received the cash.", { received_by: ["Say who received the cash."] });
+          }
+
+          const balance = balanceOf(voucher);
+          const amount = body.amount === undefined || body.amount === null || body.amount === ""
+            ? balance
+            : Math.round(Number(body.amount) * 100) / 100;
+          if (!Number.isFinite(amount) || amount <= 0) {
+            throw new MockError(422, "Enter an amount greater than zero.", { amount: ["Enter an amount greater than zero."] });
+          }
+          if (amount > balance + 0.001) {
+            const message = `The amount is more than the balance outstanding (${money(balance, voucher.currency)}).`;
+            throw new MockError(422, message, { amount: [message] });
+          }
+
+          const remaining = Math.max(0, Math.round((balance - amount) * 100) / 100);
+          const settled = remaining <= 0.001;
+          const payMethod = text(body.payment_method ?? body.method) || voucher.payment_method;
+          const note = text(body.note ?? body.comment) || null;
+          const existing = voucher.payments ?? [];
+          // Payment ids are unique across the dataset, as rows in one table are.
+          const paymentId = Math.max(0, ...store.db.vouchers.flatMap((v) => (v.payments ?? []).map((p) => p.id))) + 1;
+
+          logAction(voucher, user, settled ? "paid" : "part_paid", step, settled
+            ? (note ?? "Funds released and reference recorded against the voucher.")
+            : `Part payment ${money(amount, voucher.currency)} — balance ${money(remaining, voucher.currency)} outstanding.${note ? ` ${note}` : ""}`);
           mutateVoucher((v) => {
-            v.status = "paid"; v.paid_at = now(); v.payment_reference = reference;
-            v.paid_by = user.name; v.current_step_position = null; v.step_signed_at = null;
-            if (body.method) v.payment_method = String(body.method);
-            if (body.received_by) v.received_by = String(body.received_by);
+            v.payments = [...existing, {
+              id: paymentId, sequence: existing.length + 1, amount, balance_after: remaining,
+              payment_method: payMethod, payment_reference: reference || null,
+              cheque_number: text(body.cheque_number) || null,
+              received_by: receivedBy || null,
+              receiver_id_number: text(body.receiver_id_number) || null,
+              payment_date: text(body.payment_date) || now().slice(0, 10),
+              paid_at: now(), paid_by: user.name, paid_by_id: user.id,
+              note, acknowledged_at: null,
+            }];
+            v.amount_paid = Math.round(((v.amount_paid ?? 0) + amount) * 100) / 100;
+            // The voucher's own payment fields describe the latest release.
+            if (reference) v.payment_reference = reference;
+            if (payMethod) v.payment_method = payMethod;
+            if (receivedBy) v.received_by = receivedBy;
             if (body.cheque_number) v.cheque_number = String(body.cheque_number);
+            if (settled) {
+              v.status = "paid"; v.paid_at = now(); v.paid_by = user.name;
+              v.current_step_position = null; v.step_signed_at = null;
+            }
           });
-          notify([voucher.requester_id], {
+          notify([voucher.requester_id], settled ? {
             type: "voucher.paid", icon: "ph-check-circle",
             title: `${voucher.number} has been paid`, title_sw: `${voucher.number} imelipwa`,
-            body: `${user.name} released ${money(voucher.amount, voucher.currency)} · reference ${reference}.`,
+            body: `${user.name} released ${money(amount, voucher.currency)}${reference ? ` · reference ${reference}` : ""}.`,
+            voucherId: id, companyId: voucher.company_id,
+          } : {
+            type: "voucher.part_paid", icon: "ph-coins",
+            title: `${voucher.number} has been partly paid`, title_sw: `${voucher.number} imelipwa sehemu`,
+            body: `${user.name} paid ${money(amount, voucher.currency)} of ${money(voucher.amount, voucher.currency)}. The balance of ${money(remaining, voucher.currency)} is still outstanding.`,
             voucherId: id, companyId: voucher.company_id,
           });
-          recordAudit("voucher.paid", `Recorded payment for ${voucher.number}`, user, { type: "Voucher", id }, "Approved → Paid");
+          recordAudit(
+            settled ? "voucher.paid" : "voucher.part_paid",
+            settled
+              ? `Recorded payment for ${voucher.number}`
+              : `Released part payment of ${money(amount, voucher.currency)} on ${voucher.number}; ${money(remaining, voucher.currency)} outstanding`,
+            user, { type: "Voucher", id }, settled ? "Approved → Paid" : undefined,
+          );
           break;
         }
 
@@ -521,8 +827,8 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
          * server, and api.download() already says so.
          */
         case "attachments": {
-          if (!actions.edit) {
-            throw new MockError(403, "Attachments can only be added while the voucher is editable.");
+          if (!actions.attach) {
+            throw new MockError(403, "You cannot add attachments to this voucher.");
           }
 
           const raw = body["files[]"] ?? body.files;
@@ -596,10 +902,37 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
     }
   }
 
+  // Bulk approval: each voucher through the same single-approval handler, so
+  // the same refusals apply; anything refused is reported as skipped.
+  if (method === "POST" && path === "/vouchers/bulk-approve") {
+    if (!body.confirm) throw new MockError(422, "Confirm that you have reviewed these vouchers.", { confirm: ["Confirm that you have reviewed these vouchers."] });
+    const ids = (Array.isArray(body.ids) ? body.ids : []).map(Number);
+    const approved: { id: number; number: string }[] = [];
+    const skipped: { id: number; number: string | null; reason: string }[] = [];
+    for (const vid of ids) {
+      try {
+        const detail = handle("GET", `/vouchers/${vid}`, {}, {}, token) as {
+          data: { number: string; actions?: { approve?: boolean; sign?: boolean }; current_step?: { capabilities?: Record<string, boolean> } | null };
+        };
+        const approving = Boolean(detail.data.current_step?.capabilities?.approve);
+        // Never sign a step that cannot then approve: a sign-only step is not bulk-approvable.
+        if (!detail.data.actions?.approve && !(detail.data.actions?.sign && approving)) throw new Error("Not awaiting your approval.");
+        if (!detail.data.actions?.approve) handle("POST", `/vouchers/${vid}/sign`, {}, {}, token);
+        handle("POST", `/vouchers/${vid}/approve`, { comment: body.comment ?? null }, {}, token);
+        approved.push({ id: vid, number: detail.data.number });
+      } catch (err) {
+        skipped.push({ id: vid, number: null, reason: err instanceof Error ? err.message : "Could not be approved." });
+      }
+    }
+    return { approved, skipped, message: `${approved.length} approved, ${skipped.length} skipped.` };
+  }
+
   if (method === "POST" && path === "/vouchers") {
     const type = db.voucherTypes.find((t) => t.id === Number(body.voucher_type_id))
       ?? db.voucherTypes.find((t) => t.company_id === companyId)!;
-    const wf = db.workflows.find((w) => w.company_id === companyId && w.is_default)!;
+    // As the API resolves it: the type's own active route first, else the default.
+    const wf = db.workflows.find((w) => w.company_id === companyId && w.is_active && w.voucher_type_id === type.id)
+      ?? db.workflows.find((w) => w.company_id === companyId && w.is_default)!;
     const id = store.nextId("voucher");
     const amount = Number(body.amount) || 0;
 
@@ -607,7 +940,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       id, company_id: companyId!, number: nextNumber(type.id),
       kind: (body.kind === "cash" ? "cash" : "bank"),
       voucher_type_id: type.id, workflow_id: wf.id,
-      department_id: body.department_id ? Number(body.department_id) : user.department_id,
+      department_id: user.department_id,
       requester_id: user.id,
       payee: String(body.payee ?? ""), purpose: String(body.purpose ?? ""),
       description: body.description ? String(body.description) : null,
@@ -615,7 +948,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       payment_method: body.payment_method ? String(body.payment_method) : null,
       account_ref: body.account_ref ? String(body.account_ref) : null,
       category: body.category ? String(body.category) : null,
-      cost_centre: db.departments.find((d) => d.id === Number(body.department_id))?.cost_centre ?? null,
+      cost_centre: db.departments.find((d) => d.id === user.department_id)?.cost_centre ?? null,
       voucher_date: String(body.voucher_date ?? now().slice(0, 10)),
       status: "draft", current_step_position: null, step_signed_at: null,
       verification_code: `VF-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
@@ -813,26 +1146,160 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
   if (method === "GET" && path === "/workflows") {
     return { data: db.workflows.filter((w) => w.company_id === companyId).map((w) => workflowResource(db, w)) };
   }
-  if (seg[0] === "workflows" && seg[1] && method === "PUT") {
-    const id = num(seg[1]);
+
+  // Workflow administration, mirroring the API's rules so mock mode refuses
+  // exactly what the live API refuses.
+  const IN_FLIGHT = ["draft", "in_review", "changes_requested", "approved"];
+  const requireWorkflowAdmin = () => {
+    if (user.role !== "company_admin" && user.role !== "super_admin") {
+      throw new MockError(403, "Only an administrator may change the approval workflow.");
+    }
+  };
+  const ownWorkflow = (id: number) => {
+    const wf = store.db.workflows.find((w) => w.id === id && w.company_id === companyId);
+    if (!wf) throw new MockError(404, "Workflow not found.");
+    return wf;
+  };
+  const toMockSteps = (steps: Body[]): MockStep[] => steps.map((s, i) => ({
+    id: s.id ?? store.nextId("step"), position: i + 1,
+    name: String(s.name), name_sw: s.name_sw ?? null, role: s.role,
+    assigned_user_id: s.assigned_user_id ? Number(s.assigned_user_id) : null,
+    assignee_hint: String(s.assignee_hint ?? ""),
+    can_sign: !!s.can_sign, can_approve: !!s.can_approve, can_reject: !!s.can_reject,
+    can_request_changes: !!s.can_request_changes, can_pay: !!s.can_pay,
+    can_print: s.can_print !== false, can_download: s.can_download !== false,
+    requires_signature: s.requires_signature !== undefined ? !!s.requires_signature : !!s.can_sign,
+    min_amount: s.min_amount != null && s.min_amount !== "" ? Number(s.min_amount) : null,
+    max_amount: s.max_amount != null && s.max_amount !== "" ? Number(s.max_amount) : null,
+  }));
+  const coversEveryAmount = (steps: MockStep[]) => {
+    const bands = steps.map((s) => [s.min_amount ?? 0, s.max_amount ?? Infinity] as const).sort((a, b) => a[0] - b[0]);
+    let reached = 0;
+    for (const [min, max] of bands) {
+      if (min > reached + 0.01) return false;
+      reached = Math.max(reached, max);
+      if (reached === Infinity) return true;
+    }
+    return false;
+  };
+  const assertWorkable = (steps: MockStep[], settings: { id?: number; voucher_type_id: number | null; is_default: boolean; is_active: boolean }) => {
+    const errors: Record<string, string[]> = {};
+    const fail = (key: string, message: string) => { errors[key] = [message]; };
+    if (steps.length < 1 || steps.length > 12) fail("steps", "A workflow has between 1 and 12 steps.");
+    if (steps[0]?.role !== "employee") fail("steps.0.role", "The first step must be the request step, taken by the employee who raises the voucher.");
+    steps.forEach((s, i) => {
+      if (s.min_amount != null && s.max_amount != null && s.min_amount > s.max_amount) {
+        fail(`steps.${i}.max_amount`, `Step ${i + 1}: the upper amount limit must not be below the lower limit.`);
+      }
+      if (i > 0 && s.role === "employee") fail(`steps.${i}.role`, `Step ${i + 1}: only the first step may be the requester’s own step. Choose the role that acts here.`);
+      if (i > 0 && s.role === "custom" && !s.assigned_user_id) fail(`steps.${i}.assigned_user_id`, `Step ${i + 1}: a custom approver step must name the person who acts.`);
+      if (s.assigned_user_id && !store.db.users.some((u) => u.id === s.assigned_user_id && u.company_id === companyId)) {
+        fail(`steps.${i}.assigned_user_id`, "The selected steps." + i + ".assigned_user_id is invalid.");
+      }
+    });
+    const approvers = steps.slice(1).filter((s) => s.can_approve);
+    const payers = steps.slice(1).filter((s) => s.can_pay);
+    if (!approvers.length) fail("steps", "At least one step must be able to approve. Otherwise no voucher on this route can ever be approved.");
+    else if (!coversEveryAmount(approvers)) fail("steps", "Some amounts would reach no step that can approve. Remove the amount limits from one approving step, or close the gap between the bands.");
+    else if (!payers.length) fail("steps", "At least one step must be able to pay. Otherwise approved vouchers on this route can never be paid.");
+    else if (!coversEveryAmount(payers)) fail("steps", "Some amounts would reach no step that can pay. Remove the amount limits from one paying step, or close the gap between the bands.");
+    if (settings.is_default && settings.voucher_type_id != null) {
+      fail("voucher_type_id", "The default workflow applies to all voucher types. Choose “All voucher types”, or make another workflow the default.");
+    }
+    if (settings.is_default && !settings.is_active) {
+      fail("is_active", "The default workflow must stay active. Make another workflow the default before deactivating this one.");
+    }
+    if (settings.voucher_type_id != null && settings.is_active) {
+      const clash = store.db.workflows.find((w) => w.company_id === companyId && w.id !== settings.id && w.is_active && w.voucher_type_id === settings.voucher_type_id);
+      if (clash) fail("voucher_type_id", `The workflow “${clash.name}” already routes this voucher type. Deactivate it or choose another voucher type.`);
+    }
+    const keys = Object.keys(errors);
+    if (keys.length) throw new MockError(422, errors[keys[0]][0], errors);
+  };
+
+  if (method === "POST" && path === "/workflows") {
+    requireWorkflowAdmin();
+    const preset = body.from_preset ? WORKFLOW_PRESETS[String(body.from_preset)] : null;
+    const steps = Array.isArray(body.steps) && body.steps.length ? toMockSteps(body.steps as Body[]) : (preset ?? WORKFLOW_PRESETS.default).steps();
+    const settings = {
+      voucher_type_id: body.voucher_type_id ? Number(body.voucher_type_id) : null,
+      is_default: !!body.is_default, is_active: body.is_default ? true : body.is_active !== false,
+    };
+    if (!String(body.name ?? "").trim()) throw new MockError(422, "The name field is required.", { name: ["The name field is required."] });
+    assertWorkable(steps, settings);
+    const id = store.nextId("workflow");
     store.mutate((d) => {
-      const wf = d.workflows.find((w) => w.id === id);
-      if (!wf) throw new MockError(404, "Workflow not found.");
+      if (settings.is_default) d.workflows.forEach((w) => { if (w.company_id === companyId) w.is_default = false; });
+      d.workflows.push({
+        id, company_id: companyId!, name: String(body.name), name_sw: body.name_sw ? String(body.name_sw) : null,
+        description: String(body.description ?? ""), version: 1, steps, ...settings,
+      });
+    });
+    recordAudit("workflow.created", `Created workflow ${body.name}`, user, { type: "Workflow", id });
+    return { data: workflowResource(store.db, store.db.workflows.find((w) => w.id === id)!) };
+  }
+  if (seg[0] === "workflows" && seg[1] && seg[2] === "make-default" && method === "POST") {
+    requireWorkflowAdmin();
+    const wf = ownWorkflow(num(seg[1]));
+    if (wf.voucher_type_id != null) {
+      throw new MockError(422, "A workflow bound to one voucher type cannot be the default. Set it to apply to all voucher types first.");
+    }
+    store.mutate((d) => {
+      d.workflows.forEach((w) => { if (w.company_id === companyId) w.is_default = w.id === wf.id; });
+      d.workflows.find((w) => w.id === wf.id)!.is_active = true;
+    });
+    recordAudit("workflow.default_changed", `Made ${wf.name} the default workflow`, user, { type: "Workflow", id: wf.id });
+    return { data: workflowResource(store.db, store.db.workflows.find((w) => w.id === wf.id)!) };
+  }
+  if (seg[0] === "workflows" && seg[1] && seg[2] === "routing" && method === "GET") {
+    requireWorkflowAdmin();
+    const wf = ownWorkflow(num(seg[1]));
+    return { data: buildRouting(db, companyId!, wf) };
+  }
+  if (seg[0] === "workflows" && seg[1] && !seg[2] && method === "DELETE") {
+    requireWorkflowAdmin();
+    const wf = ownWorkflow(num(seg[1]));
+    if (db.workflows.filter((w) => w.company_id === companyId).length <= 1) {
+      throw new MockError(422, "This is the company’s only workflow. Create another one before deleting it.");
+    }
+    if (wf.is_default) throw new MockError(422, "The default workflow cannot be deleted. Make another workflow the default first.");
+    const inFlight = db.vouchers.filter((v) => v.workflow_id === wf.id && IN_FLIGHT.includes(v.status)).length;
+    if (inFlight) {
+      throw new MockError(422, `${inFlight} ${inFlight === 1 ? "voucher is" : "vouchers are"} still moving through this workflow. Let them finish, or deactivate the workflow instead.`);
+    }
+    if (db.vouchers.some((v) => v.workflow_id === wf.id)) {
+      throw new MockError(422, "Completed vouchers were routed by this workflow and keep it on record. Deactivate it instead of deleting it.");
+    }
+    store.mutate((d) => { d.workflows = d.workflows.filter((w) => w.id !== wf.id); });
+    recordAudit("workflow.deleted", `Deleted workflow ${wf.name}`, user, { type: "Workflow", id: wf.id });
+    return { message: `Workflow ${wf.name} deleted.` };
+  }
+  if (seg[0] === "workflows" && seg[1] && !seg[2] && method === "PUT") {
+    requireWorkflowAdmin();
+    const id = num(seg[1]);
+    const current = ownWorkflow(id);
+    const steps = toMockSteps((body.steps as Body[]) ?? []);
+    const settings = {
+      id,
+      voucher_type_id: body.voucher_type_id !== undefined ? (body.voucher_type_id ? Number(body.voucher_type_id) : null) : current.voucher_type_id ?? null,
+      is_default: body.is_default !== undefined && body.is_default !== null ? !!body.is_default : current.is_default,
+      is_active: body.is_active !== undefined && body.is_active !== null ? !!body.is_active : current.is_active,
+    };
+    if (current.is_default && body.is_default === false) {
+      throw new MockError(422, "A company always has one default workflow. Make another workflow the default instead.", { is_default: ["A company always has one default workflow. Make another workflow the default instead."] });
+    }
+    assertWorkable(steps, settings);
+    store.mutate((d) => {
+      const wf = d.workflows.find((w) => w.id === id)!;
       wf.name = String(body.name ?? wf.name);
+      if (body.name_sw !== undefined) wf.name_sw = body.name_sw ? String(body.name_sw) : null;
       wf.description = String(body.description ?? wf.description);
+      wf.voucher_type_id = settings.voucher_type_id;
+      wf.is_active = settings.is_active;
+      if (settings.is_default && !wf.is_default) d.workflows.forEach((w) => { if (w.company_id === companyId) w.is_default = false; });
+      wf.is_default = settings.is_default;
       wf.version += 1;
-      wf.steps = (body.steps as Body[]).map((s, i) => ({
-        id: s.id ?? store.nextId("step"), position: i + 1,
-        name: String(s.name), name_sw: s.name_sw ?? null, role: s.role,
-        assigned_user_id: s.assigned_user_id ? Number(s.assigned_user_id) : null,
-        assignee_hint: String(s.assignee_hint ?? ""),
-        can_sign: !!s.can_sign, can_approve: !!s.can_approve, can_reject: !!s.can_reject,
-        can_request_changes: !!s.can_request_changes, can_pay: !!s.can_pay,
-        can_print: s.can_print !== false, can_download: s.can_download !== false,
-        requires_signature: !!s.can_sign,
-        min_amount: s.min_amount != null && s.min_amount !== "" ? Number(s.min_amount) : null,
-        max_amount: s.max_amount != null && s.max_amount !== "" ? Number(s.max_amount) : null,
-      }));
+      wf.steps = steps;
     });
     recordAudit("workflow.updated", "Changed the approval workflow", user, { type: "Workflow", id });
     return { data: workflowResource(store.db, store.db.workflows.find((w) => w.id === id)!) };
@@ -962,6 +1429,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
   }
   if (method === "GET" && path === "/audit-logs") {
     let rows = user.role === "super_admin" ? db.audit : db.audit.filter((a) => a.company_id === companyId);
+    if (user.role === "super_admin" && query.company_id) rows = rows.filter((a) => a.company_id === Number(query.company_id));
     if (query.action) rows = rows.filter((a) => a.action.startsWith(query.action));
     const q = (query.q ?? "").toLowerCase();
     if (q) rows = rows.filter((a) => `${a.description}${a.actor_name}`.toLowerCase().includes(q));
@@ -982,6 +1450,130 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       const page = paginate(rows, int(query.page, 1), int(query.per_page, 25));
       return { data: page.data.map((c) => companyResource(db, c.id)), meta: page.meta };
     }
+    // Read-only views into one tenant (Platform\CompanyInsightController).
+    if (method === "GET" && seg[1] === "companies" && seg[2] && seg[3]) {
+      const cid = num(seg[2]);
+      const company = db.companies.find((c) => c.id === cid);
+      if (!company) throw new MockError(404, "Company not found.");
+      const vouchers = db.vouchers.filter((v) => v.company_id === cid);
+      const people = db.users.filter((u) => u.company_id === cid);
+      const depts = db.departments.filter((d) => d.company_id === cid);
+      const sum = (rows: MockVoucher[]) => rows.reduce((t, v) => t + v.amount, 0);
+      const by = (s: MockVoucher["status"]) => vouchers.filter((v) => v.status === s);
+
+      if (seg[3] === "overview") {
+        const stages = new Map<string, { position: number; name: string; role: string | null; count: number; value: number }>();
+        for (const v of by("in_review")) {
+          const step = stepAt(db, v, v.current_step_position);
+          const key = step ? `${step.position}|${step.name}` : "0|Unassigned";
+          const row = stages.get(key) ?? { position: step?.position ?? 0, name: step?.name ?? "Unassigned", role: step?.role ?? null, count: 0, value: 0 };
+          row.count += 1; row.value += v.amount; stages.set(key, row);
+        }
+        const start = new Date(); start.setDate(1); start.setMonth(start.getMonth() - 5);
+        const monthly = Array.from({ length: 6 }, (_, i) => {
+          const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const rows = vouchers.filter((v) => v.submitted_at?.startsWith(key));
+          return { month: key, count: rows.length, value: sum(rows) };
+        });
+        const byRole: Record<string, number> = {};
+        people.forEach((u) => { byRole[u.role] = (byRole[u.role] ?? 0) + 1; });
+        return {
+          data: {
+            vouchers: {
+              total: vouchers.length, draft: by("draft").length, in_review: by("in_review").length,
+              changes_requested: by("changes_requested").length, approved: by("approved").length,
+              rejected: by("rejected").length, cancelled: by("cancelled").length, paid: by("paid").length,
+            },
+            values: {
+              total: sum(vouchers), in_review: sum(by("in_review")), approved_unpaid: sum(by("approved")),
+              approved_including_paid: sum(by("approved")) + sum(by("paid")), paid: sum(by("paid")), rejected: sum(by("rejected")),
+            },
+            stages: [...stages.values()].sort((a, b) => a.position - b.position),
+            payments: {
+              paid_count: by("paid").length, paid_value: sum(by("paid")),
+              pending_count: by("approved").length, pending_value: sum(by("approved")),
+              recent: by("paid").sort((a, b) => (b.paid_at ?? "").localeCompare(a.paid_at ?? "")).slice(0, 10).map((v) => ({
+                id: v.id, number: v.number, payee: v.payee, purpose: v.purpose, amount: v.amount, currency: v.currency,
+                kind: v.kind, payment_method: v.payment_method, payment_reference: v.payment_reference,
+                payment_date: v.paid_at?.slice(0, 10) ?? null, paid_at: v.paid_at, paid_by: v.paid_by,
+                department: db.departments.find((d) => d.id === v.department_id)?.name ?? null,
+              })),
+            },
+            people: { total: people.length, active: people.filter((u) => u.status === "active").length, by_role: byRole, departments: depts.length },
+            monthly,
+            currency: company.currency,
+          },
+        };
+      }
+
+      if (seg[3] === "users") {
+        let rows = [...people].sort((a, b) => a.name.localeCompare(b.name));
+        const q = (query.q ?? "").toLowerCase();
+        if (q) rows = rows.filter((u) => `${u.name}${u.email}${u.employee_code ?? ""}`.toLowerCase().includes(q));
+        if (query.role) rows = rows.filter((u) => u.role === query.role);
+        if (query.status) rows = rows.filter((u) => u.status === query.status);
+        if (query.department_id) rows = rows.filter((u) => u.department_id === Number(query.department_id));
+        const page = paginate(rows, int(query.page, 1), int(query.per_page, 25));
+        return { data: page.data.map((u) => userResource(db, u)), meta: page.meta };
+      }
+
+      if (seg[3] === "departments") {
+        const person = (id: number | null) => {
+          const u = db.users.find((x) => x.id === id);
+          return u ? { id: u.id, name: u.name, email: u.email } : null;
+        };
+        return {
+          data: [...depts].sort((a, b) => a.name.localeCompare(b.name)).map((d) => {
+            const own = vouchers.filter((v) => v.department_id === d.id);
+            return {
+              id: d.id, name: d.name, code: d.code, cost_centre: d.cost_centre, is_active: true,
+              hod: person(d.hod_user_id), manager: person(d.manager_user_id),
+              users_count: people.filter((u) => u.department_id === d.id).length,
+              vouchers_count: own.length,
+              approved_value: sum(own.filter((v) => v.status === "approved" || v.status === "paid")),
+            };
+          }),
+        };
+      }
+
+      if (seg[3] === "workflows") {
+        const workflows = db.workflows.filter((w) => w.company_id === cid)
+          .sort((a, b) => Number(b.is_default) - Number(a.is_default) || a.name.localeCompare(b.name));
+        const def = workflows.find((w) => w.is_default) ?? workflows[0];
+        return {
+          data: {
+            workflows: workflows.map((w) => ({ ...workflowResource(db, w), vouchers_count: vouchers.filter((v) => v.workflow_id === w.id).length })),
+            default_id: def?.id ?? null,
+            routing: def ? buildRouting(db, cid, def) : null,
+          },
+        };
+      }
+
+      if (seg[3] === "vouchers") {
+        let rows = [...vouchers];
+        const status = query.status === "awaiting_payment" ? "approved" : query.status === "pending" ? "in_review" : query.status === "drafts" ? "draft" : query.status;
+        if (status && status !== "all") rows = rows.filter((v) => v.status === status);
+        const q = (query.q ?? "").toLowerCase();
+        if (q.length >= 2) rows = rows.filter((v) => `${v.number}${v.purpose}${v.payee}`.toLowerCase().includes(q));
+        if (query.kind) rows = rows.filter((v) => v.kind === query.kind);
+        if (query.department_id) rows = rows.filter((v) => v.department_id === Number(query.department_id));
+        if (query.requester_id) rows = rows.filter((v) => v.requester_id === Number(query.requester_id));
+        if (query.voucher_type_id) rows = rows.filter((v) => v.voucher_type_id === Number(query.voucher_type_id));
+        if (query.from) rows = rows.filter((v) => v.voucher_date >= query.from);
+        if (query.to) rows = rows.filter((v) => v.voucher_date.slice(0, 10) <= query.to);
+        if (query.min_amount) rows = rows.filter((v) => v.amount >= Number(query.min_amount));
+        if (query.max_amount) rows = rows.filter((v) => v.amount <= Number(query.max_amount));
+        rows.sort((a, b) => b.voucher_date.localeCompare(a.voucher_date) || b.id - a.id);
+        const page = paginate(rows, int(query.page, 1), int(query.per_page, 20));
+        return {
+          // The caller is the viewer, as VoucherResource uses $request->user().
+          data: page.data.map((v) => voucherResource(db, v, user)),
+          meta: { ...page.meta, total_amount: sum(rows), currency: company.currency },
+        };
+      }
+    }
+
     if (method === "GET" && seg[1] === "companies" && seg[2]) {
       const id = num(seg[2]);
       const vouchers = db.vouchers.filter((v) => v.company_id === id);
@@ -1001,12 +1593,103 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
         },
       };
     }
+    // Platform\CompanyController@changePlan: the tenant moves at once and a new period starts.
+    if (method === "POST" && seg[1] === "companies" && seg[2] && seg[3] === "change-plan") {
+      const plan = db.plans.find((p) => p.id === Number(body.plan_id));
+      if (!plan) throw new MockError(422, "Choose a plan.", { plan_id: ["The selected plan is invalid."] });
+      const company = db.companies.find((c) => c.id === num(seg[2]));
+      if (!company) throw new MockError(404, "Company not found.");
+      store.mutate((d) => {
+        const row = d.companies.find((c) => c.id === company.id)!;
+        const start = new Date();
+        const end = new Date(start); end.setMonth(end.getMonth() + (plan.billing_cycle === "annual" ? 12 : 1));
+        Object.assign(row, { plan_code: plan.code, status: "active", trial_ends_at: null, current_period_start: start.toISOString(), current_period_end: end.toISOString() });
+      });
+      return { message: `${company.name} moved to the ${plan.name} plan.` };
+    }
+    // Platform\CompanyController@updateBranding: only the branding fields.
+    if (method === "POST" && seg[1] === "companies" && seg[2] && seg[3] === "branding") {
+      const id = num(seg[2]);
+      if (!db.companies.some((c) => c.id === id)) throw new MockError(404, "Company not found.");
+      const hex = /^#[0-9a-fA-F]{6}$/;
+      for (const key of ["primary_color", "secondary_color", "accent_color"] as const) {
+        if (body[key] && !hex.test(String(body[key]))) throw new MockError(422, "Use a colour like #1D4ED8.", { [key]: ["Use a colour like #1D4ED8."] });
+      }
+      store.mutate((d) => {
+        const row = d.companies.find((c) => c.id === id)! as unknown as Record<string, unknown>;
+        for (const key of ["color_theme", "primary_color", "secondary_color", "accent_color", "voucher_header_text", "voucher_footer_text", "theme"]) {
+          if (body[key] !== undefined && body[key] !== null) row[key] = body[key];
+        }
+      });
+      return { data: companyResource(store.db, id) };
+    }
     if (seg[1] === "companies" && (seg[3] === "suspend" || seg[3] === "activate")) {
       store.mutate((d) => {
         d.companies.find((c) => c.id === num(seg[2]))!.status = seg[3] === "suspend" ? "suspended" : "active";
       });
       return { data: companyResource(store.db, num(seg[2])) };
     }
+    // Mirrors Platform\CompanyController@store + CompanyProvisioner: a trial
+    // company with the default voucher types, the default workflow and its
+    // first administrator.
+    if (method === "POST" && seg[1] === "companies" && !seg[2]) {
+      const c = (body.company ?? {}) as Record<string, string | undefined>;
+      const a = (body.admin ?? {}) as Record<string, string | undefined>;
+      const errors: Record<string, string[]> = {};
+      if (!c.name?.trim()) errors["company.name"] = ["The company name is required."];
+      if (!c.email?.trim()) errors["company.email"] = ["The company email is required."];
+      if (!a.name?.trim()) errors["admin.name"] = ["The administrator's name is required."];
+      if (!a.email?.trim()) errors["admin.email"] = ["The administrator's email is required."];
+      else if (db.users.some((u) => u.email.toLowerCase() === a.email!.trim().toLowerCase())) errors["admin.email"] = ["The admin.email has already been taken."];
+      if ((a.password ?? "").length < 8) errors["admin.password"] = ["The password must be at least 8 characters."];
+      if (Object.keys(errors).length) throw new MockError(422, Object.values(errors)[0][0], errors);
+
+      const plan = db.plans.find((p) => p.id === Number(body.plan_id)) ?? db.plans[0];
+      const id = Math.max(0, ...db.companies.map((x) => x.id)) + 1;
+      const day = 86_400_000;
+      const slugBase = c.name!.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "company";
+      store.mutate((d) => {
+        d.companies.push({
+          id, name: c.name!.trim(), slug: d.companies.some((x) => x.slug === slugBase) ? `${slugBase}-${id}` : slugBase,
+          legal_name: c.legal_name ?? null, email: c.email!.trim(), phone: c.phone ?? "", address: c.address ?? "",
+          website: c.website ?? null, tin: null, currency: c.currency ?? "TZS", locale: "en",
+          logo_url: null, logo_mark_url: null, bank_name: null, bank_account_name: null, bank_account_number: null, bank_branch: null,
+          primary_color: "#2E3192", theme: "dark",
+          voucher_footer_text: "This voucher is computer generated and valid without a wet stamp.",
+          status: "trial", plan_code: plan.code, trial_ends_at: new Date(Date.now() + plan.trial_days * day).toISOString(),
+          current_period_start: now(), current_period_end: new Date(Date.now() + plan.trial_days * day).toISOString(),
+          auto_renew: true, created_at: now(),
+        });
+        const template = d.voucherTypes.filter((v) => v.company_id === 1);
+        template.forEach((v, i) => d.voucherTypes.push({ ...v, id: id * 100 + i + 1, company_id: id, next_number: 1 }));
+        d.workflows.push({
+          id: store.nextId("workflow"), company_id: id, name: "Sign, approve, pay",
+          description: "Employee → HOD (sign) → CEO (approve) → Cashier (pay)",
+          is_default: true, is_active: true, version: 1, steps: DEFAULT_STEPS(),
+        });
+        d.users.push({
+          id: store.nextId("user"), company_id: id, name: a.name!.trim(), email: a.email!.trim(), role: "company_admin",
+          job_title: a.job_title || "Company Administrator", employee_code: null, department_id: null,
+          phone: a.phone ?? null, status: "active", locale: "en", theme: "dark", signature: null,
+          last_login_at: null, joined_at: now(), voucher_count: 0,
+        });
+      });
+      return { data: companyResource(store.db, id) };
+    }
+
+    // Mirrors CompanyController@destroy: the tenant disappears from the
+    // platform and nobody in it can sign in any more.
+    if (method === "DELETE" && seg[1] === "companies" && seg[2] && !seg[3]) {
+      const id = num(seg[2]);
+      const target = db.companies.find((x) => x.id === id);
+      if (!target) throw new MockError(404, "Company not found.");
+      store.mutate((d) => {
+        d.companies = d.companies.filter((x) => x.id !== id);
+        d.users = d.users.filter((u) => u.company_id !== id);
+      });
+      return { message: `Company ${target.name} deleted.` };
+    }
+
     if (method === "GET" && seg[1] === "plans") {
       return {
         data: db.plans.map((p) => ({
@@ -1105,57 +1788,143 @@ function usage(companyId: number | null) {
   };
 }
 
-const stat = (label: string, value: string, sub: string, icon?: string, trend?: string, up?: boolean) =>
-  ({ label, value, sub, icon: icon ?? "ph-chart-bar", trend: trend ?? null, up: up ?? null });
+/**
+ * One dashboard figure, in the API's shape: a stable key and params for the
+ * client to translate by, beside the English label it falls back to.
+ */
+const stat = (
+  key: string, label: string, value: string,
+  sub: { key?: string | null; text: string; params?: Record<string, string | number> } = { text: "" },
+  params: Record<string, string | number> = {},
+) => ({
+  key, params, label, value,
+  sub: sub.text, sub_key: sub.key ?? null, sub_params: sub.params ?? {},
+  trend: null, up: null,
+});
+
+const DASH_ACTIVITY_ACTIONS = ["created", "submitted", "resubmitted", "signed", "approved", "rejected", "changes_requested", "paid", "cancelled"];
+const DASH_ACTION_LABELS: Record<string, string> = {
+  created: "created", submitted: "submitted", resubmitted: "resubmitted", signed: "signed", forwarded: "forwarded",
+  approved: "approved", rejected: "rejected", changes_requested: "requested changes on", paid: "paid", cancelled: "cancelled",
+};
+
+type DashView = "employee" | "hod" | "approver" | "cashier" | "admin";
+
+/** The attention banner — mirrors DashboardController::banner(). */
+function dashBanner(view: DashView, count: number) {
+  const pending: Record<DashView, [string, string, string]> = {
+    employee: ["Complete your drafts and respond to any requested changes to keep them moving.", "dash.cta.continue", "Continue drafts and returns"],
+    hod: ["Each one needs your signature before it can move to the approval step.", "dash.cta.sign", "Sign vouchers"],
+    approver: ["Each one has reached your approval step.", "dash.cta.approve", "Review and approve"],
+    cashier: ["Each one is approved and ready for payment.", "dash.cta.pay", "Record payments"],
+    admin: ["These have remained on the same step for 3 days or more.", "dash.cta.stalled", "Review stalled vouchers"],
+  };
+  const clear: Record<DashView, string> = {
+    employee: "Everything you've submitted is currently being processed or has already been reviewed.",
+    hod: "No vouchers are waiting for your signature.",
+    approver: "No vouchers are waiting for your approval.",
+    cashier: "Every approved voucher has been paid.",
+    admin: "No vouchers have stalled in the workflow.",
+  };
+
+  if (count === 0) {
+    return {
+      count: 0, key: "dash.banner.clear", params: {}, title: "Nothing needs your attention.",
+      body_key: `dash.banner.clear.${view}`, body: clear[view], action: null,
+    };
+  }
+
+  const [body, actionKey, actionLabel] = pending[view];
+  return {
+    count,
+    key: count === 1 ? "dash.banner.pending.one" : "dash.banner.pending.other",
+    params: { count },
+    title: count === 1 ? "You have 1 voucher waiting for your attention." : `You have ${count} vouchers waiting for your attention.`,
+    body_key: `dash.banner.pending.${view}`,
+    body,
+    action: { key: actionKey, label: actionLabel, href: "#queue" },
+  };
+}
 
 /**
- * The dashboard payload.
- *
- * Every role gets the same thing: the work that is theirs to do right now, and
- * a few counters for context. Nothing that has already been dealt with appears
- * here — once a user acts, the voucher moves to whoever is next and drops off
- * this screen. Completed work is found through Reports.
+ * The dashboard payload — the same shape as DashboardController: a banner,
+ * figures by stable key, the action queue and recent activity, each computed
+ * from the vouchers this user may see.
  */
 function dashboard(user: MockUser) {
   const db = store.db;
-  const currency = db.companies.find((c) => c.id === user.company_id)?.currency ?? "TZS";
+  const company = db.companies.find((c) => c.id === user.company_id);
+  const currency = company?.currency ?? "TZS";
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const queue = actionQueueFor(db, user);
-  const open = inFlight(db, user);
   const visible = visibleVouchers(db, user);
-  const plural = (n: number) => `${n} ${n === 1 ? "voucher" : "vouchers"}`;
   const sum = (rows: MockVoucher[]) => rows.reduce((t, v) => t + v.amount, 0);
+  const fmt = (n: number) => money(n, currency);
   const detail = (v: MockVoucher) => voucherResource(db, v, user);
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const inMonth = (iso: string | null | undefined) => !!iso && new Date(iso) >= monthStart;
+  const inYear = (iso: string | null | undefined) => !!iso && new Date(iso).getFullYear() === now.getFullYear();
 
-  /* Every dashboard says the same three things: what is on you, what it is
-     worth, and where to look for everything else. */
-  const base = {
-    role: user.role,
-    greeting,
-    queue: queue.map(detail),
-    queue_total: sum(queue),
-    queue_total_text: money(sum(queue), currency),
+  const activity = (rows: MockVoucher[], key: string, label: string, actions = DASH_ACTIVITY_ACTIONS) => {
+    const ids = new Set(rows.map((v) => v.id));
+    const events = db.approvals
+      .filter((a) => ids.has(a.voucher_id) && actions.includes(a.action))
+      .sort((a, b) => b.acted_at.localeCompare(a.acted_at) || b.id - a.id)
+      .slice(0, 8);
+    return {
+      recent_activity_key: key,
+      recent_activity_label: label,
+      recent_activity: events.map((a) => {
+        const v = db.vouchers.find((x) => x.id === a.voucher_id);
+        return {
+          id: a.id, action: a.action, action_label: DASH_ACTION_LABELS[a.action] ?? a.action,
+          actor_id: a.actor_id, actor: a.actor_name, voucher_id: a.voucher_id,
+          voucher_number: v?.number ?? null, amount_text: v ? money(v.amount, v.currency) : null, at: a.acted_at,
+        };
+      }),
+    };
   };
 
+  const view = (kind: DashView, queue: MockVoucher[], stats: ReturnType<typeof stat>[], recent: ReturnType<typeof activity>, extra: Record<string, unknown> = {}) => {
+    const banner = dashBanner(kind, queue.length);
+    return {
+      role: user.role,
+      greeting,
+      queue: queue.map(detail),
+      queue_total: sum(queue),
+      queue_total_text: fmt(sum(queue)),
+      data: {
+        view: kind, headline: banner.title, sub: banner.body, banner, stats,
+        queue_total_text: fmt(sum(queue)),
+        ...recent, ...extra,
+      },
+    };
+  };
+
+  /* ── platform ── */
   if (user.role === "super_admin") {
     const attention = db.companies.filter((c) => c.status !== "active");
     const revenue = db.invoices.filter((i) => i.status === "paid").reduce((t, i) => t + i.amount, 0);
     const outstanding = db.invoices.filter((i) => i.status === "pending" || i.status === "failed");
 
     return {
-      ...base,
-      queue: [],
+      role: user.role, greeting, queue: [], queue_total: 0, queue_total_text: fmt(0),
       data: {
+        view: "platform",
         headline: attention.length
           ? `${attention.length} ${attention.length === 1 ? "account needs" : "accounts need"} attention`
           : "Every account is in good standing",
         sub: `${db.companies.length} companies · ${db.users.filter((u) => u.company_id).length} users · ${db.vouchers.length} vouchers on the platform.`,
+        banner: null,
         stats: [
-          stat("Companies", String(db.companies.length), `${db.companies.filter((c) => c.status === "active").length} active · ${db.companies.filter((c) => c.status === "trial").length} on trial`, "ph-buildings"),
-          stat("Needs attention", String(attention.length), "trial, past due or suspended", "ph-warning-circle"),
-          stat("Monthly revenue", compact(revenue), "invoices settled", "ph-currency-circle-dollar", "+18%", true),
-          stat("Outstanding", compact(outstanding.reduce((t, i) => t + i.amount, 0)), `${outstanding.length} unpaid invoices`, "ph-receipt"),
+          stat("dash.stat.totalCompanies", "Total companies", String(db.companies.length), {
+            key: "dash.sub.companyMix", text: `${db.companies.filter((c) => c.status === "active").length} active · ${db.companies.filter((c) => c.status === "trial").length} on trial · ${attention.length} at risk`,
+            params: { active: db.companies.filter((c) => c.status === "active").length, trial: db.companies.filter((c) => c.status === "trial").length, atRisk: attention.length },
+          }),
+          stat("dash.stat.needsAttention", "Needs attention", String(attention.length), { text: "Trial, past due or suspended" }),
+          stat("dash.stat.monthlyRevenue", "Monthly revenue", compact(revenue), { key: "dash.sub.invoicesPaidThisMonth", text: "Invoices paid this month" }),
+          stat("dash.stat.outstanding", "Outstanding", compact(outstanding.reduce((t, i) => t + i.amount, 0)), { text: `${outstanding.length} unpaid invoices` }),
         ],
         attention: attention.map((c) => ({
           id: c.id, name: c.name, status: c.status,
@@ -1167,131 +1936,191 @@ function dashboard(user: MockUser) {
     };
   }
 
-  if (user.role === "cashier") {
-    const due = queue;
-    const cash = due.filter((v) => v.kind === "cash");
-    const bank = due.filter((v) => v.kind === "bank");
-
-    return {
-      ...base,
-      data: {
-        headline: due.length ? `${plural(due.length)} to pay` : "Nothing to pay",
-        sub: due.length
-          ? "Each one is approved and cleared for release. Paying it closes the voucher."
-          : "Every approved voucher has been released. New ones arrive here the moment they are approved.",
-        stats: [
-          stat("Awaiting release", String(due.length), money(sum(due), currency), "ph-hourglass-medium"),
-          stat("Cash", compact(sum(cash)), `${plural(cash.length)} from a float`, "ph-money"),
-          stat("Bank transfers", compact(sum(bank)), `${plural(bank.length)} to an account`, "ph-bank"),
-          stat("Released this month", compact(sum(paidThisMonth(visible))), `${paidThisMonth(visible).length} settled`, "ph-check-circle"),
-        ],
-      },
-    };
-  }
-
-  if (user.role === "employee") {
-    const mine = visible;
-    const withOthers = mine.filter((v) => v.status === "in_review" || v.status === "approved");
-
-    return {
-      ...base,
-      data: {
-        headline: queue.length
-          ? `${plural(queue.length)} ${queue.length === 1 ? "needs" : "need"} your attention`
-          : "Nothing needs your attention",
-        sub: queue.length
-          ? "Finish these and they move on for review."
-          : `${withOthers.length ? `${plural(withOthers.length)} with an approver.` : "You have nothing in the workflow."} Your full history is in Reports.`,
-        stats: [
-          stat("On you", String(queue.length), "drafts and returns", "ph-pencil-simple"),
-          stat("With an approver", String(withOthers.length), compact(sum(withOthers)), "ph-hourglass-medium"),
-          stat("Paid", String(mine.filter((v) => v.status === "paid").length), compact(sum(mine.filter((v) => v.status === "paid"))), "ph-check-circle"),
-          stat("Raised this year", String(mine.length), compact(sum(mine)), "ph-receipt"),
-        ],
-      },
-    };
-  }
-
+  /* ── company admin ── */
   if (user.role === "company_admin") {
-    const stalled = queue;
-    const settled = visible.filter((v) => v.status === "paid");
+    const stalled = actionQueueFor(db, user);
+    const submitted = visible.filter((v) => v.status !== "draft");
+    const inReview = visible.filter((v) => v.status === "in_review");
+    const approved = submitted.filter((v) => v.approved_at);
+    const paid = visible.filter((v) => v.status === "paid");
+    const rejected = visible.filter((v) => v.status === "rejected");
+    const share = (n: number) => (submitted.length ? Math.round((n / submitted.length) * 100) : 0);
+    const thisMonth = submitted.filter((v) => new Date(v.voucher_date) >= monthStart);
+    const lastStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonth = submitted.filter((v) => new Date(v.voucher_date) >= lastStart && new Date(v.voucher_date) < monthStart);
+    const activeUsers = db.users.filter((u) => u.company_id === user.company_id && u.status === "active").length;
+    const departments = db.departments.filter((d) => d.company_id === user.company_id);
+    const workflow = db.workflows.find((w) => w.company_id === user.company_id && w.is_default && w.is_active);
+    const plan = db.plans.find((p) => p.code === company?.plan_code);
 
-    return {
-      ...base,
-      data: {
-        headline: stalled.length
-          ? `${plural(stalled.length)} ${stalled.length === 1 ? "has" : "have"} stalled`
-          : "The workflow is moving",
-        sub: stalled.length
-          ? "These have not moved in three days or more. Everything else is progressing normally."
-          : `${plural(open.length)} in the workflow, none of them stuck. Company reporting is in Reports.`,
-        stats: [
-          stat("Stalled", String(stalled.length), "three days or more", "ph-warning-circle"),
-          stat("In the workflow", String(open.length), compact(sum(open)), "ph-hourglass-medium"),
-          stat("Paid this month", String(paidThisMonth(visible).length), compact(sum(paidThisMonth(visible))), "ph-check-circle"),
-          stat("People", String(db.users.filter((u) => u.company_id === user.company_id).length), `${db.departments.filter((d) => d.company_id === user.company_id).length} departments`, "ph-users-three"),
-        ],
-        by_stage: stageBreakdown(db, user),
-      },
-    };
+    const volume = Array.from({ length: 7 }, (_, i) => {
+      const start = new Date(now.getFullYear(), now.getMonth() - (6 - i), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - (6 - i) + 1, 1);
+      const rows = submitted.filter((v) => new Date(v.voucher_date) >= start && new Date(v.voucher_date) < end);
+      return {
+        period: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`,
+        label: start.toLocaleString("en-US", { month: "short" }),
+        count: rows.length, total: sum(rows), is_current: i === 6,
+      };
+    });
+
+    const byDept = departments.map((d) => {
+      const rows = approved.filter((v) => v.department_id === d.id && (v.status === "approved" || v.status === "paid"));
+      return { id: d.id, name: d.name, count: rows.length, total: sum(rows) };
+    }).sort((a, b) => b.total - a.total);
+    const maxDept = Math.max(1, ...byDept.map((r) => r.total));
+    const avgHours = (() => {
+      const rows = submitted.filter((v) => v.submitted_at && v.approved_at);
+      if (!rows.length) return null;
+      return rows.reduce((t, v) => t + (new Date(v.approved_at!).getTime() - new Date(v.submitted_at!).getTime()) / 3_600_000, 0) / rows.length;
+    })();
+
+    return view("admin", stalled, [
+      stat("dash.stat.activeUsers", "Active users", String(activeUsers), { key: "dash.sub.departments", text: `${departments.length} departments`, params: { count: departments.length } }),
+      stat("dash.stat.submittedVouchers", "Submitted vouchers", String(submitted.length), { key: "dash.sub.allTime", text: "All time" }),
+      stat("dash.stat.inWorkflow", "In the workflow", String(inReview.length), { text: fmt(sum(inReview)) }),
+      stat("dash.stat.approvedIncludingPaid", "Approved (including paid)", String(approved.length), { key: "dash.sub.percentOfSubmitted", text: `${share(approved.length)}% of submitted`, params: { percent: share(approved.length) } }),
+      stat("dash.stat.paidVouchers", "Paid vouchers", String(paid.length), { text: fmt(sum(paid)) }),
+      stat("dash.stat.rejected", "Rejected", String(rejected.length), { key: "dash.sub.percentOfSubmitted", text: `${share(rejected.length)}% of submitted`, params: { percent: share(rejected.length) } }),
+      stat("dash.stat.valueThisMonth", "Value this month", fmt(sum(thisMonth)), lastMonth.length
+        ? { key: "dash.sub.vsLastMonth", text: `${fmt(sum(lastMonth))} last month`, params: { amount: fmt(sum(lastMonth)) } }
+        : { key: "dash.sub.noPriorMonth", text: "No vouchers last month" }),
+      stat("dash.stat.avgApprovalTime", "Average approval time",
+        avgHours === null ? "—" : avgHours < 24 ? `${avgHours.toFixed(1)} hours` : `${(avgHours / 24).toFixed(1)} days`,
+        { key: "dash.sub.submissionToApproval", text: "From submission to approval" }),
+    ], activity(visible, "dash.activity.company", "Recent activity"), {
+      overview: { active_users: activeUsers, departments: departments.length },
+      workflow: workflow ? {
+        id: workflow.id, name: workflow.name, name_sw: workflow.name_sw ?? null,
+        steps: [...workflow.steps].sort((a, b) => a.position - b.position).map((s) => ({
+          position: s.position, name: s.name, name_sw: s.name_sw, role: s.role,
+          action: s.position === 1 || s.role === "employee" ? "request" : s.can_approve ? "approve" : s.can_pay ? "pay" : s.can_sign ? "sign" : "review",
+        })),
+      } : null,
+      subscription: company ? {
+        plan: plan?.name ?? null, status: company.status, trial_ends_at: company.trial_ends_at,
+        renews_at: company.current_period_end,
+        days_remaining: (() => {
+          const end = company.status === "trial" ? company.trial_ends_at : company.current_period_end;
+          return end ? Math.max(0, Math.floor((new Date(end).getTime() - Date.now()) / 86_400_000)) : null;
+        })(),
+      } : null,
+      volume,
+      by_department: byDept.map((r) => ({ ...r, total_text: fmt(r.total), share: `${Math.round((r.total / maxDept) * 100)}%` })),
+    });
   }
 
-  /* Approvers: head of department, managing director, finance, director.
-     Whether this person signs or decides is a property of the steps they hold
-     in the workflow, not of whatever happens to be in the queue right now —
-     otherwise the wording flips the moment they clear it. */
-  const mySteps = (db.workflows.find((w) => w.company_id === user.company_id && w.is_default)?.steps ?? [])
+  const mySteps = db.workflows
+    .filter((w) => w.company_id === user.company_id && w.is_active)
+    .flatMap((w) => w.steps)
     .filter((s) => s.assigned_user_id === user.id || (s.assigned_user_id === null && s.role === user.role));
-  const signOnly = mySteps.length > 0 && mySteps.every((s) => !s.can_approve);
-  const scoped = db.departments
-    .filter((d) => d.hod_user_id === user.id || d.manager_user_id === user.id)
-    .map((d) => d.name);
+  const isApprover = ["hod", "manager", "ceo", "finance", "cashier", "director"].includes(user.role);
 
-  return {
-    ...base,
-    data: {
-      headline: queue.length
-        ? `${plural(queue.length)} awaiting your ${signOnly ? "signature" : "decision"}`
-        : `Nothing awaiting your ${signOnly ? "signature" : "decision"}`,
-      sub: queue.length
-        ? (signOnly
-          ? "Your step signs and passes the voucher on — the approval decision belongs to a later step."
-          : "Each one has reached your step. Acting on it moves it to whoever is next.")
-        : `${scoped.length ? scoped.join(" · ") : "Your"} work is clear. Past decisions are in Reports.`,
-      stats: [
-        stat("Awaiting you", String(queue.length), money(sum(queue), currency), "ph-hourglass-medium"),
-        stat("In the workflow", String(open.length), compact(sum(open)), "ph-arrows-clockwise"),
-        stat("Actioned", String(db.approvals.filter((a) => a.actor_id === user.id && ["signed", "approved", "paid"].includes(a.action)).length), "signed or approved", "ph-signature"),
-        stat("Returned", String(db.approvals.filter((a) => a.actor_id === user.id && ["rejected", "changes_requested"].includes(a.action)).length), "rejected or sent back", "ph-arrow-u-up-left"),
-      ],
-    },
-  };
-}
+  /* ── payment desk ── */
+  if (mySteps.some((s) => s.can_pay)) {
+    const queue = pendingFor(db, user).filter((v) => v.status === "approved");
+    const bank = queue.filter((v) => v.kind === "bank");
+    const cash = queue.filter((v) => v.kind === "cash");
+    const paid = visible.filter((v) => v.status === "paid" && inMonth(v.paid_at));
+    const totals = (rows: MockVoucher[]) => ({ count: rows.length, total: sum(rows), total_text: fmt(sum(rows)) });
+    // What is still owed: a part-paid voucher counts for its balance only.
+    const owed = (rows: MockVoucher[]) => rows.reduce((t, v) => t + balanceOf(v), 0);
 
-/** Vouchers settled since the first of the month. */
-function paidThisMonth(rows: MockVoucher[]): MockVoucher[] {
-  const from = new Date();
-  from.setDate(1);
-  from.setHours(0, 0, 0, 0);
-  return rows.filter((v) => v.status === "paid" && v.paid_at && new Date(v.paid_at) >= from);
-}
+    return view("cashier", queue, [
+      stat("dash.stat.awaitingPayment", "Awaiting payment", String(queue.length), { key: "dash.sub.approvedUnpaid", text: "Approved, not yet paid" }),
+      stat("dash.stat.pendingPayments", "Pending payments", fmt(owed(queue)), { key: "dash.sub.bankCash", text: `Bank ${fmt(owed(bank))} · Cash ${fmt(owed(cash))}`, params: { bank: fmt(owed(bank)), cash: fmt(owed(cash)) } }),
+      stat("dash.stat.paidVouchers", "Paid vouchers", String(paid.length), { key: "dash.sub.thisMonth", text: "This month" }),
+      stat("dash.stat.paidThisMonth", "Paid this month", fmt(sum(paid)), {
+        key: "dash.sub.bankCash",
+        text: `Bank ${fmt(sum(paid.filter((v) => v.kind === "bank")))} · Cash ${fmt(sum(paid.filter((v) => v.kind === "cash")))}`,
+        params: { bank: fmt(sum(paid.filter((v) => v.kind === "bank"))), cash: fmt(sum(paid.filter((v) => v.kind === "cash"))) },
+      }),
+    ], activity(visible, "dash.activity.payments", "Recent payment activity", ["paid"]), {
+      payment_totals: { paid: totals(paid), bank: totals(paid.filter((v) => v.kind === "bank")), cash: totals(paid.filter((v) => v.kind === "cash")) },
+    });
+  }
 
-/** Where the company's open work is currently sitting, by workflow step. */
-function stageBreakdown(db: MockDataset, user: MockUser) {
-  const open = inFlight(db, user);
-  const counts = new Map<string, { name: string; count: number; total: number }>();
+  /* ── HOD: every step they hold signs, none decides ── */
+  if (isApprover && mySteps.length > 0 && mySteps.every((s) => !s.can_approve)) {
+    const queue = pendingFor(db, user).filter((v) => v.status === "in_review");
+    const headed = db.departments
+      .filter((d) => d.company_id === user.company_id && (d.hod_user_id === user.id || d.manager_user_id === user.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const deptIds = headed.map((d) => d.id);
+    const deptVouchers = db.vouchers.filter((v) => v.company_id === user.company_id && deptIds.includes(v.department_id ?? -1) && v.status !== "draft");
+    const submittedThisMonth = deptVouchers.filter((v) => inMonth(v.submitted_at));
+    const signed = db.approvals.filter((a) => a.actor_id === user.id && a.action === "signed");
+    const signedThisMonth = new Set(signed.filter((a) => inMonth(a.acted_at)).map((a) => a.voucher_id));
+    const perDept = headed.slice(0, 3).map((d) => {
+      const total = sum(deptVouchers.filter((v) => v.department_id === d.id && inYear(v.approved_at)));
+      return { id: d.id, name: d.name, total, total_text: fmt(total) };
+    });
+    const recentlySigned = [...signed].sort((a, b) => b.acted_at.localeCompare(a.acted_at))
+      .map((a) => db.vouchers.find((v) => v.id === a.voucher_id))
+      .filter((v, i, all): v is MockVoucher => !!v && all.findIndex((x) => x?.id === v.id) === i)
+      .slice(0, 5)
+      .map((v) => ({ id: v.id, number: v.number, payee: v.payee, amount_text: money(v.amount, v.currency), status: v.status }));
 
-  open.forEach((v) => {
-    const step = stepAt(db, v, v.current_step_position);
-    const name = step?.name ?? "Unassigned";
-    const row = counts.get(name) ?? { name, count: 0, total: 0 };
-    row.count += 1;
-    row.total += v.amount;
-    counts.set(name, row);
-  });
+    return view("hod", queue, [
+      stat("dash.stat.awaitingSignature", "Awaiting your signature", String(queue.length), { text: fmt(sum(queue)) }),
+      stat("dash.stat.signedThisMonth", "Signed this month", String(signedThisMonth.size), { key: "dash.sub.signedByYou", text: "Vouchers you signed" }),
+      stat("dash.stat.deptVouchersThisMonth", "Department vouchers this month", String(submittedThisMonth.length), { text: fmt(sum(submittedThisMonth)) }),
+      stat("dash.stat.deptValue", "Department voucher value", fmt(sum(deptVouchers.filter((v) => inMonth(v.approved_at)))), { key: "dash.sub.approvedPaidThisMonth", text: "Approved and paid this month" }),
+      ...perDept.map((d) => stat("dash.stat.deptExpenses", `${d.name} expenses`, d.total_text,
+        { key: "dash.sub.approvedPaidThisYear", text: `Approved and paid in ${now.getFullYear()}`, params: { year: now.getFullYear() } },
+        { department: d.name })),
+    ], activity(visible, "dash.activity.department", "Recent department activity"), {
+      recently_signed: recentlySigned,
+      departments: perDept,
+    });
+  }
 
-  const max = Math.max(...[...counts.values()].map((r) => r.total), 1);
-  return [...counts.values()].map((r) => ({ ...r, share: `${Math.round((r.total / max) * 100)}%` }));
+  /* ── approvers who decide ── */
+  if (isApprover) {
+    const queue = pendingFor(db, user).filter((v) => v.status === "in_review");
+    const acted = (action: string) => new Set(db.approvals
+      .filter((a) => a.actor_id === user.id && a.action === action && inMonth(a.acted_at))
+      .map((a) => a.voucher_id));
+    const approvedIds = acted("approved");
+    const approvedValue = sum(db.vouchers.filter((v) => approvedIds.has(v.id)));
+    const spend = visible.filter((v) => (v.status === "approved" || v.status === "paid") && inMonth(v.approved_at));
+    const byDept = db.departments
+      .filter((d) => d.company_id === user.company_id)
+      .map((d) => {
+        const rows = spend.filter((v) => v.department_id === d.id);
+        return { id: d.id, name: d.name, count: rows.length, total: sum(rows) };
+      })
+      .filter((r) => r.count > 0)
+      .sort((a, b) => b.total - a.total);
+    const maxDept = Math.max(1, ...byDept.map((r) => r.total));
+
+    return view("approver", queue, [
+      stat("dash.stat.awaitingApproval", "Awaiting your approval", String(queue.length), { text: fmt(sum(queue)) }),
+      stat("dash.stat.approvedThisMonth", "Approved this month", String(approvedIds.size), { key: "dash.sub.approvedByYou", text: "Approved by you" }),
+      stat("dash.stat.rejectedThisMonth", "Rejected this month", String(acted("rejected").size), { key: "dash.sub.rejectedByYou", text: "Rejected by you" }),
+      stat("dash.stat.totalValue", "Total voucher value", fmt(approvedValue), { key: "dash.sub.approvedByYouThisMonth", text: "Approved by you this month" }),
+    ], activity(visible, "dash.activity.approvals", "Recent approval activity", ["signed", "approved", "rejected", "changes_requested", "paid"]), {
+      by_department: byDept.map((r) => ({ ...r, total_text: fmt(r.total), share: `${Math.round((r.total / maxDept) * 100)}%` })),
+    });
+  }
+
+  /* ── employee ── */
+  const mine = visible.filter((v) => v.requester_id === user.id);
+  const queue = actionQueueFor(db, user);
+  const count = (statuses: string[]) => mine.filter((v) => statuses.includes(v.status)).length;
+  const raised = mine.filter((v) => v.status !== "draft" && v.status !== "cancelled" && new Date(v.voucher_date).getFullYear() === now.getFullYear());
+
+  return view("employee", queue, [
+    stat("dash.stat.myVouchers", "My vouchers", String(mine.length), { key: "dash.sub.allTime", text: "All time" }),
+    stat("dash.stat.pending", "Pending", String(count(["in_review"])), { key: "dash.sub.inWorkflow", text: "In the approval workflow" }),
+    stat("dash.stat.approved", "Approved", String(count(["approved"])), { key: "dash.sub.awaitingPayment", text: "Awaiting payment" }),
+    stat("dash.stat.rejected", "Rejected", String(count(["rejected"])), { key: "dash.sub.allTime", text: "All time" }),
+    stat("dash.stat.paidVouchers", "Paid vouchers", String(count(["paid"])), { text: fmt(sum(mine.filter((v) => v.status === "paid"))) }),
+    stat("dash.stat.amountRaised", "Amount raised", fmt(sum(raised)), {
+      key: "dash.sub.vouchersThisYear", text: `${raised.length} submitted in ${now.getFullYear()}`,
+      params: { count: raised.length, year: now.getFullYear() },
+    }),
+  ], activity(mine, "dash.activity.mine", "My recent activity"));
 }
 
 /**
@@ -1354,12 +2183,13 @@ function reportKinds(user: MockUser) {
 }
 
 /** A plain sentence naming exactly what this caller's reports cover. */
-function reportScope(user: MockUser): { label: string; departments: string[]; locked: boolean } {
+/** Same shape as ReportController::scopeDescriptor: { level, label, department_ids }. */
+function reportScope(user: MockUser): { level: "own" | "departments" | "company"; label: string; department_ids: number[] | null } {
   const db = store.db;
   const scope = reportableDepartments(db, user);
 
   if (scope === "own") {
-    return { label: "Your own vouchers only", departments: [], locked: true };
+    return { level: "own", label: "Your own vouchers only", department_ids: [] };
   }
   if (scope === "all") {
     const label = user.role === "super_admin"
@@ -1367,14 +2197,14 @@ function reportScope(user: MockUser): { label: string; departments: string[]; lo
       : user.role === "cashier"
         ? "Company-wide, focused on money released"
         : "Company-wide";
-    return { label, departments: [], locked: false };
+    return { level: "company", label, department_ids: null };
   }
 
   const names = db.departments.filter((d) => scope.includes(d.id)).map((d) => d.name);
   return {
+    level: "departments",
     label: names.length ? names.join(" · ") : "No department assigned",
-    departments: names,
-    locked: true,
+    department_ids: scope,
   };
 }
 
@@ -1397,14 +2227,27 @@ function report(kind: string, user: MockUser, query: Query) {
     rows = rows.filter((v) => scope.includes(v.department_id ?? -1));
   }
 
-  if (query.from) rows = rows.filter((v) => v.voucher_date >= query.from);
-  if (query.to) rows = rows.filter((v) => v.voucher_date <= query.to);
+  /* Money reports date a paid voucher by the day it was paid and an unpaid
+     one by its voucher date, as ReportController does. */
+  const moneyReport = kind === "payments" || kind === "cash";
+  const reportDate = (v: MockVoucher) => (moneyReport && v.status === "paid" && v.paid_at ? v.paid_at.slice(0, 10) : v.voucher_date);
+  if (query.from) rows = rows.filter((v) => reportDate(v) >= query.from);
+  if (query.to) rows = rows.filter((v) => reportDate(v) <= query.to);
   if (query.kind) rows = rows.filter((v) => v.kind === query.kind);
   if (query.department_id) rows = rows.filter((v) => v.department_id === Number(query.department_id));
   if (query.voucher_type_id) rows = rows.filter((v) => v.voucher_type_id === Number(query.voucher_type_id));
+  if (query.requester_id) rows = rows.filter((v) => v.requester_id === Number(query.requester_id));
   if (query.status && query.status !== "all") {
-    rows = query.status === "pending" ? rows.filter((v) => v.status === "in_review") : rows.filter((v) => v.status === query.status);
+    const wanted = ({ pending: "in_review", drafts: "draft", awaiting_payment: "approved" } as Record<string, string>)[query.status] ?? query.status;
+    rows = rows.filter((v) => v.status === wanted);
   }
+  const term = (query.q ?? "").trim().toLowerCase();
+  if (term.length > 1) {
+    rows = rows.filter((v) => `${v.number}${v.purpose}${v.payee}${db.users.find((u) => u.id === v.requester_id)?.name ?? ""}${v.amount}`
+      .toLowerCase().includes(term));
+  }
+  if (moneyReport) rows = rows.filter((v) => v.status === "approved" || v.status === "paid");
+  if (kind === "cash") rows = rows.filter((v) => v.kind === "cash");
 
   const name = (id: number | null) => db.users.find((u) => u.id === id)?.name ?? "—";
   const dept = (id: number | null) => db.departments.find((d) => d.id === id)?.name ?? "—";
@@ -1419,7 +2262,7 @@ function report(kind: string, user: MockUser, query: Query) {
       title = "Expense report";
       headings = ["Category", "Cost centres", "Vouchers", "Value"];
       const groups = new Map<string, MockVoucher[]>();
-      rows.filter((v) => v.status === "paid").forEach((v) => {
+      rows.filter((v) => v.status === "approved" || v.status === "paid").forEach((v) => {
         const key = v.category ?? "Uncategorised";
         groups.set(key, [...(groups.get(key) ?? []), v]);
       });
@@ -1492,12 +2335,12 @@ function report(kind: string, user: MockUser, query: Query) {
       break;
     }
     case "cash": {
-      title = "Cash vouchers";
-      headings = ["Number", "Date", "Payee", "Float", "Received by", "Reference", "Status", "Amount"];
-      data = rows.filter((v) => v.kind === "cash").map((v) => [
-        v.number, v.voucher_date, v.payee,
-        v.cash_float ?? "—", v.received_by ?? "—", v.payment_reference ?? "—",
-        presentStatus(db, v).label, v.amount,
+      title = "Cash report";
+      headings = ["Number", "Voucher date", "Paid on", "Payee", "Department", "Requester", "Amount", "Currency", "Cash float", "Received by", "Paid by", "Status"];
+      data = rows.map((v) => [
+        v.number, v.voucher_date, v.paid_at?.slice(0, 10) ?? "—", v.payee, dept(v.department_id), name(v.requester_id),
+        v.amount, v.currency, v.cash_float ?? "—", v.received_by ?? "—", v.paid_by ?? "—",
+        v.status === "paid" ? "Paid" : balanceOf(v) < v.amount ? "Partially paid" : "Awaiting payment",
       ]);
       break;
     }
@@ -1523,11 +2366,11 @@ function report(kind: string, user: MockUser, query: Query) {
     }
     case "payments": {
       title = "Payment report";
-      headings = ["Number", "Format", "Payee", "Department", "Method", "Reference", "Paid by", "Paid on", "Amount"];
-      data = rows.filter((v) => v.status === "paid").map((v) => [
-        v.number, v.kind === "cash" ? "Cash" : "Bank", v.payee, dept(v.department_id),
-        v.payment_method ?? "—", v.payment_reference ?? "—", v.paid_by ?? "—",
-        v.paid_at?.slice(0, 10) ?? "—", v.amount,
+      headings = ["Number", "Format", "Paid on", "Payee", "Department", "Amount", "Currency", "Method", "Reference", "Paid by", "Status"];
+      data = rows.map((v) => [
+        v.number, v.kind === "cash" ? "Cash" : "Bank", v.paid_at?.slice(0, 10) ?? "—", v.payee, dept(v.department_id),
+        v.amount, v.currency, v.payment_method ?? "—", v.payment_reference ?? "—", v.paid_by ?? "—",
+        v.status === "paid" ? "Paid" : balanceOf(v) < v.amount ? "Partially paid" : "Awaiting payment",
       ]);
       break;
     }
@@ -1544,13 +2387,74 @@ function report(kind: string, user: MockUser, query: Query) {
 
   const total = rows.reduce((s, v) => s + v.amount, 0);
   const paidTotal = rows.filter((v) => v.status === "paid").reduce((s, v) => s + v.amount, 0);
+  const sum = (list: MockVoucher[]) => list.reduce((s, v) => s + v.amount, 0);
+  const settled = rows.filter((v) => v.status === "paid");
+  const owed = rows.filter((v) => v.status === "approved");
+  const moneySummary = moneyReport ? {
+    paid_total: paidTotal, paid_total_text: money(paidTotal, currency), paid_count: settled.length,
+    bank_total_text: money(sum(settled.filter((v) => v.kind === "bank")), currency),
+    bank_count: settled.filter((v) => v.kind === "bank").length,
+    cash_total_text: money(sum(settled.filter((v) => v.kind === "cash")), currency),
+    cash_count: settled.filter((v) => v.kind === "cash").length,
+    outstanding_total_text: money(sum(owed), currency), outstanding_count: owed.length,
+    date_basis: "payment_date_when_paid",
+  } : {};
 
   return {
     kind, headings, rows: data,
+    scope: reportScope(user),
     summary: {
       count: rows.length, total, total_text: money(total, currency),
-      approved_total: paidTotal, approved_total_text: money(paidTotal, currency), currency,
+      // As the API: "approved" is approved and not yet paid.
+      approved_total: sum(owed), approved_total_text: money(sum(owed), currency), currency,
+      ...moneySummary,
     },
     filters: query, generated_at: now(),
   };
+}
+
+/** Who approves for each department: every step resolved as the engine would for a real voucher. */
+function buildRouting(db: typeof store.db, companyId: number, wf: NonNullable<ReturnType<typeof workflowFor>>) {
+    const person = (id: number | null) => {
+      const u = db.users.find((x) => x.id === id);
+      return u ? { id: u.id, name: u.name, role: u.role, status: u.status } : null;
+    };
+    const departments = db.departments.filter((d) => d.company_id === companyId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((dept) => {
+        const probe = { company_id: companyId, department_id: dept.id, requester_id: 0, workflow_id: wf.id } as unknown as MockVoucher;
+        const cells = wf.steps.filter((s) => s.position !== 1 && s.role !== "employee").map((step) => {
+          const people = assigneesFor(db, probe, step).map((u) => ({ id: u.id, name: u.name, role: u.role }));
+          let gap: string | null = null;
+          if (!people.length) {
+            if (step.assigned_user_id) gap = db.users.some((u) => u.id === step.assigned_user_id) ? "inactive_person" : "missing_person";
+            else if (step.role === "hod") gap = dept.hod_user_id ? "inactive_hod" : "no_hod";
+            else if (step.role === "manager") gap = dept.manager_user_id ? "inactive_manager" : "no_manager";
+            else if (step.role === "custom") gap = "no_person_named";
+            else gap = "no_one_with_role";
+          }
+          return { step_id: step.id, people, gap };
+        });
+        return {
+          id: dept.id, name: dept.name, is_active: true,
+          hod: person(dept.hod_user_id), manager: person(dept.manager_user_id),
+          cells, gaps: cells.filter((c) => c.gap).length,
+        };
+      });
+    return {
+        workflow_id: wf.id,
+        steps: wf.steps.map((s) => ({
+          id: s.id, position: s.position, name: s.name, name_sw: s.name_sw, role: s.role, role_label: roleLabel(s.role),
+          is_request_step: s.position === 1 || s.role === "employee",
+          is_payment_step: s.can_pay && !s.can_approve,
+          assignment: s.position === 1 || s.role === "employee" ? "requester"
+            : s.assigned_user_id ? "named"
+            : s.role === "hod" ? "department_head"
+            : s.role === "manager" ? "department_manager"
+            : s.role === "custom" ? "unassigned" : "role",
+          min_amount: s.min_amount, max_amount: s.max_amount,
+        })),
+        departments,
+        gaps: departments.reduce((sum, d) => sum + d.gaps, 0),
+    };
 }

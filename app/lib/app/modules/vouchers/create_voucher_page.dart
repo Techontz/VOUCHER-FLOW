@@ -43,13 +43,21 @@ class CreateVoucherController extends GetxController {
 
   static const methods = ['Bank Transfer', 'Mobile Money', 'Cash', 'Cheque'];
   static const categories = [
-    'Logistics',
-    'Premises',
+    'Fuel',
     'Transport',
-    'Capital equipment',
-    'Professional fees',
+    'Vehicle maintenance',
+    'Travel & accommodation',
+    'Meals & refreshments',
+    'Office supplies & stationery',
+    'Internet & communications',
+    'Procurement',
+    'Logistics',
     'Staff welfare',
+    'Equipment',
+    'Repairs & maintenance',
     'Utilities',
+    'Professional fees',
+    'Premises',
     'Other',
   ];
 
@@ -340,14 +348,19 @@ class _TypeStep extends StatelessWidget {
               )
               ? controller.departmentId.value
               : null,
-          decoration: InputDecoration(labelText: 'voucher.department'.tr),
+          decoration: InputDecoration(
+            labelText: 'voucher.department'.tr,
+            helperText: 'voucher.ownDepartment'.tr,
+          ),
           items: [
             const DropdownMenuItem<int?>(value: null, child: Text('—')),
             ...controller.departments.map(
               (d) => DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
             ),
           ],
-          onChanged: (v) => controller.departmentId.value = v,
+          // A voucher stays in the requester's own department; the API
+          // refuses any other, so the field is shown but not editable.
+          onChanged: null,
         ),
       ],
     ),

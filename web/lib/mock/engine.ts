@@ -41,7 +41,9 @@ export const nextStepAfter = (db: MockDataset, v: MockVoucher, position: number)
 /** Who may act at a step, resolved against this voucher. */
 export function assigneesFor(db: MockDataset, voucher: MockVoucher, step: MockStep): MockUser[] {
   if (step.assigned_user_id) {
-    const named = db.users.find((u) => u.id === step.assigned_user_id);
+    // Mirrors the API: an inactive named person resolves to nobody, and the
+    // company admin's override then applies.
+    const named = db.users.find((u) => u.id === step.assigned_user_id && u.status === "active");
     return named ? [named] : [];
   }
 
@@ -52,14 +54,20 @@ export function assigneesFor(db: MockDataset, voucher: MockVoucher, step: MockSt
     return requester ? [requester] : [];
   }
   if (step.role === "hod" && dept?.hod_user_id) {
-    const hod = db.users.find((u) => u.id === dept.hod_user_id);
+    const hod = db.users.find((u) => u.id === dept.hod_user_id && u.status === "active");
     if (hod) return [hod];
+  }
+  if (step.role === "manager" && dept?.manager_user_id) {
+    const manager = db.users.find((u) => u.id === dept.manager_user_id && u.status === "active");
+    if (manager) return [manager];
   }
   if (step.role === "ceo" && dept?.manager_user_id) {
     const ceo = db.users.find((u) => u.id === dept.manager_user_id);
     if (ceo) return [ceo];
   }
-  if (step.role === "custom") return [];
+  // HOD and manager steps belong to the voucher's own department and never
+  // pass to another department's head; the company admin is the override.
+  if (step.role === "custom" || step.role === "hod" || step.role === "manager") return [];
 
   return db.users.filter(
     (u) => u.company_id === voucher.company_id && u.role === step.role && u.status === "active",
@@ -77,7 +85,7 @@ export interface Actions {
   view: boolean; edit: boolean; delete: boolean; submit: boolean;
   sign: boolean; submit_signed: boolean; approve: boolean; reject: boolean;
   request_changes: boolean; pay: boolean; cancel: boolean; comment: boolean;
-  print: boolean; download: boolean;
+  print: boolean; download: boolean; attach: boolean;
 }
 
 /** The single source the list, the detail screen and the mobile app all read. */
@@ -86,7 +94,7 @@ export function availableActions(db: MockDataset, user: MockUser, voucher: MockV
     view: true, edit: false, delete: false, submit: false,
     sign: false, submit_signed: false, approve: false, reject: false,
     request_changes: false, pay: false, cancel: false, comment: true,
-    print: false, download: false,
+    print: false, download: false, attach: false,
   };
 
   const isOwner = voucher.requester_id === user.id;
@@ -111,6 +119,12 @@ export function availableActions(db: MockDataset, user: MockUser, voucher: MockV
     a.cancel = true;
   }
 
+  // Receipts arrive after payment: an approved or paid voucher still takes
+  // documents from its requester, whoever pays it, and admins.
+  const payer = (db.workflows.find((w) => w.id === voucher.workflow_id)?.steps ?? [])
+    .some((s) => s.can_pay && canActOnStep(db, user, voucher, s));
+  a.attach = a.edit || ((voucher.status === "approved" || voucher.status === "paid") && (isOwner || isAdmin || payer));
+
   if (!step || !canActOnStep(db, user, voucher, step)) return a;
 
   const signed = voucher.step_signed_at !== null;
@@ -129,6 +143,24 @@ export function availableActions(db: MockDataset, user: MockUser, voucher: MockV
   return a;
 }
 
+/* Money can leave in parts — mirrors Voucher::released() / balance() on the API. */
+
+/** What has been released so far: everything once paid, the running total before. */
+export function releasedAmount(v: MockVoucher): number {
+  return v.status === "paid" ? v.amount : (v.amount_paid ?? 0);
+}
+
+/** What is still owed. Zero once paid, whatever the running total says. */
+export function balanceOf(v: MockVoucher): number {
+  if (v.status === "paid") return 0;
+  return Math.max(0, Math.round((v.amount - (v.amount_paid ?? 0)) * 100) / 100);
+}
+
+/** Approved, some money released, some still outstanding. */
+export function isPartiallyPaid(v: MockVoucher): boolean {
+  return v.status === "approved" && (v.amount_paid ?? 0) > 0 && balanceOf(v) > 0;
+}
+
 export interface StatusView { key: string; label: string; label_sw: string; tag: string }
 
 /** Human status text derived from the voucher's own workflow. */
@@ -140,8 +172,11 @@ export function presentStatus(db: MockDataset, v: MockVoucher): StatusView {
     case "changes_requested": return mk("changes_requested", "Changes requested", "Mabadiliko yameombwa", "tag-accent-2");
     case "rejected": return mk("rejected", "Rejected", "Imekataliwa", "tag-accent-2");
     case "cancelled": return mk("cancelled", "Cancelled", "Imefutwa", "tag-neutral");
-    case "paid": return mk("paid", "Paid & completed", "Imelipwa na kukamilika", "tag-accent");
-    case "approved": return mk("awaiting_payment", "Approved — awaiting payment", "Imeidhinishwa — inasubiri malipo", "tag-info");
+    case "paid": return mk("paid", "Paid", "Imelipwa", "tag-accent");
+    // Part of the money out, the rest still owed: still in the payment queue.
+    case "approved": return isPartiallyPaid(v)
+      ? mk("partially_paid", "Partially paid", "Imelipwa sehemu", "tag-accent-2")
+      : mk("awaiting_payment", "Approved — awaiting payment", "Imeidhinishwa — inasubiri malipo", "tag-info");
     default: break;
   }
 
@@ -210,6 +245,7 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
     const changesEvent = [...events].reverse().find((e) => e.action === "changes_requested");
     const approveEvent = [...events].reverse().find((e) => e.action === "approved");
     const payEvent = [...events].reverse().find((e) => e.action === "paid");
+    const partEvent = [...events].reverse().find((e) => e.action === "part_paid");
     const signEvent = events.find((e) => e.action === "signed");
     const forwardEvent = [...events].reverse().find((e) => e.action === "forwarded");
     const last = events[events.length - 1];
@@ -221,7 +257,7 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
     if (step.position === 1) {
       if (v.status === "draft") { act = "Draft — not submitted"; actSw = "Rasimu — haijatumwa"; }
       else {
-        act = "Created & submitted"; actSw = "Imetengenezwa na kutumwa";
+        act = "Created and submitted"; actSw = "Imetengenezwa na kutumwa";
         when = v.submitted_at;
         comment = v.attachments.length ? `${v.attachments.length} supporting document(s) attached.` : null;
       }
@@ -232,22 +268,26 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
     } else if (payEvent) {
       act = "Paid"; actSw = "Imelipwa"; when = payEvent.acted_at;
       comment = payEvent.comment ?? "Funds released and reference recorded against the voucher.";
+    } else if (partEvent && step.can_pay && atThis) {
+      const owed = `${v.currency} ${Math.round(balanceOf(v)).toLocaleString("en-US")}`;
+      act = `Partly paid — ${owed} outstanding`; actSw = `Imelipwa sehemu — ${owed} bado`;
+      when = partEvent.acted_at; comment = partEvent.comment;
     } else if (approveEvent) {
       act = "Approved"; actSw = "Imeidhinishwa"; when = approveEvent.acted_at;
       comment = approveEvent.comment ?? "Cleared for payment.";
     } else if (signEvent && forwardEvent) {
-      act = "Reviewed & signed"; actSw = "Imepitiwa na kusainiwa"; when = signEvent.acted_at;
+      act = "Signed and forwarded"; actSw = "Imesainiwa na kupelekwa mbele"; when = signEvent.acted_at;
       comment = forwardEvent.comment ?? "Signature applied and forwarded to the next step.";
     } else if (signEvent && atThis) {
-      act = "Signed — not yet submitted onward"; actSw = "Imesainiwa — haijatumwa mbele";
+      act = "Signed — not yet forwarded"; actSw = "Imesainiwa — bado haijapelekwa mbele";
       when = signEvent.acted_at;
-      comment = "Signature captured. This step signs only; it makes no approval decision.";
+      comment = "Signature recorded. This step signs only — the approval decision sits with the next approval step.";
     } else if (atThis) {
       if (step.can_pay) { act = "Awaiting payment"; actSw = "Inasubiri malipo"; }
       else if (step.can_approve) { act = "Awaiting approval"; actSw = "Inasubiri idhini"; }
       else { act = "Awaiting signature"; actSw = "Inasubiri sahihi"; }
     } else if (done && last) {
-      act = "Passed"; actSw = "Imepita"; when = last.acted_at; comment = last.comment;
+      act = "Completed"; actSw = "Imekamilika"; when = last.acted_at; comment = last.comment;
     }
 
     const bad = !!rejectEvent || !!changesEvent;
@@ -277,11 +317,11 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
   rows.push({
     position: null, name: "Completed", name_sw: "Imekamilika",
     sub: "System", sub_sw: "Mfumo", person: "VouchFlow",
-    act: paid ? "Voucher completed" : rejected ? "Closed as rejected" : returned ? "Returned to requester" : "Not completed",
-    act_sw: paid ? "Vocha imekamilika" : rejected ? "Imefungwa kama iliyokataliwa" : returned ? "Imerudishwa kwa mwombaji" : "Haijakamilika",
+    act: paid ? "Voucher completed" : rejected ? "Closed — rejected" : returned ? "Returned to the requester" : "Not yet completed",
+    act_sw: paid ? "Vocha imekamilika" : rejected ? "Imefungwa — imekataliwa" : returned ? "Imerudishwa kwa mwombaji" : "Bado haijakamilika",
     when: paid ? v.paid_at : rejected ? v.rejected_at : null,
     comment: paid && v.verification_code
-      ? `Approval ID ${v.verification_code} · PDF generated with all captured marks.`
+      ? `Verification code ${v.verification_code}. The PDF includes every recorded signature.`
       : null,
     signature: null,
     capabilities: { print: true, download: true },

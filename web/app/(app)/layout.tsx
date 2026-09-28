@@ -9,7 +9,7 @@ import { mobileNavFor, navFor, type NavItem } from "@/lib/nav";
 import type { MessageKey } from "@/lib/i18n";
 import { Icon, Spinner } from "@/components/ui";
 import { VouchFlowMark } from "@/components/login-brand";
-import { Breadcrumb, Dropdown, MenuItem, MenuLabel, MenuSeparator, ThemeSwitch } from "@/components/app-ui";
+import { Breadcrumb, Dropdown, MenuItem, MenuSeparator, ThemeSwitch } from "@/components/app-ui";
 import type { Voucher } from "@/lib/types";
 
 /**
@@ -33,6 +33,14 @@ function groupOf(item: NavItem): Group | null {
   return "workspace";
 }
 
+/**
+ * The entry another entry is drawn beneath: /vouchers/new sits under
+ * /vouchers. Purely visual — the same entries, links and permissions.
+ */
+function parentOf(item: NavItem, siblings: NavItem[]): NavItem | undefined {
+  return siblings.find((p) => p !== item && item.href.startsWith(p.href + "/"));
+}
+
 /** Company settings pages that open inside the Settings area rather than the menu. */
 const SETTINGS_CHILDREN = ["/branding", "/subscription"];
 
@@ -43,20 +51,36 @@ const COLLAPSE_EVENT = "vouchflow:sidebar";
  * Whether the desktop sidebar is folded to icons: a per-device preference in
  * localStorage, read as an external store so the server render (always open)
  * and the first client render agree, and every change re-renders at once.
+ *
+ * The state itself lives on <html data-sidebar>, which the root layout's
+ * bootstrap script sets before first paint — so a sidebar the user left
+ * collapsed is already a rail when the page appears, rather than animating
+ * into one after hydration.
  */
 function readCollapsed(): boolean {
-  try { return window.localStorage.getItem(COLLAPSE_KEY) === "1"; } catch { return false; }
+  // Until the user picks, the bootstrap starts laptop-width screens (under
+  // 1280px) on the rail so the content keeps its room; a choice then sticks.
+  return document.documentElement.dataset.sidebar === "collapsed";
 }
 
 function writeCollapsed(value: boolean) {
+  if (value) document.documentElement.dataset.sidebar = "collapsed";
+  else delete document.documentElement.dataset.sidebar;
   try { window.localStorage.setItem(COLLAPSE_KEY, value ? "1" : "0"); } catch { /* the choice lasts this visit */ }
   window.dispatchEvent(new Event(COLLAPSE_EVENT));
 }
 
 function subscribeCollapsed(onChange: () => void) {
+  // Another tab changed it: mirror the stored choice onto this page first.
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== COLLAPSE_KEY) return;
+    if (e.newValue === "1") document.documentElement.dataset.sidebar = "collapsed";
+    else delete document.documentElement.dataset.sidebar;
+    onChange();
+  };
   window.addEventListener(COLLAPSE_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => { window.removeEventListener(COLLAPSE_EVENT, onChange); window.removeEventListener("storage", onChange); };
+  window.addEventListener("storage", onStorage);
+  return () => { window.removeEventListener(COLLAPSE_EVENT, onChange); window.removeEventListener("storage", onStorage); };
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -69,6 +93,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [payCount, setPayCount] = useState(0);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Voucher[]>([]);
+  // Nested menu entries (Vouchers → Create voucher) are open unless folded.
+  const [closedGroups, setClosedGroups] = useState<string[]>([]);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
@@ -166,29 +192,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const sideLabel = locale === "sw"
+    ? (collapsed ? "Panua menyu" : "Kunja menyu")
+    : (collapsed ? "Expand sidebar" : "Collapse sidebar");
   const profileLabel = items.find((i) => i.href === "/profile")?.label ?? "profile";
   const canCreate = user.role !== "super_admin" && user.role !== "cashier";
 
   return (
-    <div className="vf-shell" data-collapsed={collapsed ? "true" : undefined}>
+    <div className="vf-shell">
       {drawer && <button className="vf-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />}
 
       <aside className="vf-sidebar" data-open={drawer} aria-label="Main navigation">
         <div className="app-side-head">
           <Link href="/dashboard" className="app-side-brand" aria-label="VouchFlow">
-            <VouchFlowMark size={24} />
-            <span>VouchFlow</span>
+            <VouchFlowMark size={40} />
+            <span className="app-side-brand-text">
+              <span>VouchFlow</span>
+              <small>{user.role_label}</small>
+            </span>
           </Link>
-          <button type="button" className="app-side-collapse" onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-            <Icon name={collapsed ? "ph-sidebar-simple" : "ph-sidebar-simple"} size={17} />
+          {/* Desktop: fold to the icon rail (the top-bar menu button does the same). */}
+          <button type="button" className="app-side-collapse" onClick={toggleCollapsed} aria-label={sideLabel} title={sideLabel}>
+            <Icon name="ph-caret-left" size={16} />
           </button>
           <button type="button" className="app-side-close" onClick={() => setDrawer(false)} aria-label="Close menu">
             <Icon name="ph-x" size={18} />
           </button>
         </div>
 
-        <div className="app-workspace" title={workspaceName}>
+        {/* The company this workspace belongs to. Its administrator can jump
+            to the company's own pages from here; everyone else sees the card. */}
+        {user.role === "company_admin" ? (
+          <Dropdown
+            align="start" placement="below" label={workspaceName}
+            trigger={({ open, toggle, id }) => (
+              <button type="button" className="app-workspace app-workspace-button" title={workspaceName}
+                onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu">
           <div className="app-workspace-mark" data-has-logo={company?.logo_mark_url ? "true" : undefined}>
             {company?.logo_mark_url && !isPlatform
               // eslint-disable-next-line @next/next/no-img-element
@@ -199,75 +238,83 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="app-workspace-name">{workspaceName}</div>
             {tenantLine && <div className="app-workspace-sub">{tenantLine}</div>}
           </div>
-        </div>
+                <Icon name="ph-caret-down" size={16} style={{ transform: open ? "rotate(180deg)" : undefined }} />
+              </button>
+            )}
+          >
+            {(close) => (
+              <>
+                <div className="app-menu-label">{workspaceName}</div>
+                <MenuItem icon="ph-buildings" href="/settings" onSelect={close}>{t("companyProfile")}</MenuItem>
+                <MenuItem icon="ph-palette" href="/branding" onSelect={close}>{t("branding")}</MenuItem>
+                <MenuItem icon="ph-crown-simple" href="/subscription" onSelect={close}>{t("subscription")}</MenuItem>
+              </>
+            )}
+          </Dropdown>
+        ) : (
+          <div className="app-workspace" title={workspaceName}>
+          <div className="app-workspace-mark" data-has-logo={company?.logo_mark_url ? "true" : undefined}>
+            {company?.logo_mark_url && !isPlatform
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={company.logo_mark_url} alt="" />
+              : (isPlatform ? <Icon name="ph-globe-hemisphere-east" size={16} /> : workspaceName.trim().charAt(0).toUpperCase())}
+          </div>
+          <div className="app-workspace-text">
+            <div className="app-workspace-name">{workspaceName}</div>
+            {tenantLine && <div className="app-workspace-sub">{tenantLine}</div>}
+          </div>
+          </div>
+        )}
 
         <nav className="app-nav">
           {groups.map(({ group, items: groupItems }) => (
             <div key={group} className="app-nav-group">
-              <div className="app-nav-label">{t(GROUP_LABEL[group])}</div>
-              {groupItems.map((item) => {
-                const badge = badgeFor(item);
-                const active = item.href === currentHref;
+              <div className="app-nav-label"><span>{t(GROUP_LABEL[group])}</span></div>
+              {groupItems.filter((item) => !parentOf(item, groupItems)).map((item) => {
+                const children = groupItems.filter((c) => parentOf(c, groupItems) === item);
+                const open = !closedGroups.includes(item.href);
+                const row = (entry: NavItem, child = false) => {
+                  const badge = badgeFor(entry);
+                  const active = entry.href === currentHref;
+                  return (
+                    <Link key={entry.href} href={entry.href} className={child ? "app-nav-item app-nav-child" : "app-nav-item"}
+                      aria-current={active ? "page" : undefined} data-tip={t(entry.label)}>
+                      <Icon name={entry.icon} size={20} weight={active ? "fill" : "regular"} />
+                      <span className="app-nav-text">{t(entry.label)}</span>
+                      {badge ? <span className="app-nav-badge tnum">{badge > 99 ? "99+" : badge}</span> : null}
+                      {badge ? <span className="app-nav-dot" aria-hidden="true" /> : null}
+                    </Link>
+                  );
+                };
+                if (!children.length) return row(item);
                 return (
-                  <Link key={item.href} href={item.href} className="app-nav-item" aria-current={active ? "page" : undefined} data-tip={t(item.label)}>
-                    <Icon name={item.icon} size={17} weight={active ? "fill" : "regular"} />
-                    <span className="app-nav-text">{t(item.label)}</span>
-                    {badge ? <span className="app-nav-badge tnum">{badge > 99 ? "99+" : badge}</span> : null}
-                  </Link>
+                  <div key={item.href} className="app-nav-parent" data-open={open ? "true" : "false"}>
+                    <div className="app-nav-parent-row">
+                      {row(item)}
+                      <button type="button" className="app-nav-caret" aria-expanded={open}
+                        aria-label={`${t(item.label)}: ${open ? (locale === "sw" ? "kunja" : "collapse") : (locale === "sw" ? "panua" : "expand")}`}
+                        onClick={() => setClosedGroups((all) => (open ? [...all, item.href] : all.filter((h) => h !== item.href)))}>
+                        <Icon name="ph-caret-up" size={15} />
+                      </button>
+                    </div>
+                    {open && children.map((c) => row(c, true))}
+                  </div>
                 );
               })}
             </div>
           ))}
         </nav>
 
-        <div className="app-side-foot">
-          <ThemeSwitch compact={collapsed} />
-          <Dropdown
-            placement="above" align="start" label={user.name}
-            trigger={({ open, toggle, id }) => (
-              <button type="button" className="app-user" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu">
-                <span className="app-avatar" aria-hidden="true">{user.initials}</span>
-                <span className="app-user-text">
-                  <span className="app-user-name">{user.name}</span>
-                  {/* The job title, which is what a colleague would call this person. */}
-                  <span className="app-user-role">{user.job_title || user.role_label}</span>
-                </span>
-                <Icon name="ph-caret-up-down" size={15} />
-              </button>
-            )}
-          >
-            {(close) => (
-              <>
-                <MenuLabel>{user.email}</MenuLabel>
-                <MenuItem icon="ph-user-circle" href="/profile" onSelect={close}>{t(profileLabel)}</MenuItem>
-                <MenuItem icon="ph-bell" href="/notifications" onSelect={close}>
-                  {t("notifications")}{unread > 0 ? ` (${unread})` : ""}
-                </MenuItem>
-                <MenuSeparator />
-                <div className="app-menu-row">
-                  <span>{locale === "sw" ? "Lugha" : "Language"}</span>
-                  <div className="seg seg-sm" role="group" aria-label="Language">
-                    {(["en", "sw"] as const).map((code) => (
-                      <button key={code} type="button" onClick={() => setLocale(code)} aria-selected={locale === code}>{code.toUpperCase()}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="app-menu-row">
-                  <span>{locale === "sw" ? "Mwonekano" : "Appearance"}</span>
-                  <ThemeSwitch compact />
-                </div>
-                <MenuSeparator />
-                <MenuItem icon="ph-sign-out" tone="danger" onSelect={() => { close(); void signOut(); }}>{t("signOut")}</MenuItem>
-              </>
-            )}
-          </Dropdown>
-        </div>
       </aside>
 
       <div className="vf-main">
         <header className="vf-topbar no-print">
-          <button className="btn btn-icon vf-menu-btn" onClick={() => setDrawer(true)} aria-label="Open menu">
-            <Icon name="ph-list" size={20} />
+          {/* One control, as in the AGIZA header: on a desktop it folds the
+              sidebar to its icon rail and back; below 981px it opens the drawer. */}
+          <button type="button" className="btn btn-icon app-shell-toggle"
+            onClick={() => (window.matchMedia("(max-width: 980px)").matches ? setDrawer(true) : toggleCollapsed())}
+            aria-label={sideLabel} title={sideLabel} aria-expanded={!collapsed}>
+            <Icon name="ph-list" size={22} />
           </button>
 
           <div className="app-topbar-where">
@@ -276,7 +323,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="vf-search">
-            <Icon name="ph-magnifying-glass" size={15} />
+            <Icon name="ph-magnifying-glass" size={18} />
             <input
               className="input" placeholder={t("searchPh")} value={query} aria-label={t("search")}
               onChange={(e) => setQuery(e.target.value)}
@@ -301,18 +348,63 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="app-topbar-actions">
             <ThemeToggleButton />
             <Link className="btn btn-icon vf-bell" href="/notifications" aria-label={unread > 0 ? `${t("notifications")} (${unread})` : t("notifications")}>
-              <Icon name="ph-bell" size={18} />
+              <Icon name="ph-bell" size={21} />
               {unread > 0 && <span className="vf-bell-dot" aria-hidden="true" />}
             </Link>
             {canCreate && (
               <Link className="btn btn-primary app-topbar-create" href="/vouchers/new">
-                <Icon name="ph-plus" size={15} /> <span>{t("newVoucher")}</span>
+                <Icon name="ph-plus" size={18} /> <span>{t("newVoucher")}</span>
               </Link>
             )}
+            <span className="app-topbar-sep" aria-hidden="true" />
+            <Dropdown
+              placement="below" align="end" label={user.name}
+              trigger={({ open, toggle, id }) => (
+                <button type="button" className="app-user" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu">
+                  <span className="app-user-text">
+                    <span className="app-user-name">{user.name}</span>
+                    {/* The job title, which is what a colleague would call this person. */}
+                    <span className="app-user-role">{user.job_title || user.role_label}</span>
+                  </span>
+                  <span className="app-avatar" aria-hidden="true">{user.initials}</span>
+                  <Icon name="ph-caret-down" size={16} style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 160ms ease" }} />
+                </button>
+              )}
+            >
+              {(close) => (
+                <>
+                  <div className="app-menu-head">
+                    <strong>{user.name}</strong>
+                    <span>{user.email}</span>
+                  </div>
+                  <MenuItem icon="ph-user-circle" href="/profile" onSelect={close}>{t(profileLabel)}</MenuItem>
+                  <MenuItem icon="ph-bell" href="/notifications" onSelect={close}>
+                    {t("notifications")}{unread > 0 ? ` (${unread})` : ""}
+                  </MenuItem>
+                  <MenuSeparator />
+                  <div className="app-menu-row">
+                    <span>{locale === "sw" ? "Lugha" : "Language"}</span>
+                    <div className="seg seg-sm" role="group" aria-label="Language">
+                      {(["en", "sw"] as const).map((code) => (
+                        <button key={code} type="button" onClick={() => setLocale(code)} aria-selected={locale === code}>{code.toUpperCase()}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="app-menu-row">
+                    <span>{locale === "sw" ? "Mwonekano" : "Appearance"}</span>
+                    <ThemeSwitch compact />
+                  </div>
+                  <MenuSeparator />
+                  <MenuItem icon="ph-sign-out" tone="danger" onSelect={() => { close(); void signOut(); }}>{t("signOut")}</MenuItem>
+                </>
+              )}
+            </Dropdown>
           </div>
         </header>
 
-        <main className="vf-content">{children}</main>
+        {/* Keyed by route, so each page arrives with a short settle while the
+            sidebar and top bar stay put around it. */}
+        <main className="vf-content"><div key={pathname} className="app-route">{children}</div></main>
       </div>
 
       <nav className="vf-tabbar no-print" aria-label="Primary">
@@ -341,7 +433,7 @@ function ThemeToggleButton() {
   const label = theme === "light" ? (sw ? "Badili kuwa giza" : "Switch to dark mode") : (sw ? "Badili kuwa mwanga" : "Switch to light mode");
   return (
     <button type="button" className="btn btn-icon" onClick={toggleTheme} aria-label={label} title={label}>
-      <Icon name={theme === "light" ? "ph-moon" : "ph-sun"} size={18} />
+      <Icon name={theme === "light" ? "ph-moon" : "ph-sun"} size={21} />
     </button>
   );
 }

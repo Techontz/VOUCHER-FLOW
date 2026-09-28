@@ -9,32 +9,73 @@ use App\Models\Department;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Models\Voucher;
+use App\Models\VoucherApproval;
+use App\Models\VoucherPayment;
+use App\Models\Workflow;
 use App\Models\WorkflowStep;
 use App\Services\AmountFormatter;
 use App\Services\VoucherVisibility;
+use App\Services\WorkflowEngine;
 use App\Support\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Role-shaped dashboards.
  *
- * A dashboard is an ACTION QUEUE, not a history page. It answers one question:
- * what is waiting on *you*, right now. The moment a user completes their step
- * the voucher leaves their queue and appears on whoever is next — so an empty
- * dashboard means the work is genuinely clear, not that nothing has happened.
+ * Every tenant dashboard answers two questions, in this order: what is waiting
+ * on *you* right now (the attention banner and the action queue), and how your
+ * voucher activity stands (figures and recent activity). The queue empties as
+ * the user acts; the figures are history, always computed from the vouchers
+ * this user is entitled to see through {@see VoucherVisibility}.
  *
- * Anything already dealt with is found through Reports, subject to the same
- * permissions. That is deliberate: a queue that also lists finished work stops
- * being a queue, and people stop trusting it to tell them what to do.
+ * Which dashboard a user gets is decided by what their workflow steps allow
+ * them to do, not only by their job title: anyone holding a paying step gets
+ * the payment desk, an approver whose steps only sign gets the HOD desk.
  *
- * Each role is additionally handed only figures it is entitled to see — an
- * employee's totals are computed from their own vouchers alone.
+ * Every figure carries a stable `key` (plus `params`) next to its English
+ * `label`, so the web and mobile clients can translate it; clients fall back to
+ * the English label for any key they do not know.
+ *
+ * Payload (tenant views):
+ *   role, greeting,
+ *   data: view, headline, sub, banner{count,key,params,title,body_key,body,action},
+ *         stats[{key,params,label,value,sub,sub_key,sub_params}],
+ *         queue, queue_total_text, recent_activity[], recent_activity_key,
+ *         recent_activity_label, and per-view extras (see each method).
  */
 class DashboardController extends Controller
 {
     /** How long a voucher may sit on one step before an admin should look. */
     private const STALL_DAYS = 3;
+
+    /** How many activity rows a dashboard shows. */
+    private const ACTIVITY_LIMIT = 8;
+
+    /** Workflow events worth showing as activity; "forwarded" duplicates "signed". */
+    private const ACTIVITY_ACTIONS = [
+        'created', 'submitted', 'resubmitted', 'signed', 'approved',
+        'rejected', 'changes_requested', 'paid', 'cancelled',
+    ];
+
+    /** English wording of each activity action: "{actor} {action} {voucher}". */
+    private const ACTION_LABELS = [
+        'created' => 'created',
+        'submitted' => 'submitted',
+        'resubmitted' => 'resubmitted',
+        'signed' => 'signed',
+        'forwarded' => 'forwarded',
+        'approved' => 'approved',
+        'rejected' => 'rejected',
+        'changes_requested' => 'requested changes on',
+        'paid' => 'paid',
+        'cancelled' => 'cancelled',
+    ];
+
+    private const RELATIONS = ['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'];
 
     public function __construct(
         private readonly VoucherVisibility $visibility,
@@ -42,7 +83,7 @@ class DashboardController extends Controller
         private readonly TenantContext $tenant,
     ) {}
 
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $user = $request->user();
 
@@ -51,129 +92,190 @@ class DashboardController extends Controller
             'greeting' => $this->greeting(),
             'data' => match (true) {
                 $user->isSuperAdmin() && ! $this->tenant->hasTenant() => $this->platform(),
-                $user->isCompanyAdmin() || $user->isSuperAdmin() => $this->admin($request),
-                // Checked before the general approver branch: a cashier holds no
-                // review step, so "awaiting me" for them means approved-and-unpaid.
-                $this->paysMoney($user) => $this->cashier($request),
-                $user->isApprover() => $this->approver($request),
-                default => $this->employee($request),
+                $user->isCompanyAdmin() || $user->isSuperAdmin() => $this->admin(),
+                // Checked before the approver branches: a cashier holds no
+                // review step, so "waiting on me" means approved and unpaid.
+                $this->paysMoney($user) => $this->cashier($user),
+                $user->isApprover() && $this->signsOnly($user) => $this->hod($user),
+                $user->isApprover() => $this->approver($user),
+                default => $this->employee($user),
             },
         ]);
     }
 
     /* ------------------------------------------------------------- employee */
 
-    private function employee(Request $request): array
+    /**
+     * Extras: none beyond the shared keys. `recent_activity` is every workflow
+     * event on the employee's own vouchers.
+     */
+    private function employee(User $user): array
     {
-        $user = $request->user();
         $mine = Voucher::where('requester_id', $user->id);
 
-        // The employee's own move: finish a draft, or answer a request for
-        // changes. A voucher they have submitted is with someone else and is
-        // deliberately not here — they can follow it in Reports.
-        $queue = Voucher::with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
+        // The employee's own move: finish a draft, or answer a request for changes.
+        $queue = Voucher::with(self::RELATIONS)
             ->where('requester_id', $user->id)
             ->whereIn('status', [Voucher::STATUS_DRAFT, Voucher::STATUS_CHANGES_REQUESTED])
             ->orderByDesc('voucher_date')->orderByDesc('id')
             ->get();
 
-        $inFlight = (clone $mine)->whereIn('status', [Voucher::STATUS_IN_REVIEW, Voucher::STATUS_APPROVED])->count();
-        $inFlightValue = (float) (clone $mine)->whereIn('status', [Voucher::STATUS_IN_REVIEW, Voucher::STATUS_APPROVED])->sum('amount');
-        $paid = (clone $mine)->where('status', Voucher::STATUS_PAID)->count();
-        $paidValue = (float) (clone $mine)->where('status', Voucher::STATUS_PAID)->sum('amount');
-        $thisYear = (clone $mine)->whereYear('voucher_date', now()->year);
+        $count = fn (array $statuses) => (clone $mine)->whereIn('status', $statuses)->count();
+        $value = fn (array $statuses) => (float) (clone $mine)->whereIn('status', $statuses)->sum('amount');
 
-        return [
-            'headline' => $queue->count() > 0
-                ? $this->plural($queue->count()).' need your attention'
-                : 'Nothing needs your attention',
-            'sub' => $queue->count() > 0
-                ? 'Finish these and they move on for review.'
-                : 'Everything you have raised is with someone else. Reports has your history.',
-            'stats' => [
-                $this->stat('On you', (string) $queue->count(), 'drafts and returns'),
-                $this->stat('With an approver', (string) $inFlight, $this->money->money($inFlightValue, $this->currency())),
-                $this->stat('Paid', (string) $paid, $this->money->money($paidValue, $this->currency())),
-                $this->stat('Raised this year', (string) $thisYear->count(),
-                    $this->money->money((float) (clone $thisYear)->sum('amount'), $this->currency())),
-            ],
-            'queue' => VoucherResource::collection($queue),
-            'queue_total_text' => $this->money->money((float) $queue->sum('amount'), $this->currency()),
+        $raised = (clone $mine)
+            ->whereNotIn('status', [Voucher::STATUS_DRAFT, Voucher::STATUS_CANCELLED])
+            ->whereYear('voucher_date', now()->year);
+
+        return $this->tenantView('employee', $queue, [
+            $this->stat('dash.stat.myVouchers', 'My vouchers', (string) (clone $mine)->count(), 'dash.sub.allTime', 'All time'),
+            $this->stat('dash.stat.pending', 'Pending', (string) $count([Voucher::STATUS_IN_REVIEW]),
+                subKey: 'dash.sub.inWorkflow', subLabel: 'In the approval workflow'),
+            $this->stat('dash.stat.approved', 'Approved', (string) $count([Voucher::STATUS_APPROVED]),
+                subKey: 'dash.sub.awaitingPayment', subLabel: 'Awaiting payment'),
+            $this->stat('dash.stat.rejected', 'Rejected', (string) $count([Voucher::STATUS_REJECTED]), 'dash.sub.allTime', 'All time'),
+            $this->stat('dash.stat.paidVouchers', 'Paid vouchers', (string) $count([Voucher::STATUS_PAID]),
+                subText: $this->format($value([Voucher::STATUS_PAID]))),
+            $this->stat('dash.stat.amountRaised', 'Amount raised', $this->format((float) (clone $raised)->sum('amount')),
+                'dash.sub.vouchersThisYear', ':count submitted in :year', ['count' => (clone $raised)->count(), 'year' => now()->year]),
+        ], $this->activity($mine, 'dash.activity.mine', 'My recent activity'));
+    }
+
+    /* ------------------------------------------------------------------ hod */
+
+    /**
+     * An approver whose workflow steps sign but never decide.
+     *
+     * Extras: `recently_signed` (the vouchers this user signed most recently)
+     * and `departments` (each headed department's approved-and-paid value).
+     */
+    private function hod(User $user): array
+    {
+        $pending = $this->pendingFor($user);
+        $departments = $this->scopedDepartments($user);
+        $departmentIds = $departments->pluck('id')->all();
+        $month = $this->month();
+
+        $signedThisMonth = VoucherApproval::query()
+            ->where('actor_id', $user->id)
+            ->where('action', 'signed')
+            ->whereBetween('acted_at', $month)
+            ->distinct()->count('voucher_id');
+
+        $departmentVouchers = Voucher::whereIn('department_id', $departmentIds)
+            ->where('status', '!=', Voucher::STATUS_DRAFT);
+
+        $submittedThisMonth = (clone $departmentVouchers)->whereBetween('submitted_at', $month);
+        $valueThisMonth = (float) (clone $departmentVouchers)->whereBetween('approved_at', $month)->sum('amount');
+
+        $stats = [
+            $this->stat('dash.stat.awaitingSignature', 'Awaiting your signature', (string) $pending->count(),
+                subText: $this->format((float) $pending->sum('amount'))),
+            $this->stat('dash.stat.signedThisMonth', 'Signed this month', (string) $signedThisMonth,
+                'dash.sub.signedByYou', 'Vouchers you signed'),
+            $this->stat('dash.stat.deptVouchersThisMonth', 'Department vouchers this month', (string) (clone $submittedThisMonth)->count(),
+                subText: $this->format((float) (clone $submittedThisMonth)->sum('amount'))),
+            $this->stat('dash.stat.deptValue', 'Department voucher value', $this->format($valueThisMonth),
+                'dash.sub.approvedPaidThisMonth', 'Approved and paid this month'),
         ];
+
+        // One figure per department they head — capped, so a head of many
+        // departments gets a readable row rather than a wall of tiles.
+        $perDepartment = $departments->take(3)->map(function (Department $department) {
+            $value = (float) Voucher::where('department_id', $department->id)
+                ->whereNotNull('approved_at')
+                ->whereYear('approved_at', now()->year)
+                ->sum('amount');
+
+            return [
+                'id' => $department->id,
+                'name' => $department->name,
+                'total' => $value,
+                'total_text' => $this->format($value),
+            ];
+        })->values();
+
+        foreach ($perDepartment as $row) {
+            $stats[] = $this->stat('dash.stat.deptExpenses', "{$row['name']} expenses", $row['total_text'],
+                'dash.sub.approvedPaidThisYear', 'Approved and paid in :year', ['year' => now()->year],
+                params: ['department' => $row['name']]);
+        }
+
+        $recentlySigned = Voucher::query()
+            ->select('vouchers.*')
+            ->join('voucher_approvals', 'voucher_approvals.voucher_id', '=', 'vouchers.id')
+            ->where('voucher_approvals.actor_id', $user->id)
+            ->where('voucher_approvals.action', 'signed')
+            ->orderByDesc('voucher_approvals.acted_at')
+            ->limit(5)
+            ->get()
+            ->unique('id')
+            ->map(fn (Voucher $v) => [
+                'id' => $v->id,
+                'number' => $v->number,
+                'payee' => $v->payee,
+                'amount_text' => $this->money->money((float) $v->amount, $v->currency ?: $this->currency()),
+                'status' => $v->status,
+            ])->values();
+
+        return $this->tenantView('hod', $pending, $stats,
+            $this->activity($this->visible($user), 'dash.activity.department', 'Recent department activity'),
+            [
+                'recently_signed' => $recentlySigned,
+                'departments' => $perDepartment,
+            ]);
     }
 
     /* ------------------------------------------------------------- approver */
 
-    private function approver(Request $request): array
+    /**
+     * Managers, CEOs, directors and finance officers who decide.
+     *
+     * Extras: `by_department` — approved and paid value this month, per
+     * department, across the vouchers this approver can see.
+     */
+    private function approver(User $user): array
     {
-        $user = $request->user();
+        $pending = $this->pendingFor($user);
+        $month = $this->month();
 
-        $queue = Voucher::query()->with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps']);
-        $this->visibility->pendingFor($queue, $user);
-        $pending = $this->visibility->actionableOnly($queue->orderBy('submitted_at')->get(), $user);
-
-        $signedThisMonth = Voucher::whereHas('approvals', fn ($q) => $q
+        $actedThisMonth = fn (string $action) => VoucherApproval::query()
             ->where('actor_id', $user->id)
-            ->whereIn('action', ['signed', 'approved'])
-            ->whereBetween('acted_at', [now()->startOfMonth(), now()->endOfMonth()]))->count();
+            ->where('action', $action)
+            ->whereBetween('acted_at', $month);
 
-        $returned = Voucher::whereHas('approvals', fn ($q) => $q
-            ->where('actor_id', $user->id)
-            ->whereIn('action', ['changes_requested', 'rejected']))->count();
+        $approvedIds = $actedThisMonth('approved')->distinct()->pluck('voucher_id');
+        $approvedValue = (float) Voucher::whereIn('id', $approvedIds)->sum('amount');
 
-        $departments = $user->headedDepartments()->pluck('id')
-            ->merge($user->managedDepartments()->pluck('id'))->unique();
-
-        $deptValue = $departments->isNotEmpty()
-            ? (float) Voucher::whereIn('department_id', $departments)
-                ->where('status', Voucher::STATUS_APPROVED)
-                ->whereBetween('voucher_date', [now()->firstOfQuarter(), now()->lastOfQuarter()])
-                ->sum('amount')
-            : 0.0;
-
-        // Derived from the steps this user actually holds, not from whatever
-        // happens to be in the queue: an HOD whose queue is momentarily empty
-        // still signs only, and the wording must not flip to "decision" the
-        // instant they clear it.
-        $mySteps = WorkflowStep::query()
-            ->whereHas('workflow', fn ($w) => $w->where('company_id', $user->company_id))
-            ->where(fn ($q) => $q->where('assigned_user_id', $user->id)
-                ->orWhere(fn ($r) => $r->whereNull('assigned_user_id')->where('role', $user->role)))
-            ->get();
-
-        $signOnly = $mySteps->isNotEmpty() && $mySteps->every(fn (WorkflowStep $st) => ! $st->can_approve);
-
-        return [
-            'headline' => $pending->count() > 0
-                ? $this->plural($pending->count()).' '.($signOnly ? 'awaiting your signature' : 'awaiting your decision')
-                : 'Nothing awaiting you',
-            'sub' => $signOnly
-                ? 'Your step signs only — the approval decision sits with a later step.'
-                : 'Each one has reached your step in the approval workflow.',
-            'stats' => [
-                $this->stat('Awaiting you', (string) $pending->count(), 'right now'),
-                $this->stat('Actioned this month', (string) $signedThisMonth, 'signed or approved'),
-                $this->stat('Returned for changes', (string) $returned, 'all time'),
-                $this->stat('Department value', $this->money->money($deptValue, $this->currency()), 'this quarter'),
-            ],
-            'queue' => VoucherResource::collection($pending),
-            'queue_total_text' => $this->money->money((float) $pending->sum('amount'), $this->currency()),
-        ];
+        return $this->tenantView('approver', $pending, [
+            $this->stat('dash.stat.awaitingApproval', 'Awaiting your approval', (string) $pending->count(),
+                subText: $this->format((float) $pending->sum('amount'))),
+            $this->stat('dash.stat.approvedThisMonth', 'Approved this month', (string) $approvedIds->count(),
+                'dash.sub.approvedByYou', 'Approved by you'),
+            $this->stat('dash.stat.rejectedThisMonth', 'Rejected this month', (string) $actedThisMonth('rejected')->distinct()->count('voucher_id'),
+                'dash.sub.rejectedByYou', 'Rejected by you'),
+            $this->stat('dash.stat.totalValue', 'Total voucher value', $this->format($approvedValue),
+                'dash.sub.approvedByYouThisMonth', 'Approved by you this month'),
+        ], $this->activity($this->visible($user), 'dash.activity.approvals', 'Recent approval activity',
+            ['signed', 'approved', 'rejected', 'changes_requested', 'paid']),
+            [
+                'by_department' => $this->departmentSpend($this->visible($user)->whereBetween('vouchers.approved_at', $month), false),
+            ]);
     }
 
     /* -------------------------------------------------------------- cashier */
 
     /**
-     * Whoever the workflow entrusts with releasing money. Their queue is what
-     * has been approved and not yet paid — and it empties as they pay.
+     * Whoever the workflow entrusts with releasing money.
+     *
+     * Extras: `payment_totals` — paid this month in total and by bank and cash,
+     * each as {count, total, total_text}.
      */
-    private function cashier(Request $request): array
+    private function cashier(User $user): array
     {
-        $user = $request->user();
-        $engine = app(\App\Services\WorkflowEngine::class);
+        $engine = app(WorkflowEngine::class);
 
-        $query = Voucher::with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
-            ->awaitingPayment();
+        $query = Voucher::with(self::RELATIONS)->awaitingPayment();
         $this->visibility->apply($query, $user);
 
         $queue = $query->orderBy('approved_at')->get()
@@ -183,26 +285,49 @@ class DashboardController extends Controller
         $bank = $queue->where('kind', Voucher::KIND_BANK);
         $cash = $queue->where('kind', Voucher::KIND_CASH);
 
-        $paidThisMonth = Voucher::where('paid_by_id', $user->id)
-            ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()]);
+        $paidThisMonth = $this->visible($user)
+            ->where('vouchers.status', Voucher::STATUS_PAID)
+            ->whereBetween('vouchers.paid_at', $this->month())
+            ->get(['vouchers.id', 'vouchers.amount', 'vouchers.kind']);
 
-        return [
-            'headline' => $queue->count() > 0
-                ? $this->plural($queue->count()).' to pay'
-                : 'Nothing to pay',
-            'sub' => $queue->count() > 0
-                ? 'Approved and waiting on the money. Recording payment closes each one.'
-                : 'Every approved voucher has been settled.',
-            'stats' => [
-                $this->stat('To pay', (string) $queue->count(), $this->money->money((float) $queue->sum('amount'), $this->currency())),
-                $this->stat('Bank transfers', (string) $bank->count(), $this->money->money((float) $bank->sum('amount'), $this->currency())),
-                $this->stat('Cash', (string) $cash->count(), $this->money->money((float) $cash->sum('amount'), $this->currency())),
-                $this->stat('Released this month', (string) (clone $paidThisMonth)->count(),
-                    $this->money->money((float) (clone $paidThisMonth)->sum('amount'), $this->currency())),
-            ],
-            'queue' => VoucherResource::collection($queue),
-            'queue_total_text' => $this->money->money((float) $queue->sum('amount'), $this->currency()),
+        // Money is released in parts, so "paid this month" is every payment made
+        // this month — part payments included — and what is owed is the balance.
+        $released = VoucherPayment::query()
+            ->whereIn('voucher_id', $this->visible($user)->pluck('vouchers.id'))
+            ->whereBetween('paid_at', $this->month())
+            ->with('voucher:id,kind')
+            ->get()
+            ->map(fn (VoucherPayment $p) => (object) ['amount' => (float) $p->amount, 'kind' => $p->voucher?->kind]);
+        $owed = fn (Collection $rows) => (float) $rows->sum(fn (Voucher $v) => $v->balance());
+
+        $totals = fn (Collection $rows) => [
+            'count' => $rows->count(),
+            'total' => (float) $rows->sum('amount'),
+            'total_text' => $this->format((float) $rows->sum('amount')),
         ];
+
+        return $this->tenantView('cashier', $queue, [
+            $this->stat('dash.stat.awaitingPayment', 'Awaiting payment', (string) $queue->count(),
+                'dash.sub.approvedUnpaid', 'Approved, not yet paid'),
+            $this->stat('dash.stat.pendingPayments', 'Pending payments', $this->format($owed($queue)),
+                'dash.sub.bankCash', 'Bank :bank · Cash :cash',
+                ['bank' => $this->format($owed($bank)), 'cash' => $this->format($owed($cash))]),
+            $this->stat('dash.stat.paidVouchers', 'Paid vouchers', (string) $paidThisMonth->count(),
+                'dash.sub.thisMonth', 'This month'),
+            $this->stat('dash.stat.paidThisMonth', 'Paid this month', $this->format((float) $released->sum('amount')),
+                'dash.sub.bankCash', 'Bank :bank · Cash :cash',
+                [
+                    'bank' => $this->format((float) $released->where('kind', Voucher::KIND_BANK)->sum('amount')),
+                    'cash' => $this->format((float) $released->where('kind', Voucher::KIND_CASH)->sum('amount')),
+                ]),
+        ], $this->activity($this->visible($user), 'dash.activity.payments', 'Recent payment activity', ['paid', 'part_paid']),
+            [
+                'payment_totals' => [
+                    'paid' => $totals($released),
+                    'bank' => $totals($released->where('kind', Voucher::KIND_BANK)),
+                    'cash' => $totals($released->where('kind', Voucher::KIND_CASH)),
+                ],
+            ]);
     }
 
     /** Whether any step in this tenant's workflows gives this user the money. */
@@ -212,25 +337,44 @@ class DashboardController extends Controller
             return false;
         }
 
+        return $this->stepsHeldBy($user)->contains(fn (WorkflowStep $step) => (bool) $step->can_pay);
+    }
+
+    /**
+     * Whether every step this user holds signs without deciding.
+     *
+     * Derived from the steps, not from whatever happens to be in the queue: an
+     * HOD whose queue is momentarily empty still signs only.
+     */
+    private function signsOnly(User $user): bool
+    {
+        $steps = $this->stepsHeldBy($user);
+
+        return $steps->isNotEmpty() && $steps->every(fn (WorkflowStep $step) => ! $step->can_approve);
+    }
+
+    /** @return Collection<int,WorkflowStep> */
+    private function stepsHeldBy(User $user): Collection
+    {
         return WorkflowStep::query()
-            ->where('can_pay', true)
-            ->whereHas('workflow', fn ($w) => $w->where('company_id', $user->company_id))
+            ->whereHas('workflow', fn ($w) => $w->where('company_id', $user->company_id)->where('is_active', true))
             ->where(fn ($q) => $q->where('assigned_user_id', $user->id)
                 ->orWhere(fn ($r) => $r->whereNull('assigned_user_id')->where('role', $user->role)))
-            ->exists();
+            ->get();
     }
 
     /* ---------------------------------------------------------------- admin */
 
-    private function admin(Request $request): array
+    /**
+     * Extras: `overview` {active_users, departments}, `workflow` (the default
+     * route and its steps in order), `subscription`, `volume` and
+     * `by_department` (approved and paid, all time).
+     */
+    private function admin(): array
     {
-        $all = Voucher::query();
-
-        // An administrator's queue is not "everything that exists" — that is a
-        // register, and they already have one. What actually needs them is what
-        // has STOPPED: vouchers sitting on the same step long enough that
-        // someone has to go and unblock them.
-        $stalled = Voucher::with(['requester', 'department', 'voucherType', 'paidBy', 'workflow.steps'])
+        // An administrator's queue is what has STOPPED: vouchers sitting on the
+        // same step long enough that someone has to go and unblock them.
+        $stalled = Voucher::with(self::RELATIONS)
             ->where('status', Voucher::STATUS_IN_REVIEW)
             ->where(fn ($q) => $q
                 ->where('updated_at', '<=', now()->subDays(self::STALL_DAYS))
@@ -239,38 +383,99 @@ class DashboardController extends Controller
             ->orderBy('updated_at')
             ->get();
 
-        $pending = (clone $all)->where('status', Voucher::STATUS_IN_REVIEW)->count();
-        $approved = (clone $all)->where('status', Voucher::STATUS_APPROVED)->count();
-        $rejected = (clone $all)->where('status', Voucher::STATUS_REJECTED)->count();
-        $total = (clone $all)->count();
+        $submitted = Voucher::whereNotIn('status', [Voucher::STATUS_DRAFT]);
+        $total = (clone $submitted)->count();
+        $inReview = Voucher::where('status', Voucher::STATUS_IN_REVIEW);
+        $approved = (clone $submitted)->whereNotNull('approved_at')->count();
+        $paid = Voucher::where('status', Voucher::STATUS_PAID);
+        $rejected = Voucher::where('status', Voucher::STATUS_REJECTED)->count();
+        $share = fn (int $n) => $total ? (int) round($n / $total * 100) : 0;
 
-        $thisMonth = (float) Voucher::whereBetween('voucher_date', [now()->startOfMonth(), now()->endOfMonth()])->sum('amount');
-        $lastMonth = (float) Voucher::whereBetween('voucher_date', [
+        $thisMonth = (float) (clone $submitted)->whereBetween('voucher_date', $this->month())->sum('amount');
+        $lastMonth = (float) (clone $submitted)->whereBetween('voucher_date', [
             now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth(),
         ])->sum('amount');
 
+        $activeUsers = User::where('company_id', $this->tenant->id())->where('status', 'active')->count();
+        $departments = Department::count();
+
+        return $this->tenantView('admin', $stalled, [
+            $this->stat('dash.stat.activeUsers', 'Active users', (string) $activeUsers,
+                'dash.sub.departments', ':count departments', ['count' => $departments]),
+            $this->stat('dash.stat.submittedVouchers', 'Submitted vouchers', (string) $total, 'dash.sub.allTime', 'All time'),
+            $this->stat('dash.stat.inWorkflow', 'In the workflow', (string) (clone $inReview)->count(),
+                subText: $this->format((float) (clone $inReview)->sum('amount'))),
+            $this->stat('dash.stat.approvedIncludingPaid', 'Approved (including paid)', (string) $approved,
+                'dash.sub.percentOfSubmitted', ':percent% of submitted', ['percent' => $share($approved)]),
+            $this->stat('dash.stat.paidVouchers', 'Paid vouchers', (string) (clone $paid)->count(),
+                subText: $this->format((float) (clone $paid)->sum('amount'))),
+            $this->stat('dash.stat.rejected', 'Rejected', (string) $rejected,
+                'dash.sub.percentOfSubmitted', ':percent% of submitted', ['percent' => $share($rejected)]),
+            $this->stat('dash.stat.valueThisMonth', 'Value this month', $this->format($thisMonth),
+                $lastMonth > 0 ? 'dash.sub.vsLastMonth' : 'dash.sub.noPriorMonth',
+                $lastMonth > 0 ? ':amount last month' : 'No vouchers last month',
+                $lastMonth > 0 ? ['amount' => $this->format($lastMonth)] : []),
+            $this->stat('dash.stat.avgApprovalTime', 'Average approval time', $this->averageApproval() ?? '—',
+                'dash.sub.submissionToApproval', 'From submission to approval'),
+        ], $this->activity(Voucher::query(), 'dash.activity.company', 'Recent activity'),
+            [
+                'overview' => ['active_users' => $activeUsers, 'departments' => $departments],
+                'workflow' => $this->defaultWorkflow(),
+                'subscription' => $this->subscription(),
+                'volume' => $this->monthlyVolume(),
+                'by_department' => $this->departmentSpend(Voucher::query(), true),
+            ]);
+    }
+
+    /** The default route, its steps in order, for the admin's workflow card. */
+    private function defaultWorkflow(): ?array
+    {
+        $workflow = Workflow::with('steps')
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->latest('id')
+            ->first();
+
+        if (! $workflow) {
+            return null;
+        }
+
         return [
-            'headline' => $stalled->count() > 0
-                ? $this->plural($stalled->count()).' have stalled'
-                : 'Nothing has stalled',
-            'sub' => $stalled->count() > 0
-                ? 'Sitting on the same step for '.self::STALL_DAYS.' days or more.'
-                : ($pending > 0
-                    ? $this->plural($pending).' are moving through the workflow normally.'
-                    : 'No vouchers are currently in the workflow.'),
-            'stats' => [
-                $this->stat('Total vouchers', (string) $total, 'all time'),
-                $this->stat('Pending approval', (string) $pending, 'in the workflow'),
-                $this->stat('Approved', (string) $approved, $total ? round($approved / max($total, 1) * 100).'% of all' : '—'),
-                $this->stat('Rejected', (string) $rejected, $total ? round($rejected / max($total, 1) * 100).'% of all' : '—'),
-                $this->stat('Value this month', $this->money->money($thisMonth, $this->currency()),
-                    $lastMonth > 0 ? 'vs '.$this->money->money($lastMonth, $this->currency()).' last month' : 'no prior month'),
-                $this->stat('Avg. approval time', $this->averageApproval() ?? '—', 'submission to decision'),
-            ],
-            'volume' => $this->monthlyVolume(),
-            'by_department' => $this->departmentSpend(),
-            'queue' => VoucherResource::collection($stalled),
-            'queue_total_text' => $this->money->money((float) $stalled->sum('amount'), $this->currency()),
+            'id' => $workflow->id,
+            'name' => $workflow->name,
+            'name_sw' => $workflow->name_sw ?? null,
+            'steps' => $workflow->steps->map(fn (WorkflowStep $step) => [
+                'position' => $step->position,
+                'name' => $step->name,
+                'name_sw' => $step->name_sw,
+                'role' => $step->role,
+                'action' => match (true) {
+                    $step->isRequestStep() => 'request',
+                    $step->can_approve => 'approve',
+                    (bool) $step->can_pay => 'pay',
+                    (bool) $step->can_sign => 'sign',
+                    default => 'review',
+                },
+            ])->values(),
+        ];
+    }
+
+    private function subscription(): ?array
+    {
+        $company = $this->tenant->company();
+
+        if (! $company) {
+            return null;
+        }
+
+        $company->loadMissing('plan');
+
+        return [
+            'plan' => $company->plan?->name,
+            'status' => $company->status,
+            'trial_ends_at' => $company->trial_ends_at?->toIso8601String(),
+            'renews_at' => $company->current_period_end?->toIso8601String(),
+            'days_remaining' => $company->daysRemaining(),
         ];
     }
 
@@ -288,7 +493,7 @@ class DashboardController extends Controller
 
         $revenue = (float) Invoice::query()->withoutGlobalScopes()
             ->where('status', 'paid')
-            ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->whereBetween('paid_at', $this->month())
             ->sum('total');
 
         $runRate = (float) Invoice::query()->withoutGlobalScopes()
@@ -296,20 +501,26 @@ class DashboardController extends Controller
             ->where('paid_at', '>=', now()->subYear())
             ->sum('total');
 
+        $status = fn (string $s) => Voucher::query()->withoutGlobalScopes()->where('status', $s)->count();
+
         return [
+            'view' => 'platform',
             'headline' => "{$companies} companies · ".number_format($users).' users · '.number_format($vouchers).' vouchers',
             'sub' => 'Monthly revenue '.$this->money->money($revenue, 'TZS').($pastDue ? " · {$pastDue} accounts need attention." : '.'),
+            'banner' => null,
             'stats' => [
-                $this->stat('Total companies', (string) $companies, "{$active} active · {$trial} trial · {$pastDue} at risk"),
-                $this->stat('Monthly revenue', $this->money->money($revenue, 'TZS'), 'invoices paid this month'),
-                $this->stat('Trailing 12m revenue', $this->money->money($runRate, 'TZS'), 'collected'),
-                $this->stat('Total users', number_format($users), 'across all companies'),
-                $this->stat('Total vouchers', number_format($vouchers), 'platform-wide'),
-                $this->stat('Pending / approved / rejected',
-                    Voucher::query()->withoutGlobalScopes()->where('status', Voucher::STATUS_IN_REVIEW)->count().' / '.
-                    Voucher::query()->withoutGlobalScopes()->where('status', Voucher::STATUS_APPROVED)->count().' / '.
-                    Voucher::query()->withoutGlobalScopes()->where('status', Voucher::STATUS_REJECTED)->count(),
-                    'platform-wide'),
+                $this->stat('dash.stat.totalCompanies', 'Total companies', (string) $companies,
+                    'dash.sub.companyMix', ':active active · :trial on trial · :atRisk at risk',
+                    ['active' => $active, 'trial' => $trial, 'atRisk' => $pastDue]),
+                $this->stat('dash.stat.monthlyRevenue', 'Monthly revenue', $this->money->money($revenue, 'TZS'),
+                    'dash.sub.invoicesPaidThisMonth', 'Invoices paid this month'),
+                $this->stat('dash.stat.trailingRevenue', 'Revenue, last 12 months', $this->money->money($runRate, 'TZS'),
+                    'dash.sub.collected', 'Collected'),
+                $this->stat('dash.stat.totalUsers', 'Total users', number_format($users), 'dash.sub.acrossCompanies', 'Across all companies'),
+                $this->stat('dash.stat.totalVouchers', 'Total vouchers', number_format($vouchers), 'dash.sub.platformWide', 'Platform-wide'),
+                $this->stat('dash.stat.pendingApprovedRejected', 'Pending / approved / rejected',
+                    $status(Voucher::STATUS_IN_REVIEW).' / '.$status(Voucher::STATUS_APPROVED).' / '.$status(Voucher::STATUS_REJECTED),
+                    'dash.sub.platformWide', 'Platform-wide'),
             ],
             'recent_companies' => Company::with('plan')->withCount(['users', 'vouchers'])->latest('id')->limit(6)->get()
                 ->map(fn (Company $c) => [
@@ -327,16 +538,184 @@ class DashboardController extends Controller
         ];
     }
 
-    /* -------------------------------------------------------------- helpers */
+    /* ----------------------------------------------------- shared structure */
 
-    private function stat(string $label, string $value, string $sub): array
+    /**
+     * The common tenant payload: banner, figures, queue and recent activity.
+     *
+     * `headline` and `sub` repeat the banner's wording for older clients.
+     */
+    private function tenantView(string $view, Collection $queue, array $stats, array $activity, array $extra = []): array
     {
-        return ['label' => $label, 'value' => $value, 'sub' => $sub];
+        $banner = $this->banner($view, $queue->count());
+
+        return array_merge([
+            'view' => $view,
+            'headline' => $banner['title'],
+            'sub' => $banner['body'],
+            'banner' => $banner,
+            'stats' => $stats,
+            'queue' => VoucherResource::collection($queue),
+            'queue_total_text' => $this->format((float) $queue->sum('amount')),
+        ], $activity, $extra);
     }
 
-    private function plural(int $n): string
+    /**
+     * The attention banner: how many vouchers are waiting on this user, and
+     * where to go — or, when nothing is, a plain statement of why.
+     *
+     * @return array{count:int,key:string,params:array,title:string,body_key:string,body:string,action:?array}
+     */
+    private function banner(string $view, int $count): array
     {
-        return $n.' '.($n === 1 ? 'voucher' : 'vouchers');
+        $pending = [
+            'employee' => ['Complete your drafts and respond to any requested changes to keep them moving.', 'dash.cta.continue', 'Continue drafts and returns'],
+            'hod' => ['Each one needs your signature before it can move to the approval step.', 'dash.cta.sign', 'Sign vouchers'],
+            'approver' => ['Each one has reached your approval step.', 'dash.cta.approve', 'Review and approve'],
+            'cashier' => ['Each one is approved and ready for payment.', 'dash.cta.pay', 'Record payments'],
+            'admin' => ['These have remained on the same step for '.self::STALL_DAYS.' days or more.', 'dash.cta.stalled', 'Review stalled vouchers'],
+        ];
+
+        $clear = [
+            'employee' => "Everything you've submitted is currently being processed or has already been reviewed.",
+            'hod' => 'No vouchers are waiting for your signature.',
+            'approver' => 'No vouchers are waiting for your approval.',
+            'cashier' => 'Every approved voucher has been paid.',
+            'admin' => 'No vouchers have stalled in the workflow.',
+        ];
+
+        if ($count === 0) {
+            return [
+                'count' => 0,
+                'key' => 'dash.banner.clear',
+                'params' => [],
+                'title' => 'Nothing needs your attention.',
+                'body_key' => "dash.banner.clear.{$view}",
+                'body' => $clear[$view],
+                'action' => null,
+            ];
+        }
+
+        [$body, $actionKey, $actionLabel] = $pending[$view];
+
+        return [
+            'count' => $count,
+            'key' => $count === 1 ? 'dash.banner.pending.one' : 'dash.banner.pending.other',
+            'params' => ['count' => $count],
+            'title' => $count === 1
+                ? 'You have 1 voucher waiting for your attention.'
+                : "You have {$count} vouchers waiting for your attention.",
+            'body_key' => "dash.banner.pending.{$view}",
+            'body' => $body,
+            'action' => ['key' => $actionKey, 'label' => $actionLabel, 'href' => '#queue'],
+        ];
+    }
+
+    /**
+     * One figure. `:name` placeholders in the sub label are filled from
+     * `sub_params`, so a client translating `sub_key` has the same values.
+     */
+    private function stat(
+        string $key,
+        string $label,
+        string $value,
+        ?string $subKey = null,
+        ?string $subLabel = null,
+        array $subParams = [],
+        ?string $subText = null,
+        array $params = [],
+    ): array {
+        $sub = $subText ?? ($subLabel !== null ? $this->fill($subLabel, $subParams) : '');
+
+        return [
+            'key' => $key,
+            'params' => (object) $params,
+            'label' => $label,
+            'value' => $value,
+            'sub' => $sub,
+            'sub_key' => $subText !== null ? null : $subKey,
+            'sub_params' => (object) $subParams,
+        ];
+    }
+
+    private function fill(string $text, array $params): string
+    {
+        foreach ($params as $name => $value) {
+            $text = str_replace(':'.$name, (string) $value, $text);
+        }
+
+        return $text;
+    }
+
+    /**
+     * The latest workflow events on the given vouchers.
+     *
+     * @param  Builder<Voucher>  $vouchers  already narrowed to what the caller may see
+     */
+    private function activity(Builder $vouchers, string $key, string $label, ?array $actions = null): array
+    {
+        $ids = (clone $vouchers)->select('vouchers.id');
+
+        $rows = VoucherApproval::query()
+            ->with('voucher:id,number,amount,currency,status')
+            ->whereIn('voucher_id', $ids)
+            ->whereIn('action', $actions ?? self::ACTIVITY_ACTIONS)
+            ->orderByDesc('acted_at')->orderByDesc('id')
+            ->limit(self::ACTIVITY_LIMIT)
+            ->get();
+
+        return [
+            'recent_activity_key' => $key,
+            'recent_activity_label' => $label,
+            'recent_activity' => $rows->map(fn (VoucherApproval $a) => [
+                'id' => $a->id,
+                'action' => $a->action,
+                'action_label' => self::ACTION_LABELS[$a->action] ?? str_replace('_', ' ', $a->action),
+                'actor_id' => $a->actor_id,
+                'actor' => $a->actor_name,
+                'voucher_id' => $a->voucher_id,
+                'voucher_number' => $a->voucher?->number,
+                'amount_text' => $a->voucher
+                    ? $this->money->money((float) $a->voucher->amount, $a->voucher->currency ?: $this->currency())
+                    : null,
+                'at' => $a->acted_at?->toIso8601String(),
+            ])->values()->all(),
+        ];
+    }
+
+    /** The "waiting on me" queue for review steps. */
+    private function pendingFor(User $user): Collection
+    {
+        $queue = Voucher::query()->with(self::RELATIONS);
+        $this->visibility->pendingFor($queue, $user);
+
+        return $this->visibility->actionableOnly($queue->orderBy('submitted_at')->get(), $user);
+    }
+
+    /** @return Builder<Voucher> */
+    private function visible(User $user): Builder
+    {
+        return $this->visibility->apply(Voucher::query(), $user);
+    }
+
+    /** @return Collection<int,Department> */
+    private function scopedDepartments(User $user): Collection
+    {
+        return $user->headedDepartments()->orderBy('name')->get()
+            ->merge($user->managedDepartments()->orderBy('name')->get())
+            ->unique('id')
+            ->values();
+    }
+
+    /** @return array{0:Carbon,1:Carbon} */
+    private function month(): array
+    {
+        return [now()->startOfMonth(), now()->endOfMonth()];
+    }
+
+    private function format(float $amount): string
+    {
+        return $this->money->money($amount, $this->currency());
     }
 
     private function currency(): string
@@ -344,9 +723,13 @@ class DashboardController extends Controller
         return $this->tenant->company()?->currency ?? 'TZS';
     }
 
+    /**
+     * By the company's own clock. The app runs on UTC, three hours behind
+     * Tanzania, so reading the server's hour greeted afternoons as mornings.
+     */
     private function greeting(): string
     {
-        $hour = (int) now()->format('G');
+        $hour = (int) now($this->tenant->company()?->timezone ?: 'Africa/Dar_es_Salaam')->format('G');
 
         return match (true) {
             $hour < 12 => 'Good morning',
@@ -360,6 +743,7 @@ class DashboardController extends Controller
     {
         $rows = Voucher::query()
             ->selectRaw("DATE_FORMAT(voucher_date, '%Y-%m') as period, COUNT(*) as count, SUM(amount) as total")
+            ->where('status', '!=', Voucher::STATUS_DRAFT)
             ->where('voucher_date', '>=', now()->subMonths(6)->startOfMonth())
             ->groupBy('period')
             ->orderBy('period')
@@ -385,32 +769,44 @@ class DashboardController extends Controller
         return $series;
     }
 
-    private function departmentSpend(): array
+    /**
+     * Approved value per department — approved AND paid, since a voucher does
+     * not stop being spend once the money has moved.
+     *
+     * @param  Builder<Voucher>  $scope  vouchers the caller may see
+     * @param  bool  $includeEmpty  list departments with nothing approved yet
+     */
+    private function departmentSpend(Builder $scope, bool $includeEmpty): array
     {
-        $rows = Department::query()
-            ->leftJoin('vouchers', function ($join) {
-                $join->on('vouchers.department_id', '=', 'departments.id')
-                    ->where('vouchers.status', '=', Voucher::STATUS_APPROVED)
-                    ->whereNull('vouchers.deleted_at');
-            })
-            ->selectRaw('departments.id, departments.name, COUNT(vouchers.id) as count, COALESCE(SUM(vouchers.amount),0) as total')
-            ->groupBy('departments.id', 'departments.name')
-            ->orderByDesc('total')
-            ->get();
+        $totals = (clone $scope)
+            ->whereNotNull('vouchers.approved_at')
+            ->whereIn('vouchers.status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])
+            ->selectRaw('vouchers.department_id, COUNT(vouchers.id) as count, COALESCE(SUM(vouchers.amount),0) as total')
+            ->groupBy('vouchers.department_id')
+            ->get()
+            ->keyBy('department_id');
 
-        // SUM() comes back as the string "0.00", which is truthy — so the
-        // obvious `?: 1` guard does not fire and the share calculation divides
-        // by zero. A tenant with nothing approved yet is the common case on day
-        // one, and its administrator's dashboard should not 500.
+        $departments = Department::query()->orderBy('name')->get(['id', 'name']);
+
+        $rows = $departments
+            ->map(fn (Department $d) => [
+                'id' => $d->id,
+                'name' => $d->name,
+                'count' => (int) ($totals->get($d->id)->count ?? 0),
+                'total' => (float) ($totals->get($d->id)->total ?? 0),
+            ])
+            ->filter(fn (array $row) => $includeEmpty || $row['count'] > 0)
+            ->sortByDesc('total')
+            ->values();
+
+        // A tenant with nothing approved yet is the common case on day one;
+        // guard the share calculation against dividing by zero.
         $max = (float) $rows->max('total');
         $max = $max > 0 ? $max : 1.0;
 
-        return $rows->map(fn ($row) => [
-            'id' => $row->id,
-            'name' => $row->name,
-            'count' => (int) $row->count,
-            'total' => (float) $row->total,
-            'share' => round((float) $row->total / $max * 100).'%',
+        return $rows->map(fn (array $row) => $row + [
+            'total_text' => $this->format($row['total']),
+            'share' => round($row['total'] / $max * 100).'%',
         ])->all();
     }
 
@@ -431,19 +827,5 @@ class DashboardController extends Controller
         return $hours < 24
             ? round($hours, 1).' hours'
             : round($hours / 24, 1).' days';
-    }
-
-    private function medianTurnaround(User $user): ?string
-    {
-        $hours = Voucher::where('requester_id', $user->id)
-            ->whereNotNull('submitted_at')->whereNotNull('approved_at')
-            ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, submitted_at, approved_at)) as avg_hours')
-            ->value('avg_hours');
-
-        if ($hours === null) {
-            return null;
-        }
-
-        return (float) $hours < 24 ? round((float) $hours, 1).' hours' : round((float) $hours / 24, 1).' days';
     }
 }

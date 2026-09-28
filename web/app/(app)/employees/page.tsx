@@ -11,6 +11,7 @@ import type { Department, Paginated, User } from "@/lib/types";
 const ROLES = [
   { value: "employee", label: "Employee" },
   { value: "hod", label: "Head of department" },
+  { value: "manager", label: "Manager" },
   { value: "ceo", label: "CEO / approving manager" },
   { value: "cashier", label: "Cashier · finance" },
   { value: "finance", label: "Finance" },

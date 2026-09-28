@@ -22,7 +22,12 @@ class WorkflowStepResource extends JsonResource
             'role_label' => WorkflowStep::roleLabel($this->role),
             'assigned_user_id' => $this->assigned_user_id,
             'assigned_user' => $this->whenLoaded('assignedUser', fn () => $this->assignedUser
-                ? ['id' => $this->assignedUser->id, 'name' => $this->assignedUser->name]
+                ? [
+                    'id' => $this->assignedUser->id,
+                    'name' => $this->assignedUser->name,
+                    'role' => $this->assignedUser->role,
+                    'status' => $this->assignedUser->status,
+                ]
                 : null),
             'assignee_hint' => $this->assignee_hint,
             'can_sign' => (bool) $this->can_sign,

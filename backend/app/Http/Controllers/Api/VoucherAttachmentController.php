@@ -29,9 +29,9 @@ class VoucherAttachmentController extends Controller
         $this->authorizeVoucher($request, $voucher);
 
         abort_unless(
-            $this->engine->availableActions($request->user(), $voucher)['edit'],
+            $this->engine->availableActions($request->user(), $voucher)['attach'],
             403,
-            'Attachments can only be added while the voucher is editable.',
+            'You cannot add attachments to this voucher.',
         );
 
         $maxKb = (int) config('vouchflow.max_upload_mb', 10) * 1024;
@@ -89,10 +89,19 @@ class VoucherAttachmentController extends Controller
         $this->authorizeVoucher($request, $voucher);
 
         abort_unless($attachment->voucher_id === $voucher->id, 404);
+        $actions = $this->engine->availableActions($request->user(), $voucher);
+
+        // While the voucher is editable its owner manages the documents. After
+        // approval the original evidence is fixed; only a document added since
+        // (a receipt, say) may be withdrawn, and only by whoever added it.
+        $addedSinceApproval = $voucher->approved_at !== null
+            && $attachment->created_at?->greaterThan($voucher->approved_at)
+            && $attachment->uploaded_by === $request->user()->id;
+
         abort_unless(
-            $this->engine->availableActions($request->user(), $voucher)['edit'],
+            $actions['edit'] || ($actions['attach'] && $addedSinceApproval),
             403,
-            'Attachments can only be removed while the voucher is editable.',
+            'This attachment is part of the approved record and cannot be removed.',
         );
 
         Storage::disk($attachment->disk ?: 'local')->delete($attachment->path);

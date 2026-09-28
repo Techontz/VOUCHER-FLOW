@@ -6,15 +6,51 @@ use App\Models\Company;
 use App\Models\User;
 use App\Models\VoucherType;
 use App\Models\Workflow;
+use App\Notifications\OneTimeCodeNotification;
 use App\Support\TenantContext;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 use Tests\TestSupport;
 
 class AuthAndOnboardingTest extends TestCase
 {
     use RefreshDatabase, TestSupport;
+
+    /**
+     * Signs in the way the clients do: password first, then the one-time code
+     * that was delivered.
+     */
+    private function signIn(User $user, string $password = 'Password123!'): TestResponse
+    {
+        Notification::fake();
+
+        $challenge = $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => $password])
+            ->assertOk()
+            ->assertJsonPath('requires_verification', true)
+            ->json('challenge');
+
+        return $this->postJson('/api/auth/login/verify', ['challenge' => $challenge, 'code' => $this->deliveredCode($user, 'login')]);
+    }
+
+    private function deliveredCode(User $user, string $purpose): string
+    {
+        $code = null;
+
+        Notification::assertSentTo($user, OneTimeCodeNotification::class, function (OneTimeCodeNotification $n) use (&$code, $purpose) {
+            if ($n->purpose === $purpose) {
+                $code = $n->code;
+            }
+
+            return true;
+        });
+
+        $this->assertNotNull($code);
+
+        return $code;
+    }
 
     public function test_registering_provisions_a_complete_tenant(): void
     {
@@ -94,10 +130,7 @@ class AuthAndOnboardingTest extends TestCase
         $this->assertSame('light', $t['employee']->fresh()->theme);
 
         // The choice comes back on the next sign-in rather than reverting to dark.
-        $this->postJson('/api/auth/login', [
-            'email' => $t['employee']->email,
-            'password' => 'Password123!',
-        ])->assertOk()->assertJsonPath('user.theme', 'light');
+        $this->signIn($t['employee'])->assertOk()->assertJsonPath('user.theme', 'light');
     }
 
     public function test_the_same_address_can_belong_to_two_companies(): void
@@ -128,10 +161,7 @@ class AuthAndOnboardingTest extends TestCase
             'password' => 'wrong-password',
         ])->assertStatus(422);
 
-        $this->postJson('/api/auth/login', [
-            'email' => $t['employee']->email,
-            'password' => 'Password123!',
-        ])->assertOk()->assertJsonStructure(['token', 'user', 'company']);
+        $this->signIn($t['employee'])->assertOk()->assertJsonStructure(['token', 'user', 'company']);
 
         $this->assertNotNull($t['employee']->fresh()->last_login_at);
     }
@@ -140,11 +170,14 @@ class AuthAndOnboardingTest extends TestCase
     {
         $t = $this->makeTenant('Acme Trading');
 
-        $code = $this->postJson('/api/auth/forgot-password', ['email' => $t['employee']->email])
-            ->assertOk()
-            ->json('otp.code');
+        Notification::fake();
 
-        $this->assertNotNull($code, 'A code should be returned outside production.');
+        $this->postJson('/api/auth/forgot-password', ['email' => $t['employee']->email])
+            ->assertOk()
+            ->assertJsonMissingPath('otp.code');
+
+        // The code travels by e-mail only; it is never part of the response.
+        $code = $this->deliveredCode($t['employee'], 'password_reset');
 
         $this->postJson('/api/auth/reset-password', [
             'email' => $t['employee']->email,
@@ -160,10 +193,7 @@ class AuthAndOnboardingTest extends TestCase
             'password_confirmation' => 'BrandNew123!',
         ])->assertOk();
 
-        $this->postJson('/api/auth/login', [
-            'email' => $t['employee']->email,
-            'password' => 'BrandNew123!',
-        ])->assertOk();
+        $this->signIn($t['employee'], 'BrandNew123!')->assertOk();
     }
 
     public function test_forgot_password_does_not_reveal_whether_an_account_exists(): void

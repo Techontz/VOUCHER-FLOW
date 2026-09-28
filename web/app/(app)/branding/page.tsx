@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, API_MODE } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { Field, Icon, Note, Panel, Spinner } from "@/components/ui";
 import { SettingsLayout } from "@/components/app-ui";
 import { VoucherSheet } from "@/components/voucher-sheet";
+import { DocumentFrame, useTemplatePreviews } from "@/components/voucher-templates";
+import { VoucherTemplatePanel } from "@/components/voucher-template-panel";
 import type { ColorTheme, Voucher } from "@/lib/types";
 
 type LogoSlot = "logo" | "logo_mark";
@@ -31,7 +33,7 @@ const LOGO_MAX_BYTES = 2 * 1024 * 1024;
  * platform — the demo tenant simply filled this in.
  */
 export default function BrandingPage() {
-  const { t, locale, company, refresh, toast, reportError } = useApp();
+  const { t, locale, company, user, refresh, toast, reportError } = useApp();
   const sw = locale === "sw";
   const [busy, setBusy] = useState(false);
   // New artwork waiting to be uploaded, and artwork marked for removal. The
@@ -174,6 +176,21 @@ export default function BrandingPage() {
 
   const previewCompany = company ? { ...company, ...form } : null;
 
+  // The sample voucher in every design, in the letterhead as currently typed
+  // (saved or not) — the preview column and the template chooser share it.
+  const templatePreviews = useTemplatePreviews("/voucher-templates/preview", {
+    name: (form.legal_name || form.name).trim() || null,
+    address: form.address.trim() || null,
+    phone: form.phone.trim() || null,
+    email: form.email.trim() || null,
+    website: form.website.trim() || null,
+    tin: form.tin.trim() || null,
+    voucher_footer_text: form.voucher_footer_text.trim() || null,
+    primary_color: /^#[0-9a-fA-F]{6}$/.test(form.primary_color) ? form.primary_color : null,
+    secondary_color: company?.secondary_color ?? null,
+  }, form.logo_url || null);
+  const currentTemplate = company?.voucher_template ?? "classic";
+
   return (
     <SettingsLayout
       title={t("branding")}
@@ -185,6 +202,15 @@ export default function BrandingPage() {
       }
     >
       <div className="app-branding-grid">
+        <div className="app-stack">
+        <VoucherTemplatePanel
+          mode="company"
+          previews={templatePreviews.previews}
+          previewsLoading={templatePreviews.loading}
+          canManage={user?.role === "company_admin"}
+          onChanged={() => { void refresh(); }}
+        />
+
         <form onSubmit={save} className="app-stack">
           {/* ── identity ── */}
           <Panel title={t("companyDetails")}>
@@ -314,12 +340,15 @@ export default function BrandingPage() {
             {busy ? <Spinner /> : t("saveChanges")}
           </button>
         </form>
+        </div>
 
         {/* ── live specimen ── */}
         <div className="app-branding-preview">
           <div className="app-preview-label"><Icon name="ph-eye" size={14} /> {t("livePreview")}</div>
           <div className="vf-document-frame">
-            <VoucherSheet voucher={specimen} company={previewCompany} />
+            {API_MODE === "live" && templatePreviews.previews[currentTemplate]
+              ? <div className="vt-document"><DocumentFrame html={templatePreviews.previews[currentTemplate]} fit="content" title={t("livePreview")} /></div>
+              : <VoucherSheet voucher={specimen} company={previewCompany} />}
           </div>
           <div style={{ marginTop: "var(--space-3)" }}>
             <Note>{t("previewNote")}</Note>
