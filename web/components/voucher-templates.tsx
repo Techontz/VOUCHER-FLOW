@@ -132,7 +132,10 @@ export function useTemplateCatalogue() {
   useEffect(() => {
     let live = true;
     api.get<{ data: VoucherTemplate[]; default: string }>("/voucher-templates")
-      .then((r) => { if (live) { setTemplates(r.data); setDefaultKey(r.default); } })
+      .then((r) => {
+        if (!live) return;
+        if (Array.isArray(r?.data)) { setTemplates(r.data); setDefaultKey(r.default); } else setFailed(true);
+      })
       .catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
   }, []);
@@ -163,6 +166,7 @@ export function useTemplatePreviews(path: string | null, body: Record<string, un
       api.post<{ data: { key: string; html: string }[]; logo_placeholder: string }>(path, { ...body, locale, with_logo: !!logoSrc })
         .then((r) => {
           if (!live) return;
+          if (!Array.isArray(r?.data)) { setFailed(true); return; }
           setRaw({ previews: Object.fromEntries(r.data.map((p) => [p.key, p.html])), placeholder: r.logo_placeholder });
           setFailed(false);
         })
@@ -358,7 +362,10 @@ function useServerDocument(path: string, refreshKey: string, body?: Record<strin
         ? api.post<{ html: string }>(path, body)
         : api.get<{ html: string }>(path);
       call
-        .then((r) => { if (live) { setHtml(r.html); setFailed(false); } })
+        .then((r) => {
+          if (!live) return;
+          if (typeof r?.html === "string") { setHtml(r.html); setFailed(false); } else setFailed(true);
+        })
         .catch(() => { if (live) setFailed(true); });
     }, body ? 400 : 0);
     return () => { live = false; window.clearTimeout(timer); };

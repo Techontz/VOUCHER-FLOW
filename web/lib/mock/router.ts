@@ -256,6 +256,15 @@ function liveLoginChallenge(id: unknown): MockLoginChallenge {
 export function handle(method: string, path: string, body: Body = {}, query: Query = {}, token: string | null = null): unknown {
   const db = store.db;
   const seg = path.replace(/^\/+/, "").split("/");
+
+  // Voucher designs and documents are rendered by the Laravel server from its
+  // Blade templates; the in-browser fixture has nothing to render them with.
+  // Say so plainly rather than letting the path fall through to a handler
+  // that answers something else.
+  if (path.startsWith("/voucher-templates") || path.includes("/voucher-template")
+    || /^\/vouchers\/(\d+\/document|document-preview)$/.test(path)) {
+    throw new MockError(501, "Voucher designs are rendered by the VouchFlow server. Connect the live API to see them.");
+  }
   const num = (v: string | undefined) => Number(v);
   const int = (v: string | undefined, fallback: number) => (v ? Number(v) : fallback);
 
