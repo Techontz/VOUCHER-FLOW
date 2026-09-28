@@ -51,11 +51,12 @@ void main() {
   test('the themes follow the chosen palette', () {
     addTearDown(() => VfColors.palette = VfAccentPalette.blue);
     VfColors.palette = VfAccentPalette.emerald;
-    expect(VfTheme.dark().colorScheme.primary, VfAccentPalette.emerald.onDark);
-    expect(
-      VfTheme.light().colorScheme.primary,
-      VfAccentPalette.emerald.onLight,
-    );
+    // As on the web: the primary is the button colour of the palette in each
+    // appearance, and accent text uses the palette's own text colour.
+    expect(VfTheme.dark().colorScheme.primary, VfAccentPalette.emerald.primaryDark);
+    expect(VfTheme.light().colorScheme.primary, VfAccentPalette.emerald.primaryLight);
+    expect(VfTheme.dark().colorScheme.onPrimaryContainer, VfAccentPalette.emerald.textDark);
+    expect(VfTheme.light().colorScheme.onPrimaryContainer, VfAccentPalette.emerald.textLight);
   });
 
   test('a company without color_theme reads as blue', () {

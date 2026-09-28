@@ -7,7 +7,10 @@ import 'app/core/translations.dart';
 import 'app/data/services/api_service.dart';
 import 'app/data/services/session_service.dart';
 import 'app/data/services/voucher_repository.dart';
+import 'app/modules/auth/forgot_password_page.dart';
 import 'app/modules/auth/login_page.dart';
+import 'app/modules/auth/register_page.dart';
+import 'app/modules/platform/company_detail_page.dart';
 import 'app/modules/auth/splash_page.dart';
 import 'app/modules/auth/verify_login_page.dart';
 import 'app/modules/branding/branding_page.dart';
@@ -82,10 +85,14 @@ class VouchFlowApp extends StatelessWidget {
             Get.lazyPut(DashboardController.new);
             Get.lazyPut(NotificationsController.new);
             Get.lazyPut(ProfileController.new);
+            Get.lazyPut(BrandingController.new, fenix: true);
           }),
         ),
         GetPage(name: Routes.voucher, page: () => const VoucherDetailPage()),
         GetPage(name: Routes.bulkApprove, page: () => const BulkApprovePage()),
+        GetPage(name: Routes.register, page: () => const RegisterPage()),
+        GetPage(name: Routes.forgotPassword, page: () => const ForgotPasswordPage()),
+        GetPage(name: Routes.platformCompany, page: () => const PlatformCompanyPage()),
         GetPage(
           name: Routes.branding,
           page: () => const BrandingPage(),

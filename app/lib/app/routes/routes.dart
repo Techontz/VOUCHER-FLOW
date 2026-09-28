@@ -7,4 +7,7 @@ abstract class Routes {
   static const createVoucher = '/voucher/new';
   static const branding = '/branding';
   static const bulkApprove = '/approvals/bulk';
+  static const register = '/register';
+  static const forgotPassword = '/forgot-password';
+  static const platformCompany = '/platform/company';
 }

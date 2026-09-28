@@ -1,9 +1,26 @@
 import 'package:get/get.dart';
 
+import 'i18n/nav.dart';
+import 'i18n/auth.dart';
+import 'i18n/dashboard.dart';
+import 'i18n/vouchers.dart';
+import 'i18n/create.dart';
+import 'i18n/detail.dart';
+import 'i18n/payments.dart';
+import 'i18n/reports.dart';
+import 'i18n/admin.dart';
+import 'i18n/branding.dart';
+import 'i18n/platform.dart';
+import 'i18n/profile.dart';
+
 /// English + Swahili strings, matching the web client's dictionary.
 class VfTranslations extends Translations {
   @override
-  Map<String, Map<String, String>> get keys => {'en': _en, 'sw': _sw};
+  Map<String, Map<String, String>> get keys => {
+    // Each area's strings live in core/i18n/<area>.dart and are merged here.
+    'en': {..._en, ...navEn, ...authEn, ...dashboardEn, ...vouchersEn, ...createEn, ...detailEn, ...paymentsEn, ...reportsEn, ...adminEn, ...brandingEn, ...platformEn, ...profileEn},
+    'sw': {..._sw, ...navSw, ...authSw, ...dashboardSw, ...vouchersSw, ...createSw, ...detailSw, ...paymentsSw, ...reportsSw, ...adminSw, ...brandingSw, ...platformSw, ...profileSw},
+  };
 
   static const _en = {
     'app.name': 'VouchFlow',

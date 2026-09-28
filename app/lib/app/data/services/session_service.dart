@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/dev_hooks.dart';
+
 import '../../core/theme.dart';
 import '../models/models.dart';
 import 'api_service.dart';
@@ -36,6 +38,13 @@ class SessionService extends GetxService {
     applyAccent(_api.accent, persist: false);
     _api.onUnauthorised.add(() => _clear());
 
+    // Development only (profile web builds): sign in with a given token.
+    if (DevHooks.token != null) await _api.setToken(DevHooks.token);
+    if (DevHooks.theme != null) {
+      themeMode.value = _modeFrom(DevHooks.theme);
+      Get.changeThemeMode(themeMode.value);
+    }
+
     if (_api.hasToken) {
       try {
         await refresh();
@@ -43,6 +52,8 @@ class SessionService extends GetxService {
         await _api.setToken(null);
       }
     }
+    // Development only: a requested appearance wins over the stored one.
+    if (DevHooks.theme != null) _applyTheme(_modeFrom(DevHooks.theme));
     booting.value = false;
     return this;
   }

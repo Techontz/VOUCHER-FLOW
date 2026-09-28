@@ -233,7 +233,7 @@ class DashboardTab extends GetView<DashboardController> {
               SectionHeader(
                 title: dashTr(d.activityKey, d.activityLabel),
                 trailing: TextButton(
-                  onPressed: () => Get.find<ShellController>().index.value = 1,
+                  onPressed: () => Get.find<ShellController>().go('/vouchers'),
                   child: Text(
                     view == 'employee'
                         ? 'dash.panel.voucherHistory'.tr
