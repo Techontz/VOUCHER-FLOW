@@ -167,8 +167,7 @@ extension VfPalette on BuildContext {
   Color get vfLineStrong =>
       isDark ? VfColors.lineStrong : VfColors.lightLineStrong;
   Color get vfMuted => Theme.of(this).textTheme.bodySmall?.color ?? vfInk;
-  Color get vfAccent =>
-      isDark ? VfColors.accent600 : VfColors.palette.onLight;
+  Color get vfAccent => isDark ? VfColors.accent600 : VfColors.palette.onLight;
   Color get vfAccentTint =>
       isDark ? VfColors.accent100Dark : VfColors.accent100Light;
 }
@@ -451,6 +450,8 @@ class VfStatus {
         // Status keeps its meaning whatever the company's palette.
         return VfColors.info;
       case 'tag-outline':
+      // Partly paid: money released, some still owed.
+      case 'tag-warn':
         return VfColors.warn;
       default:
         return const Color(0xFF8494B0);
@@ -485,6 +486,7 @@ class VfStatus {
       case 'tag-info':
         return const Color(0xFF1A4FAE);
       case 'tag-outline':
+      case 'tag-warn':
         return const Color(0xFF7A5300);
       default:
         return base;
@@ -498,7 +500,6 @@ class VfStatus {
     return _base(tag).withValues(alpha: .34);
   }
 }
-
 
 /// The printed document's palette and type.
 ///

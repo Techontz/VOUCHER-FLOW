@@ -143,6 +143,24 @@ export function availableActions(db: MockDataset, user: MockUser, voucher: MockV
   return a;
 }
 
+/* Money can leave in parts — mirrors Voucher::released() / balance() on the API. */
+
+/** What has been released so far: everything once paid, the running total before. */
+export function releasedAmount(v: MockVoucher): number {
+  return v.status === "paid" ? v.amount : (v.amount_paid ?? 0);
+}
+
+/** What is still owed. Zero once paid, whatever the running total says. */
+export function balanceOf(v: MockVoucher): number {
+  if (v.status === "paid") return 0;
+  return Math.max(0, Math.round((v.amount - (v.amount_paid ?? 0)) * 100) / 100);
+}
+
+/** Approved, some money released, some still outstanding. */
+export function isPartiallyPaid(v: MockVoucher): boolean {
+  return v.status === "approved" && (v.amount_paid ?? 0) > 0 && balanceOf(v) > 0;
+}
+
 export interface StatusView { key: string; label: string; label_sw: string; tag: string }
 
 /** Human status text derived from the voucher's own workflow. */
@@ -155,7 +173,10 @@ export function presentStatus(db: MockDataset, v: MockVoucher): StatusView {
     case "rejected": return mk("rejected", "Rejected", "Imekataliwa", "tag-accent-2");
     case "cancelled": return mk("cancelled", "Cancelled", "Imefutwa", "tag-neutral");
     case "paid": return mk("paid", "Paid", "Imelipwa", "tag-accent");
-    case "approved": return mk("awaiting_payment", "Approved — awaiting payment", "Imeidhinishwa — inasubiri malipo", "tag-info");
+    // Part of the money out, the rest still owed: still in the payment queue.
+    case "approved": return isPartiallyPaid(v)
+      ? mk("partially_paid", "Partially paid", "Imelipwa sehemu", "tag-accent-2")
+      : mk("awaiting_payment", "Approved — awaiting payment", "Imeidhinishwa — inasubiri malipo", "tag-info");
     default: break;
   }
 
@@ -224,6 +245,7 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
     const changesEvent = [...events].reverse().find((e) => e.action === "changes_requested");
     const approveEvent = [...events].reverse().find((e) => e.action === "approved");
     const payEvent = [...events].reverse().find((e) => e.action === "paid");
+    const partEvent = [...events].reverse().find((e) => e.action === "part_paid");
     const signEvent = events.find((e) => e.action === "signed");
     const forwardEvent = [...events].reverse().find((e) => e.action === "forwarded");
     const last = events[events.length - 1];
@@ -246,6 +268,10 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
     } else if (payEvent) {
       act = "Paid"; actSw = "Imelipwa"; when = payEvent.acted_at;
       comment = payEvent.comment ?? "Funds released and reference recorded against the voucher.";
+    } else if (partEvent && step.can_pay && atThis) {
+      const owed = `${v.currency} ${Math.round(balanceOf(v)).toLocaleString("en-US")}`;
+      act = `Partly paid — ${owed} outstanding`; actSw = `Imelipwa sehemu — ${owed} bado`;
+      when = partEvent.acted_at; comment = partEvent.comment;
     } else if (approveEvent) {
       act = "Approved"; actSw = "Imeidhinishwa"; when = approveEvent.acted_at;
       comment = approveEvent.comment ?? "Cleared for payment.";

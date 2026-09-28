@@ -63,6 +63,9 @@ class VoucherController extends Controller
         return VoucherResource::collection($vouchers)->additional([
             'meta' => [
                 'total_amount' => (float) (clone $query)->sum('amount'),
+                // What is still owed across the matching vouchers (part payments deducted).
+                'total_balance' => (float) (clone $query)->where('vouchers.status', Voucher::STATUS_APPROVED)
+                    ->sum(DB::raw('vouchers.amount - vouchers.amount_paid')),
                 'currency' => $this->tenant->company()?->currency ?? 'TZS',
             ],
         ]);
@@ -94,6 +97,7 @@ class VoucherController extends Controller
         $voucher->load([
             'requester.department', 'department.hod', 'department.manager', 'voucherType', 'paidBy',
             'workflow.steps.assignedUser', 'approvals.actor', 'attachments.uploader', 'comments.user.department',
+            'payments.paidBy', 'payments.acknowledgements',
         ])->loadCount(['attachments', 'comments']);
 
         return (new VoucherResource($voucher))->detailed()->response();
@@ -368,6 +372,9 @@ class VoucherController extends Controller
             'payment_method' => ['nullable', 'string', 'max:80'],
             'cheque_number' => ['nullable', 'string', 'max:64'],
             'received_by' => [$voucher->isBank() ? 'nullable' : 'required', 'string', 'max:120'],
+            // Leave out to pay the whole balance; less than the balance pays part now.
+            'amount' => ['nullable', 'numeric', 'min:0.01', 'max:'.max(0.01, $voucher->balance())],
+            'receiver_id_number' => ['nullable', 'string', 'max:60'],
             'note' => ['nullable', 'string', 'max:2000'],
             'signature' => ['nullable', 'string', 'max:1500000'],
         ]);
@@ -558,7 +565,7 @@ class VoucherController extends Controller
     {
         $voucher->load([
             'requester', 'department', 'voucherType', 'paidBy', 'workflow.steps',
-            'approvals.actor', 'attachments', 'comments.user',
+            'approvals.actor', 'attachments.uploader', 'comments.user', 'payments.paidBy', 'payments.acknowledgements',
         ])->loadCount(['attachments', 'comments']);
 
         return (new VoucherResource($voucher))->detailed()->response()->setStatusCode($status);

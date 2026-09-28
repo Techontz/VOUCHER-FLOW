@@ -109,7 +109,8 @@ export interface MockApproval {
   actor_name: string;
   action:
     | "created" | "submitted" | "signed" | "forwarded" | "approved"
-    | "rejected" | "changes_requested" | "resubmitted" | "paid" | "cancelled";
+    | "rejected" | "changes_requested" | "resubmitted" | "paid" | "part_paid"
+    | "acknowledged" | "cancelled";
   comment: string | null;
   signature: string | null;
   acted_at: string;
@@ -154,9 +155,42 @@ export interface MockVoucher {
   cheque_number: string | null;
   cash_float: string | null;
   received_by: string | null;
+  /**
+   * Money released so far. Optional because a demo saved in localStorage
+   * before part payments existed has no such field — read it as 0.
+   */
+  amount_paid?: number;
+  /** Each release of money, in order — see VoucherPayment on the API. */
+  payments?: MockPayment[];
   created_at: string;
-  attachments: { id: number; name: string; mime: string; size_bytes: number }[];
+  attachments: {
+    id: number; name: string; mime: string; size_bytes: number;
+    /** "payment_acknowledgement" for a receiver's signed copy; otherwise absent. */
+    document_type?: string | null;
+    voucher_payment_id?: number | null;
+    uploaded_by?: string;
+    created_at?: string;
+  }[];
   comments: { id: number; user_id: number; body: string; created_at: string }[];
+}
+
+/** One release of money against a voucher — the mirror of VoucherPayment. */
+export interface MockPayment {
+  id: number;
+  sequence: number;
+  amount: number;
+  balance_after: number;
+  payment_method: string | null;
+  payment_reference: string | null;
+  cheque_number: string | null;
+  received_by: string | null;
+  receiver_id_number: string | null;
+  payment_date: string;
+  paid_at: string;
+  paid_by: string;
+  paid_by_id: number;
+  note: string | null;
+  acknowledged_at: string | null;
 }
 
 export interface MockNotification {

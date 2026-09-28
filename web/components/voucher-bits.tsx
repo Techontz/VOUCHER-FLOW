@@ -29,6 +29,8 @@ export function statusTone(key: string | null | undefined): Tone {
     case "awaiting_payment":
       return "ok";
     case "changes_requested":
+    // Money has moved but not all of it: someone still has to finish the job.
+    case "partially_paid":
       return "warn";
     case "rejected":
       return "bad";
@@ -188,6 +190,8 @@ export function voucherStage(
     case "awaiting_approval": return step ? fill("stageWithApproval", "role", role) : voucher.status_label;
     case "awaiting_review": return step ? fill("stageWith", "step", step.name) : voucher.status_label;
     case "awaiting_payment": return t("awaitingPayment");
+    case "partially_paid":
+      return voucher.balance_text ? fill("stagePartlyPaid", "amount", voucher.balance_text) : voucher.status_label;
     case "paid": {
       const on = voucher.payment_date ?? voucher.paid_at;
       return on ? fill("stagePaidOn", "date", formatDate(on, locale)) : t("paidAct");
@@ -201,9 +205,38 @@ export function voucherStage(
   }
 }
 
+/**
+ * The voucher's amount, and — while it is part-paid — what is still owed
+ * underneath it, so a queue never reads as if the full sum were outstanding.
+ */
+export function VoucherAmount({ voucher, owing = false }: {
+  voucher: Voucher;
+  /** In the payment queue: "Balance TZS 1,000,000 of TZS 10,000,000". */
+  owing?: boolean;
+}) {
+  const { t } = useApp();
+  const balance = voucher.balance_text;
+  return (
+    <>
+      {voucher.amount_text}
+      {voucher.is_partially_paid && balance && (
+        <span className="vf-amount-balance">
+          {owing
+            ? t("balanceOfAmount").replace("{balance}", balance).replace("{amount}", voucher.amount_text)
+            : t("balanceAmount").replace("{amount}", balance)}
+        </span>
+      )}
+    </>
+  );
+}
+
 export function VoucherRow({
-  voucher, progress, showCta = true, history = false,
-}: { voucher: Voucher; progress?: ProgressStep[]; showCta?: boolean; /** Show the stage/result and submitted/updated dates. */ history?: boolean }) {
+  voucher, progress, showCta = true, history = false, owing = false,
+}: {
+  voucher: Voucher; progress?: ProgressStep[]; showCta?: boolean;
+  /** Show the stage/result and submitted/updated dates. */ history?: boolean;
+  /** Payment queue: spell out the balance against the approved amount. */ owing?: boolean;
+}) {
   const { t, locale } = useApp();
   const cta = showCta ? primaryAction(voucher) : null;
   const who = voucher.requester?.name;
@@ -231,7 +264,7 @@ export function VoucherRow({
         {progress && progress.length > 0 && <div className="vf-row-steps"><ProgressSteps steps={progress} /></div>}
       </div>
       <div className="vf-row-side">
-        <div className="vf-row-amount">{voucher.amount_text}</div>
+        <div className="vf-row-amount"><VoucherAmount voucher={voucher} owing={owing} /></div>
         {cta && (
           <Link href={`/vouchers/${voucher.id}`} className={`btn btn-sm ${cta.strong ? "btn-primary" : "btn-secondary"}`}>
             <Icon name={cta.icon} size={15} /> {t(cta.label)}
@@ -244,8 +277,13 @@ export function VoucherRow({
 
 /** A panel of voucher rows, with each voucher's route derived from its workflow. */
 export function VoucherList({
-  vouchers, showCta = true, withProgress = true, bare = false, history = false,
-}: { vouchers: Voucher[]; showCta?: boolean; withProgress?: boolean; /** Rows only, for a list that already sits inside a panel. */ bare?: boolean; history?: boolean }) {
+  vouchers, showCta = true, withProgress = true, bare = false, history = false, owing = false,
+}: {
+  vouchers: Voucher[]; showCta?: boolean; withProgress?: boolean;
+  /** Rows only, for a list that already sits inside a panel. */ bare?: boolean;
+  history?: boolean;
+  /** Payment queue: show each part-paid voucher's balance against its amount. */ owing?: boolean;
+}) {
   const workflows = useWorkflows();
   const { locale } = useApp();
 
@@ -257,6 +295,7 @@ export function VoucherList({
           voucher={voucher}
           showCta={showCta}
           history={history}
+          owing={owing}
           progress={withProgress ? deriveProgress(voucher, workflows, locale) : undefined}
         />
       ))}
@@ -306,7 +345,7 @@ export function VoucherTable({ vouchers, bare = false }: { vouchers: Voucher[]; 
                 <div className="app-vt-title">{voucher.purpose}</div>
                 <div className="app-vt-meta">{[voucher.payee, voucher.requester?.name, voucher.department?.name].filter(Boolean).join(" · ")}</div>
               </td>
-              <td className="num app-vt-amount">{voucher.amount_text}</td>
+              <td className="num app-vt-amount"><VoucherAmount voucher={voucher} /></td>
               <td><StatusBadge voucher={voucher} /></td>
               <td className="app-vt-payee" style={{ minWidth: 150 }}>{voucherStage(voucher, t, locale)}</td>
               <td className="app-vt-date">{voucher.submitted_at ? formatDate(voucher.submitted_at, locale) : "—"}</td>

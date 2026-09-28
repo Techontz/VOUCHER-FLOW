@@ -225,6 +225,38 @@ class MockVoucher {
   double amount;
   final List<MockComment> comments;
   final List<String> attachments;
+
+  /// Each release of money; a voucher may be paid in parts.
+  final List<MockPayment> payments = [];
+
+  /// Attachment index → the payment a signed acknowledgement covers.
+  final Map<int, int> acknowledgementFor = {};
+}
+
+/// One release of money against a voucher.
+class MockPayment {
+  MockPayment({
+    required this.id,
+    required this.sequence,
+    required this.amount,
+    required this.balanceAfter,
+    required this.paidById,
+    required this.paidByName,
+    required this.paidAt,
+    this.paymentMethod,
+    this.paymentReference,
+    this.chequeNumber,
+    this.receivedBy,
+    this.receiverIdNumber,
+    this.note,
+  });
+
+  final int id, sequence, paidById;
+  final double amount, balanceAfter;
+  final String paidByName, paidAt;
+  final String? paymentMethod, paymentReference, chequeNumber;
+  final String? receivedBy, receiverIdNumber, note;
+  String? acknowledgedAt;
 }
 
 class MockNotification {

@@ -138,6 +138,14 @@ class TimelineBuilder
             return ['Paid', 'Imelipwa', $paidEvent->acted_at?->toIso8601String(), $paidEvent->comment ?: $reference];
         }
 
+        // Part of the money released, the balance still owed.
+        $partEvent = $events->last(fn (VoucherApproval $a) => $a->action === 'part_paid');
+        if ($partEvent && $step->isPaymentStep() && $atThis) {
+            $balance = $voucher->currency.' '.number_format($voucher->balance());
+
+            return ["Partly paid — {$balance} outstanding", "Imelipwa sehemu — {$balance} bado", $partEvent->acted_at?->toIso8601String(), $partEvent->comment];
+        }
+
         if ($step->isPaymentStep() && $atThis) {
             return ['Awaiting payment', 'Inasubiri malipo', null, null];
         }

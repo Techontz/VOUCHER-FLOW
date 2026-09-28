@@ -67,6 +67,10 @@ return [
         'test,example,invalid,localhost,example.com,example.net,example.org',
     ))))),
 
+    // Changes of voucher design a company may make itself after registration.
+    // The platform's super admin is never bound by it.
+    'voucher_template_self_changes' => (int) env('VOUCHFLOW_TEMPLATE_SELF_CHANGES', 1),
+
     'trial_days' => (int) env('VOUCHFLOW_TRIAL_DAYS', 14),
     'max_upload_mb' => (int) env('VOUCHFLOW_MAX_UPLOAD_MB', 10),
     'payments_driver' => env('PAYMENTS_DRIVER', 'demo'),

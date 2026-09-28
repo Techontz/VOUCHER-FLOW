@@ -93,6 +93,12 @@ export interface Company {
   /** The interface palette this company works in; see styles/app.css. */
   color_theme: ColorTheme;
   voucher_footer_text: string | null;
+  /** The voucher design new documents render in; see VoucherTemplate. */
+  voucher_template?: string;
+  voucher_template_name?: string;
+  voucher_template_changes_used?: number;
+  voucher_template_changes_allowed?: number;
+  voucher_template_changes_remaining?: number;
   status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   is_usable: boolean;
   is_expired: boolean;
@@ -262,6 +268,43 @@ export interface Attachment {
   url: string;
   uploaded_by?: string;
   created_at: string | null;
+  /** "payment_acknowledgement" for a receiver's signed copy; null otherwise. */
+  document_type?: "payment_acknowledgement" | string | null;
+  /** The payment a signed acknowledgement covers. */
+  voucher_payment_id?: number | null;
+}
+
+/**
+ * One release of money against a voucher. A voucher approved for 10,000,000
+ * may be paid 9,000,000 now and 1,000,000 later — two payments, each with its
+ * own receiver, reference and signed acknowledgement.
+ */
+export interface VoucherPayment {
+  id: number;
+  /** 1, 2, … in the order the money left. */
+  sequence: number;
+  /** The voucher number with the sequence, e.g. "PV-2026-000083/1". */
+  reference: string;
+  amount: number;
+  amount_text: string;
+  balance_after: number;
+  balance_after_text: string;
+  payment_method: string | null;
+  payment_reference: string | null;
+  cheque_number: string | null;
+  received_by: string | null;
+  receiver_id_number: string | null;
+  payment_date: string | null;
+  paid_at: string | null;
+  /** The cashier's name. */
+  paid_by: string | null;
+  /** The cashier who released this payment (older servers send only the name). */
+  paid_by_id?: number | null;
+  note: string | null;
+  /** When the receiver's signed copy was filed; null while it is outstanding. */
+  acknowledged_at: string | null;
+  acknowledgement_url: string;
+  acknowledgement_attachment_ids: number[];
 }
 
 export interface Comment {
@@ -288,6 +331,14 @@ export interface Voucher {
   amount: number;
   currency: string;
   amount_text: string;
+  /** Released so far — the whole amount once paid, part of it while a balance remains. */
+  amount_paid?: number;
+  amount_paid_text?: string;
+  /** Still owed. Zero once paid. */
+  balance?: number;
+  balance_text?: string;
+  /** Approved, some money out, some still owed (status_key "partially_paid"). */
+  is_partially_paid?: boolean;
   amount_in_words: string | null;
   payment_method: string | null;
   account_ref: string | null;
@@ -341,6 +392,8 @@ export interface Voucher {
   timeline?: TimelineRow[];
   attachments?: Attachment[];
   comments?: Comment[];
+  /** Detailed voucher only: every release of money, in order. */
+  payments?: VoucherPayment[];
   workflow?: Workflow;
 }
 
@@ -561,4 +614,41 @@ export interface LoginCodeSent {
   code_expires_in: number;
   resend_in: number;
   sends_remaining: number;
+}
+
+/** One voucher design from the server's catalogue. Presentation only. */
+export interface VoucherTemplate {
+  key: string;
+  number: number;
+  name: string;
+  name_sw: string;
+  description: string;
+  description_sw: string;
+  is_default: boolean;
+}
+
+export interface VoucherTemplateChange {
+  id: number;
+  previous_template: string | null;
+  previous_template_name: string | null;
+  new_template: string;
+  new_template_name: string;
+  changed_by: number | null;
+  changed_by_name: string | null;
+  changed_by_role: string | null;
+  source: "registration" | "company_admin" | "super_admin" | "platform_create";
+  reason: string | null;
+  counted: boolean;
+  created_at: string | null;
+}
+
+/** A company's design and what it may still do about it. */
+export interface VoucherTemplateState {
+  template: string;
+  template_name: string;
+  changes_used: number;
+  changes_allowed: number;
+  changes_remaining: number;
+  templates: VoucherTemplate[];
+  history: VoucherTemplateChange[];
 }

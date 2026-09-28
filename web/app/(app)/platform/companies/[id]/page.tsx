@@ -12,6 +12,8 @@ import {
   ActivityTab, BrandingTab, DepartmentsTab, OverviewTab, PALETTES, PaymentsTab, SubscriptionTab, UsersTab, VouchersTab, WorkflowTab,
   type DepartmentRow, type Detail, type Overview,
 } from "./sections";
+import { useTemplatePreviews } from "@/components/voucher-templates";
+import { VoucherTemplatePanel } from "@/components/voucher-template-panel";
 
 /*
  * One company, as the platform super admin sees it: its profile, branding,
@@ -22,7 +24,7 @@ import {
 
 const TABS = [
   { key: "overview", label: "Overview", icon: "ph-squares-four" },
-  { key: "branding", label: "Branding & palette", icon: "ph-palette" },
+  { key: "branding", label: "Branding & voucher design", icon: "ph-palette" },
   { key: "users", label: "Users", icon: "ph-users-three" },
   { key: "departments", label: "Departments", icon: "ph-tree-structure" },
   { key: "workflow", label: "Workflow", icon: "ph-flow-arrow" },
@@ -56,6 +58,8 @@ export default function PlatformCompanyPage() {
   const [brand, setBrand] = useState({ color_theme: "blue" as ColorTheme, primary_color: "", secondary_color: "", accent_color: "", voucher_header_text: "", voucher_footer_text: "" });
   const [brandErrors, setBrandErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // The sample voucher in every design, in this company's own letterhead.
+  const templatePreviews = useTemplatePreviews(`/platform/companies/${params.id}/voucher-template/preview`, {});
 
   const id = params.id;
 
@@ -192,7 +196,17 @@ export default function PlatformCompanyPage() {
 
       <div role="tabpanel" aria-label={TABS.find((x) => x.key === tab)?.label}>
         {tab === "overview" && <OverviewTab detail={detail} overview={overview} onOpen={open} />}
-        {tab === "branding" && <BrandingTab company={c} onEdit={() => openBranding(c)} />}
+        {tab === "branding" && (
+          <BrandingTab company={c} onEdit={() => openBranding(c)} voucherDesign={
+            <VoucherTemplatePanel
+              mode="platform"
+              companyId={c.id}
+              previews={templatePreviews.previews}
+              previewsLoading={templatePreviews.loading}
+              onChanged={load}
+            />
+          } />
+        )}
         {tab === "users" && <UsersTab key={filterKey} companyId={c.id} departments={departments ?? []} roles={roles} initial={tabFilter} />}
         {tab === "departments" && <DepartmentsTab departments={departments} currency={overview.currency} onOpen={open} />}
         {tab === "workflow" && <WorkflowTab companyId={c.id} />}

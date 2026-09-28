@@ -256,7 +256,7 @@ function Swatch({ label, value }: { label: string; value: string | null | undefi
   );
 }
 
-export function BrandingTab({ company, onEdit }: { company: Company; onEdit: () => void }) {
+export function BrandingTab({ company, onEdit, voucherDesign }: { company: Company; onEdit: () => void; voucherDesign?: React.ReactNode }) {
   const palette = PALETTES[company.color_theme ?? "blue"] ?? PALETTES.blue;
   const customPalette = (company.color_theme ?? "blue") !== "blue";
   const hasDocBranding = Boolean(company.logo_url || company.logo_mark_url || company.voucher_header_text || company.secondary_color || company.accent_color);
@@ -269,9 +269,10 @@ export function BrandingTab({ company, onEdit }: { company: Company; onEdit: () 
           <div className="vf-eyebrow">Selected interface palette</div>
           <h2>{palette.label}{!customPalette && <span className="badge tag-neutral">VouchFlow default</span>}</h2>
           <p>
-            VouchFlow does not have named templates. What a company chooses is its <strong>interface palette</strong> (the colour of
-            buttons, links, tabs and the current menu item), its default <strong>appearance</strong>, and the <strong>document
-            branding</strong> printed on every voucher. These are {company.name}&apos;s saved settings.
+            A company chooses its <strong>voucher design</strong> (one of ten payment voucher templates), its <strong>interface
+            palette</strong> (the colour of buttons, links, tabs and the current menu item), its default <strong>appearance</strong>,
+            and the <strong>document branding</strong> — logo, colours and footer — carried into that design. These are
+            {" "}{company.name}&apos;s saved settings.
           </p>
           {!customPalette && !hasDocBranding && (
             <p className="app-co-note"><Icon name="ph-info" size={16} /> No custom branding selected — this company uses the VouchFlow defaults.</p>
@@ -280,7 +281,11 @@ export function BrandingTab({ company, onEdit }: { company: Company; onEdit: () 
         <button type="button" className="btn btn-secondary" onClick={onEdit}><Icon name="ph-paint-brush" size={16} /> Edit branding</button>
       </div>
 
-      <div className="app-co-grid">
+      {/* The real document: the company's chosen design, rendered by the
+          server exactly as its vouchers print. */}
+      {voucherDesign}
+
+      <div>
         <Card title="Interface preview" sub={`How ${company.name}'s workspace is painted, in its ${company.theme} appearance`}>
           <div className="app-co-preview" data-theme={company.theme}
             style={{ "--pv-primary": palette.primary, "--pv-hover": palette.hover, "--pv-soft": palette.soft, "--pv-text": palette.text } as React.CSSProperties}>
@@ -314,20 +319,6 @@ export function BrandingTab({ company, onEdit }: { company: Company; onEdit: () 
             </div>
           </div>
           <p className="app-co-caption">A schematic of the interface in this company&apos;s palette. The rows are illustrative; status colours are the same for every company.</p>
-        </Card>
-
-        <Card title="Printed voucher header" sub="From the company's logo, primary colour and header text">
-          <div className="app-co-sheet" style={{ borderTopColor: company.primary_color || "#2E3192" }}>
-            <div className="app-co-sheet-logo" style={{ background: company.logo_url ? "#fff" : company.primary_color || "#2E3192" }}>
-              {company.logo_url ? <img src={company.logo_url} alt={`${company.name} logo`} /> : initials}
-            </div>
-            <div className="app-co-sheet-name">
-              <strong>{company.legal_name || company.name}</strong>
-              <span>{company.voucher_header_text || [company.address, company.phone, company.email].filter(Boolean).join(" · ")}</span>
-            </div>
-            <span className="app-co-sheet-tag" style={{ color: company.primary_color || "#2E3192" }}>Payment voucher</span>
-          </div>
-          <p className="app-co-sheet-foot">{company.voucher_footer_text || <span className="text-muted">No footer text set.</span>}</p>
         </Card>
       </div>
 

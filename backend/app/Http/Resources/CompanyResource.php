@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\VoucherTemplates;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -54,6 +55,11 @@ class CompanyResource extends JsonResource
             'color_theme' => $this->color_theme ?? 'blue',
             'voucher_header_text' => $this->voucher_header_text,
             'voucher_footer_text' => $this->voucher_footer_text,
+            'voucher_template' => VoucherTemplates::resolve($this->voucher_template),
+            'voucher_template_name' => VoucherTemplates::name($this->voucher_template),
+            'voucher_template_changes_used' => (int) $this->voucher_template_changes_used,
+            'voucher_template_changes_allowed' => VoucherTemplates::selfServiceChanges(),
+            'voucher_template_changes_remaining' => $this->voucherTemplateChangesRemaining(),
 
             'bank_name' => $this->bank_name,
             'bank_account_name' => $this->bank_account_name,
