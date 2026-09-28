@@ -9,7 +9,7 @@ import { mobileNavFor, navFor, type NavItem } from "@/lib/nav";
 import type { MessageKey } from "@/lib/i18n";
 import { Icon, Spinner } from "@/components/ui";
 import { VouchFlowMark } from "@/components/login-brand";
-import { Breadcrumb, Dropdown, MenuItem, MenuLabel, MenuSeparator, ThemeSwitch } from "@/components/app-ui";
+import { Breadcrumb, Dropdown, MenuItem, MenuSeparator, ThemeSwitch } from "@/components/app-ui";
 import type { Voucher } from "@/lib/types";
 
 /**
@@ -195,8 +195,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="vf-sidebar" data-open={drawer} aria-label="Main navigation">
         <div className="app-side-head">
           <Link href="/dashboard" className="app-side-brand" aria-label="VouchFlow">
-            <VouchFlowMark size={24} />
-            <span>VouchFlow</span>
+            <VouchFlowMark size={40} />
+            <span className="app-side-brand-text">
+              <span>VouchFlow</span>
+              <small>{user.role_label}</small>
+            </span>
           </Link>
           <button type="button" className="app-side-close" onClick={() => setDrawer(false)} aria-label="Close menu">
             <Icon name="ph-x" size={18} />
@@ -225,7 +228,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 const active = item.href === currentHref;
                 return (
                   <Link key={item.href} href={item.href} className="app-nav-item" aria-current={active ? "page" : undefined} data-tip={t(item.label)}>
-                    <Icon name={item.icon} size={17} weight={active ? "fill" : "regular"} />
+                    <Icon name={item.icon} size={20} weight={active ? "fill" : "regular"} />
                     <span className="app-nav-text">{t(item.label)}</span>
                     {badge ? <span className="app-nav-badge tnum">{badge > 99 ? "99+" : badge}</span> : null}
                     {badge ? <span className="app-nav-dot" aria-hidden="true" /> : null}
@@ -236,59 +239,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="app-side-foot">
-          <ThemeSwitch />
-          <Dropdown
-            placement="above" align="start" label={user.name}
-            trigger={({ open, toggle, id }) => (
-              <button type="button" className="app-user" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu">
-                <span className="app-avatar" aria-hidden="true">{user.initials}</span>
-                <span className="app-user-text">
-                  <span className="app-user-name">{user.name}</span>
-                  {/* The job title, which is what a colleague would call this person. */}
-                  <span className="app-user-role">{user.job_title || user.role_label}</span>
-                </span>
-                <Icon name="ph-caret-up-down" size={15} />
-              </button>
-            )}
-          >
-            {(close) => (
-              <>
-                <MenuLabel>{user.email}</MenuLabel>
-                <MenuItem icon="ph-user-circle" href="/profile" onSelect={close}>{t(profileLabel)}</MenuItem>
-                <MenuItem icon="ph-bell" href="/notifications" onSelect={close}>
-                  {t("notifications")}{unread > 0 ? ` (${unread})` : ""}
-                </MenuItem>
-                <MenuSeparator />
-                <div className="app-menu-row">
-                  <span>{locale === "sw" ? "Lugha" : "Language"}</span>
-                  <div className="seg seg-sm" role="group" aria-label="Language">
-                    {(["en", "sw"] as const).map((code) => (
-                      <button key={code} type="button" onClick={() => setLocale(code)} aria-selected={locale === code}>{code.toUpperCase()}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="app-menu-row">
-                  <span>{locale === "sw" ? "Mwonekano" : "Appearance"}</span>
-                  <ThemeSwitch compact />
-                </div>
-                <MenuSeparator />
-                <MenuItem icon="ph-sign-out" tone="danger" onSelect={() => { close(); void signOut(); }}>{t("signOut")}</MenuItem>
-              </>
-            )}
-          </Dropdown>
-        </div>
       </aside>
-
-      <button type="button" className="app-side-toggle no-print" onClick={toggleCollapsed}
-        aria-label={sideLabel} data-tip={sideLabel} aria-expanded={!collapsed}>
-        <Icon name="ph-caret-left" size={13} />
-      </button>
 
       <div className="vf-main">
         <header className="vf-topbar no-print">
-          <button className="btn btn-icon vf-menu-btn" onClick={() => setDrawer(true)} aria-label="Open menu">
-            <Icon name="ph-list" size={20} />
+          {/* One control, as in the AGIZA header: on a desktop it folds the
+              sidebar to its icon rail and back; below 981px it opens the drawer. */}
+          <button type="button" className="btn btn-icon app-shell-toggle"
+            onClick={() => (window.matchMedia("(max-width: 980px)").matches ? setDrawer(true) : toggleCollapsed())}
+            aria-label={sideLabel} title={sideLabel} aria-expanded={!collapsed}>
+            <Icon name="ph-list" size={22} />
           </button>
 
           <div className="app-topbar-where">
@@ -297,7 +257,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="vf-search">
-            <Icon name="ph-magnifying-glass" size={15} />
+            <Icon name="ph-magnifying-glass" size={18} />
             <input
               className="input" placeholder={t("searchPh")} value={query} aria-label={t("search")}
               onChange={(e) => setQuery(e.target.value)}
@@ -322,14 +282,56 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="app-topbar-actions">
             <ThemeToggleButton />
             <Link className="btn btn-icon vf-bell" href="/notifications" aria-label={unread > 0 ? `${t("notifications")} (${unread})` : t("notifications")}>
-              <Icon name="ph-bell" size={18} />
+              <Icon name="ph-bell" size={21} />
               {unread > 0 && <span className="vf-bell-dot" aria-hidden="true" />}
             </Link>
             {canCreate && (
               <Link className="btn btn-primary app-topbar-create" href="/vouchers/new">
-                <Icon name="ph-plus" size={15} /> <span>{t("newVoucher")}</span>
+                <Icon name="ph-plus" size={18} /> <span>{t("newVoucher")}</span>
               </Link>
             )}
+            <span className="app-topbar-sep" aria-hidden="true" />
+            <Dropdown
+              placement="below" align="end" label={user.name}
+              trigger={({ open, toggle, id }) => (
+                <button type="button" className="app-user" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu">
+                  <span className="app-user-text">
+                    <span className="app-user-name">{user.name}</span>
+                    {/* The job title, which is what a colleague would call this person. */}
+                    <span className="app-user-role">{user.job_title || user.role_label}</span>
+                  </span>
+                  <span className="app-avatar" aria-hidden="true">{user.initials}</span>
+                </button>
+              )}
+            >
+              {(close) => (
+                <>
+                  <div className="app-menu-head">
+                    <strong>{user.name}</strong>
+                    <span>{user.email}</span>
+                  </div>
+                  <MenuItem icon="ph-user-circle" href="/profile" onSelect={close}>{t(profileLabel)}</MenuItem>
+                  <MenuItem icon="ph-bell" href="/notifications" onSelect={close}>
+                    {t("notifications")}{unread > 0 ? ` (${unread})` : ""}
+                  </MenuItem>
+                  <MenuSeparator />
+                  <div className="app-menu-row">
+                    <span>{locale === "sw" ? "Lugha" : "Language"}</span>
+                    <div className="seg seg-sm" role="group" aria-label="Language">
+                      {(["en", "sw"] as const).map((code) => (
+                        <button key={code} type="button" onClick={() => setLocale(code)} aria-selected={locale === code}>{code.toUpperCase()}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="app-menu-row">
+                    <span>{locale === "sw" ? "Mwonekano" : "Appearance"}</span>
+                    <ThemeSwitch compact />
+                  </div>
+                  <MenuSeparator />
+                  <MenuItem icon="ph-sign-out" tone="danger" onSelect={() => { close(); void signOut(); }}>{t("signOut")}</MenuItem>
+                </>
+              )}
+            </Dropdown>
           </div>
         </header>
 
@@ -364,7 +366,7 @@ function ThemeToggleButton() {
   const label = theme === "light" ? (sw ? "Badili kuwa giza" : "Switch to dark mode") : (sw ? "Badili kuwa mwanga" : "Switch to light mode");
   return (
     <button type="button" className="btn btn-icon" onClick={toggleTheme} aria-label={label} title={label}>
-      <Icon name={theme === "light" ? "ph-moon" : "ph-sun"} size={18} />
+      <Icon name={theme === "light" ? "ph-moon" : "ph-sun"} size={21} />
     </button>
   );
 }

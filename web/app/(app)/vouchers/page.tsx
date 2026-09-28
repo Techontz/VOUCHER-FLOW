@@ -89,69 +89,72 @@ export default function VouchersPage() {
         </>}
       />
 
-      <div className="app-tabs" role="tablist" aria-label={t("status")}>
-        {STATUSES.map((s) => (
-          <button key={s.value} type="button" role="tab" aria-selected={filters.status === s.value}
-            onClick={() => { setPage(1); setFilters((f) => ({ ...f, status: s.value })); }}>
-            {s.value === "" ? t("all") : t(s.key as never)}
-            {filters.status === s.value && result?.meta?.total != null && <span className="app-tabs-count">{result.meta.total}</span>}
+      {/* The AGIZA list pattern: one card to find things (search, status
+          pills, filters), then the table in its own card. */}
+      <section className="vf-panel app-filter-card">
+        <div className="app-filter-card-top">
+          <label className="app-search app-search-lg">
+            <Icon name="ph-magnifying-glass" size={18} />
+            <input className="input" placeholder={t("searchPh")} value={filters.q} onChange={set("q")} aria-label={t("search")} />
+          </label>
+          <button type="button" className="btn btn-secondary vf-filter-toggle" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
+            <Icon name="ph-sliders-horizontal" size={16} /> {t("filters")}{activeFilters ? ` · ${activeFilters}` : ""}
           </button>
-        ))}
-      </div>
-
-      <section className="vf-panel app-register">
-        <div className="app-toolbar">
-          <div className="app-toolbar-main">
-            <label className="app-search">
-              <Icon name="ph-magnifying-glass" size={15} />
-              <input className="input" placeholder={t("searchPh")} value={filters.q} onChange={set("q")} aria-label={t("search")} />
-            </label>
-            <button type="button" className="btn btn-secondary btn-sm vf-filter-toggle" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
-              <Icon name="ph-sliders-horizontal" size={14} /> {t("filters")}{activeFilters ? ` · ${activeFilters}` : ""}
-            </button>
-            <div className="app-filters" hidden={!showFilters}>
-              <FilterField label={t("voucherKind")} htmlFor="f-kind">
-                <select id="f-kind" className="input" value={filters.kind} onChange={set("kind")}>
-                  <option value="">{t("all")}</option>
-                  <option value="bank">{t("bankVoucher")}</option>
-                  <option value="cash">{t("cashVoucher")}</option>
-                </select>
-              </FilterField>
-              {departments.length > 0 && (
-                <FilterField label={t("department")} htmlFor="f-dept">
-                  <select id="f-dept" className="input" value={filters.department_id} onChange={set("department_id")}>
-                    <option value="">{t("allDepartments")}</option>
-                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </FilterField>
-              )}
-              <FilterField label={t("voucherType")} htmlFor="f-type">
-                <select id="f-type" className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")}>
-                  <option value="">{t("allTypes")}</option>
-                  {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
-                </select>
-              </FilterField>
-              <FilterField label={t("from")} htmlFor="f-from">
-                <input id="f-from" className="input" type="date" value={filters.from} onChange={set("from")} />
-              </FilterField>
-              <FilterField label={t("to")} htmlFor="f-to">
-                <input id="f-to" className="input" type="date" value={filters.to} onChange={set("to")} />
-              </FilterField>
-            </div>
-          </div>
-          <div className="app-toolbar-end">
+          <div className="app-filter-card-end">
             <span className="app-result-count tnum">
               {t("showing")} {rows.length} {t("of")} {result?.meta?.total ?? 0}
               {result?.meta?.total_amount != null && <> · <strong>{money(result.meta.total_amount, result.meta.currency ?? company?.currency)}</strong></>}
             </span>
             {hasFilters && (
               <button className="btn btn-ghost btn-sm" onClick={() => { setFilters({ ...BLANK }); setPage(1); }}>
-                <Icon name="ph-x" size={13} /> {t("clearFilters")}
+                <Icon name="ph-x" size={14} /> {t("clearFilters")}
               </button>
             )}
           </div>
         </div>
 
+        <div className="app-pilltabs" role="tablist" aria-label={t("status")}>
+          {STATUSES.map((s) => (
+            <button key={s.value} type="button" role="tab" aria-selected={filters.status === s.value}
+              onClick={() => { setPage(1); setFilters((f) => ({ ...f, status: s.value })); }}>
+              {s.value === "" ? t("all") : t(s.key as never)}
+              {filters.status === s.value && result?.meta?.total != null && <span className="app-pilltabs-count">{result.meta.total}</span>}
+            </button>
+          ))}
+        </div>
+
+        <div className="app-filters" hidden={!showFilters}>
+          <FilterField label={t("voucherKind")} htmlFor="f-kind">
+            <select id="f-kind" className="input" value={filters.kind} onChange={set("kind")}>
+              <option value="">{t("all")}</option>
+              <option value="bank">{t("bankVoucher")}</option>
+              <option value="cash">{t("cashVoucher")}</option>
+            </select>
+          </FilterField>
+          {departments.length > 0 && (
+            <FilterField label={t("department")} htmlFor="f-dept">
+              <select id="f-dept" className="input" value={filters.department_id} onChange={set("department_id")}>
+                <option value="">{t("allDepartments")}</option>
+                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </FilterField>
+          )}
+          <FilterField label={t("voucherType")} htmlFor="f-type">
+            <select id="f-type" className="input" value={filters.voucher_type_id} onChange={set("voucher_type_id")}>
+              <option value="">{t("allTypes")}</option>
+              {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+            </select>
+          </FilterField>
+          <FilterField label={t("from")} htmlFor="f-from">
+            <input id="f-from" className="input" type="date" value={filters.from} onChange={set("from")} />
+          </FilterField>
+          <FilterField label={t("to")} htmlFor="f-to">
+            <input id="f-to" className="input" type="date" value={filters.to} onChange={set("to")} />
+          </FilterField>
+        </div>
+      </section>
+
+      <section className="vf-panel app-register">
         {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
         {loading && !result && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
 

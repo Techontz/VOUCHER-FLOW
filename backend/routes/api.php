@@ -168,6 +168,13 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
         Route::post('companies/{company}/logo', [Platform\CompanyController::class, 'storeLogo']);
         Route::delete('companies/{company}/logo', [Platform\CompanyController::class, 'destroyLogo']);
 
+        // Read-only views into one tenant, each run inside that tenant's scope.
+        Route::get('companies/{company}/overview', [Platform\CompanyInsightController::class, 'overview']);
+        Route::get('companies/{company}/users', [Platform\CompanyInsightController::class, 'users']);
+        Route::get('companies/{company}/departments', [Platform\CompanyInsightController::class, 'departments']);
+        Route::get('companies/{company}/workflows', [Platform\CompanyInsightController::class, 'workflows']);
+        Route::get('companies/{company}/vouchers', [Platform\CompanyInsightController::class, 'vouchers']);
+
         Route::apiResource('plans', Platform\PlanController::class)->except(['show']);
 
         Route::get('payments', [Platform\PaymentController::class, 'index']);

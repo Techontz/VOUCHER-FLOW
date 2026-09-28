@@ -52,6 +52,10 @@ export interface MockCompany {
   /** Interface palette; absent means blue, as on the API. */
   color_theme?: "blue" | "emerald" | "violet" | "rose";
   voucher_footer_text: string;
+  /** Document branding a company may add under Branding; absent means not set. */
+  secondary_color?: string | null;
+  accent_color?: string | null;
+  voucher_header_text?: string | null;
   status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   plan_code: string;
   trial_ends_at: string | null;

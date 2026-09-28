@@ -1112,50 +1112,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
   if (seg[0] === "workflows" && seg[1] && seg[2] === "routing" && method === "GET") {
     requireWorkflowAdmin();
     const wf = ownWorkflow(num(seg[1]));
-    const person = (id: number | null) => {
-      const u = db.users.find((x) => x.id === id);
-      return u ? { id: u.id, name: u.name, role: u.role, status: u.status } : null;
-    };
-    const departments = db.departments.filter((d) => d.company_id === companyId)
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((dept) => {
-        const probe = { company_id: companyId, department_id: dept.id, requester_id: 0, workflow_id: wf.id } as unknown as MockVoucher;
-        const cells = wf.steps.filter((s) => s.position !== 1 && s.role !== "employee").map((step) => {
-          const people = assigneesFor(db, probe, step).map((u) => ({ id: u.id, name: u.name, role: u.role }));
-          let gap: string | null = null;
-          if (!people.length) {
-            if (step.assigned_user_id) gap = db.users.some((u) => u.id === step.assigned_user_id) ? "inactive_person" : "missing_person";
-            else if (step.role === "hod") gap = dept.hod_user_id ? "inactive_hod" : "no_hod";
-            else if (step.role === "manager") gap = dept.manager_user_id ? "inactive_manager" : "no_manager";
-            else if (step.role === "custom") gap = "no_person_named";
-            else gap = "no_one_with_role";
-          }
-          return { step_id: step.id, people, gap };
-        });
-        return {
-          id: dept.id, name: dept.name, is_active: true,
-          hod: person(dept.hod_user_id), manager: person(dept.manager_user_id),
-          cells, gaps: cells.filter((c) => c.gap).length,
-        };
-      });
-    return {
-      data: {
-        workflow_id: wf.id,
-        steps: wf.steps.map((s) => ({
-          id: s.id, position: s.position, name: s.name, name_sw: s.name_sw, role: s.role, role_label: roleLabel(s.role),
-          is_request_step: s.position === 1 || s.role === "employee",
-          is_payment_step: s.can_pay && !s.can_approve,
-          assignment: s.position === 1 || s.role === "employee" ? "requester"
-            : s.assigned_user_id ? "named"
-            : s.role === "hod" ? "department_head"
-            : s.role === "manager" ? "department_manager"
-            : s.role === "custom" ? "unassigned" : "role",
-          min_amount: s.min_amount, max_amount: s.max_amount,
-        })),
-        departments,
-        gaps: departments.reduce((sum, d) => sum + d.gaps, 0),
-      },
-    };
+    return { data: buildRouting(db, companyId!, wf) };
   }
   if (seg[0] === "workflows" && seg[1] && !seg[2] && method === "DELETE") {
     requireWorkflowAdmin();
@@ -1330,6 +1287,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
   }
   if (method === "GET" && path === "/audit-logs") {
     let rows = user.role === "super_admin" ? db.audit : db.audit.filter((a) => a.company_id === companyId);
+    if (user.role === "super_admin" && query.company_id) rows = rows.filter((a) => a.company_id === Number(query.company_id));
     if (query.action) rows = rows.filter((a) => a.action.startsWith(query.action));
     const q = (query.q ?? "").toLowerCase();
     if (q) rows = rows.filter((a) => `${a.description}${a.actor_name}`.toLowerCase().includes(q));
@@ -1350,6 +1308,130 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       const page = paginate(rows, int(query.page, 1), int(query.per_page, 25));
       return { data: page.data.map((c) => companyResource(db, c.id)), meta: page.meta };
     }
+    // Read-only views into one tenant (Platform\CompanyInsightController).
+    if (method === "GET" && seg[1] === "companies" && seg[2] && seg[3]) {
+      const cid = num(seg[2]);
+      const company = db.companies.find((c) => c.id === cid);
+      if (!company) throw new MockError(404, "Company not found.");
+      const vouchers = db.vouchers.filter((v) => v.company_id === cid);
+      const people = db.users.filter((u) => u.company_id === cid);
+      const depts = db.departments.filter((d) => d.company_id === cid);
+      const sum = (rows: MockVoucher[]) => rows.reduce((t, v) => t + v.amount, 0);
+      const by = (s: MockVoucher["status"]) => vouchers.filter((v) => v.status === s);
+
+      if (seg[3] === "overview") {
+        const stages = new Map<string, { position: number; name: string; role: string | null; count: number; value: number }>();
+        for (const v of by("in_review")) {
+          const step = stepAt(db, v, v.current_step_position);
+          const key = step ? `${step.position}|${step.name}` : "0|Unassigned";
+          const row = stages.get(key) ?? { position: step?.position ?? 0, name: step?.name ?? "Unassigned", role: step?.role ?? null, count: 0, value: 0 };
+          row.count += 1; row.value += v.amount; stages.set(key, row);
+        }
+        const start = new Date(); start.setDate(1); start.setMonth(start.getMonth() - 5);
+        const monthly = Array.from({ length: 6 }, (_, i) => {
+          const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const rows = vouchers.filter((v) => v.submitted_at?.startsWith(key));
+          return { month: key, count: rows.length, value: sum(rows) };
+        });
+        const byRole: Record<string, number> = {};
+        people.forEach((u) => { byRole[u.role] = (byRole[u.role] ?? 0) + 1; });
+        return {
+          data: {
+            vouchers: {
+              total: vouchers.length, draft: by("draft").length, in_review: by("in_review").length,
+              changes_requested: by("changes_requested").length, approved: by("approved").length,
+              rejected: by("rejected").length, cancelled: by("cancelled").length, paid: by("paid").length,
+            },
+            values: {
+              total: sum(vouchers), in_review: sum(by("in_review")), approved_unpaid: sum(by("approved")),
+              approved_including_paid: sum(by("approved")) + sum(by("paid")), paid: sum(by("paid")), rejected: sum(by("rejected")),
+            },
+            stages: [...stages.values()].sort((a, b) => a.position - b.position),
+            payments: {
+              paid_count: by("paid").length, paid_value: sum(by("paid")),
+              pending_count: by("approved").length, pending_value: sum(by("approved")),
+              recent: by("paid").sort((a, b) => (b.paid_at ?? "").localeCompare(a.paid_at ?? "")).slice(0, 10).map((v) => ({
+                id: v.id, number: v.number, payee: v.payee, purpose: v.purpose, amount: v.amount, currency: v.currency,
+                kind: v.kind, payment_method: v.payment_method, payment_reference: v.payment_reference,
+                payment_date: v.paid_at?.slice(0, 10) ?? null, paid_at: v.paid_at, paid_by: v.paid_by,
+                department: db.departments.find((d) => d.id === v.department_id)?.name ?? null,
+              })),
+            },
+            people: { total: people.length, active: people.filter((u) => u.status === "active").length, by_role: byRole, departments: depts.length },
+            monthly,
+            currency: company.currency,
+          },
+        };
+      }
+
+      if (seg[3] === "users") {
+        let rows = [...people].sort((a, b) => a.name.localeCompare(b.name));
+        const q = (query.q ?? "").toLowerCase();
+        if (q) rows = rows.filter((u) => `${u.name}${u.email}${u.employee_code ?? ""}`.toLowerCase().includes(q));
+        if (query.role) rows = rows.filter((u) => u.role === query.role);
+        if (query.status) rows = rows.filter((u) => u.status === query.status);
+        if (query.department_id) rows = rows.filter((u) => u.department_id === Number(query.department_id));
+        const page = paginate(rows, int(query.page, 1), int(query.per_page, 25));
+        return { data: page.data.map((u) => userResource(db, u)), meta: page.meta };
+      }
+
+      if (seg[3] === "departments") {
+        const person = (id: number | null) => {
+          const u = db.users.find((x) => x.id === id);
+          return u ? { id: u.id, name: u.name, email: u.email } : null;
+        };
+        return {
+          data: [...depts].sort((a, b) => a.name.localeCompare(b.name)).map((d) => {
+            const own = vouchers.filter((v) => v.department_id === d.id);
+            return {
+              id: d.id, name: d.name, code: d.code, cost_centre: d.cost_centre, is_active: true,
+              hod: person(d.hod_user_id), manager: person(d.manager_user_id),
+              users_count: people.filter((u) => u.department_id === d.id).length,
+              vouchers_count: own.length,
+              approved_value: sum(own.filter((v) => v.status === "approved" || v.status === "paid")),
+            };
+          }),
+        };
+      }
+
+      if (seg[3] === "workflows") {
+        const workflows = db.workflows.filter((w) => w.company_id === cid)
+          .sort((a, b) => Number(b.is_default) - Number(a.is_default) || a.name.localeCompare(b.name));
+        const def = workflows.find((w) => w.is_default) ?? workflows[0];
+        return {
+          data: {
+            workflows: workflows.map((w) => ({ ...workflowResource(db, w), vouchers_count: vouchers.filter((v) => v.workflow_id === w.id).length })),
+            default_id: def?.id ?? null,
+            routing: def ? buildRouting(db, cid, def) : null,
+          },
+        };
+      }
+
+      if (seg[3] === "vouchers") {
+        let rows = [...vouchers];
+        const status = query.status === "awaiting_payment" ? "approved" : query.status === "pending" ? "in_review" : query.status === "drafts" ? "draft" : query.status;
+        if (status && status !== "all") rows = rows.filter((v) => v.status === status);
+        const q = (query.q ?? "").toLowerCase();
+        if (q.length >= 2) rows = rows.filter((v) => `${v.number}${v.purpose}${v.payee}`.toLowerCase().includes(q));
+        if (query.kind) rows = rows.filter((v) => v.kind === query.kind);
+        if (query.department_id) rows = rows.filter((v) => v.department_id === Number(query.department_id));
+        if (query.requester_id) rows = rows.filter((v) => v.requester_id === Number(query.requester_id));
+        if (query.voucher_type_id) rows = rows.filter((v) => v.voucher_type_id === Number(query.voucher_type_id));
+        if (query.from) rows = rows.filter((v) => v.voucher_date >= query.from);
+        if (query.to) rows = rows.filter((v) => v.voucher_date.slice(0, 10) <= query.to);
+        if (query.min_amount) rows = rows.filter((v) => v.amount >= Number(query.min_amount));
+        if (query.max_amount) rows = rows.filter((v) => v.amount <= Number(query.max_amount));
+        rows.sort((a, b) => b.voucher_date.localeCompare(a.voucher_date) || b.id - a.id);
+        const page = paginate(rows, int(query.page, 1), int(query.per_page, 20));
+        return {
+          // The caller is the viewer, as VoucherResource uses $request->user().
+          data: page.data.map((v) => voucherResource(db, v, user)),
+          meta: { ...page.meta, total_amount: sum(rows), currency: company.currency },
+        };
+      }
+    }
+
     if (method === "GET" && seg[1] === "companies" && seg[2]) {
       const id = num(seg[2]);
       const vouchers = db.vouchers.filter((v) => v.company_id === id);
@@ -1369,12 +1451,103 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
         },
       };
     }
+    // Platform\CompanyController@changePlan: the tenant moves at once and a new period starts.
+    if (method === "POST" && seg[1] === "companies" && seg[2] && seg[3] === "change-plan") {
+      const plan = db.plans.find((p) => p.id === Number(body.plan_id));
+      if (!plan) throw new MockError(422, "Choose a plan.", { plan_id: ["The selected plan is invalid."] });
+      const company = db.companies.find((c) => c.id === num(seg[2]));
+      if (!company) throw new MockError(404, "Company not found.");
+      store.mutate((d) => {
+        const row = d.companies.find((c) => c.id === company.id)!;
+        const start = new Date();
+        const end = new Date(start); end.setMonth(end.getMonth() + (plan.billing_cycle === "annual" ? 12 : 1));
+        Object.assign(row, { plan_code: plan.code, status: "active", trial_ends_at: null, current_period_start: start.toISOString(), current_period_end: end.toISOString() });
+      });
+      return { message: `${company.name} moved to the ${plan.name} plan.` };
+    }
+    // Platform\CompanyController@updateBranding: only the branding fields.
+    if (method === "POST" && seg[1] === "companies" && seg[2] && seg[3] === "branding") {
+      const id = num(seg[2]);
+      if (!db.companies.some((c) => c.id === id)) throw new MockError(404, "Company not found.");
+      const hex = /^#[0-9a-fA-F]{6}$/;
+      for (const key of ["primary_color", "secondary_color", "accent_color"] as const) {
+        if (body[key] && !hex.test(String(body[key]))) throw new MockError(422, "Use a colour like #1D4ED8.", { [key]: ["Use a colour like #1D4ED8."] });
+      }
+      store.mutate((d) => {
+        const row = d.companies.find((c) => c.id === id)! as unknown as Record<string, unknown>;
+        for (const key of ["color_theme", "primary_color", "secondary_color", "accent_color", "voucher_header_text", "voucher_footer_text", "theme"]) {
+          if (body[key] !== undefined && body[key] !== null) row[key] = body[key];
+        }
+      });
+      return { data: companyResource(store.db, id) };
+    }
     if (seg[1] === "companies" && (seg[3] === "suspend" || seg[3] === "activate")) {
       store.mutate((d) => {
         d.companies.find((c) => c.id === num(seg[2]))!.status = seg[3] === "suspend" ? "suspended" : "active";
       });
       return { data: companyResource(store.db, num(seg[2])) };
     }
+    // Mirrors Platform\CompanyController@store + CompanyProvisioner: a trial
+    // company with the default voucher types, the default workflow and its
+    // first administrator.
+    if (method === "POST" && seg[1] === "companies" && !seg[2]) {
+      const c = (body.company ?? {}) as Record<string, string | undefined>;
+      const a = (body.admin ?? {}) as Record<string, string | undefined>;
+      const errors: Record<string, string[]> = {};
+      if (!c.name?.trim()) errors["company.name"] = ["The company name is required."];
+      if (!c.email?.trim()) errors["company.email"] = ["The company email is required."];
+      if (!a.name?.trim()) errors["admin.name"] = ["The administrator's name is required."];
+      if (!a.email?.trim()) errors["admin.email"] = ["The administrator's email is required."];
+      else if (db.users.some((u) => u.email.toLowerCase() === a.email!.trim().toLowerCase())) errors["admin.email"] = ["The admin.email has already been taken."];
+      if ((a.password ?? "").length < 8) errors["admin.password"] = ["The password must be at least 8 characters."];
+      if (Object.keys(errors).length) throw new MockError(422, Object.values(errors)[0][0], errors);
+
+      const plan = db.plans.find((p) => p.id === Number(body.plan_id)) ?? db.plans[0];
+      const id = Math.max(0, ...db.companies.map((x) => x.id)) + 1;
+      const day = 86_400_000;
+      const slugBase = c.name!.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "company";
+      store.mutate((d) => {
+        d.companies.push({
+          id, name: c.name!.trim(), slug: d.companies.some((x) => x.slug === slugBase) ? `${slugBase}-${id}` : slugBase,
+          legal_name: c.legal_name ?? null, email: c.email!.trim(), phone: c.phone ?? "", address: c.address ?? "",
+          website: c.website ?? null, tin: null, currency: c.currency ?? "TZS", locale: "en",
+          logo_url: null, logo_mark_url: null, bank_name: null, bank_account_name: null, bank_account_number: null, bank_branch: null,
+          primary_color: "#2E3192", theme: "dark",
+          voucher_footer_text: "This voucher is computer generated and valid without a wet stamp.",
+          status: "trial", plan_code: plan.code, trial_ends_at: new Date(Date.now() + plan.trial_days * day).toISOString(),
+          current_period_start: now(), current_period_end: new Date(Date.now() + plan.trial_days * day).toISOString(),
+          auto_renew: true, created_at: now(),
+        });
+        const template = d.voucherTypes.filter((v) => v.company_id === 1);
+        template.forEach((v, i) => d.voucherTypes.push({ ...v, id: id * 100 + i + 1, company_id: id, next_number: 1 }));
+        d.workflows.push({
+          id: store.nextId("workflow"), company_id: id, name: "Sign, approve, pay",
+          description: "Employee → HOD (sign) → CEO (approve) → Cashier (pay)",
+          is_default: true, is_active: true, version: 1, steps: DEFAULT_STEPS(),
+        });
+        d.users.push({
+          id: store.nextId("user"), company_id: id, name: a.name!.trim(), email: a.email!.trim(), role: "company_admin",
+          job_title: a.job_title || "Company Administrator", employee_code: null, department_id: null,
+          phone: a.phone ?? null, status: "active", locale: "en", theme: "dark", signature: null,
+          last_login_at: null, joined_at: now(), voucher_count: 0,
+        });
+      });
+      return { data: companyResource(store.db, id) };
+    }
+
+    // Mirrors CompanyController@destroy: the tenant disappears from the
+    // platform and nobody in it can sign in any more.
+    if (method === "DELETE" && seg[1] === "companies" && seg[2] && !seg[3]) {
+      const id = num(seg[2]);
+      const target = db.companies.find((x) => x.id === id);
+      if (!target) throw new MockError(404, "Company not found.");
+      store.mutate((d) => {
+        d.companies = d.companies.filter((x) => x.id !== id);
+        d.users = d.users.filter((u) => u.company_id !== id);
+      });
+      return { message: `Company ${target.name} deleted.` };
+    }
+
     if (method === "GET" && seg[1] === "plans") {
       return {
         data: db.plans.map((p) => ({
@@ -2094,4 +2267,50 @@ function report(kind: string, user: MockUser, query: Query) {
     },
     filters: query, generated_at: now(),
   };
+}
+
+/** Who approves for each department: every step resolved as the engine would for a real voucher. */
+function buildRouting(db: typeof store.db, companyId: number, wf: NonNullable<ReturnType<typeof workflowFor>>) {
+    const person = (id: number | null) => {
+      const u = db.users.find((x) => x.id === id);
+      return u ? { id: u.id, name: u.name, role: u.role, status: u.status } : null;
+    };
+    const departments = db.departments.filter((d) => d.company_id === companyId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((dept) => {
+        const probe = { company_id: companyId, department_id: dept.id, requester_id: 0, workflow_id: wf.id } as unknown as MockVoucher;
+        const cells = wf.steps.filter((s) => s.position !== 1 && s.role !== "employee").map((step) => {
+          const people = assigneesFor(db, probe, step).map((u) => ({ id: u.id, name: u.name, role: u.role }));
+          let gap: string | null = null;
+          if (!people.length) {
+            if (step.assigned_user_id) gap = db.users.some((u) => u.id === step.assigned_user_id) ? "inactive_person" : "missing_person";
+            else if (step.role === "hod") gap = dept.hod_user_id ? "inactive_hod" : "no_hod";
+            else if (step.role === "manager") gap = dept.manager_user_id ? "inactive_manager" : "no_manager";
+            else if (step.role === "custom") gap = "no_person_named";
+            else gap = "no_one_with_role";
+          }
+          return { step_id: step.id, people, gap };
+        });
+        return {
+          id: dept.id, name: dept.name, is_active: true,
+          hod: person(dept.hod_user_id), manager: person(dept.manager_user_id),
+          cells, gaps: cells.filter((c) => c.gap).length,
+        };
+      });
+    return {
+        workflow_id: wf.id,
+        steps: wf.steps.map((s) => ({
+          id: s.id, position: s.position, name: s.name, name_sw: s.name_sw, role: s.role, role_label: roleLabel(s.role),
+          is_request_step: s.position === 1 || s.role === "employee",
+          is_payment_step: s.can_pay && !s.can_approve,
+          assignment: s.position === 1 || s.role === "employee" ? "requester"
+            : s.assigned_user_id ? "named"
+            : s.role === "hod" ? "department_head"
+            : s.role === "manager" ? "department_manager"
+            : s.role === "custom" ? "unassigned" : "role",
+          min_amount: s.min_amount, max_amount: s.max_amount,
+        })),
+        departments,
+        gaps: departments.reduce((sum, d) => sum + d.gaps, 0),
+    };
 }

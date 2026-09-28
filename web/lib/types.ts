@@ -72,8 +72,24 @@ export interface Company {
   bank_account_number: string | null;
   bank_branch: string | null;
   primary_color: string;
-  accent_color: string;
+  accent_color: string | null;
   theme: "light" | "dark";
+  /* Profile and document fields the API also returns (CompanyResource). */
+  secondary_color?: string | null;
+  voucher_header_text?: string | null;
+  trading_name?: string | null;
+  initials?: string;
+  has_logo?: boolean;
+  alternative_phone?: string | null;
+  postal_address?: string | null;
+  city?: string | null;
+  region?: string | null;
+  registration_number?: string | null;
+  business_license_number?: string | null;
+  contact_person?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  swift_code?: string | null;
   /** The interface palette this company works in; see styles/app.css. */
   color_theme: ColorTheme;
   voucher_footer_text: string | null;
