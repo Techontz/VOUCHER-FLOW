@@ -24,33 +24,9 @@
 .vf-shell .cv-kicker-dot { color: var(--text-faint); }
 .vf-shell .cv-title { margin: 0; font-family: var(--font-heading); font-size: 32px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; color: var(--text-primary); }
 
-/* ── line stepper ── */
-.vf-shell .cv-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.vf-shell .cv-step { min-width: 0; }
-.vf-shell .cv-step-btn {
-  width: 100%; display: grid; gap: 8px; padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
-  font-family: var(--font-body); color: var(--text-muted);
-}
-.vf-shell .cv-step-track { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.vf-shell .cv-step-dot {
-  flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
-  background: var(--surface-tertiary); color: var(--text-muted); border: 1px solid var(--border);
-  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
-}
-.vf-shell .cv-step-line { flex: 1; height: 2px; border-radius: 2px; background: var(--border); margin-right: 10px; }
-.vf-shell .cv-step-label { padding-left: 24px; font-size: 14.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vf-shell .cv-step-btn:hover .cv-step-label { color: var(--text-primary); }
-.vf-shell .cv-step-btn:focus-visible { outline: none; }
-.vf-shell .cv-step-btn:focus-visible .cv-step-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
-.vf-shell .cv-step[data-state="current"] .cv-step-dot {
-  background: var(--primary); color: #fff; border-color: var(--primary);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-.vf-shell .cv-step[data-state="current"] .cv-step-label { color: var(--text-primary); font-weight: 600; }
-.vf-shell .cv-step[data-state="done"] .cv-step-dot { background: var(--primary); color: #fff; border-color: var(--primary); }
-.vf-shell .cv-step[data-state="done"] .cv-step-line { background: var(--primary); }
-.vf-shell .cv-step[data-state="done"] .cv-step-label { color: var(--text-secondary); }
+/* The stepper is the established tab stepper (app.css); only its spacing
+   follows this page's rhythm. */
+.vf-shell .cv-page .vf-stepper { margin-bottom: 0; }
 
 /* ── form + preview ── */
 .vf-shell .cv-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 480px); gap: 20px; align-items: start; }
@@ -167,16 +143,10 @@
   .vf-shell .cv-preview-sheet { max-width: 640px; width: 100%; margin: 0 auto; }
 }
 
-@media (max-width: 900px) { .vf-shell .cv-step-label { font-size: 13px; padding-left: 12px; } }
-
 /* ── phone: stack the choices, show the current step's name only ── */
 @media (max-width: 640px) {
   .vf-shell .cv-page { gap: 16px; }
   .vf-shell .cv-title { font-size: 26px; }
-  .vf-shell .cv-step-label { display: none; }
-  .vf-shell .cv-step[data-state="current"] .cv-step-label { display: none; }
-  .vf-shell .cv-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .vf-shell .cv-step:last-child .cv-step-track { justify-content: flex-start; }
   .vf-shell .cv-body { padding: 18px 16px 4px; }
   .vf-shell .cv-step-head h2 { font-size: 21px; }
   .vf-shell .cv-method-grid, .vf-shell .cv-type-grid { grid-template-columns: minmax(0, 1fr); }
@@ -186,6 +156,3 @@
   .vf-shell .cv-actions { position: sticky; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); z-index: 5; padding: 12px 16px; }
   .vf-shell .cv-btn { height: 46px; padding: 0 16px; }
 }
-/* On a phone the current step is named once, under the stepper. */
-.vf-shell .cv-step-current { display: none; }
-@media (max-width: 640px) { .vf-shell .cv-step-current { display: block; margin: -6px 0 0; font-size: 14px; font-weight: 600; color: var(--text-primary); } }

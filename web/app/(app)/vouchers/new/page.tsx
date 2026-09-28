@@ -281,7 +281,7 @@ export default function CreateVoucherPage() {
   const L = (en: string, swText: string) => (sw ? swText : en);
 
   return (
-    <div className="cv-page">
+    <div className="cv-page vf-create">
       <header className="cv-head">
         <p className="cv-kicker">
           {t("newVoucher")}
@@ -290,24 +290,19 @@ export default function CreateVoucherPage() {
         <h1 className="cv-title">{t("createVoucher")}</h1>
       </header>
 
-      {/* ── the five steps ── */}
-      <ol className="cv-steps" aria-label={t("createVoucher")}>
-        {STEPS.map((step, index) => {
-          const state = index === stepIndex ? "current" : index < stepIndex ? "done" : "pending";
-          return (
-            <li key={step.key} className="cv-step" data-state={state}>
-              <button type="button" className="cv-step-btn" onClick={() => go(index)} aria-current={state === "current" ? "step" : undefined}>
-                <span className="cv-step-track">
-                  <span className="cv-step-dot">{state === "done" ? <Icon name="ph-check" size={14} weight="bold" /> : index + 1}</span>
-                  {index < STEPS.length - 1 && <span className="cv-step-line" aria-hidden="true" />}
-                </span>
-                <span className="cv-step-label">{step.label}</span>
-              </button>
-            </li>
-          );
-        })}
+      {/* ── the five steps (the established tab stepper) ── */}
+      <ol className="vf-stepper" aria-label={t("createVoucher")}>
+        {STEPS.map((step, index) => (
+          <li key={step.key} style={{ display: "contents" }}>
+            <button type="button" className="vf-stepper-item" onClick={() => go(index)}
+              data-state={index === stepIndex ? "current" : index < stepIndex ? "done" : "pending"}
+              aria-current={index === stepIndex ? "step" : undefined}>
+              <span className="vf-stepper-num">{index < stepIndex ? <Icon name="ph-check" size={12} /> : index + 1}</span>
+              {step.label}
+            </button>
+          </li>
+        ))}
       </ol>
-      <p className="cv-step-current">{L("Step", "Hatua")} {stepIndex + 1} / {STEPS.length} · {STEPS[stepIndex].label}</p>
 
       <div className="cv-grid">
         <form className="cv-card cv-form" noValidate
