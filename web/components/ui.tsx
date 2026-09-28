@@ -25,8 +25,8 @@ export type Tone = "neutral" | "info" | "warn" | "ok" | "bad";
  */
 export function Icon({
   name, size = 18, color, style, weight = "regular",
-}: { name: string; size?: number; color?: string; style?: React.CSSProperties; weight?: "regular" | "fill" }) {
-  const base = weight === "fill" ? "ph-fill" : "ph";
+}: { name: string; size?: number; color?: string; style?: React.CSSProperties; weight?: "regular" | "fill" | "bold" }) {
+  const base = weight === "fill" ? "ph-fill" : weight === "bold" ? "ph-bold" : "ph";
   return <i className={`${base} ${name}`} aria-hidden="true" style={{ fontSize: size, color, lineHeight: 1, ...style }} />;
 }
 

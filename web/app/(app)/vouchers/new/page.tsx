@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { ACCEPT_ATTRIBUTE, acceptFiles, attachmentForm, MAX_UPLOAD_MB, type Rejected } from "@/lib/attachments";
 import { dateInputValue, money } from "@/lib/format";
-import { Choice, Field, Icon, Note, PageHeader, Spinner } from "@/components/ui";
+import { Field, Icon, Note, Spinner } from "@/components/ui";
 import { resolveWorkflow, routeFor } from "@/lib/progress";
 import { useWorkflows } from "@/lib/use-workflows";
 import { VoucherSheet } from "@/components/voucher-sheet";
@@ -62,6 +61,7 @@ export default function CreateVoucherPage() {
   const [error, setError] = useState<ApiError | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState(false);
   const workflows = useWorkflows();
 
   const [form, setForm] = useState({
@@ -96,6 +96,16 @@ export default function CreateVoucherPage() {
       setForm((f) => ({ ...f, department_id: String(user?.department_id ?? "") }));
     }).catch(() => undefined);
   }, [user?.department_id]);
+
+  // The full-size preview closes on Escape, and the page behind it holds still.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setExpanded(false); };
+    document.addEventListener("keydown", onKey);
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = overflow; };
+  }, [expanded]);
 
   useEffect(() => {
     if (company?.currency) setForm((f) => ({ ...f, currency: company.currency }));
@@ -251,62 +261,104 @@ export default function CreateVoucherPage() {
   const route = routeFor(workflow, amountNumber, locale);
   const onReview = stepIndex === STEPS.length - 1;
 
+  // The draft as the server renders it, shared by the preview and its full-size view.
+  const draft = {
+    number: preview.number,
+    voucher_type_id: form.voucher_type_id || null,
+    department_id: form.department_id ? Number(form.department_id) : null,
+    payee: form.payee || null, purpose: form.purpose || null,
+    description: form.description || null,
+    amount: amountNumber, currency: form.currency, kind: form.kind,
+    payment_method: form.payment_method || null, account_ref: form.account_ref || null,
+    category: form.category || null, voucher_date: form.voucher_date || null,
+    notes_to_approver: form.notes_to_approver || null,
+    ...(form.kind === "bank"
+      ? { payee_bank: form.payee_bank || null, payee_account_name: form.payee_account_name || null,
+          payee_account_number: form.payee_account_number || null, payee_bank_branch: form.payee_bank_branch || null }
+      : { cash_float: form.cash_float || null }),
+  };
+  const sw = locale === "sw";
+  const L = (en: string, swText: string) => (sw ? swText : en);
+
   return (
-    <div className="vf-create">
-      <PageHeader
-        back={<Link className="vf-back" href="/vouchers"><Icon name="ph-arrow-left" size={15} /> {t("register")}</Link>}
-        kicker={selectedType ? `${t("newVoucher")} · ${selectedType.next_number_preview}` : t("newVoucher")}
-        title={t("createVoucher")}
-      />
+    <div className="cv-page">
+      <header className="cv-head">
+        <p className="cv-kicker">
+          {t("newVoucher")}
+          {selectedType && <><span className="cv-kicker-dot" aria-hidden="true">•</span><span className="tnum">{selectedType.next_number_preview}</span></>}
+        </p>
+        <h1 className="cv-title">{t("createVoucher")}</h1>
+      </header>
 
-      <ol className="vf-stepper" aria-label={t("createVoucher")}>
-        {STEPS.map((step, index) => (
-          <li key={step.key} style={{ display: "contents" }}>
-            <button type="button" className="vf-stepper-item" onClick={() => go(index)}
-              data-state={index === stepIndex ? "current" : index < stepIndex ? "done" : "pending"}
-              aria-current={index === stepIndex ? "step" : undefined}>
-              <span className="vf-stepper-num">{index < stepIndex ? <Icon name="ph-check" size={12} /> : index + 1}</span>
-              {step.label}
-            </button>
-          </li>
-        ))}
+      {/* ── the five steps ── */}
+      <ol className="cv-steps" aria-label={t("createVoucher")}>
+        {STEPS.map((step, index) => {
+          const state = index === stepIndex ? "current" : index < stepIndex ? "done" : "pending";
+          return (
+            <li key={step.key} className="cv-step" data-state={state}>
+              <button type="button" className="cv-step-btn" onClick={() => go(index)} aria-current={state === "current" ? "step" : undefined}>
+                <span className="cv-step-track">
+                  <span className="cv-step-dot">{state === "done" ? <Icon name="ph-check" size={14} weight="bold" /> : index + 1}</span>
+                  {index < STEPS.length - 1 && <span className="cv-step-line" aria-hidden="true" />}
+                </span>
+                <span className="cv-step-label">{step.label}</span>
+              </button>
+            </li>
+          );
+        })}
       </ol>
+      <p className="cv-step-current">{L("Step", "Hatua")} {stepIndex + 1} / {STEPS.length} · {STEPS[stepIndex].label}</p>
 
-      <div className="vf-create-grid">
-        <form className="vf-panel vf-create-form" noValidate
+      <div className="cv-grid">
+        <form className="cv-card cv-form" noValidate
           onSubmit={(e) => { e.preventDefault(); if (onReview) void save("submit"); else go(stepIndex + 1); }}>
+          <div className="cv-body">
 
           {/* 1 · type ────────────────────────────────────────────────────── */}
           {stepIndex === 0 && (
-            <div className="vf-create-step vf-rise">
+            <div className="cv-step-panel vf-rise">
               <StepHead n={1} title={t("chooseFormat")} sub={t("chooseFormatSub")} />
-              <div className="vf-choice-grid">
-                <Choice selected={form.kind === "bank"} icon="ph-bank" label={t("bankVoucher")}
-                  sub="Transfer or cheque to a bank account"
-                  onSelect={() => setForm((f) => ({ ...f, kind: "bank", payment_method: "Bank Transfer" }))} />
-                <Choice selected={form.kind === "cash"} icon="ph-money" label={t("cashVoucher")}
-                  sub="Notes released from a petty cash float"
-                  onSelect={() => setForm((f) => ({ ...f, kind: "cash", payment_method: "Cash" }))} />
-              </div>
 
-              <div className="field" style={{ marginTop: 22 }}>
-                <span className="vf-label">{t("voucherType")}</span>
-                <div className="vf-pills" role="radiogroup" aria-label={t("voucherType")}>
-                  {types.map((type) => (
-                    <button key={type.id} type="button" role="radio" aria-checked={form.voucher_type_id === type.id}
-                      className="vf-pill" onClick={() => setForm((f) => ({ ...f, voucher_type_id: type.id }))}>
-                      {type.label}
-                    </button>
-                  ))}
+              <section className="cv-section" aria-labelledby="cv-method">
+                <h3 id="cv-method" className="cv-section-title"><span>1.</span> {L("Payment method", "Njia ya malipo")}</h3>
+                <p className="cv-section-sub">{L("Choose how this payment will be made.", "Chagua jinsi malipo haya yatakavyofanyika.")}</p>
+                <div className="cv-method-grid" role="radiogroup" aria-labelledby="cv-method">
+                  <MethodCard selected={form.kind === "bank"} tone="blue" icon="ph-bank" title={t("bankVoucher")}
+                    sub={L("Transfer or cheque to a bank account", "Uhamisho au hundi kwenda akaunti ya benki")}
+                    onSelect={() => setForm((f) => ({ ...f, kind: "bank", payment_method: "Bank Transfer" }))} />
+                  <MethodCard selected={form.kind === "cash"} tone="green" icon="ph-money" title={t("cashVoucher")}
+                    sub={L("Notes released from a petty cash float", "Fedha taslimu kutoka kwenye mfuko wa fedha ndogo")}
+                    onSelect={() => setForm((f) => ({ ...f, kind: "cash", payment_method: "Cash" }))} />
+                </div>
+              </section>
+
+              <section className="cv-section" aria-labelledby="cv-type">
+                <h3 id="cv-type" className="cv-section-title"><span>2.</span> {t("voucherType")}</h3>
+                <p className="cv-section-sub">{L("Choose the type of voucher you are creating.", "Chagua aina ya vocha unayoiunda.")}</p>
+                <div className="cv-type-grid" role="radiogroup" aria-labelledby="cv-type">
+                  {types.map((type) => {
+                    const look = typeLook(type, sw);
+                    const selected = form.voucher_type_id === type.id;
+                    return (
+                      <button key={type.id} type="button" role="radio" aria-checked={selected} className="cv-type"
+                        onClick={() => setForm((f) => ({ ...f, voucher_type_id: type.id }))}>
+                        <span className="cv-type-icon" data-cv-tone={look.tone}><Icon name={look.icon} size={24} weight="bold" /></span>
+                        <span className="cv-type-text">
+                          <span className="cv-type-title">{type.label}</span>
+                          <span className="cv-type-sub">{look.sub}</span>
+                        </span>
+                        {selected && <span className="cv-check" aria-hidden="true"><Icon name="ph-check" size={12} weight="bold" /></span>}
+                      </button>
+                    );
+                  })}
                 </div>
                 {fe("voucher_type_id") && <div className="field-error" role="alert"><Icon name="ph-warning-circle" size={15} /> {fe("voucher_type_id")}</div>}
-              </div>
+              </section>
             </div>
           )}
-
           {/* 2 · details ─────────────────────────────────────────────────── */}
           {stepIndex === 1 && (
-            <div className="vf-create-step vf-rise">
+            <div className="cv-step-panel vf-rise">
               <StepHead n={2} title={t("details")} sub={t("detailsSub")} />
               <div className="vf-form-grid">
                 <Field label={t("payee")} htmlFor="payee" error={fe("payee")} required>
@@ -347,7 +399,7 @@ export default function CreateVoucherPage() {
 
           {/* 3 · payment ─────────────────────────────────────────────────── */}
           {stepIndex === 2 && (
-            <div className="vf-create-step vf-rise">
+            <div className="cv-step-panel vf-rise">
               <StepHead n={3} title={t("payment")} sub={form.kind === "bank" ? t("paymentSubBank") : t("paymentSubCash")} />
               <div className="vf-form-grid">
                 <div className="vf-amount-field">
@@ -415,7 +467,7 @@ export default function CreateVoucherPage() {
 
           {/* 4 · documents ───────────────────────────────────────────────── */}
           {stepIndex === 3 && (
-            <div className="vf-create-step vf-rise">
+            <div className="cv-step-panel vf-rise">
               <StepHead n={4} title={t("supportingDocs")} sub={t("documentsSub")} />
               <label className="vf-dropzone"
                 onDragOver={(e) => { e.preventDefault(); e.currentTarget.dataset.over = "true"; }}
@@ -481,7 +533,7 @@ export default function CreateVoucherPage() {
 
           {/* 5 · review ──────────────────────────────────────────────────── */}
           {onReview && (
-            <div className="vf-create-step vf-rise">
+            <div className="cv-step-panel vf-rise">
               <StepHead n={5} title={t("reviewVoucher")} sub={t("reviewSub")} />
 
               <div className="vf-review-amount">
@@ -520,65 +572,114 @@ export default function CreateVoucherPage() {
             </div>
           )}
 
+          </div>
+
           {/* ── step navigation ── */}
-          <div className="vf-create-nav">
-            {stepIndex > 0
-              ? <button type="button" className="btn btn-ghost" onClick={() => go(stepIndex - 1)} disabled={busy !== null}><Icon name="ph-arrow-left" size={16} /> {t("back")}</button>
-              : <span />}
-            <div className="vf-create-nav-end">
-              <button type="button" className="btn btn-secondary" onClick={() => save("draft")} disabled={busy !== null}>
-                {busy === "draft" ? <Spinner /> : t("saveDraft")}
-              </button>
+          <div className="cv-actions">
+            <button type="button" className="btn btn-secondary cv-btn" onClick={() => save("draft")} disabled={busy !== null}>
+              {busy === "draft" ? <Spinner /> : t("saveDraft")}
+            </button>
+            <div className="cv-actions-end">
+              {stepIndex > 0 && (
+                <button type="button" className="btn btn-ghost cv-btn" onClick={() => go(stepIndex - 1)} disabled={busy !== null}>
+                  <Icon name="ph-arrow-left" size={17} /> {t("back")}
+                </button>
+              )}
               {onReview ? (
-                <button type="submit" className="btn btn-primary" disabled={busy !== null}>
-                  {busy === "submit" ? <Spinner /> : <><Icon name="ph-paper-plane-tilt" size={17} /> {t("submitVoucher")}</>}
+                <button type="submit" className="btn btn-primary cv-btn" disabled={busy !== null}>
+                  {busy === "submit" ? <Spinner /> : <><Icon name="ph-paper-plane-tilt" size={18} /> {t("submitVoucher")}</>}
                 </button>
               ) : (
-                <button type="submit" className="btn btn-primary">
-                  {t("next")} <Icon name="ph-arrow-right" size={16} />
+                <button type="submit" className="btn btn-primary cv-btn">
+                  {t("next")} <Icon name="ph-arrow-right" size={18} />
                 </button>
               )}
             </div>
           </div>
         </form>
 
-        {/* The sheet that will print, updating as the form is filled in. */}
-        <aside className="vf-create-preview">
-          <div className="vf-create-preview-head">
-            <span className="vf-eyebrow">{t("livePreview")}</span>
+        {/* The sheet that will print, rendered by the server in the company's
+            own voucher template and updating as the form is filled in. */}
+        <aside className="cv-card cv-preview" aria-label={t("livePreview")}>
+          <div className="cv-preview-head">
+            <span className="cv-preview-title">{t("livePreview")}</span>
+            <button type="button" className="cv-icon-btn" onClick={() => setExpanded(true)}
+              aria-label={L("Open the preview full size", "Fungua muhtasari kwa ukubwa kamili")} title={L("Full size", "Ukubwa kamili")}>
+              <Icon name="ph-arrows-out-simple" size={18} />
+            </button>
           </div>
-          <div className="vf-document-frame">
-            {/* Rendered by the server in the company's own voucher template,
-                so the preview is the document that will print. */}
-            <DraftDocumentView
-              draft={{
-                number: preview.number,
-                voucher_type_id: form.voucher_type_id || null,
-                department_id: form.department_id ? Number(form.department_id) : null,
-                payee: form.payee || null, purpose: form.purpose || null,
-                description: form.description || null,
-                amount: amountNumber, currency: form.currency, kind: form.kind,
-                payment_method: form.payment_method || null, account_ref: form.account_ref || null,
-                category: form.category || null, voucher_date: form.voucher_date || null,
-                notes_to_approver: form.notes_to_approver || null,
-                ...(form.kind === "bank"
-                  ? { payee_bank: form.payee_bank || null, payee_account_name: form.payee_account_name || null,
-                      payee_account_number: form.payee_account_number || null, payee_bank_branch: form.payee_bank_branch || null }
-                  : { cash_float: form.cash_float || null }),
-              }}
-              fallback={<VoucherSheet voucher={preview} company={company} />}
-            />
+          <div className="cv-preview-sheet">
+            <DraftDocumentView draft={draft} fallback={<VoucherSheet voucher={preview} company={company} />} />
           </div>
         </aside>
       </div>
+
+      {expanded && (
+        <div className="vt-modal" role="dialog" aria-modal="true" aria-label={t("livePreview")}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setExpanded(false); }}>
+          <div className="vt-modal-card">
+            <header className="vt-modal-head">
+              <div className="vt-modal-title">
+                <span className="vt-num">{t("livePreview")}</span>
+                <h2>{selectedType ? `${selectedType.label} · ${selectedType.next_number_preview}` : t("createVoucher")}</h2>
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm vt-modal-close" onClick={() => setExpanded(false)} aria-label={t("close")}>
+                <Icon name="ph-x" size={18} />
+              </button>
+            </header>
+            <div className="vt-modal-body cv-modal-body">
+              <div className="vt-modal-sheet">
+                <DraftDocumentView draft={draft} fallback={<VoucherSheet voucher={preview} company={company} />} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+/** A payment method: one of two large cards, bank or cash. */
+function MethodCard({ selected, tone, icon, title, sub, onSelect }: {
+  selected: boolean; tone: string; icon: string; title: string; sub: string; onSelect: () => void;
+}) {
+  return (
+    <button type="button" role="radio" aria-checked={selected} className="cv-method" onClick={onSelect}>
+      <span className="cv-method-icon" data-cv-tone={tone}><Icon name={icon} size={32} weight="bold" /></span>
+      <span className="cv-method-text">
+        <span className="cv-method-title">{title}</span>
+        <span className="cv-method-sub">{sub}</span>
+      </span>
+      <span className={selected ? "cv-check cv-check-lg" : "cv-radio"} aria-hidden="true">
+        {selected && <Icon name="ph-check" size={13} weight="bold" />}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * How a voucher type is drawn: an icon, a colour and a line saying what it is
+ * for. The six standard types are known by their code; a type a company adds
+ * itself gets a neutral look and its own numbering as the description.
+ */
+function typeLook(type: VoucherType, sw: boolean): { icon: string; tone: string; sub: string } {
+  const known: Record<string, [string, string, string, string]> = {
+    payment: ["ph-file-text", "blue", "General payments to suppliers or individuals", "Malipo ya jumla kwa wasambazaji au watu binafsi"],
+    petty_cash: ["ph-wallet", "orange", "Small payments from petty cash", "Malipo madogo kutoka fedha ndogo"],
+    expense: ["ph-receipt", "violet", "Expenses and reimbursements", "Matumizi na marejesho"],
+    advance: ["ph-arrow-right", "teal", "Advances to employees or third parties", "Malipo ya awali kwa wafanyakazi au wengine"],
+    reimbursement: ["ph-arrows-clockwise", "rose", "Repayment of approved expenses", "Kurejesha matumizi yaliyoidhinishwa"],
+    other: ["ph-dots-three", "slate", "Other types of payments", "Aina nyingine za malipo"],
+  };
+  const k = known[type.code];
+  if (k) return { icon: k[0], tone: k[1], sub: sw ? k[3] : k[2] };
+  return { icon: "ph-file", tone: "slate", sub: `${sw ? "Namba" : "Numbered"} ${type.next_number_preview}` };
+}
+
 function StepHead({ n, title, sub }: { n: number; title: string; sub?: string }) {
   return (
-    <div className="vf-step-head">
-      <span className="vf-eyebrow">Step {n} of 5</span>
+    <div className="cv-step-head">
+      <span className="cv-eyebrow">Step {n} of 5</span>
       <h2>{title}</h2>
       {sub && <p>{sub}</p>}
     </div>

@@ -6,6 +6,8 @@
 @import "../styles/app.css";
 /* Voucher designs: the A4 document frame, the gallery and its preview. */
 @import "../styles/voucher-templates.css";
+/* The create-voucher flow, drawn to the approved reference. */
+@import "../styles/create-voucher.css";
 
 /* ── Print ────────────────────────────────────────────────────────────────
    Paper is white whatever the screen was showing. Server-generated PDFs stay

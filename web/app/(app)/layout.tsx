@@ -33,6 +33,14 @@ function groupOf(item: NavItem): Group | null {
   return "workspace";
 }
 
+/**
+ * The entry another entry is drawn beneath: /vouchers/new sits under
+ * /vouchers. Purely visual — the same entries, links and permissions.
+ */
+function parentOf(item: NavItem, siblings: NavItem[]): NavItem | undefined {
+  return siblings.find((p) => p !== item && item.href.startsWith(p.href + "/"));
+}
+
 /** Company settings pages that open inside the Settings area rather than the menu. */
 const SETTINGS_CHILDREN = ["/branding", "/subscription"];
 
@@ -85,6 +93,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [payCount, setPayCount] = useState(0);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Voucher[]>([]);
+  // Nested menu entries (Vouchers → Create voucher) are open unless folded.
+  const [closedGroups, setClosedGroups] = useState<string[]>([]);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
@@ -201,12 +211,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <small>{user.role_label}</small>
             </span>
           </Link>
+          {/* Desktop: fold to the icon rail (the top-bar menu button does the same). */}
+          <button type="button" className="app-side-collapse" onClick={toggleCollapsed} aria-label={sideLabel} title={sideLabel}>
+            <Icon name="ph-caret-left" size={16} />
+          </button>
           <button type="button" className="app-side-close" onClick={() => setDrawer(false)} aria-label="Close menu">
             <Icon name="ph-x" size={18} />
           </button>
         </div>
 
-        <div className="app-workspace" title={workspaceName}>
+        {/* The company this workspace belongs to. Its administrator can jump
+            to the company's own pages from here; everyone else sees the card. */}
+        {user.role === "company_admin" ? (
+          <Dropdown
+            align="start" placement="below" label={workspaceName}
+            trigger={({ open, toggle, id }) => (
+              <button type="button" className="app-workspace app-workspace-button" title={workspaceName}
+                onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu">
           <div className="app-workspace-mark" data-has-logo={company?.logo_mark_url ? "true" : undefined}>
             {company?.logo_mark_url && !isPlatform
               // eslint-disable-next-line @next/next/no-img-element
@@ -217,22 +238,67 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="app-workspace-name">{workspaceName}</div>
             {tenantLine && <div className="app-workspace-sub">{tenantLine}</div>}
           </div>
-        </div>
+                <Icon name="ph-caret-down" size={16} style={{ transform: open ? "rotate(180deg)" : undefined }} />
+              </button>
+            )}
+          >
+            {(close) => (
+              <>
+                <div className="app-menu-label">{workspaceName}</div>
+                <MenuItem icon="ph-buildings" href="/settings" onSelect={close}>{t("companyProfile")}</MenuItem>
+                <MenuItem icon="ph-palette" href="/branding" onSelect={close}>{t("branding")}</MenuItem>
+                <MenuItem icon="ph-crown-simple" href="/subscription" onSelect={close}>{t("subscription")}</MenuItem>
+              </>
+            )}
+          </Dropdown>
+        ) : (
+          <div className="app-workspace" title={workspaceName}>
+          <div className="app-workspace-mark" data-has-logo={company?.logo_mark_url ? "true" : undefined}>
+            {company?.logo_mark_url && !isPlatform
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={company.logo_mark_url} alt="" />
+              : (isPlatform ? <Icon name="ph-globe-hemisphere-east" size={16} /> : workspaceName.trim().charAt(0).toUpperCase())}
+          </div>
+          <div className="app-workspace-text">
+            <div className="app-workspace-name">{workspaceName}</div>
+            {tenantLine && <div className="app-workspace-sub">{tenantLine}</div>}
+          </div>
+          </div>
+        )}
 
         <nav className="app-nav">
           {groups.map(({ group, items: groupItems }) => (
             <div key={group} className="app-nav-group">
               <div className="app-nav-label"><span>{t(GROUP_LABEL[group])}</span></div>
-              {groupItems.map((item) => {
-                const badge = badgeFor(item);
-                const active = item.href === currentHref;
+              {groupItems.filter((item) => !parentOf(item, groupItems)).map((item) => {
+                const children = groupItems.filter((c) => parentOf(c, groupItems) === item);
+                const open = !closedGroups.includes(item.href);
+                const row = (entry: NavItem, child = false) => {
+                  const badge = badgeFor(entry);
+                  const active = entry.href === currentHref;
+                  return (
+                    <Link key={entry.href} href={entry.href} className={child ? "app-nav-item app-nav-child" : "app-nav-item"}
+                      aria-current={active ? "page" : undefined} data-tip={t(entry.label)}>
+                      <Icon name={entry.icon} size={20} weight={active ? "fill" : "regular"} />
+                      <span className="app-nav-text">{t(entry.label)}</span>
+                      {badge ? <span className="app-nav-badge tnum">{badge > 99 ? "99+" : badge}</span> : null}
+                      {badge ? <span className="app-nav-dot" aria-hidden="true" /> : null}
+                    </Link>
+                  );
+                };
+                if (!children.length) return row(item);
                 return (
-                  <Link key={item.href} href={item.href} className="app-nav-item" aria-current={active ? "page" : undefined} data-tip={t(item.label)}>
-                    <Icon name={item.icon} size={20} weight={active ? "fill" : "regular"} />
-                    <span className="app-nav-text">{t(item.label)}</span>
-                    {badge ? <span className="app-nav-badge tnum">{badge > 99 ? "99+" : badge}</span> : null}
-                    {badge ? <span className="app-nav-dot" aria-hidden="true" /> : null}
-                  </Link>
+                  <div key={item.href} className="app-nav-parent" data-open={open ? "true" : "false"}>
+                    <div className="app-nav-parent-row">
+                      {row(item)}
+                      <button type="button" className="app-nav-caret" aria-expanded={open}
+                        aria-label={`${t(item.label)}: ${open ? (locale === "sw" ? "kunja" : "collapse") : (locale === "sw" ? "panua" : "expand")}`}
+                        onClick={() => setClosedGroups((all) => (open ? [...all, item.href] : all.filter((h) => h !== item.href)))}>
+                        <Icon name="ph-caret-up" size={15} />
+                      </button>
+                    </div>
+                    {open && children.map((c) => row(c, true))}
+                  </div>
                 );
               })}
             </div>
@@ -301,6 +367,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <span className="app-user-role">{user.job_title || user.role_label}</span>
                   </span>
                   <span className="app-avatar" aria-hidden="true">{user.initials}</span>
+                  <Icon name="ph-caret-down" size={16} style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 160ms ease" }} />
                 </button>
               )}
             >

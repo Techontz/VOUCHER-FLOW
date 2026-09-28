@@ -1897,3 +1897,102 @@
   .vf-shell .app-pay-ref { margin-left: 0; }
   .vf-shell .app-pay-receiver { grid-template-columns: 1fr; }
 }
+
+/* ══════════════════════════════ App chrome to the approved reference (2026-09-28) ══
+ * Navy sidebar and top bar around a light work surface in the light
+ * appearance; the dark appearance keeps its own palette. Every rule here is
+ * presentation only — the same entries, links and controls as before.
+ */
+:root:not([data-theme="dark"]):has(.vf-shell) {
+  --background: #f3f5f9;
+  --sidebar-background: #0f172a;
+  --sidebar-hover: #1e293b;
+  --sidebar-border: #1e293b;
+  --sidebar-card: rgba(30, 41, 59, .55);
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-muted: #94a3b8;
+  --sidebar-label: #64748b;
+  --topbar-background: #0f172a;
+}
+
+/* The top bar is dark in both appearances, so its contents carry their own colours. */
+.vf-shell .vf-topbar {
+  --tb-fg: #f8fafc; --tb-muted: #94a3b8; --tb-line: #1e293b;
+  --tb-field: #111c33; --tb-field-line: #2a3654; --tb-hover: rgba(255, 255, 255, .07);
+  color: var(--tb-fg); border-bottom-color: var(--tb-line);
+}
+[data-theme="dark"] .vf-shell .vf-topbar { --tb-field: #0b1220; --tb-field-line: #1f2937; --tb-line: #1f2937; }
+.vf-shell .vf-topbar .btn-icon { color: #cbd5e1; background: transparent; border-color: transparent; }
+.vf-shell .vf-topbar .btn-icon:hover { color: #fff; background: var(--tb-hover); }
+.vf-shell .vf-topbar .app-crumbs li { color: var(--tb-muted); }
+.vf-shell .vf-topbar .app-crumbs a { color: var(--tb-muted) !important; }
+.vf-shell .vf-topbar .app-crumbs a:hover { color: var(--tb-fg) !important; }
+.vf-shell .vf-topbar .app-crumbs [aria-current="page"] { color: var(--tb-fg); font-weight: 600; }
+.vf-shell .vf-topbar .app-crumbs li + li::before { border-color: var(--tb-muted); }
+.vf-shell .vf-topbar .app-topbar-company { color: var(--tb-fg); }
+.vf-shell .vf-topbar .vf-search .input { height: 42px; border-radius: 12px; background-color: var(--tb-field); border-color: var(--tb-field-line); color: var(--tb-fg); }
+.vf-shell .vf-topbar .vf-search .input::placeholder { color: #7c8aa3; }
+.vf-shell .vf-topbar .vf-search .input:focus { background-color: var(--tb-field); border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); }
+.vf-shell .vf-topbar .vf-search { flex-basis: 320px; }
+.vf-shell .vf-topbar .app-topbar-create { height: 44px; padding: 0 20px; border-radius: 12px; font-weight: 600; }
+.vf-shell .vf-topbar .app-topbar-sep { background: var(--tb-line); }
+.vf-shell .vf-topbar .app-user { color: var(--tb-fg); gap: 12px; }
+.vf-shell .vf-topbar .app-user > i { color: var(--tb-muted); }
+.vf-shell .vf-topbar .app-user:hover, .vf-shell .vf-topbar .app-user[aria-expanded="true"] { background: var(--tb-hover); }
+.vf-shell .vf-topbar .app-user-name { font-weight: 600; }
+.vf-shell .vf-topbar .app-user-role { color: var(--tb-muted); }
+.vf-shell .vf-topbar .vf-bell-dot { box-shadow: 0 0 0 2px var(--topbar-background); }
+
+/* Brand row: the collapse control sits at its right edge. */
+.app-side-collapse {
+  flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px;
+  border: 1px solid var(--sidebar-border); background: rgba(255, 255, 255, .03); color: var(--sidebar-muted); cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, opacity 120ms ease;
+}
+.app-side-collapse:hover { background: var(--sidebar-hover); color: #fff; }
+.app-side-collapse:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+@media (min-width: 981px) {
+  :root[data-sidebar="collapsed"] .vf-shell .app-side-collapse { opacity: 0; pointer-events: none; width: 0; border: 0; }
+}
+@media (max-width: 980px) { .app-side-collapse { display: none; } }
+
+/* The company card, as a menu button for its administrator. */
+.app-workspace-button { width: calc(100% - 32px); text-align: left; cursor: pointer; font-family: var(--font-body); color: inherit; padding-right: 12px; }
+.app-workspace-button > i { flex: none; color: var(--sidebar-muted); transition: transform 160ms ease; }
+.app-workspace-button:hover { border-color: #334155; background: var(--sidebar-hover); }
+.app-workspace-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.vf-sidebar .app-dropdown { margin: 16px 16px 4px; }
+.vf-sidebar .app-dropdown .app-workspace-button { margin: 0; width: 100%; }
+.vf-sidebar .app-dropdown .app-menu { left: 0; right: 0; min-width: 0; }
+@media (min-width: 981px) {
+  :root[data-sidebar="collapsed"] .vf-shell .app-workspace-button > i { opacity: 0; }
+}
+
+/* Taller, calmer rows; the current one gets a bright edge on its solid fill. */
+.app-nav-item { height: 48px; font-size: 15px; }
+.app-nav-item[aria-current="page"] {
+  box-shadow: inset 4px 0 0 #93c5fd, 0 6px 16px -8px color-mix(in srgb, var(--primary) 80%, transparent);
+}
+.app-nav-badge { background: #2563eb; }
+
+/* An entry with an entry beneath it (Vouchers → Create voucher). */
+.app-nav-parent { display: grid; gap: 4px; }
+.app-nav-parent-row { position: relative; }
+.app-nav-parent-row .app-nav-item { padding-right: 44px; }
+.app-nav-caret {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 8px;
+  background: transparent; color: var(--sidebar-muted); cursor: pointer; transition: background-color 150ms ease, color 150ms ease;
+}
+.app-nav-caret i { transition: transform 180ms ease; }
+.app-nav-parent[data-open="false"] .app-nav-caret i { transform: rotate(180deg); }
+.app-nav-caret:hover { background: var(--sidebar-hover); color: #fff; }
+.app-nav-caret:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+@media (min-width: 981px) {
+  :root[data-sidebar="collapsed"] .vf-shell .app-nav-caret { display: none; }
+  :root[data-sidebar="collapsed"] .vf-shell .app-nav-parent-row .app-nav-item { padding-right: 16px; }
+}
+@media (min-width: 981px) {
+  /* The company menu needs the open sidebar's width; the rail never shows it. */
+  :root[data-sidebar="collapsed"] .vf-shell .vf-sidebar .app-menu { display: none; }
+}
