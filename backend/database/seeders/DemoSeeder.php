@@ -380,6 +380,12 @@ class DemoSeeder extends Seeder
         return $this->tenant->forCompany($company, function () use ($company, $admin, $plan, $fresh) {
             $company->forceFill(['status' => 'active', 'primary_color' => '#1f6f4a'])->save();
 
+            // Demo tenants show different voucher designs; a reseed never
+            // overrides a design someone has since changed.
+            if ($fresh) {
+                $company->forceFill(['voucher_template' => 'modern'])->save();
+            }
+
             if ($plan && $fresh) {
                 $this->payments->subscribe($company, $plan, 'annual');
             }
@@ -519,6 +525,10 @@ class DemoSeeder extends Seeder
 
             // Once only, as for Watercom: a subscription and its invoice have
             // no natural key to reconcile a rerun against.
+            if ($fresh) {
+                $company->forceFill(['voucher_template' => 'finance'])->save();
+            }
+
             if ($plan && $fresh) {
                 $subscription = $this->payments->subscribe($company, $plan, 'monthly');
                 $invoice = $this->payments->issueInvoice($company, $subscription);

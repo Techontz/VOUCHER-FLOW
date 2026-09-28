@@ -11,12 +11,15 @@ use App\Models\Company;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\Voucher;
+use App\Models\VoucherTemplateChange;
 use App\Services\AuditLogger;
 use App\Services\CompanyBranding;
 use App\Services\CompanyProvisioner;
 use App\Services\PaymentGateway;
 use App\Services\UsageLimits;
+use App\Services\VoucherTemplateManager;
 use App\Support\TenantContext;
+use App\Support\VoucherTemplates;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -30,6 +33,7 @@ class CompanyController extends Controller
         private readonly UsageLimits $limits,
         private readonly AuditLogger $audit,
         private readonly TenantContext $tenant,
+        private readonly VoucherTemplateManager $voucherTemplates,
     ) {}
 
     public function index(Request $request)
@@ -74,6 +78,7 @@ class CompanyController extends Controller
             'branding.theme' => ['nullable', Rule::in(['light', 'dark'])],
             'branding.voucher_header_text' => ['nullable', 'string', 'max:255'],
             'branding.voucher_footer_text' => ['nullable', 'string', 'max:500'],
+            'branding.voucher_template' => ['nullable', Rule::in(VoucherTemplates::keys())],
 
             'logo' => ['nullable', ...Company::logoRules()],
             'logo_mark' => ['nullable', ...Company::logoRules()],
@@ -113,8 +118,15 @@ class CompanyController extends Controller
 
         // The remaining profile fields, and the brand, in the tenant's own row.
         $created->fill(collect($company)->except(['name', 'email'])->filter(fn ($v) => $v !== null)->all());
-        $created->fill(collect($data['branding'] ?? [])->filter(fn ($v) => $v !== null)->all());
+        $created->fill(collect($data['branding'] ?? [])->except('voucher_template')->filter(fn ($v) => $v !== null)->all());
         $created->save();
+
+        $this->voucherTemplates->initial(
+            $created,
+            $data['branding']['voucher_template'] ?? null,
+            $request->user(),
+            VoucherTemplateChange::SOURCE_PLATFORM_CREATE,
+        );
 
         if ($request->hasFile('logo')) {
             $this->branding->store($created, $request->file('logo'), CompanyBranding::SLOT_LOGO);

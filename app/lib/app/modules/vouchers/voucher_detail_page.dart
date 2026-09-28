@@ -11,6 +11,7 @@ import '../../data/services/api_service.dart';
 import '../../data/services/session_service.dart';
 import '../../data/services/voucher_repository.dart';
 import '../../widgets/common.dart';
+import '../../widgets/server_voucher_document.dart';
 import '../../widgets/voucher_document.dart';
 import '../../widgets/signature_pad.dart';
 
@@ -377,10 +378,22 @@ class VoucherDetailPage extends StatelessWidget {
 
               /* The document is the page. Everything secondary folds away
                  beneath it, so what is on screen is what will print. */
-              DocumentFrame(
-                child: VoucherDocument(
-                  voucher: v,
-                  company: Get.find<SessionService>().company.value,
+              // The server's rendering, in the company's voucher template;
+              // the native sheet stands in while it loads or if it cannot.
+              ServerVoucherDocument(
+                load: () => controller.repo.pdf(v.id),
+                refreshKey: [
+                  v.status,
+                  v.timeline.length,
+                  v.attachments.length,
+                  v.payments.length,
+                  v.amountPaid,
+                ].join('|'),
+                fallback: DocumentFrame(
+                  child: VoucherDocument(
+                    voucher: v,
+                    company: Get.find<SessionService>().company.value,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

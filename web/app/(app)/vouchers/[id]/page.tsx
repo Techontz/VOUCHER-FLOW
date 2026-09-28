@@ -13,6 +13,7 @@ import {
 import { Stamp } from "@/components/stamps";
 import { ApprovalTrack, DocumentActions, KindChip, StatusBadge } from "@/components/voucher-bits";
 import { VoucherSheet } from "@/components/voucher-sheet";
+import { VoucherDocumentView } from "@/components/voucher-templates";
 import { SignaturePad } from "@/components/signature-pad";
 import { latestPayment, PaymentsPanel, usePaymentAcknowledgement } from "@/components/voucher-payments";
 import type { Voucher, VoucherPayment } from "@/lib/types";
@@ -571,7 +572,11 @@ export default function VoucherDetailPage() {
             </button>
             <div className="vf-document-body">
               <div className="vf-document-frame">
-                <VoucherSheet voucher={voucher} company={company} />
+                <VoucherDocumentView
+                  voucherId={voucher.id}
+                  refreshKey={[voucher.status, voucher.updated_at, voucher.attachments?.length ?? 0, voucher.timeline?.length ?? 0, voucher.amount_paid ?? ""].join("|")}
+                  fallback={<VoucherSheet voucher={voucher} company={company} />}
+                />
               </div>
             </div>
           </section>

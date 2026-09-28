@@ -72,11 +72,18 @@ export interface Company {
   bank_account_number: string | null;
   bank_branch: string | null;
   primary_color: string;
+  secondary_color?: string | null;
   accent_color: string;
   theme: "light" | "dark";
   /** The interface palette this company works in; see styles/app.css. */
   color_theme: ColorTheme;
   voucher_footer_text: string | null;
+  /** The voucher design new documents render in; see VoucherTemplate. */
+  voucher_template?: string;
+  voucher_template_name?: string;
+  voucher_template_changes_used?: number;
+  voucher_template_changes_allowed?: number;
+  voucher_template_changes_remaining?: number;
   status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
   is_usable: boolean;
   is_expired: boolean;
@@ -592,4 +599,41 @@ export interface LoginCodeSent {
   code_expires_in: number;
   resend_in: number;
   sends_remaining: number;
+}
+
+/** One voucher design from the server's catalogue. Presentation only. */
+export interface VoucherTemplate {
+  key: string;
+  number: number;
+  name: string;
+  name_sw: string;
+  description: string;
+  description_sw: string;
+  is_default: boolean;
+}
+
+export interface VoucherTemplateChange {
+  id: number;
+  previous_template: string | null;
+  previous_template_name: string | null;
+  new_template: string;
+  new_template_name: string;
+  changed_by: number | null;
+  changed_by_name: string | null;
+  changed_by_role: string | null;
+  source: "registration" | "company_admin" | "super_admin" | "platform_create";
+  reason: string | null;
+  counted: boolean;
+  created_at: string | null;
+}
+
+/** A company's design and what it may still do about it. */
+export interface VoucherTemplateState {
+  template: string;
+  template_name: string;
+  changes_used: number;
+  changes_allowed: number;
+  changes_remaining: number;
+  templates: VoucherTemplate[];
+  history: VoucherTemplateChange[];
 }

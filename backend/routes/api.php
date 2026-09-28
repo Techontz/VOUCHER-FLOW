@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\VoucherCommentController;
 use App\Http\Controllers\Api\VoucherController;
 use App\Http\Controllers\Api\VoucherDocumentController;
 use App\Http\Controllers\Api\VoucherPaymentController;
+use App\Http\Controllers\Api\VoucherTemplateController;
 use App\Http\Controllers\Api\VoucherTypeController;
 use App\Http\Controllers\Api\WorkflowController;
 use Illuminate\Routing\Middleware\SubstituteBindings;
@@ -40,6 +41,10 @@ Route::prefix('auth')->group(function () {
 
 // The pricing table on the marketing pages.
 Route::get('plans', [BillingController::class, 'plans']);
+
+// Voucher designs, shown while a company is still registering.
+Route::get('voucher-templates', [VoucherTemplateController::class, 'index']);
+Route::post('voucher-templates/preview', [VoucherTemplateController::class, 'preview'])->middleware('throttle:60,1');
 
 /*
 |--------------------------------------------------------------------------
@@ -74,6 +79,7 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
         Route::get('/', [VoucherController::class, 'index']);
         Route::get('pending', [VoucherController::class, 'pending']);
         Route::get('awaiting-payment', [VoucherController::class, 'awaitingPayment']);
+        Route::post('document-preview', [VoucherDocumentController::class, 'draftPreview'])->middleware('throttle:120,1');
         Route::post('bulk-approve', [VoucherController::class, 'bulkApprove'])->middleware(['subscription', 'throttle:30,1']);
         Route::post('/', [VoucherController::class, 'store'])->middleware('subscription');
         Route::get('{voucher}', [VoucherController::class, 'show']);
@@ -93,6 +99,7 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
         });
 
         // The printed document — available at every stage, per step permissions.
+        Route::get('{voucher}/document', [VoucherDocumentController::class, 'html'])->name('document');
         Route::get('{voucher}/pdf', [VoucherDocumentController::class, 'stream'])->name('pdf');
         Route::get('{voucher}/pdf/download', [VoucherDocumentController::class, 'download'])->name('pdf.download');
 
@@ -116,6 +123,10 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
     Route::post('company/logo', [CompanyController::class, 'storeLogo']);
     Route::delete('company/logo', [CompanyController::class, 'destroyLogo']);
     Route::get('company/usage', [CompanyController::class, 'usage']);
+    Route::get('company/voucher-template', [VoucherTemplateController::class, 'show']);
+    Route::post('company/voucher-template/preview', [VoucherTemplateController::class, 'companyPreview'])->middleware('throttle:60,1');
+    Route::put('company/voucher-template', [VoucherTemplateController::class, 'update'])->middleware('throttle:10,1');
+    Route::post('company/voucher-template/request', [VoucherTemplateController::class, 'requestChange'])->middleware('throttle:5,10');
 
     Route::get('directory', [EmployeeController::class, 'directory']);
     Route::apiResource('employees', EmployeeController::class);
@@ -171,6 +182,9 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
         Route::post('companies/{company}/branding', [Platform\CompanyController::class, 'updateBranding']);
         Route::post('companies/{company}/logo', [Platform\CompanyController::class, 'storeLogo']);
         Route::delete('companies/{company}/logo', [Platform\CompanyController::class, 'destroyLogo']);
+        Route::get('companies/{company}/voucher-template', [VoucherTemplateController::class, 'platformShow']);
+        Route::post('companies/{company}/voucher-template/preview', [VoucherTemplateController::class, 'platformPreview']);
+        Route::put('companies/{company}/voucher-template', [VoucherTemplateController::class, 'platformUpdate']);
 
         Route::apiResource('plans', Platform\PlanController::class)->except(['show']);
 

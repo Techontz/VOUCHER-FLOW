@@ -9,6 +9,7 @@ import { Dialog, Icon, LanguageToggle, Spinner, ThemeToggle } from "@/components
 import { VouchFlowMark } from "@/components/login-brand";
 import { pick, type L } from "@/components/landing/copy";
 import { money } from "@/lib/format";
+import { TemplateGallery, TemplatePreviewDialog, templateName, useTemplateCatalogue, useTemplatePreviews } from "@/components/voucher-templates";
 import type { Company, Plan, User } from "@/lib/types";
 
 /**
@@ -17,9 +18,9 @@ import type { Company, Plan, User } from "@/lib/types";
  * Five short steps instead of one long form, and nothing is sent until the
  * last one. Then, in order:
  *
- *   1. POST /auth/register  — company, administrator and plan, exactly as
- *                             before. This is the only call that can fail the
- *                             registration.
+ *   1. POST /auth/register  — company, administrator, plan and the chosen
+ *                             voucher template. This is the only call that
+ *                             can fail the registration.
  *   2. PUT  /company        — trading name, TIN, contact details and colours,
  *                             through the same endpoint Settings uses.
  *   3. POST /company/logo   — the logo, through the same validated upload.
@@ -34,7 +35,7 @@ type StepKey = "company" | "contact" | "branding" | "admin" | "review";
 const STEPS: { key: StepKey; label: L; title: L; sub: L }[] = [
   { key: "company", label: ["Company", "Kampuni"], title: ["Tell us about your company", "Tueleze kuhusu kampuni yako"], sub: ["The legal details that appear on every voucher you issue.", "Taarifa rasmi zitakazoonekana kwenye kila vocha mtakayotoa."] },
   { key: "contact", label: ["Contact", "Mawasiliano"], title: ["How can we reach you?", "Tunawezaje kuwasiliana nanyi?"], sub: ["Who to contact about the account, and where the company is based.", "Mtu wa kuwasiliana kuhusu akaunti, na mahali kampuni ilipo."] },
-  { key: "branding", label: ["Branding", "Chapa"], title: ["Make it yours", "Ifanye iwe yako"], sub: ["Your logo and colours on screen and on the printed voucher. You can change these later.", "Nembo na rangi zenu kwenye skrini na kwenye vocha iliyochapishwa. Mnaweza kubadilisha baadaye."] },
+  { key: "branding", label: ["Branding & template", "Chapa na kiolezo"], title: ["Make it yours", "Ifanye iwe yako"], sub: ["Your logo, your colours and the design of your payment voucher — on screen and on every voucher you print.", "Nembo yenu, rangi zenu na muundo wa vocha yenu ya malipo — kwenye skrini na kwenye kila vocha mtakayochapisha."] },
   { key: "admin", label: ["Admin", "Msimamizi"], title: ["Create the administrator", "Unda msimamizi"], sub: ["This person sets up departments, people and approval routes.", "Mtu huyu ataweka idara, watu na njia za idhini."] },
   { key: "review", label: ["Review", "Hakiki"], title: ["Review and create", "Hakiki na uunde"], sub: ["Check the details, choose a plan, and create your company.", "Hakiki taarifa, chagua mpango, na uunde kampuni yako."] },
 ];
@@ -54,7 +55,11 @@ const C = {
   logo: ["Company logo", "Nembo ya kampuni"], logoHint: ["PNG, JPG or WEBP, up to 2 MB. A wide logo on a transparent background prints best.", "PNG, JPG au WEBP, hadi MB 2. Nembo pana isiyo na mandharinyuma huchapika vizuri."],
   chooseLogo: ["Choose a logo", "Chagua nembo"], replace: ["Replace", "Badilisha"], remove: ["Remove", "Ondoa"],
   primary: ["Primary colour", "Rangi kuu"], secondary: ["Secondary colour", "Rangi ya pili"],
-  preview: ["Preview", "Mwonekano"], previewVoucher: ["Payment voucher", "Vocha ya malipo"],
+  template: ["Voucher template", "Kiolezo cha vocha"],
+  templateTitle: ["Choose your voucher design", "Chagua muundo wa vocha yenu"],
+  chooseTemplate: ["Choose a voucher design to continue.", "Chagua muundo wa vocha ili kuendelea."],
+  templateSub: ["Every design carries the same information and follows the same approvals — only the layout changes. Open one to see it full size with your logo and colours.", "Kila muundo una taarifa zilezile na idhini zilezile — mpangilio pekee ndio unabadilika. Fungua mmoja uuone kwa ukubwa kamili ukiwa na nembo na rangi zenu."],
+  templateOnce: ["After registration your administrator can change the template once from Branding.", "Baada ya usajili msimamizi wenu anaweza kubadilisha kiolezo mara moja kupitia Chapa."],
   adminName: ["Full name", "Jina kamili"], adminEmail: ["Work email", "Barua pepe ya kazi"], adminEmailHint: ["You will sign in with this, and we will send a verification code to it.", "Utaingia kwa hii, na tutatuma namba ya uthibitisho kwake."],
   password: ["Password", "Nenosiri"], passwordHint: ["At least 8 characters.", "Angalau herufi 8."], confirm: ["Confirm password", "Thibitisha nenosiri"],
   show: ["Show password", "Onyesha nenosiri"], hide: ["Hide password", "Ficha nenosiri"],
@@ -85,7 +90,7 @@ const LOGO_MAX = 2 * 1024 * 1024;
 const FIELD_STEP: Record<string, number> = {
   company_name: 0, country: 0, currency: 0, trading_name: 0, tin: 0, registration_number: 0,
   business_email: 1, phone: 1, address: 1, contact_person: 1, city: 1, region: 1,
-  primary_color: 2, secondary_color: 2, logo: 2,
+  primary_color: 2, secondary_color: 2, logo: 2, voucher_template: 2,
   name: 3, email: 3, password: 3, password_confirmation: 3,
   plan_code: 4,
 };
@@ -115,8 +120,25 @@ export default function RegisterPage() {
     name: "", email: "", password: "", password_confirmation: "",
   });
   const [logo, setLogo] = useState<File | null>(null);
+  const catalogue = useTemplateCatalogue();
+  const [voucherTemplate, setVoucherTemplate] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  // No design is preselected: the company chooses its own before continuing.
+  const chosenTemplate = voucherTemplate;
   const logoPreview = useMemo(() => (logo ? URL.createObjectURL(logo) : null), [logo]);
   useEffect(() => () => { if (logoPreview) URL.revokeObjectURL(logoPreview); }, [logoPreview]);
+
+  // Rendered by the server in the colours and name typed so far; the logo is
+  // still only in the browser, so it is swapped into the returned documents.
+  const templatePreviews = useTemplatePreviews(step >= 2 ? "/voucher-templates/preview" : null, {
+    name: (form.trading_name || form.company_name).trim() || null,
+    address: [form.address, form.city, form.region].map((v) => v.trim()).filter(Boolean).join(", ") || null,
+    phone: form.phone.trim() || null,
+    email: form.business_email.trim() || null,
+    tin: form.tin.trim() || null,
+    primary_color: HEX.test(form.primary_color) ? form.primary_color : null,
+    secondary_color: HEX.test(form.secondary_color) ? form.secondary_color : null,
+  }, logoPreview);
 
   useEffect(() => {
     api.get<{ data: Plan[] }>("/plans").then((r) => setPlans(r.data.filter((p) => p.is_public))).catch(() => setPlans([]));
@@ -140,6 +162,7 @@ export default function RegisterPage() {
     if (index === 2) {
       if (!HEX.test(form.primary_color)) out.primary_color = l(C.badColour);
       if (!HEX.test(form.secondary_color)) out.secondary_color = l(C.badColour);
+      if (!voucherTemplate && catalogue.templates.length) out.voucher_template = l(C.chooseTemplate);
     }
     if (index === 3) {
       req("name");
@@ -171,7 +194,11 @@ export default function RegisterPage() {
   }
 
   function focusFirstError() {
-    window.setTimeout(() => document.querySelector<HTMLElement>(".rg-form [aria-invalid='true']")?.focus(), 30);
+    window.setTimeout(() => {
+      const field = document.querySelector<HTMLElement>(".rg-form [aria-invalid='true']");
+      if (field) field.focus();
+      else document.querySelector<HTMLElement>(".rg-templates[data-invalid]")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 30);
   }
 
   function pickLogo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -203,6 +230,7 @@ export default function RegisterPage() {
         password: form.password,
         password_confirmation: form.password_confirmation,
         plan_code: planCode,
+        voucher_template: chosenTemplate ?? catalogue.defaultKey,
       });
     } catch (err) {
       setBusy(false);
@@ -324,7 +352,7 @@ export default function RegisterPage() {
               <div className="rg-progress-bar"><span style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} /></div>
             </div>
 
-            <form className="rg-card rg-form" noValidate
+            <form className="rg-card rg-form" noValidate data-wide={current.key === "branding" || undefined}
               onSubmit={(e) => { e.preventDefault(); if (onReview) setConfirming(true); else go(step + 1); }}>
               <header className="rg-head" key={current.key}>
                 <p className="rg-eyebrow">{l(C.stepOf)} {step + 1} {l(C.of)} {STEPS.length} · {l(current.label)}</p>
@@ -435,22 +463,23 @@ export default function RegisterPage() {
                         onChange={(v) => setForm((f) => ({ ...f, secondary_color: v }))} />
                     </div>
 
-                    <div className="rg-preview" aria-label={l(C.preview)}>
-                      <span className="rg-eyebrow">{l(C.preview)}</span>
-                      <div className="rg-preview-sheet" style={{ borderTopColor: HEX.test(form.primary_color) ? form.primary_color : undefined }}>
-                        <span className="rg-preview-logo" style={{ background: logoPreview ? "transparent" : (HEX.test(form.secondary_color) ? form.secondary_color : undefined) }}>
-                          {logoPreview
-                            // eslint-disable-next-line @next/next/no-img-element
-                            ? <img src={logoPreview} alt="" />
-                            : initials(form.trading_name || form.company_name)}
-                        </span>
-                        <span className="rg-preview-name">
-                          <strong>{form.trading_name || form.company_name || "—"}</strong>
-                          <span>{[form.city, form.region].filter(Boolean).join(", ") || l(C.previewVoucher)}</span>
-                        </span>
-                        <span className="rg-preview-tag" style={{ color: HEX.test(form.primary_color) ? form.primary_color : undefined }}>{l(C.previewVoucher)}</span>
+                    <section className="rg-templates" aria-labelledby="rg-templates-title" data-invalid={fe("voucher_template") ? "true" : undefined}>
+                      <div className="rg-templates-head">
+                        <h2 id="rg-templates-title">{l(C.templateTitle)}</h2>
+                        <p>{l(C.templateSub)}</p>
                       </div>
-                    </div>
+                      <TemplateGallery
+                        templates={catalogue.templates}
+                        previews={templatePreviews.previews}
+                        selected={chosenTemplate}
+                        onSelect={(key) => { setVoucherTemplate(key); setErrors((all) => { const next = { ...all }; delete next.voucher_template; return next; }); }}
+                        onPreview={setPreviewing}
+                        loading={templatePreviews.loading}
+                        failed={catalogue.failed || templatePreviews.failed}
+                      />
+                      <p className="field-hint"><Icon name="ph-info" size={14} /> {l(C.templateOnce)}</p>
+                      {fe("voucher_template") && <div className="field-error" role="alert"><Icon name="ph-warning-circle" size={15} /> {fe("voucher_template")}</div>}
+                    </section>
                   </>
                 )}
 
@@ -493,6 +522,7 @@ export default function RegisterPage() {
                       [l(C.logo), logo ? logo.name : ""],
                       [l(C.primary), <Swatch key="p" value={form.primary_color} />],
                       [l(C.secondary), <Swatch key="s" value={form.secondary_color} />],
+                      [l(C.template), templateName(catalogue.templates.find((t) => t.key === chosenTemplate), locale)],
                     ]} empty={l(C.none)} />
                     <ReviewBlock title={l(STEPS[3].label)} onEdit={() => go(3)} editLabel={l(C.edit)} rows={[
                       [l(C.adminName), form.name], [l(C.adminEmail), form.email], [l(C.password), "••••••••"],
@@ -536,6 +566,18 @@ export default function RegisterPage() {
         )}
       </main>
 
+      <TemplatePreviewDialog
+        open={previewing !== null}
+        templates={catalogue.templates}
+        previews={templatePreviews.previews}
+        active={previewing}
+        selected={chosenTemplate}
+        onNavigate={setPreviewing}
+        onClose={() => setPreviewing(null)}
+        onUse={(key) => { setVoucherTemplate(key); setPreviewing(null); setErrors((all) => { const next = { ...all }; delete next.voucher_template; return next; }); }}
+        footerNote={l(C.templateOnce)}
+      />
+
       <Dialog
         open={confirming}
         title={l(C.confirmTitle)}
@@ -547,6 +589,7 @@ export default function RegisterPage() {
         summary={[
           { label: l(C.companyName), value: form.trading_name ? `${form.company_name} (${form.trading_name})` : form.company_name },
           { label: l(C.adminEmail), value: form.email },
+          { label: l(C.template), value: templateName(catalogue.templates.find((t) => t.key === chosenTemplate), locale) },
           { label: l(C.plan), value: selectedPlan ? `${selectedPlan.label} · ${selectedPlan.trial_days} ${l(C.trial)}` : planCode },
         ]}
         actions={
@@ -616,8 +659,4 @@ function PasswordMeter({ value }: { value: string }) {
       {[1, 2, 3, 4].map((n) => <span key={n} data-on={score >= n || undefined} />)}
     </div>
   );
-}
-
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "VF";
 }

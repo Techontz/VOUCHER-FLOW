@@ -9,11 +9,14 @@ use App\Models\Company;
 use App\Models\OtpCode;
 use App\Models\Plan;
 use App\Models\User;
+use App\Models\VoucherTemplateChange;
 use App\Notifications\OneTimeCodeNotification;
 use App\Services\AuditLogger;
 use App\Services\CompanyProvisioner;
 use App\Services\TwoFactorLogin;
+use App\Services\VoucherTemplateManager;
 use App\Support\TenantContext;
+use App\Support\VoucherTemplates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -27,6 +30,7 @@ class AuthController extends Controller
         private readonly TenantContext $tenant,
         private readonly AuditLogger $audit,
         private readonly TwoFactorLogin $twoFactor,
+        private readonly VoucherTemplateManager $voucherTemplates,
     ) {}
 
     /** Registers a company together with its first administrator. */
@@ -46,6 +50,7 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'max:180'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'plan_code' => ['nullable', 'string', 'exists:plans,code'],
+            'voucher_template' => ['nullable', Rule::in(VoucherTemplates::keys())],
         ]);
 
         $plan = $data['plan_code'] ?? null
@@ -71,6 +76,8 @@ class AuthController extends Controller
             ],
             $plan,
         );
+
+        $this->voucherTemplates->initial($company, $data['voucher_template'] ?? null, $admin, VoucherTemplateChange::SOURCE_REGISTRATION);
 
         $challenge = $this->issueOtp($admin, $admin->email, 'registration');
 

@@ -11,6 +11,7 @@ import { Choice, Field, Icon, Note, PageHeader, Spinner } from "@/components/ui"
 import { resolveWorkflow, routeFor } from "@/lib/progress";
 import { useWorkflows } from "@/lib/use-workflows";
 import { VoucherSheet } from "@/components/voucher-sheet";
+import { DraftDocumentView } from "@/components/voucher-templates";
 import type { Voucher as VoucherModel } from "@/lib/types";
 import type { Department, Voucher, VoucherType } from "@/lib/types";
 
@@ -547,7 +548,26 @@ export default function CreateVoucherPage() {
             <span className="vf-eyebrow">{t("livePreview")}</span>
           </div>
           <div className="vf-document-frame">
-            <VoucherSheet voucher={preview} company={company} />
+            {/* Rendered by the server in the company's own voucher template,
+                so the preview is the document that will print. */}
+            <DraftDocumentView
+              draft={{
+                number: preview.number,
+                voucher_type_id: form.voucher_type_id || null,
+                department_id: form.department_id ? Number(form.department_id) : null,
+                payee: form.payee || null, purpose: form.purpose || null,
+                description: form.description || null,
+                amount: amountNumber, currency: form.currency, kind: form.kind,
+                payment_method: form.payment_method || null, account_ref: form.account_ref || null,
+                category: form.category || null, voucher_date: form.voucher_date || null,
+                notes_to_approver: form.notes_to_approver || null,
+                ...(form.kind === "bank"
+                  ? { payee_bank: form.payee_bank || null, payee_account_name: form.payee_account_name || null,
+                      payee_account_number: form.payee_account_number || null, payee_bank_branch: form.payee_bank_branch || null }
+                  : { cash_float: form.cash_float || null }),
+              }}
+              fallback={<VoucherSheet voucher={preview} company={company} />}
+            />
           </div>
         </aside>
       </div>

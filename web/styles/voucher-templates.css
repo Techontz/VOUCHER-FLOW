@@ -1,0 +1,143 @@
+/* Voucher designs on screen: the A4 frame, the gallery and the large preview.
+   Global rather than scoped to .vf-shell — registration uses the gallery too —
+   and built on the shared tokens so both themes follow automatically. The
+   sheets themselves stay paper-white: they are the printed document. */
+
+/* ── the A4 frame ── */
+.vt-frame { position: relative; width: 100%; }
+.vt-frame-page { position: relative; margin: 0 auto; overflow: hidden; background: #fff; }
+.vt-frame iframe { position: absolute; top: 0; left: 0; border: 0; background: #fff; transform-origin: 0 0; display: block; }
+
+/* ── gallery ── */
+.vt-gallery { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)); gap: 16px; }
+.vt-card {
+  display: flex; flex-direction: column; min-width: 0;
+  border: 1px solid var(--vf-line-strong); border-radius: var(--radius-lg);
+  background: var(--vf-elev-1); overflow: hidden;
+  transition: border-color var(--dur) ease, box-shadow var(--dur) ease, transform var(--dur) var(--ease-out);
+}
+.vt-card:hover { border-color: var(--color-neutral-500); }
+.vt-card[data-selected] {
+  border-color: var(--color-accent-500);
+  box-shadow: 0 0 0 1px var(--color-accent-500), 0 10px 28px -14px color-mix(in srgb, var(--color-accent-500) 70%, transparent);
+}
+
+.vt-thumb {
+  position: relative; display: block; width: 100%; padding: 12px 12px 0; border: 0; cursor: zoom-in;
+  background: var(--vf-elev-2);
+}
+.vt-card[data-selected] .vt-thumb { background: color-mix(in srgb, var(--color-accent-500) 9%, var(--vf-elev-2)); }
+.vt-thumb .vt-frame { border-radius: 4px 4px 0 0; overflow: hidden; box-shadow: 0 0 0 1px rgba(16, 24, 40, .08), 0 6px 16px -8px rgba(16, 24, 40, .35); pointer-events: none; }
+.vt-thumb-skeleton {
+  display: block; width: 100%; aspect-ratio: 794 / 1123; border-radius: 4px 4px 0 0;
+  background: linear-gradient(90deg, var(--vf-elev-3) 0%, var(--vf-elev-2) 50%, var(--vf-elev-3) 100%);
+  background-size: 200% 100%; animation: vf-shimmer 1.4s linear infinite;
+}
+.vt-thumb:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+.vt-thumb-zoom {
+  position: absolute; right: 18px; bottom: 10px; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; background: rgba(11, 18, 32, .72); color: #fff;
+  opacity: 0; transform: translateY(4px); transition: opacity var(--dur) ease, transform var(--dur) var(--ease-out);
+}
+.vt-thumb:hover .vt-thumb-zoom, .vt-thumb:focus-visible .vt-thumb-zoom { opacity: 1; transform: none; }
+
+.vt-badge {
+  position: absolute; top: 18px; left: 18px; display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 600;
+  background: rgba(11, 18, 32, .78); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+.vt-badge-selected { background: var(--color-accent-500); color: var(--color-accent-fg); }
+
+.vt-meta { display: grid; gap: 2px; padding: 12px 14px 4px; }
+.vt-num { font-size: 11px; font-weight: 600; letter-spacing: .12em; color: var(--color-neutral-600); }
+.vt-meta strong { font-size: 16px; line-height: 1.3; }
+.vt-meta p { margin: 2px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--color-neutral-600); }
+.vt-actions { display: flex; gap: 8px; padding: 10px 14px 14px; margin-top: auto; }
+.vt-actions .btn { flex: 1; justify-content: center; }
+.vt-actions .vt-is-selected { color: var(--color-accent-500); opacity: 1; }
+
+.vt-loading { display: grid; place-items: center; padding: 32px; grid-column: 1 / -1; }
+.vt-empty { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border: 1px dashed var(--vf-line-strong); border-radius: var(--radius-md); color: var(--color-neutral-600); font-size: 13.5px; }
+
+/* A phone swipes through the designs instead of scrolling a tall grid. */
+@media (max-width: 560px) {
+  .vt-gallery {
+    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 74%;
+    overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px;
+    margin: 0 -16px; padding-inline: 16px; scroll-padding-inline: 16px;
+  }
+  .vt-card { scroll-snap-align: start; }
+}
+
+/* ── large preview ── */
+.vt-modal {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px;
+  background: var(--vf-overlay); backdrop-filter: blur(3px);
+  animation: vf-rise var(--dur) var(--ease-out);
+}
+.vt-modal-card {
+  width: min(980px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column;
+  background: var(--vf-elev-1); color: var(--color-text); border: 1px solid var(--vf-line);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.vt-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 14px; border-bottom: 1px solid var(--vf-line); }
+.vt-modal-title { display: grid; gap: 2px; min-width: 0; }
+.vt-modal-title h2 { margin: 0; font-size: 19px; }
+.vt-modal-title p { margin: 0; font-size: 13px; color: var(--color-neutral-600); }
+.vt-modal-close { flex: none; }
+.vt-modal-body {
+  flex: 1; min-height: 0; overflow: hidden auto; background: var(--vf-elev-3); padding: 20px 14px;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 14px; align-items: start;
+}
+.vt-modal-sheet { width: 100%; max-width: 820px; margin: 0 auto; box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .06), 0 18px 40px -20px rgba(16, 24, 40, .45); }
+.vt-nav {
+  position: sticky; top: calc(50% - 20px); width: 40px; height: 40px;
+  border-radius: 50%; border: 1px solid var(--vf-line-strong); background: var(--vf-elev-1); color: var(--color-text);
+  display: grid; place-items: center; cursor: pointer;
+}
+.vt-nav:hover { border-color: var(--color-neutral-500); }
+/* The chooser's gallery fills the whole body. */
+.vt-modal-body > .vt-gallery { grid-column: 1 / -1; }
+.vt-modal-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--vf-line); flex-wrap: wrap; }
+.vt-modal-note { font-size: 13px; color: var(--color-neutral-600); min-width: 0; flex: 1 1 240px; }
+.vt-modal-actions { display: flex; gap: 8px; margin-left: auto; }
+
+@media (max-width: 640px) {
+  .vt-modal { padding: 0; place-items: end stretch; }
+  .vt-modal-card { width: 100%; max-height: 94dvh; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+  .vt-modal-body { padding: 12px; grid-template-columns: minmax(0, 1fr); }
+  .vt-nav { display: none; }
+  .vt-modal-actions { width: 100%; }
+  .vt-modal-actions .btn { flex: 1; justify-content: center; }
+}
+
+/* ── a company's current design (branding, platform) ── */
+.vt-current-wrap { container-type: inline-size; }
+.vt-current { display: grid; grid-template-columns: minmax(240px, 360px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.vt-current-thumb { border: 1px solid var(--vf-line); border-radius: var(--radius-md); padding: 8px; background: var(--vf-elev-2); cursor: zoom-in; }
+.vt-current-thumb .vt-frame { pointer-events: none; box-shadow: 0 0 0 1px rgba(16, 24, 40, .08); }
+.vt-current-body { display: grid; gap: 10px; min-width: 0; }
+.vt-current-name { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.vt-current-name strong { font-size: 18px; }
+.vt-meter { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--radius-md); background: var(--vf-elev-2); border: 1px solid var(--vf-line); font-size: 13px; width: fit-content; }
+.vt-meter b { font-variant-numeric: tabular-nums; }
+.vt-meter[data-spent] { background: var(--st-warn-bg); border-color: color-mix(in srgb, var(--st-warn-dot) 35%, transparent); color: var(--st-warn-fg); }
+.vt-locked { display: flex; gap: 10px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--vf-elev-2); border: 1px solid var(--vf-line); font-size: 13.5px; line-height: 1.5; color: var(--color-neutral-700); }
+.vt-locked .ph { flex: none; margin-top: 2px; }
+.vt-history { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vt-history th { text-align: left; font-weight: 600; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--color-neutral-600); padding: 8px 10px; border-bottom: 1px solid var(--vf-line); white-space: nowrap; }
+.vt-history td { padding: 10px; border-bottom: 1px solid var(--vf-line); vertical-align: top; }
+.vt-history tr:last-child td { border-bottom: 0; }
+.vt-history-wrap { overflow-x: auto; }
+
+/* A narrow column (the Branding page) stacks the preview above the details. */
+@container (max-width: 620px) {
+  .vt-current { grid-template-columns: minmax(0, 1fr); }
+  .vt-current-thumb { max-width: 420px; }
+}
+@media (max-width: 560px) {
+  .vt-current { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+}
+
+/* On-screen voucher: the server's document in the existing frame. */
+.vt-document { max-width: 820px; margin: 0 auto; box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .06); border-radius: 2px; overflow: hidden; }

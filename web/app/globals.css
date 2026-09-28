@@ -4,6 +4,8 @@
 /* The signed-in application: scoped to .vf-shell, so it cannot reach the
    public site, sign-in or registration. */
 @import "../styles/app.css";
+/* Voucher designs: the A4 document frame, the gallery and its preview. */
+@import "../styles/voucher-templates.css";
 
 /* ── Print ────────────────────────────────────────────────────────────────
    Paper is white whatever the screen was showing. Server-generated PDFs stay

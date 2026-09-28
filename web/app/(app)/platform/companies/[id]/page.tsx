@@ -9,6 +9,8 @@ import { formatDate, money } from "@/lib/format";
 import {
   Dialog, ErrorState, Field, Icon, LoadingBlock, PageHeader, SectionTitle, Spinner, StatBlock, StatGrid,
 } from "@/components/ui";
+import { useTemplatePreviews } from "@/components/voucher-templates";
+import { VoucherTemplatePanel } from "@/components/voucher-template-panel";
 import type { Company, Invoice, Plan, Subscription, Usage, User } from "@/lib/types";
 
 interface Detail {
@@ -29,6 +31,8 @@ export default function PlatformCompanyPage() {
   const [planDialog, setPlanDialog] = useState(false);
   const [planId, setPlanId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  // The sample voucher in every design, in this company's own letterhead.
+  const templatePreviews = useTemplatePreviews(`/platform/companies/${params.id}/voucher-template/preview`, {});
 
   const load = useCallback(() => {
     setError(null);
@@ -142,6 +146,16 @@ export default function PlatformCompanyPage() {
             ))}
           </div>
         </section>
+      </div>
+
+      <div style={{ marginTop: "var(--space-8)" }}>
+        <VoucherTemplatePanel
+          mode="platform"
+          companyId={c.id}
+          previews={templatePreviews.previews}
+          previewsLoading={templatePreviews.loading}
+          onChanged={load}
+        />
       </div>
 
       <Dialog open={planDialog} title={t("changePlan")} onClose={() => setPlanDialog(false)}

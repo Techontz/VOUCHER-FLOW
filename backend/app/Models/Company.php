@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\VoucherTemplates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -222,6 +223,17 @@ class Company extends Model
     public function vouchers(): HasMany
     {
         return $this->hasMany(Voucher::class);
+    }
+
+    public function voucherTemplateChanges(): HasMany
+    {
+        return $this->hasMany(VoucherTemplateChange::class);
+    }
+
+    /** Self-service design changes the company still has. */
+    public function voucherTemplateChangesRemaining(): int
+    {
+        return max(0, VoucherTemplates::selfServiceChanges() - (int) $this->voucher_template_changes_used);
     }
 
     public function subscriptions(): HasMany
