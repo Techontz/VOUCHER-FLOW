@@ -57,6 +57,7 @@ const COPY = {
   source: ["Source", "Chanzo"], reasonCol: ["Reason", "Sababu"],
   noHistory: ["No changes recorded yet.", "Hakuna mabadiliko yaliyorekodiwa bado."],
   optional: ["Reason (optional)", "Sababu (si lazima)"],
+  unavailable: ["Voucher designs are rendered by the VouchFlow server and are not available right now (the offline demo cannot show them).", "Miundo ya vocha hutengenezwa na seva ya VouchFlow na haipatikani kwa sasa (onyesho la nje ya mtandao haliwezi kuionyesha)."],
   adminOnly: ["Only the company administrator can change the template.", "Msimamizi wa kampuni pekee anaweza kubadilisha kiolezo."],
 } as const;
 
@@ -100,13 +101,27 @@ export function VoucherTemplatePanel({
 
   const load = useCallback(() => {
     api.get<VoucherTemplateState>(base)
-      .then((r) => { setState(r); setLoadError(false); })
+      // Only a real template state is trusted; anything else (the offline
+      // mock, an old server) is treated as "designs unavailable".
+      .then((r) => {
+        if (r && Array.isArray(r.templates) && Array.isArray(r.history)) { setState(r); setLoadError(false); }
+        else setLoadError(true);
+      })
       .catch(() => setLoadError(true));
   }, [base]);
 
   useEffect(load, [load]);
 
-  if (loadError) return null;
+  if (loadError) {
+    return (
+      <Panel title={c("title")} sub={c("sub")}>
+        <div className="vt-locked" role="status">
+          <Icon name="ph-info" size={17} />
+          <span>{c("unavailable")}</span>
+        </div>
+      </Panel>
+    );
+  }
   if (!state) {
     return <Panel title={c("title")}><Spinner /></Panel>;
   }
