@@ -912,6 +912,25 @@ const D = {
   signedAckLabel: ["Signed acknowledgement · payment {n}", "Hati ya kukiri iliyosainiwa · malipo {n}"],
   stagePartlyPaid: ["Partly paid — {amount} outstanding", "Imelipwa sehemu — {amount} bado"],
   partPayNote: ["A part payment: the voucher stays in the payment queue until the balance is paid.", "Malipo ya sehemu: vocha inabaki kwenye foleni ya malipo hadi salio lilipwe."],
+
+  // — awaiting platform approval —
+  pendingKicker: ["Awaiting approval", "Inasubiri idhini"],
+  pendingLine: ["Your company is being reviewed. We'll activate it once your subscription is confirmed.", "Kampuni yako inakaguliwa. Tutaiwasha mara usajili wako utakapothibitishwa."],
+  pendingNoPlan: ["No plan chosen yet", "Bado hujachagua mpango"],
+  pendingChoosePlan: ["Choose plan", "Chagua mpango"],
+  pendingCheckStatus: ["Check status", "Angalia hali"],
+  pendingStill: ["Still under review", "Bado inakaguliwa"],
+  pendingStillSub: ["We'll let you know as soon as it's approved.", "Tutakujulisha mara itakapoidhinishwa."],
+  pendingApprovedToast: ["Your company is approved", "Kampuni yako imeidhinishwa"],
+  pendingPaid: ["Payment received", "Malipo yamepokelewa"],
+  pendingDue: ["Payment due", "Malipo yanadaiwa"],
+  pendingPlanChosen: ["Plan chosen", "Mpango umechaguliwa"],
+  pendingAwaitingYou: ["Awaiting your approval", "Inasubiri idhini yako"],
+  approveCompany: ["Approve company", "Idhinisha kampuni"],
+  approveCompanyQ: ["Approve {name}?", "Idhinisha {name}?"],
+  approveCompanySub: ["Its people can start using VouchFlow straight away.", "Watu wake wataweza kuanza kutumia VouchFlow mara moja."],
+  companyApproved: ["Company approved", "Kampuni imeidhinishwa"],
+  approveCompanyFailed: ["Could not approve the company", "Imeshindikana kuidhinisha kampuni"],
 } as const satisfies Record<string, Entry>;
 
 export type MessageKey = keyof typeof D;
@@ -1144,6 +1163,7 @@ const DASH: Record<string, Entry> = {
   "dash.step.pay": ["Payment", "Malipo"],
   "dash.step.review": ["Review", "Mapitio"],
 
+  "subscription.pending": ["Pending approval", "Inasubiri idhini"],
   "subscription.trial": ["Trial", "Jaribio"],
   "subscription.active": ["Active", "Hai"],
   "subscription.past_due": ["Payment overdue", "Malipo yamechelewa"],

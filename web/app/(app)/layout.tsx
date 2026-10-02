@@ -9,6 +9,7 @@ import { mobileNavFor, navFor, type NavItem } from "@/lib/nav";
 import type { MessageKey } from "@/lib/i18n";
 import { Icon, Spinner } from "@/components/ui";
 import { VouchFlowMark } from "@/components/login-brand";
+import { PendingGate } from "@/components/pending-gate";
 import { Breadcrumb, Dropdown, MenuItem, MenuSeparator, ThemeSwitch } from "@/components/app-ui";
 import type { Voucher } from "@/lib/types";
 
@@ -84,7 +85,7 @@ function subscribeCollapsed(onChange: () => void) {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, company, ready, t, unread, signOut, locale, setLocale } = useApp();
+  const { user, company, companyPending, ready, t, unread, signOut, locale, setLocale } = useApp();
   const router = useRouter();
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
@@ -131,7 +132,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const currentTab = useMemo(() => deepest(tabs.map((i) => i.href), pathname), [tabs, pathname]);
 
   useEffect(() => {
-    if (!user) return;
+    // A company awaiting approval may not read vouchers; the gate is all it sees.
+    if (!user || companyPending) return;
     api.get<{ data: Voucher[] }>("/vouchers/pending")
       .then((r) => setPendingCount(r.data.length))
       .catch(() => setPendingCount(0));
@@ -141,7 +143,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         .then((r) => setPayCount(r.data.length))
         .catch(() => setPayCount(0));
     }
-  }, [user, pathname, items]);
+  }, [user, companyPending, pathname, items]);
 
   // Debounced type-ahead across the vouchers this caller may actually see.
   useEffect(() => {
@@ -161,6 +163,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  // Self-registered and not yet approved by the platform: no product, only
+  // the awaiting-approval screen (plan, payment, status check, sign out).
+  if (companyPending) return <PendingGate />;
 
   const badgeFor = (item: { badge?: string }) =>
     item.badge === "pending" ? (pendingCount || null)

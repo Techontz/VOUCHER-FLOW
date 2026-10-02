@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  api, ApiError, DEFAULT_THEME, getLocale, getTheme, getToken,
+  api, ApiError, COMPANY_PENDING_EVENT, DEFAULT_THEME, getLocale, getTheme, getToken,
   setLocale as persistLocale, setTheme as persistTheme, setToken,
 } from "./api";
 import { translate, type Locale, type MessageKey } from "./i18n";
@@ -28,6 +28,12 @@ export interface Toast {
 interface AppState {
   user: User | null;
   company: Company | null;
+  /**
+   * The signed-in company registered itself and is waiting for a platform
+   * administrator to approve it. The shell shows the awaiting-approval screen
+   * instead of the product. Never true for a super admin.
+   */
+  companyPending: boolean;
   ready: boolean;
   locale: Locale;
   theme: Theme;
@@ -161,6 +167,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [colorTheme]);
 
+  // Any call refused with 403 company_pending means the company is (again)
+  // awaiting approval, whatever /auth/me said earlier: show the gate.
+  useEffect(() => {
+    const onPending = () => setCompany((current) =>
+      current && current.status !== "pending" ? { ...current, status: "pending", is_usable: false } : current);
+    window.addEventListener(COMPANY_PENDING_EVENT, onPending);
+    return () => window.removeEventListener(COMPANY_PENDING_EVENT, onPending);
+  }, []);
+
+  const companyPending = !!user && user.role !== "super_admin" && company?.status === "pending";
+
   // Keep the notification badge current while the tab is open.
   useEffect(() => {
     if (!user) return;
@@ -238,11 +255,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const value = useMemo<AppState>(() => ({
-    user, company, ready, locale, theme, unread, t,
+    user, company, companyPending, ready, locale, theme, unread, t,
     setLocale, toggleTheme, signIn, verifyLogin, signOut, refresh, refreshUnread, applySession,
     toasts, toast, dismissToast, reportError,
   }), [
-    user, company, ready, locale, theme, unread, t,
+    user, company, companyPending, ready, locale, theme, unread, t,
     setLocale, toggleTheme, signIn, verifyLogin, signOut, refresh, refreshUnread, applySession,
     toasts, toast, dismissToast, reportError,
   ]);

@@ -668,7 +668,7 @@ export function PaymentsTab({ overview }: { overview: Overview }) {
 /* ───────────────────────────────────────────────────────── subscription ── */
 
 export function SubscriptionTab({ detail, onChangePlan }: { detail: Detail; onChangePlan: () => void }) {
-  const { locale } = useApp();
+  const { locale, t } = useApp();
   const c = detail.data;
   const s = detail.subscription;
   const metrics: UsageMetric[] = [detail.usage.users, detail.usage.vouchers_this_month, detail.usage.departments, detail.usage.storage];
@@ -678,7 +678,7 @@ export function SubscriptionTab({ detail, onChangePlan }: { detail: Detail; onCh
         <Card title={c.plan?.name ?? "No plan"} sub={c.plan?.blurb ?? undefined}
           actions={<button type="button" className="btn btn-secondary btn-sm" onClick={onChangePlan}>Change plan</button>}>
           <Facts rows={[
-            ["Company status", <span key="s" className="badge tag-neutral">{c.status}</span>],
+            ["Company status", <span key="s" className={`badge ${c.status === "pending" ? "tone-warn" : "tag-neutral"}`}>{c.status === "pending" ? t("pendingApproval") : c.status}</span>],
             ["Subscription status", s ? s.status : "No active subscription"],
             ["Price", c.plan ? (c.plan.price > 0 ? `${money(c.plan.price, c.plan.currency)} / ${c.plan.billing_cycle === "annual" ? "year" : "month"}` : "Custom") : null],
             ["Billing cycle", s?.billing_cycle ?? c.plan?.billing_cycle],

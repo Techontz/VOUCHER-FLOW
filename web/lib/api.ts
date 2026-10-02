@@ -125,6 +125,19 @@ export type Theme = "light" | "dark";
 /** Dark is the product's default appearance; light is a stored preference. */
 export const DEFAULT_THEME: Theme = "dark";
 
+/**
+ * Fired on `window` when the API refuses a call because the signed-in
+ * company is still awaiting platform approval (403, code "company_pending").
+ * The app shell listens and swaps itself for the awaiting-approval screen.
+ */
+export const COMPANY_PENDING_EVENT = "vouchflow:company-pending";
+
+function announceIfPending(status: number, code: string | undefined) {
+  if (status === 403 && code === "company_pending" && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(COMPANY_PENDING_EVENT));
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   errors: Record<string, string[]>;
@@ -310,6 +323,7 @@ async function mockRequest<T>(path: string, options: RequestOptions): Promise<T>
         setToken(null);
         if (!window.location.pathname.startsWith("/login")) window.location.href = "/login";
       }
+      announceIfPending(error.status, error.code);
       throw new ApiError(error.status, error.message, error.errors, error.code, error.details);
     }
     throw error;
@@ -355,6 +369,8 @@ export async function request<T = any>(path: string, options: RequestOptions = {
         window.location.href = "/login";
       }
     }
+
+    announceIfPending(response.status, payload?.code);
 
     throw new ApiError(
       response.status,

@@ -56,7 +56,7 @@ export interface MockCompany {
   secondary_color?: string | null;
   accent_color?: string | null;
   voucher_header_text?: string | null;
-  status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
+  status: "pending" | "trial" | "active" | "past_due" | "suspended" | "cancelled";
   plan_code: string;
   trial_ends_at: string | null;
   current_period_start: string;

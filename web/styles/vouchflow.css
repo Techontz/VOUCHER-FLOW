@@ -2433,3 +2433,26 @@ select.rg-input { padding-right: 36px; }
 .rg-review, .rg-logo { border-radius: 10px; }
 .rg-preview-logo { background: #111827; }
 .rg-outcomes li { border-radius: 10px; }
+
+/* ── Awaiting platform approval ──────────────────────────────────────────
+   The screen a self-registered company sees until it is approved: the
+   auth card, with the plan and the few actions it still has. */
+.vf-pending { display: grid; gap: 16px; }
+.vf-pending-mark {
+  justify-self: center; width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--st-warn-fg); background: var(--st-warn-bg);
+}
+.vf-pending-plan {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px; border: 1px solid var(--vf-line); border-radius: var(--radius-md);
+}
+.vf-pending-plan-text { display: grid; gap: 2px; min-width: 0; }
+.vf-pending-label { font-size: var(--text-sm); color: var(--color-neutral-600); }
+.vf-pending-price { font-weight: 600; white-space: nowrap; }
+.vf-pending-price small { font-weight: 400; color: var(--color-neutral-600); }
+.vf-pending-state {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--radius-md);
+  font-size: var(--text-sm); font-weight: 500; color: var(--b-fg); background: var(--b-bg);
+}
+.vf-pending-actions { display: grid; gap: 10px; }
+.vf-pending-actions .btn { width: 100%; justify-content: center; }

@@ -76,6 +76,9 @@ const C = {
   savedCompany: ["Company and administrator created", "Kampuni na msimamizi vimeundwa"], savedDetails: ["Company details and colours saved", "Taarifa na rangi za kampuni zimehifadhiwa"], savedLogo: ["Logo uploaded", "Nembo imepakiwa"],
   finishInSettings: ["Not saved — add it later in Settings → Branding", "Haijahifadhiwa — iongeze baadaye kwenye Mipangilio → Chapa"],
   verify: ["Verify email", "Thibitisha barua pepe"],
+  doneTitlePending: ["Your company is registered", "Kampuni yako imesajiliwa"],
+  doneSubReady: ["Next, set up departments and your approval route.", "Ifuatayo, weka idara na njia ya idhini."],
+  doneSubPending: ["Next, confirm your plan. We'll activate the company once it's reviewed.", "Ifuatayo, thibitisha mpango wako. Tutaiwasha kampuni ikishakaguliwa."],
   fixErrors: ["Some details need attention", "Baadhi ya taarifa zinahitaji marekebisho"],
 } satisfies Record<string, L>;
 
@@ -95,7 +98,15 @@ const FIELD_STEP: Record<string, number> = {
   plan_code: 4,
 };
 
-type Outcome = { details: "ok" | "failed" | "skipped"; logo: "ok" | "failed" | "skipped"; verifyUrl: string; company: string };
+/**
+ * `nextUrl` is the e-mail code step when the server sent one, otherwise
+ * straight on: setup for a live company, the awaiting-approval screen
+ * (which the app shell shows at /dashboard) for one still pending.
+ */
+type Outcome = {
+  details: "ok" | "failed" | "skipped"; logo: "ok" | "failed" | "skipped";
+  nextUrl: string; needsCode: boolean; pending: boolean; company: string;
+};
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -215,7 +226,12 @@ export default function RegisterPage() {
     setBusy(true);
     setServerMessage(null);
 
-    let res: { token: string; user: User; company: Company; otp: { identifier: string; purpose: string; expires_in: number } };
+    let res: {
+      token: string; user: User; company: Company;
+      /** False when the server has no mail transport: there is no code to enter. */
+      requires_verification?: boolean;
+      otp?: { identifier: string; purpose: string; expires_in: number };
+    };
     try {
       res = await api.post("/auth/register", {
         company_name: form.company_name.trim(),
@@ -275,11 +291,19 @@ export default function RegisterPage() {
       }
     }
 
+    // Older servers omit the flag and always send a code.
+    const needsCode = res.requires_verification !== false;
+    const pending = res.company.status === "pending";
+    const identifier = res.otp?.identifier ?? res.user.email;
     setOutcome({
       details: detailsState,
       logo: logoState,
       company: res.company.name,
-      verifyUrl: `/verify?identifier=${encodeURIComponent(res.otp.identifier)}&purpose=registration&next=onboarding`,
+      needsCode,
+      pending,
+      nextUrl: needsCode
+        ? `/verify?identifier=${encodeURIComponent(identifier)}&purpose=registration&next=onboarding`
+        : pending ? "/dashboard" : "/onboarding",
     });
     setConfirming(false);
     setBusy(false);
@@ -322,9 +346,9 @@ export default function RegisterPage() {
         {outcome ? (
           <section className="rg-card rg-done" aria-live="polite">
             <span className="rg-done-mark"><Icon name="ph-check" size={30} /></span>
-            <h1>{l(C.doneTitle)}</h1>
+            <h1>{l(outcome.pending ? C.doneTitlePending : C.doneTitle)}</h1>
             <p className="rg-done-company">{outcome.company}</p>
-            <p className="rg-lede">{l(C.doneSub)}</p>
+            <p className="rg-lede">{l(outcome.needsCode ? C.doneSub : outcome.pending ? C.doneSubPending : C.doneSubReady)}</p>
             <ul className="rg-outcomes">
               <li data-state="ok"><Icon name="ph-check-circle" size={20} /> {l(C.savedCompany)}</li>
               <li data-state={outcome.details}>
@@ -338,8 +362,8 @@ export default function RegisterPage() {
                 </li>
               )}
             </ul>
-            <button type="button" className="btn btn-primary btn-lg rg-primary" onClick={() => router.push(outcome.verifyUrl)}>
-              {l(C.verify)} <Icon name="ph-arrow-right" size={18} />
+            <button type="button" className="btn btn-primary btn-lg rg-primary" onClick={() => router.push(outcome.nextUrl)}>
+              {outcome.needsCode ? l(C.verify) : l(C.continue)} <Icon name="ph-arrow-right" size={18} />
             </button>
           </section>
         ) : (

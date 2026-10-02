@@ -36,7 +36,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 const STATUS_TAG: Record<string, string> = {
-  active: "tag-accent", trial: "tag-outline", past_due: "tag-accent-2", suspended: "tag-accent-2", cancelled: "tag-neutral",
+  pending: "tone-warn", active: "tag-accent", trial: "tag-outline", past_due: "tag-accent-2", suspended: "tag-accent-2", cancelled: "tag-neutral",
 };
 
 export default function PlatformCompanyPage() {
@@ -53,7 +53,7 @@ export default function PlatformCompanyPage() {
 
   const [planDialog, setPlanDialog] = useState(false);
   const [planId, setPlanId] = useState<number | null>(null);
-  const [statusDialog, setStatusDialog] = useState<"suspend" | "activate" | null>(null);
+  const [statusDialog, setStatusDialog] = useState<"suspend" | "activate" | "approve" | null>(null);
   const [brandDialog, setBrandDialog] = useState(false);
   const [brand, setBrand] = useState({ color_theme: "blue" as ColorTheme, primary_color: "", secondary_color: "", accent_color: "", voucher_header_text: "", voucher_footer_text: "" });
   const [brandErrors, setBrandErrors] = useState<Record<string, string>>({});
@@ -115,10 +115,11 @@ export default function PlatformCompanyPage() {
     setBusy(true);
     try {
       await api.post(`/platform/companies/${detail.data.id}/${statusDialog}`);
-      toast(statusDialog === "suspend" ? "Company suspended" : "Company activated", detail.data.name, statusDialog === "suspend" ? "warn" : "ok");
+      toast(statusDialog === "suspend" ? "Company suspended" : statusDialog === "approve" ? t("companyApproved") : "Company activated",
+        detail.data.name, statusDialog === "suspend" ? "warn" : "ok");
       setStatusDialog(null);
       load();
-    } catch (err) { reportError(err); }
+    } catch (err) { reportError(err, statusDialog === "approve" ? t("approveCompanyFailed") : undefined); }
     finally { setBusy(false); }
   }
 
@@ -168,7 +169,7 @@ export default function PlatformCompanyPage() {
           </span>
           <div className="app-co-identity-text">
             <div className="app-co-kicker">
-              <span className={`badge ${STATUS_TAG[c.status] ?? "tag-neutral"}`}>{c.status}</span>
+              <span className={`badge ${STATUS_TAG[c.status] ?? "tag-neutral"}`}>{c.status === "pending" ? t("pendingApproval") : c.status}</span>
               <span>{c.plan?.name ?? "No plan"}</span>
               <span className="app-co-dot" aria-hidden="true" />
               <span className="app-co-palette"><span style={{ background: palette.primary }} aria-hidden="true" /> {palette.label} palette</span>
@@ -180,7 +181,9 @@ export default function PlatformCompanyPage() {
         <div className="vf-pagehead-actions">
           <button type="button" className="btn btn-secondary" onClick={() => openBranding(c)}><Icon name="ph-paint-brush" size={16} /> Edit branding</button>
           <button type="button" className="btn btn-secondary" onClick={() => setPlanDialog(true)}><Icon name="ph-crown-simple" size={16} /> {t("changePlan")}</button>
-          {c.status === "suspended"
+          {c.status === "pending"
+            ? <button type="button" className="btn btn-primary" onClick={() => setStatusDialog("approve")}><Icon name="ph-check-circle" size={16} /> {t("approveCompany")}</button>
+            : c.status === "suspended"
             ? <button type="button" className="btn btn-primary" onClick={() => setStatusDialog("activate")}><Icon name="ph-check-circle" size={16} /> {t("activate")}</button>
             : <button type="button" className="btn btn-danger" onClick={() => setStatusDialog("suspend")}><Icon name="ph-prohibit" size={16} /> {t("suspend")}</button>}
         </div>
@@ -233,14 +236,19 @@ export default function PlatformCompanyPage() {
 
       <Dialog open={statusDialog !== null} busy={busy} onClose={() => setStatusDialog(null)}
         icon={statusDialog === "suspend" ? "ph-prohibit" : "ph-check-circle"} tone={statusDialog === "suspend" ? "warn" : "ok"}
-        title={statusDialog === "suspend" ? `Suspend ${c.name}?` : `Reactivate ${c.name}?`}
-        sub={statusDialog === "suspend"
+        title={statusDialog === "approve" ? t("approveCompanyQ").replace("{name}", c.name)
+          : statusDialog === "suspend" ? `Suspend ${c.name}?` : `Reactivate ${c.name}?`}
+        sub={statusDialog === "approve" ? t("approveCompanySub")
+          : statusDialog === "suspend"
           ? "Everyone in the company is signed out immediately and cannot use VouchFlow until you reactivate it. Nothing is deleted."
           : "Its people can sign in again straight away."}
+        summary={statusDialog === "approve" ? [
+          { label: t("plan"), value: c.plan ? `${c.plan.name} — ${c.plan.price > 0 ? money(c.plan.price, c.plan.currency) : "Custom"}` : "—" },
+        ] : undefined}
         actions={<>
           <button className="btn btn-secondary" onClick={() => setStatusDialog(null)} disabled={busy}>{t("cancel")}</button>
           <button className={statusDialog === "suspend" ? "btn btn-danger-solid" : "btn btn-primary"} onClick={() => void setStatus()} disabled={busy}>
-            {statusDialog === "suspend" ? t("suspend") : t("activate")}
+            {statusDialog === "suspend" ? t("suspend") : statusDialog === "approve" ? t("approve") : t("activate")}
           </button>
         </>} />
 
