@@ -11,7 +11,7 @@ import { Dropdown, MenuItem, MenuSeparator } from "@/components/app-ui";
 import type { Company, Paginated } from "@/lib/types";
 
 const STATUS_TAG: Record<string, string> = {
-  active: "tag-accent", trial: "tag-outline", past_due: "tag-accent-2",
+  pending: "tone-warn", active: "tag-accent", trial: "tag-outline", past_due: "tag-accent-2",
   suspended: "tag-accent-2", cancelled: "tag-neutral",
 };
 
@@ -23,7 +23,7 @@ const BLANK = {
 };
 
 /** What the super admin is about to do to a company, and to which one. */
-type Pending = { kind: "suspend" | "activate" | "delete"; company: Company } | null;
+type Pending = { kind: "suspend" | "activate" | "delete" | "approve"; company: Company } | null;
 
 export default function PlatformCompaniesPage() {
   const { t, locale, toast, reportError } = useApp();
@@ -95,13 +95,16 @@ export default function PlatformCompaniesPage() {
       if (kind === "delete") {
         await api.delete(`/platform/companies/${company.id}`);
         toast("Company deleted", company.name, "warn");
+      } else if (kind === "approve") {
+        await api.post(`/platform/companies/${company.id}/approve`);
+        toast(t("companyApproved"), company.name, "ok");
       } else {
         await api.post(`/platform/companies/${company.id}/${kind}`);
         toast(kind === "suspend" ? "Company suspended" : "Company activated", company.name, kind === "suspend" ? "warn" : "ok");
       }
       setPending(null);
       load();
-    } catch (err) { reportError(err, "Could not update the company"); }
+    } catch (err) { reportError(err, kind === "approve" ? t("approveCompanyFailed") : "Could not update the company"); }
     finally { setBusy(false); }
   }
 
@@ -123,6 +126,7 @@ export default function PlatformCompaniesPage() {
         <select className="input" value={filters.status}
           onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, status: e.target.value })); }} aria-label={t("status")}>
           <option value="">{t("allStatuses")}</option>
+          <option value="pending">{t("pendingApproval")}</option>
           <option value="active">Active</option><option value="trial">Trial</option>
           <option value="past_due">Past due</option><option value="suspended">Suspended</option>
         </select>
@@ -155,12 +159,21 @@ export default function PlatformCompaniesPage() {
                     <td>{company.plan?.name ?? "—"}</td>
                     <td className="num">{company.users_count ?? 0}</td>
                     <td className="num">{company.vouchers_count ?? 0}</td>
-                    <td><span className={`badge ${STATUS_TAG[company.status] ?? "tag-neutral"}`}>{company.status}</span></td>
+                    <td>
+                      <span className={`badge ${STATUS_TAG[company.status] ?? "tag-neutral"}`}>
+                        {company.status === "pending" ? t("pendingApproval") : company.status}
+                      </span>
+                    </td>
                     <td className="app-vt-date">
                       {formatDate(company.status === "trial" ? company.trial_ends_at : company.current_period_end, locale)}
                     </td>
                     <td className="app-vt-date">{formatDate(company.created_at, locale)}</td>
                     <td className="app-row-actions">
+                      {company.status === "pending" && (
+                        <button type="button" className="btn btn-primary btn-sm" style={{ marginRight: 6 }} onClick={() => setPending({ kind: "approve", company })}>
+                          <Icon name="ph-check-circle" size={15} /> {t("approve")}
+                        </button>
+                      )}
                       <Dropdown label={`Actions for ${company.name}`}
                         trigger={({ open, toggle, id }) => (
                           <button type="button" className="btn btn-icon btn-sm" onClick={toggle} aria-expanded={open} aria-controls={id}
@@ -171,7 +184,9 @@ export default function PlatformCompaniesPage() {
                         {(close) => (
                           <>
                             <MenuItem icon="ph-arrow-square-out" onSelect={() => { close(); router.push(`/platform/companies/${company.id}`); }}>View details</MenuItem>
-                            {company.status === "suspended" ? (
+                            {company.status === "pending" ? (
+                              <MenuItem icon="ph-check-circle" onSelect={() => { close(); setPending({ kind: "approve", company }); }}>{t("approveCompany")}</MenuItem>
+                            ) : company.status === "suspended" ? (
                               <MenuItem icon="ph-check-circle" onSelect={() => { close(); setPending({ kind: "activate", company }); }}>{t("activate")}</MenuItem>
                             ) : (
                               <MenuItem icon="ph-prohibit" onSelect={() => { close(); setPending({ kind: "suspend", company }); }}>{t("suspend")}</MenuItem>
@@ -244,25 +259,27 @@ export default function PlatformCompaniesPage() {
 
       <Dialog open={pending !== null} busy={busy} onClose={() => setPending(null)}
         icon={pending?.kind === "delete" ? "ph-trash" : pending?.kind === "suspend" ? "ph-prohibit" : "ph-check-circle"}
-        tone={pending?.kind === "activate" ? "ok" : pending?.kind === "suspend" ? "warn" : "bad"}
-        title={pending?.kind === "delete" ? "Delete this company?" : pending?.kind === "suspend" ? "Suspend this company?" : "Reactivate this company?"}
-        sub={pending?.kind === "delete"
+        tone={pending?.kind === "activate" || pending?.kind === "approve" ? "ok" : pending?.kind === "suspend" ? "warn" : "bad"}
+        title={pending?.kind === "approve" ? t("approveCompanyQ").replace("{name}", pending.company.name)
+          : pending?.kind === "delete" ? "Delete this company?" : pending?.kind === "suspend" ? "Suspend this company?" : "Reactivate this company?"}
+        sub={pending?.kind === "approve" ? t("approveCompanySub") : pending?.kind === "delete"
           ? "The company disappears from the platform and every one of its people is signed out and can no longer sign in. Its records are kept in the database, not erased."
           : pending?.kind === "suspend"
             ? "Everyone in the company is signed out immediately and cannot use VouchFlow until you reactivate it. Nothing is deleted."
             : "Its people can sign in again straight away."}
         summary={pending ? [
           { label: t("companyName"), value: pending.company.name },
+          ...(pending.kind === "approve" ? [{ label: t("plan"), value: pending.company.plan?.name ?? "—" }] : []),
           { label: t("users"), value: String(pending.company.users_count ?? 0) },
           { label: t("vouchers"), value: String(pending.company.vouchers_count ?? 0) },
         ] : undefined}
         actions={<>
           <button type="button" className="btn btn-secondary" onClick={() => setPending(null)} disabled={busy}>{t("cancel")}</button>
           <button type="button"
-            className={pending?.kind === "activate" ? "btn btn-primary" : "btn btn-danger-solid"}
+            className={pending?.kind === "activate" || pending?.kind === "approve" ? "btn btn-primary" : "btn btn-danger-solid"}
             disabled={busy || (pending?.kind === "delete" && confirmName.trim() !== pending.company.name)}
             onClick={() => void confirmPending()}>
-            {pending?.kind === "delete" ? "Delete company" : pending?.kind === "suspend" ? t("suspend") : t("activate")}
+            {pending?.kind === "approve" ? t("approve") : pending?.kind === "delete" ? "Delete company" : pending?.kind === "suspend" ? t("suspend") : t("activate")}
           </button>
         </>}>
         {pending?.kind === "delete" && (

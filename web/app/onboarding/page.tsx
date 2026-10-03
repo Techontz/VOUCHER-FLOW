@@ -21,7 +21,7 @@ const STEPS: { key: StepKey; label: string }[] = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { t, company, user, ready, refresh, toast, reportError } = useApp();
+  const { t, company, companyPending, user, ready, refresh, toast, reportError } = useApp();
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
 
@@ -41,6 +41,11 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (ready && !user) router.replace("/login");
   }, [ready, user, router]);
+
+  // Setup needs the product; a company awaiting approval sees the gate instead.
+  useEffect(() => {
+    if (companyPending) router.replace("/dashboard");
+  }, [companyPending, router]);
 
   useEffect(() => {
     if (!user) return;

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { ACCEPT_ATTRIBUTE, acceptFiles, attachmentForm, MAX_UPLOAD_MB, type Rejected } from "@/lib/attachments";
+import { describeUploadError, prepareImages } from "@/lib/uploads";
 import { dateInputValue, money } from "@/lib/format";
 import { Field, Icon, Note, Spinner } from "@/components/ui";
 import { resolveWorkflow, routeFor } from "@/lib/progress";
@@ -163,9 +164,11 @@ export default function CreateVoucherPage() {
    * state updater, say — finds it emptied, which is how picked documents used
    * to vanish without a trace.
    */
-  function addFiles(picked: File[]) {
+  async function addFiles(picked: File[]) {
     if (!picked.length) return;
-    const result = acceptFiles(files, picked);
+    // Phone photos are shrunk to a JPEG here, so the size check — and the
+    // upload — see the file that will actually be sent.
+    const result = acceptFiles(files, await prepareImages(picked));
     setFiles(result.files);
     setRejected(result.rejected);
   }
@@ -189,8 +192,7 @@ export default function CreateVoucherPage() {
           // duplicate voucher, so go to the draft — where documents can be added
           // again — and say exactly what did not attach. It is not submitted:
           // whoever reviews it would expect those documents to be there.
-          const detail = err instanceof ApiError ? (Object.values(err.errors)[0]?.[0] ?? err.message) : undefined;
-          toast(t("docsNotAttached"), `${voucher.number} — ${detail ?? t("docsNotAttachedBody")}`, "bad");
+          toast(t("docsNotAttached"), `${voucher.number} — ${describeUploadError(err, t)}`, "bad");
           router.push(`/vouchers/${voucher.id}`);
           return;
         }
@@ -470,14 +472,14 @@ export default function CreateVoucherPage() {
                 onDrop={(e) => {
                   e.preventDefault(); delete e.currentTarget.dataset.over;
                   // Copy now: the DataTransfer is emptied once this event returns.
-                  addFiles(Array.from(e.dataTransfer.files ?? []));
+                  void addFiles(Array.from(e.dataTransfer.files ?? []));
                 }}>
                 <input type="file" multiple accept={ACCEPT_ATTRIBUTE} hidden
                   onChange={(e) => {
                     // Copy before resetting: clearing the value empties this same FileList.
                     const picked = Array.from(e.target.files ?? []);
                     e.target.value = "";
-                    addFiles(picked);
+                    void addFiles(picked);
                   }} />
                 <span className="vf-dropzone-icon"><Icon name="ph-upload-simple" size={22} /></span>
                 <span className="vf-dropzone-title">{t("dropFiles")}</span>

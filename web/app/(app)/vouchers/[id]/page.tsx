@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, download, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { ACCEPT_ATTRIBUTE, attachmentForm } from "@/lib/attachments";
+import { describeUploadError, prepareImages } from "@/lib/uploads";
 import { formatDate, formatDateTime, money, personName } from "@/lib/format";
 import {
   Dialog, Disclosure, EmptyState, Field, Icon, Note, Spinner, type SummaryRow,
@@ -241,11 +242,13 @@ export default function VoucherDetailPage() {
     if (!voucher || !files.length) return;
     setUploading(true);
     try {
-      await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form: attachmentForm(files) });
+      // Phone photos go up as downscaled JPEGs, well inside the server's limits.
+      const prepared = await prepareImages(files);
+      await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form: attachmentForm(prepared) });
       toast("Attached", `${files.length} file(s) added.`, "ok");
       load();
     } catch (err) {
-      reportError(err, "Upload failed");
+      toast("Upload failed", describeUploadError(err, t), "bad");
     } finally {
       setUploading(false);
     }

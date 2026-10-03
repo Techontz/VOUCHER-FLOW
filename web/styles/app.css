@@ -702,8 +702,6 @@
 }
 .app-side-brand:hover { text-decoration: none; }
 .app-side-brand .vf-login-mark { flex: none; width: 40px; height: 40px; }
-.app-side-brand .vf-login-mark rect { fill: var(--primary); stroke: transparent; }
-.app-side-brand .vf-login-mark path { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .app-side-brand-text { display: grid; min-width: 0; line-height: 1.2; }
 .app-side-brand-text small { font-size: 12px; font-weight: 400; color: var(--sidebar-muted); letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-side-close {
@@ -1402,6 +1400,23 @@
 .vf-shell .app-profile { max-width: 980px; }
 .vf-shell .app-profile-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .vf-shell .app-avatar-lg { width: 48px; height: 48px; font-size: 16px; }
+.app-avatar.has-photo { overflow: hidden; background: var(--surface-tertiary); }
+.app-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* profile photo picker: the avatar itself is the button, a camera badge says so */
+.vf-shell .app-avatar-picker { display: flex; align-items: center; gap: 16px; }
+.vf-shell .app-avatar-pick { position: relative; flex: none; display: block; cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; }
+.vf-shell .app-avatar-pick:focus-within { box-shadow: 0 0 0 3px var(--ring); }
+.vf-shell .app-avatar-pick[aria-busy] { cursor: progress; }
+.vf-shell .app-avatar-xl { width: 84px; height: 84px; font-size: 28px; }
+.vf-shell .app-avatar-cam {
+  position: absolute; right: -2px; bottom: -2px; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff; background: var(--primary); border: 2px solid var(--surface);
+}
+.vf-shell .app-avatar-pick:hover .app-avatar-cam { filter: brightness(1.08); }
+.vf-shell .app-avatar-pick-text { display: grid; gap: 4px; min-width: 0; justify-items: start; }
+.vf-shell .app-avatar-pick-title { font-weight: 600; color: var(--primary-text); cursor: pointer; }
+.vf-shell .app-avatar-pick-text .field-hint { margin: 0; }
+.vf-shell .app-avatar-undo { margin-left: -8px; }
 .vf-shell .app-profile-id { min-width: 0; }
 .vf-shell .app-sessions-text { display: grid; flex: 1; min-width: 0; }
 .vf-shell .app-profile .app-theme { display: inline-grid; min-width: 220px; }

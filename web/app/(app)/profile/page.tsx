@@ -7,6 +7,8 @@ import { formatDateTime } from "@/lib/format";
 import { Field, Icon, LoadingBlock, Spinner } from "@/components/ui";
 import { FormSection, Tabs, ThemeSwitch } from "@/components/app-ui";
 import { SignaturePad } from "@/components/signature-pad";
+import { UserAvatar } from "@/components/user-avatar";
+import { AVATAR_IMAGE, describeUploadError, prepareImage } from "@/lib/uploads";
 
 interface Session { id: number; device: string; last_used_at: string | null; created_at: string | null; is_current: boolean }
 
@@ -18,6 +20,8 @@ export default function ProfilePage() {
 
   const [profile, setProfile] = useState({ name: "", phone: "", job_title: "" });
   const [avatar, setAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [preparingAvatar, setPreparingAvatar] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [signature, setSignature] = useState<string | null>(null);
@@ -33,6 +37,31 @@ export default function ProfilePage() {
     if (!user) return;
     setProfile({ name: user.name, phone: user.phone ?? "", job_title: user.job_title ?? "" });
   }, [user]);
+
+  // The preview is a blob URL over the picked photo; release it when replaced.
+  useEffect(() => () => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); }, [avatarPreview]);
+
+  /**
+   * A phone photo is several MB; the API takes an image of at most 2 MB. It is
+   * resized to a 1024px JPEG here, which also turns an iPhone's HEIC (which
+   * the server refuses) into a JPEG wherever the browser can read it.
+   */
+  async function pickAvatar(picked: File | undefined) {
+    if (!picked) return;
+    setPreparingAvatar(true);
+    try {
+      const prepared = await prepareImage(picked, AVATAR_IMAGE);
+      setAvatar(prepared);
+      setAvatarPreview(URL.createObjectURL(prepared));
+    } finally {
+      setPreparingAvatar(false);
+    }
+  }
+
+  function clearAvatar() {
+    setAvatar(null);
+    setAvatarPreview(null);
+  }
 
   const loadSessions = useCallback(() => {
     api.get<{ data: Session[] }>("/auth/sessions").then((r) => setSessions(r.data)).catch(() => setSessions([]));
@@ -52,18 +81,21 @@ export default function ProfilePage() {
     setSavingProfile(true);
     try {
       if (avatar) {
+        // Multipart must go as POST: PHP does not parse a multipart PUT body,
+        // so Laravel would see no file. The route accepts both verbs.
         const form = new FormData();
-        form.append("avatar", avatar);
+        form.append("avatar", avatar, avatar.name);
         Object.entries(profile).forEach(([k, v]) => form.append(k, v));
         await request("/profile", { method: "POST", form });
       } else {
         await api.put("/profile", profile);
       }
       await refresh();
-      toast("Profile updated", undefined, "ok");
-      setAvatar(null);
+      toast(t("profileUpdated"), undefined, "ok");
+      clearAvatar();
     } catch (err) {
-      reportError(err, "Could not update your profile");
+      if (avatar) toast(t("profileUpdateFailed"), describeUploadError(err, t), "bad");
+      else reportError(err, t("profileUpdateFailed"));
     } finally {
       setSavingProfile(false);
     }
@@ -117,7 +149,7 @@ export default function ProfilePage() {
   return (
     <div className="app-page app-profile">
       <header className="app-profile-head">
-        <span className="app-avatar app-avatar-lg" aria-hidden="true">{user.initials}</span>
+        <UserAvatar className="app-avatar-lg" src={user.avatar_url} initials={user.initials} />
         <div className="app-profile-id">
           <h1 className="vf-pagehead-title">{user.name}</h1>
           <p className="vf-pagehead-sub">{[user.job_title, user.role_label, user.department?.name].filter(Boolean).join(" · ")}</p>
@@ -149,14 +181,38 @@ export default function ProfilePage() {
                   <input id="p-title" className="input" value={profile.job_title} onChange={(e) => setProfile((p) => ({ ...p, job_title: e.target.value }))} />
                 </Field>
               </div>
-              <Field label="Photo" htmlFor="p-avatar">
-                <input id="p-avatar" className="input" type="file" accept="image/*" onChange={(e) => setAvatar(e.target.files?.[0] ?? null)} />
+              <Field label={t("profilePhoto")} htmlFor="p-avatar">
+                <div className="app-avatar-picker">
+                  <label className="app-avatar-pick" htmlFor="p-avatar" aria-busy={preparingAvatar || undefined}>
+                    <UserAvatar className="app-avatar-xl" src={avatarPreview ?? user.avatar_url} initials={user.initials} />
+                    <span className="app-avatar-cam" aria-hidden="true">
+                      {preparingAvatar ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <Icon name="ph-camera" size={16} weight="fill" />}
+                    </span>
+                    <input id="p-avatar" type="file" accept="image/*" hidden disabled={preparingAvatar || savingProfile}
+                      onChange={(e) => {
+                        const picked = e.target.files?.[0];
+                        e.target.value = "";
+                        void pickAvatar(picked);
+                      }} />
+                  </label>
+                  <div className="app-avatar-pick-text">
+                    <label htmlFor="p-avatar" className="app-avatar-pick-title">
+                      {user.avatar_url || avatarPreview ? t("changePhoto") : t("choosePhoto")}
+                    </label>
+                    <span className="field-hint">{avatar ? t("photoPending") : t("photoHint")}</span>
+                    {avatar && (
+                      <button type="button" className="btn btn-ghost btn-sm app-avatar-undo" onClick={clearAvatar}>
+                        <Icon name="ph-arrow-counter-clockwise" size={14} /> {t("photoUndo")}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </Field>
             </FormSection>
           </div>
           <div className="app-form-foot">
             <span />
-            <div className="app-form-foot-end"><button className="btn btn-primary" disabled={savingProfile}>{savingProfile ? <Spinner /> : t("saveChanges")}</button></div>
+            <div className="app-form-foot-end"><button className="btn btn-primary" disabled={savingProfile || preparingAvatar}>{savingProfile ? <Spinner /> : t("saveChanges")}</button></div>
           </div>
         </form>
       )}

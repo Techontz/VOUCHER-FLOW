@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ApiError, download, printBlob, request } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { acceptFiles, ACCEPT_ATTRIBUTE } from "@/lib/attachments";
+import { describeUploadError, prepareImages } from "@/lib/uploads";
 import { formatDate, formatDateTime, money } from "@/lib/format";
 import { Icon } from "@/components/ui";
 import type { Voucher, VoucherPayment } from "@/lib/types";
@@ -41,15 +42,17 @@ export function usePaymentAcknowledgement(voucher: Voucher | null, onFiled: (fre
   /** Files the receiver's signed copy against its payment. */
   async function upload(payment: VoucherPayment, picked: File[]) {
     if (!voucher || !picked.length) return;
-    // The same type and size rules as any attachment, checked before the trip.
-    const { files, rejected } = acceptFiles([], picked.slice(0, 1));
-    if (!files.length) {
-      toast(t("ackUploadFailed"), rejected[0]?.reason === "size" ? `${t("fileTooLarge")} 10 MB` : t("fileWrongType"), "bad");
-      return;
-    }
-
     setUploading(payment.id);
     try {
+      // A phone photo of the signed sheet is shrunk to a JPEG first, so it is
+      // nowhere near the server's limits; then the same type and size rules as
+      // any attachment are checked before the trip.
+      const { files, rejected } = acceptFiles([], await prepareImages(picked.slice(0, 1)));
+      if (!files.length) {
+        toast(t("ackUploadFailed"), rejected[0]?.reason === "size" ? `${t("fileTooLarge")} 10 MB` : t("fileWrongType"), "bad");
+        return;
+      }
+
       const form = new FormData();
       form.append("file", files[0], files[0].name);
       const res = await request<{ data: Voucher }>(
@@ -62,7 +65,7 @@ export function usePaymentAcknowledgement(voucher: Voucher | null, onFiled: (fre
       // The button is only offered to people likely to be allowed, but the
       // server has the final word — say plainly who may file it.
       if (err instanceof ApiError && err.status === 403) toast(t("ackUploadFailed"), t("ackUploadForbidden"), "bad");
-      else reportError(err, t("ackUploadFailed"));
+      else toast(t("ackUploadFailed"), describeUploadError(err, t), "bad");
     } finally {
       setUploading(null);
     }

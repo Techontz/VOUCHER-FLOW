@@ -377,6 +377,17 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
   const locale = user.locale;
   const companyId = user.company_id;
 
+  // A self-registered company waits for platform approval (EnsureCompanyApproved):
+  // only its own account, profile, company record, billing and notifications.
+  const ownCompany = companyId ? db.companies.find((c) => c.id === companyId) : undefined;
+  if (ownCompany?.status === "pending" && user.role !== "super_admin") {
+    const allowed = /^\/(auth|profile|billing|notifications)(\/|$)/.test(path)
+      || (method === "GET" && path === "/company");
+    if (!allowed) {
+      throw new MockError(403, "Your company is awaiting approval.", {}, "company_pending", { status: "pending" });
+    }
+  }
+
   if (method === "GET" && path === "/auth/me") {
     return { user: userResource(db, user), company: companyResource(db, companyId) };
   }
@@ -1623,6 +1634,16 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       });
       return { data: companyResource(store.db, id) };
     }
+    if (method === "POST" && seg[1] === "companies" && seg[3] === "approve") {
+      const target = db.companies.find((c) => c.id === num(seg[2]));
+      if (!target) throw new MockError(404, "Company not found.");
+      if (target.status !== "pending") throw new MockError(422, "Only a company awaiting approval can be approved.");
+      store.mutate((d) => {
+        const row = d.companies.find((c) => c.id === target.id)!;
+        row.status = row.trial_ends_at && new Date(row.trial_ends_at) > new Date() ? "trial" : "active";
+      });
+      return { data: companyResource(store.db, target.id) };
+    }
     if (seg[1] === "companies" && (seg[3] === "suspend" || seg[3] === "activate")) {
       store.mutate((d) => {
         d.companies.find((c) => c.id === num(seg[2]))!.status = seg[3] === "suspend" ? "suspended" : "active";
@@ -1930,7 +1951,7 @@ function dashboard(user: MockUser) {
           id: c.id, name: c.name, status: c.status,
           plan: db.plans.find((p) => p.code === c.plan_code)?.name ?? null,
           users_count: db.users.filter((u) => u.company_id === c.id).length,
-          note: c.status === "trial" ? "Trial ending" : c.status === "past_due" ? "Payment overdue" : "Suspended",
+          note: c.status === "pending" ? "Awaiting approval" : c.status === "trial" ? "Trial ending" : c.status === "past_due" ? "Payment overdue" : "Suspended",
         })),
       },
     };

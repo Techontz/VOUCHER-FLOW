@@ -33,13 +33,19 @@ const FLOW: { icon: string; action: MessageKey; role: MessageKey }[] = [
   { icon: "ph-hand-coins", action: "flowPay", role: "flowFinance" },
 ];
 
+/**
+ * The VouchFlow brand mark. It always sits on a white rounded tile: the mark's
+ * dark blue would sink into the navy and dark surfaces it is shown on, and the
+ * tile keeps the square footprint the layout was built around.
+ */
 export function VouchFlowMark({ size = 36 }: { size?: number }) {
-  // A V drawn as a tick: the mark reads as the product's outcome — approved.
+  // The size is a default the stylesheet may override, as it could the old SVG's
+  // width and height attributes — an inline width would win over every rule.
   return (
-    <svg className="vf-login-mark" width={size} height={size} viewBox="0 0 36 36" aria-hidden="true">
-      <rect x="0.5" y="0.5" width="35" height="35" rx="10" />
-      <path d="M10.5 12.5 17 24.5 26 10.5" />
-    </svg>
+    <span className="vf-login-mark" style={{ "--vf-mark": `${size}px` } as React.CSSProperties} aria-hidden="true">
+      {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset; next/image adds nothing here */}
+      <img src="/brand/vouchflow-mark.png" alt="" width={446} height={446} decoding="async" />
+    </span>
   );
 }
 

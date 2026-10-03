@@ -231,18 +231,23 @@ export default function DashboardPage() {
                 <p className="app-dash-empty">{tr("dash.banner.clear", "Nothing needs your attention.")}</p>
               ) : (
                 <div className="vf-list">
-                  {d.attention.map((row) => (
+                  {/* Companies waiting to be approved come first: they cannot work until someone does. */}
+                  {[...d.attention].sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending")).map((row) => (
                     <Link key={row.id} href={`/platform/companies/${row.id}`} className="vf-row">
                       <div className="vf-row-main">
                         <div className="vf-row-top">
-                          <span className={`badge ${row.status === "trial" ? "tone-info" : "tone-bad"}`}>{row.status}</span>
+                          <span className={`badge ${row.status === "pending" ? "tone-warn" : row.status === "trial" ? "tone-info" : "tone-bad"}`}>
+                            {row.status === "pending" ? t("pendingApproval") : row.status}
+                          </span>
                           {row.plan && <span className="vf-kind">{row.plan}</span>}
                         </div>
                         <div className="vf-row-title">{row.name}</div>
-                        <div className="vf-row-meta">{row.note}</div>
+                        <div className="vf-row-meta">{row.status === "pending" ? t("pendingAwaitingYou") : row.note}</div>
                       </div>
                       <div className="vf-row-side">
-                        <div className="vf-row-meta">{row.users_count} {t("users").toLowerCase()}</div>
+                        {row.status === "pending"
+                          ? <span className="btn btn-primary btn-sm" aria-hidden="true">{t("approve")}</span>
+                          : <div className="vf-row-meta">{row.users_count} {t("users").toLowerCase()}</div>}
                         <Icon name="ph-caret-right" size={15} style={{ color: "var(--text-faint)" }} />
                       </div>
                     </Link>

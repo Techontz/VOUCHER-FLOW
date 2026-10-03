@@ -99,7 +99,8 @@ export interface Company {
   voucher_template_changes_used?: number;
   voucher_template_changes_allowed?: number;
   voucher_template_changes_remaining?: number;
-  status: "trial" | "active" | "past_due" | "suspended" | "cancelled";
+  /** "pending": self-registered, waiting for a platform administrator to approve it. */
+  status: "pending" | "trial" | "active" | "past_due" | "suspended" | "cancelled";
   is_usable: boolean;
   is_expired: boolean;
   days_remaining: number | null;
