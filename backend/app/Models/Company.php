@@ -18,6 +18,12 @@ class Company extends Model
     protected $guarded = ['id'];
 
     /**
+     * A self-registered company awaiting platform approval. It can sign in,
+     * see its own profile and pay, but uses nothing else until approved.
+     */
+    public const STATUS_PENDING = 'pending';
+
+    /**
      * The editable profile, in one place.
      *
      * Controllers derive their validation from this rather than each keeping
@@ -254,10 +260,16 @@ class Company extends Model
             ->first();
     }
 
+    /** Self-registered and still waiting for the platform to approve it. */
+    public function isPending(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
+
     /** Whether the tenant may currently use the product. */
     public function isUsable(): bool
     {
-        if (in_array($this->status, ['suspended', 'cancelled'], true)) {
+        if (in_array($this->status, [self::STATUS_PENDING, 'suspended', 'cancelled'], true)) {
             return false;
         }
 

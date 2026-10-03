@@ -487,6 +487,7 @@ class DashboardController extends Controller
         $active = Company::where('status', 'active')->count();
         $trial = Company::where('status', 'trial')->count();
         $pastDue = Company::whereIn('status', ['past_due', 'suspended'])->count();
+        $pending = Company::where('status', Company::STATUS_PENDING)->count();
 
         $users = User::whereNotNull('company_id')->count();
         $vouchers = Voucher::query()->withoutGlobalScopes()->count();
@@ -506,7 +507,9 @@ class DashboardController extends Controller
         return [
             'view' => 'platform',
             'headline' => "{$companies} companies · ".number_format($users).' users · '.number_format($vouchers).' vouchers',
-            'sub' => 'Monthly revenue '.$this->money->money($revenue, 'TZS').($pastDue ? " · {$pastDue} accounts need attention." : '.'),
+            'sub' => 'Monthly revenue '.$this->money->money($revenue, 'TZS')
+                .($pending ? " · {$pending} awaiting approval" : '')
+                .($pastDue ? " · {$pastDue} accounts need attention." : '.'),
             'banner' => null,
             'stats' => [
                 $this->stat('dash.stat.totalCompanies', 'Total companies', (string) $companies,
@@ -522,6 +525,10 @@ class DashboardController extends Controller
                     $status(Voucher::STATUS_IN_REVIEW).' / '.$status(Voucher::STATUS_APPROVED).' / '.$status(Voucher::STATUS_REJECTED),
                     'dash.sub.platformWide', 'Platform-wide'),
             ],
+            'pending_companies' => $pending,
+            // Companies the operator has to act on: registrations waiting for
+            // approval first (oldest first), then accounts in arrears or suspended.
+            'attention' => $this->companiesNeedingAttention(),
             'recent_companies' => Company::with('plan')->withCount(['users', 'vouchers'])->latest('id')->limit(6)->get()
                 ->map(fn (Company $c) => [
                     'id' => $c->id, 'name' => $c->name, 'plan' => $c->plan?->name,
@@ -536,6 +543,28 @@ class DashboardController extends Controller
                     'created_at' => $i->created_at?->toIso8601String(),
                 ]),
         ];
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function companiesNeedingAttention(): array
+    {
+        $row = fn (Company $c) => [
+            'id' => $c->id, 'name' => $c->name, 'plan' => $c->plan?->name,
+            'status' => $c->status, 'email' => $c->email,
+            'users_count' => $c->users_count, 'vouchers_count' => $c->vouchers_count,
+            'current_period_end' => $c->current_period_end?->toIso8601String(),
+            'created_at' => $c->created_at?->toIso8601String(),
+        ];
+
+        $pending = Company::with('plan')->withCount(['users', 'vouchers'])
+            ->where('status', Company::STATUS_PENDING)
+            ->oldest('id')->limit(20)->get();
+
+        $atRisk = Company::with('plan')->withCount(['users', 'vouchers'])
+            ->whereIn('status', ['past_due', 'suspended'])
+            ->latest('updated_at')->limit(10)->get();
+
+        return $pending->concat($atRisk)->map($row)->values()->all();
     }
 
     /* ----------------------------------------------------- shared structure */

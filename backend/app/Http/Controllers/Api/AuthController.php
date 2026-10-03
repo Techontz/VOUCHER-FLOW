@@ -13,6 +13,7 @@ use App\Models\VoucherTemplateChange;
 use App\Notifications\OneTimeCodeNotification;
 use App\Services\AuditLogger;
 use App\Services\CompanyProvisioner;
+use App\Services\Notifier;
 use App\Services\TwoFactorLogin;
 use App\Services\VoucherTemplateManager;
 use App\Support\TenantContext;
@@ -31,6 +32,7 @@ class AuthController extends Controller
         private readonly AuditLogger $audit,
         private readonly TwoFactorLogin $twoFactor,
         private readonly VoucherTemplateManager $voucherTemplates,
+        private readonly Notifier $notifier,
     ) {}
 
     /** Registers a company together with its first administrator. */
@@ -75,19 +77,78 @@ class AuthController extends Controller
                 'phone' => $data['phone'] ?? null,
             ],
             $plan,
+            awaitingApproval: true,
         );
 
         $this->voucherTemplates->initial($company, $data['voucher_template'] ?? null, $admin, VoucherTemplateChange::SOURCE_REGISTRATION);
 
-        $challenge = $this->issueOtp($admin, $admin->email, 'registration');
+        $this->notifyPlatformOfRegistration($company);
 
-        return response()->json([
+        $verify = self::registrationEmailVerification();
+
+        $response = [
             'token' => $admin->createToken('web')->plainTextToken,
             'user' => new UserResource($admin->load('company')),
             'company' => new CompanyResource($company->load('plan')),
-            'requires_verification' => true,
-            'otp' => $challenge,
-        ], 201);
+            'requires_verification' => $verify,
+            'registration_email_verification' => $verify,
+        ];
+
+        if ($verify) {
+            $response['otp'] = $this->issueOtp($admin, $admin->email, 'registration');
+        } elseif (! $admin->email_verified_at) {
+            // No code can be sent, so the address is taken as given.
+            $admin->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        return response()->json($response, 201);
+    }
+
+    /**
+     * Whether a new registration is asked to confirm its e-mail address.
+     *
+     * `auto` turns it on only when mail can actually leave the server: the
+     * `log` and `array` mailers swallow the code, and asking for a code that
+     * never arrives strands the person on the verification screen.
+     */
+    public static function registrationEmailVerification(): bool
+    {
+        $setting = config('vouchflow.registration_email_verification', 'auto');
+
+        if (is_bool($setting)) {
+            return $setting;
+        }
+
+        $setting = strtolower(trim((string) $setting));
+
+        if ($setting === '' || $setting === 'auto') {
+            return ! in_array(config('mail.default'), ['log', 'array'], true);
+        }
+
+        return filter_var($setting, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /** Tells the platform's operators a company is waiting for them. */
+    private function notifyPlatformOfRegistration(Company $company): void
+    {
+        $operators = User::query()->withoutGlobalScopes()
+            ->where('role', User::ROLE_SUPER_ADMIN)
+            ->where('status', 'active')
+            ->get();
+
+        foreach ($operators as $operator) {
+            $this->notifier->toUser(
+                $operator,
+                'company.pending',
+                "{$company->name} is waiting for approval",
+                "{$company->name} inasubiri kuidhinishwa",
+                "{$company->name} registered and is waiting for you to approve it.",
+                "{$company->name} imejisajili na inasubiri uidhinishe.",
+                $company,
+                'ph-buildings',
+                "/platform/companies/{$company->id}",
+            );
+        }
     }
 
     /**

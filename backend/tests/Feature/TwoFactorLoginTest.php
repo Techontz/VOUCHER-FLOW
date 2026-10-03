@@ -240,6 +240,10 @@ class TwoFactorLoginTest extends TestCase
     {
         $this->seed(PlanSeeder::class);
 
+        // The suite mails into an array, so registration would otherwise skip
+        // its code; this test needs one issued.
+        config(['vouchflow.registration_email_verification' => true]);
+
         $register = $this->postJson('/api/auth/register', [
             'company_name' => 'Northwind Traders',
             'business_email' => 'accounts@northwind.test',

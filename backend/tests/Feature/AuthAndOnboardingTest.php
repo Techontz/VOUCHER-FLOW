@@ -68,9 +68,11 @@ class AuthAndOnboardingTest extends TestCase
         $this->assertNotEmpty($response->json('token'));
         $this->assertSame('company_admin', $response->json('user.role'));
 
+        // A self-registered company waits for the platform's approval; its
+        // trial starts then, not now.
         $company = Company::where('name', 'Northwind Traders')->firstOrFail();
-        $this->assertSame('trial', $company->status);
-        $this->assertNotNull($company->trial_ends_at);
+        $this->assertSame('pending', $company->status);
+        $this->assertNull($company->trial_ends_at);
 
         // A new tenant starts with voucher types and a default route.
         app(TenantContext::class)->forCompany($company, function () {
@@ -105,8 +107,9 @@ class AuthAndOnboardingTest extends TestCase
 
         $this->assertSame('dark', Company::where('name', 'Northwind Traders')->firstOrFail()->theme);
 
-        // An invited colleague starts dark too.
+        // An invited colleague starts dark too, once the company is approved.
         $admin = User::where('email', 'amina@northwind.test')->firstOrFail();
+        $admin->company->forceFill(['status' => 'active'])->save();
 
         $this->actingAs($admin, 'sanctum')
             ->postJson('/api/employees', [

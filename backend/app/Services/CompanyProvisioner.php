@@ -93,11 +93,15 @@ class CompanyProvisioner
     /**
      * @param  array{name:string,email:string,phone?:string,address?:string,website?:string,country?:string,currency?:string,locale?:string}  $companyData
      * @param  array{name:string,email:string,password:string,phone?:string,job_title?:string}  $adminData
+     * @param  bool  $awaitingApproval  True for a self-registration: the company
+     *                                  is created `pending`, keeps the plan it chose, and starts no trial
+     *                                  until the platform approves it. The platform's own create-company
+     *                                  screen leaves this false and gets a running trial straight away.
      * @return array{company:Company,admin:User}
      */
-    public function provision(array $companyData, array $adminData, ?Plan $plan = null): array
+    public function provision(array $companyData, array $adminData, ?Plan $plan = null, bool $awaitingApproval = false): array
     {
-        return DB::transaction(function () use ($companyData, $adminData, $plan) {
+        return DB::transaction(function () use ($companyData, $adminData, $plan, $awaitingApproval) {
             $plan ??= Plan::where('is_active', true)->orderBy('sort_order')->first();
 
             $company = Company::create([
@@ -111,7 +115,10 @@ class CompanyProvisioner
                 'country' => $companyData['country'] ?? 'TZ',
                 'currency' => $companyData['currency'] ?? 'TZS',
                 'locale' => $companyData['locale'] ?? 'en',
-                'status' => 'trial',
+                'status' => $awaitingApproval ? Company::STATUS_PENDING : 'trial',
+                // The plan chosen at sign-up is remembered even while pending,
+                // so the client can show it and the approval can start it.
+                'plan_id' => $plan?->id,
                 'voucher_footer_text' => 'This voucher is computer generated and valid without a wet stamp.',
             ]);
 
@@ -130,11 +137,11 @@ class CompanyProvisioner
                 ]);
             });
 
-            $this->tenant->forCompany($company, function () use ($company, $admin, $plan) {
+            $this->tenant->forCompany($company, function () use ($company, $admin, $plan, $awaitingApproval) {
                 $this->seedVoucherTypes($company);
                 $this->applyPreset($company, 'default', $admin);
 
-                if ($plan) {
+                if ($plan && ! $awaitingApproval) {
                     $this->payments->startTrial($company, $plan);
                 }
             });

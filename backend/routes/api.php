@@ -53,7 +53,9 @@ Route::post('voucher-templates/preview', [VoucherTemplateController::class, 'pre
 */
 
 // Bindings run last so models resolve inside the caller's tenant scope.
-Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(function () {
+// 'approved' holds a self-registered company that the platform has not yet
+// approved to its account, profile, notifications and billing.
+Route::middleware(['auth:sanctum', 'tenant', 'approved', SubstituteBindings::class])->group(function () {
 
     /* -------------------------------------------------------------- account */
     Route::prefix('auth')->group(function () {
@@ -178,6 +180,7 @@ Route::middleware(['auth:sanctum', 'tenant', SubstituteBindings::class])->group(
         Route::apiResource('companies', Platform\CompanyController::class);
         Route::post('companies/{company}/suspend', [Platform\CompanyController::class, 'suspend']);
         Route::post('companies/{company}/activate', [Platform\CompanyController::class, 'activate']);
+        Route::post('companies/{company}/approve', [Platform\CompanyController::class, 'approve']);
         Route::post('companies/{company}/change-plan', [Platform\CompanyController::class, 'changePlan']);
         Route::post('companies/{company}/branding', [Platform\CompanyController::class, 'updateBranding']);
         Route::post('companies/{company}/logo', [Platform\CompanyController::class, 'storeLogo']);

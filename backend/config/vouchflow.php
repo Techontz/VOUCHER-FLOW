@@ -67,6 +67,22 @@ return [
         'test,example,invalid,localhost,example.com,example.net,example.org',
     ))))),
 
+    /*
+    |--------------------------------------------------------------------------
+    | E-mail check after self-registration
+    |--------------------------------------------------------------------------
+    |
+    | Whether a new company's administrator is asked for a one-time code sent
+    | to their address before carrying on. `auto` (the default) asks only when
+    | a real mail transport is configured — with MAIL_MAILER=log or array the
+    | code could never arrive, so asking for it would strand the person.
+    | `true` or `false` force it either way.
+    |
+    | Resolved by AuthController::registrationEmailVerification().
+    |
+    */
+    'registration_email_verification' => env('VOUCHFLOW_REGISTRATION_EMAIL_VERIFY', 'auto'),
+
     // Changes of voucher design a company may make itself after registration.
     // The platform's super admin is never bound by it.
     'voucher_template_self_changes' => (int) env('VOUCHFLOW_TEMPLATE_SELF_CHANGES', 1),

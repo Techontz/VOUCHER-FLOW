@@ -15,6 +15,7 @@ use App\Models\VoucherTemplateChange;
 use App\Services\AuditLogger;
 use App\Services\CompanyBranding;
 use App\Services\CompanyProvisioner;
+use App\Services\Notifier;
 use App\Services\PaymentGateway;
 use App\Services\UsageLimits;
 use App\Services\VoucherTemplateManager;
@@ -34,6 +35,7 @@ class CompanyController extends Controller
         private readonly AuditLogger $audit,
         private readonly TenantContext $tenant,
         private readonly VoucherTemplateManager $voucherTemplates,
+        private readonly Notifier $notifier,
     ) {}
 
     public function index(Request $request)
@@ -238,7 +240,7 @@ class CompanyController extends Controller
     public function update(Request $request, Company $company)
     {
         $data = $request->validate(Company::updateRules() + [
-            'status' => ['sometimes', Rule::in(['trial', 'active', 'past_due', 'suspended', 'cancelled'])],
+            'status' => ['sometimes', Rule::in([Company::STATUS_PENDING, 'trial', 'active', 'past_due', 'suspended', 'cancelled'])],
             'plan_id' => ['nullable', 'integer', Rule::exists('plans', 'id')],
             'trial_ends_at' => ['nullable', 'date'],
             'current_period_end' => ['nullable', 'date'],
@@ -283,6 +285,44 @@ class CompanyController extends Controller
             ['status' => 'suspended'], ['status' => 'active'], $company->id);
 
         return new CompanyResource($company->fresh()->load('plan'));
+    }
+
+    /**
+     * Lets a self-registered company in.
+     *
+     * Only a pending company can be approved. One that has already paid for a
+     * running period becomes `active`; otherwise its trial starts now. Turning
+     * a registration down is a suspend or a delete, as for any other tenant.
+     */
+    public function approve(Request $request, Company $company)
+    {
+        abort_unless(
+            $company->isPending(),
+            422,
+            'Only a company awaiting approval can be approved.',
+        );
+
+        $before = $company->only(['status']);
+
+        $this->tenant->forCompany($company, fn () => $this->payments->approve($company));
+
+        $company->refresh();
+
+        $this->audit->log('platform.company_approved', "Approved company {$company->name}", $company,
+            $before, $company->only(['status']), $company->id);
+
+        $this->notifier->toMany(
+            User::forTenant($company->id)->where('role', User::ROLE_COMPANY_ADMIN)->get(),
+            'company.approved',
+            "{$company->name} has been approved",
+            "{$company->name} imeidhinishwa",
+            'Your company account is ready. You can now add people and start using VouchFlow.',
+            'Akaunti ya kampuni yako iko tayari. Sasa unaweza kuongeza watu na kuanza kutumia VouchFlow.',
+            $company,
+            'ph-check-circle',
+        );
+
+        return new CompanyResource($company->load('plan'));
     }
 
     public function destroy(Request $request, Company $company)

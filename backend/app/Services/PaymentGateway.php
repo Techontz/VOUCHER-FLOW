@@ -51,13 +51,21 @@ class PaymentGateway
                 'current_period_end' => $periodEnd,
             ]);
 
-            $company->forceFill([
-                'plan_id' => $plan->id,
-                'status' => 'active',
-                'subscribed_at' => $periodStart,
-                'current_period_start' => $periodStart,
-                'current_period_end' => $periodEnd,
-            ])->save();
+            // A company awaiting approval may choose and pay for a plan while it
+            // waits, but choosing one must not open the product to it, nor
+            // give it a period it has not paid for: the period arrives with
+            // the payment (settle), and the status with the approval.
+            if ($company->isPending()) {
+                $company->forceFill(['plan_id' => $plan->id])->save();
+            } else {
+                $company->forceFill([
+                    'plan_id' => $plan->id,
+                    'status' => 'active',
+                    'subscribed_at' => $periodStart,
+                    'current_period_start' => $periodStart,
+                    'current_period_end' => $periodEnd,
+                ])->save();
+            }
 
             $this->audit->log('subscription.changed', "Subscribed to the {$plan->name} plan", $company);
 
@@ -93,6 +101,54 @@ class PaymentGateway
         ])->save();
 
         return $subscription;
+    }
+
+    /**
+     * Lets a pending company in, once the platform has approved it.
+     *
+     * A company that has already paid for a period that is still running goes
+     * straight to `active`; one that has not gets the free trial registration
+     * used to hand out, starting now rather than on the day it signed up.
+     */
+    public function approve(Company $company): Company
+    {
+        return DB::transaction(function () use ($company) {
+            if ($company->current_period_end && $company->current_period_end->isFuture()) {
+                $company->forceFill([
+                    'status' => 'active',
+                    'subscribed_at' => $company->subscribed_at ?? now(),
+                ])->save();
+
+                return $company;
+            }
+
+            // Anything chosen-but-unpaid while waiting gives way to the trial.
+            Subscription::where('company_id', $company->id)
+                ->whereIn('status', ['trialing', 'active', 'past_due'])
+                ->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+
+            $plan = $company->plan
+                ?? Plan::where('is_active', true)->where('is_public', true)->orderBy('sort_order')->first()
+                ?? Plan::where('is_active', true)->orderBy('sort_order')->first();
+
+            if ($plan) {
+                $this->startTrial($company, $plan);
+
+                return $company;
+            }
+
+            // No plan exists at all; the trial still has to end somewhere.
+            $trialEnds = now()->addDays((int) config('vouchflow.trial_days', 14));
+
+            $company->forceFill([
+                'status' => 'trial',
+                'trial_ends_at' => $trialEnds,
+                'current_period_start' => now(),
+                'current_period_end' => $trialEnds,
+            ])->save();
+
+            return $company;
+        });
     }
 
     public function issueInvoice(Company $company, Subscription $subscription, ?string $description = null): Invoice
@@ -197,11 +253,21 @@ class PaymentGateway
 
         $company = $invoice->company ?? Company::find($invoice->company_id);
 
-        $company?->forceFill([
-            'status' => 'active',
-            'current_period_start' => $start,
-            'current_period_end' => $end,
-        ])->save();
+        if (! $company) {
+            return;
+        }
+
+        // Paying records the period either way; only approval by the platform
+        // takes a pending company out of `pending`.
+        $company->forceFill(array_merge(
+            [
+                'current_period_start' => $start,
+                'current_period_end' => $end,
+            ],
+            $company->isPending()
+                ? ['subscribed_at' => $company->subscribed_at ?? now()]
+                : ['status' => 'active'],
+        ))->save();
     }
 
     public function refund(Invoice $invoice, ?string $reason = null): Invoice

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureCompanyApproved;
 use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\ResolveTenant;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => ResolveTenant::class,
             'subscription' => EnsureSubscriptionActive::class,
             'super_admin' => EnsureSuperAdmin::class,
+            'approved' => EnsureCompanyApproved::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
