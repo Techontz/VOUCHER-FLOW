@@ -14,9 +14,9 @@ import '../../widgets/vf/vf.dart';
 import 'admin_widgets.dart';
 import 'workflow_builder.dart';
 
-/// Settings — the web's /settings: the approval workflow (#workflow), voucher
-/// types and numbering (#types) and the company profile (#company). Which
-/// one shows is chosen from the settings menu.
+/// Settings: the approval workflow (#workflow), voucher types and numbering
+/// (#types) and the company profile (#company), chosen from the settings
+/// chips. The workflow and the profile save from a sticky bar.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, this.repository});
 
@@ -31,6 +31,8 @@ class _SettingsPageState extends State<SettingsPage> {
   final _workflowKey = GlobalKey<WorkflowBuilderState>();
   final _typesKey = GlobalKey<_VoucherTypesState>();
   final _companyKey = GlobalKey<_CompanyProfileState>();
+  final _workflowSave = AdminSaveState();
+  final _companySave = AdminSaveState();
 
   @override
   void initState() {
@@ -40,6 +42,13 @@ class _SettingsPageState extends State<SettingsPage> {
     if (s == 'types' || s == 'company' || s == 'workflow') {
       AdminSettings.section.value = s!;
     }
+  }
+
+  @override
+  void dispose() {
+    _workflowSave.dispose();
+    _companySave.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh(String section) async {
@@ -52,6 +61,51 @@ class _SettingsPageState extends State<SettingsPage> {
         await _workflowKey.currentState?.reload();
     }
   }
+
+  /// The sticky save bar for the workflow and the company profile.
+  Widget _saveBar(
+    AdminSaveState state,
+    String label, {
+    bool showDirty = false,
+  }) => ListenableBuilder(
+    listenable: state,
+    builder: (context, _) {
+      if (!state.ready) return const SizedBox.shrink();
+      final t = context.vf;
+      return AdminSaveBar(
+        leading: showDirty && state.dirty
+            ? Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: t.warningStrong,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'admin.wfcUnsaved'.tr,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: VfType.small.copyWith(color: t.text2),
+                    ),
+                  ),
+                ],
+              )
+            : null,
+        child: VouchFlowButton(
+          label: label,
+          icon: PhosphorIconsRegular.floppyDisk,
+          expand: !showDirty || !state.dirty,
+          loading: state.busy,
+          onPressed: state.busy || !state.dirty ? null : state.onSave,
+        ),
+      );
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -66,13 +120,36 @@ class _SettingsPageState extends State<SettingsPage> {
         key: ValueKey(section),
         route: '/settings',
         title: heading,
-        subtitle: section == 'workflow' ? 'admin.wfIntro'.tr : null,
         onRefresh: () => _refresh(section),
+        action: section == 'types'
+            ? AdminRoundAction(
+                icon: PhosphorIconsBold.plus,
+                label: 'admin.add'.tr,
+                onPressed: () => _typesKey.currentState?.openForm(),
+              )
+            : null,
+        bottomBar: switch (section) {
+          'types' => null,
+          'company' => _saveBar(_companySave, 'admin.saveChanges'.tr),
+          _ => _saveBar(
+            _workflowSave,
+            'admin.saveWorkflow'.tr,
+            showDirty: true,
+          ),
+        },
         children: [
           switch (section) {
             'types' => _VoucherTypes(key: _typesKey, repo: _repo),
-            'company' => _CompanyProfile(key: _companyKey, repo: _repo),
-            _ => WorkflowBuilder(key: _workflowKey, repository: _repo),
+            'company' => _CompanyProfile(
+              key: _companyKey,
+              repo: _repo,
+              save: _companySave,
+            ),
+            _ => WorkflowBuilder(
+              key: _workflowKey,
+              repository: _repo,
+              saveState: _workflowSave,
+            ),
           },
         ],
       );
@@ -109,7 +186,7 @@ class _VoucherTypesState extends State<_VoucherTypes> {
     }
   }
 
-  Future<void> _openForm([AdminVoucherType? editing]) async {
+  Future<void> openForm([AdminVoucherType? editing]) async {
     final saved = await showAdminSheet<bool>(
       context,
       (ctx, _) => _VoucherTypeForm(repo: widget.repo, editing: editing),
@@ -119,103 +196,46 @@ class _VoucherTypesState extends State<_VoucherTypes> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
     final types = _types;
     if (types == null) {
-      return const VouchFlowLoadingState(rows: 4, rowHeight: 110);
+      return const VouchFlowLoadingState(rows: 4, rowHeight: 72);
     }
     final locale = Get.locale?.languageCode ?? 'en';
-    return VouchFlowCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    'admin.voucherSettings'.tr,
-                    style: VfType.sectionTitle.copyWith(
-                      color: t.text,
-                      fontSize: 17,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                AdminCount(types.length),
-                const Spacer(),
-                VouchFlowButton(
-                  label: 'admin.add'.tr,
-                  icon: PhosphorIconsRegular.plus,
-                  compact: true,
-                  onPressed: () => _openForm(),
-                ),
-              ],
+    if (types.isEmpty) {
+      return VouchFlowCard(
+        radius: VfSize.radiusXl,
+        child: VouchFlowEmptyState(
+          icon: PhosphorIconsRegular.receipt,
+          title: 'admin.noResults'.tr,
+          actionLabel: 'admin.add'.tr,
+          onAction: () => openForm(),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final type in types)
+          AdminListRow(
+            semanticLabel: '${'admin.edit'.tr} ${type.name}',
+            leading: AdminIconTile(
+              PhosphorIconsRegular.receipt,
+              tone: type.isActive ? VfTone.primary : VfTone.neutral,
             ),
+            title: type.label(locale),
+            meta: [
+              if (type.nextNumberPreview.isNotEmpty)
+                type.nextNumberPreview
+              else
+                type.prefix,
+              '${type.vouchersCount} ${'admin.vouchers'.tr.toLowerCase()}',
+            ].join(' · '),
+            trailing: type.isActive
+                ? const AdminChevron()
+                : AdminBadge('admin.inactive'.tr),
+            onTap: () => openForm(type),
           ),
-          for (final type in types)
-            Container(
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: t.border)),
-              ),
-              padding: const EdgeInsets.fromLTRB(16, 10, 6, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              type.label(locale),
-                              style: VfType.bodyStrong.copyWith(color: t.text),
-                            ),
-                            Text(
-                              type.code,
-                              style: VfType.small.copyWith(color: t.muted),
-                            ),
-                          ],
-                        ),
-                      ),
-                      AdminBadge(
-                        type.isActive ? 'admin.active'.tr : 'admin.inactive'.tr,
-                        tone: type.isActive ? VfTone.ok : VfTone.neutral,
-                      ),
-                      VouchFlowIconButton(
-                        icon: PhosphorIconsRegular.pencilSimple,
-                        tooltip: '${'admin.edit'.tr} ${type.name}',
-                        onPressed: () => _openForm(type),
-                      ),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: Column(
-                      children: [
-                        AdminLine(
-                          label: 'admin.vtPrefix'.tr,
-                          value: type.prefix,
-                        ),
-                        AdminLine(
-                          label: 'admin.vtNextNumber'.tr,
-                          value: type.nextNumberPreview,
-                        ),
-                        AdminLine(
-                          label: 'admin.vouchers'.tr,
-                          value: '${type.vouchersCount}',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -388,8 +408,11 @@ class _UpperCase extends TextInputFormatter {
 /* ─────────────────────────────────────────────── company profile ────────── */
 
 class _CompanyProfile extends StatefulWidget {
-  const _CompanyProfile({super.key, required this.repo});
+  const _CompanyProfile({super.key, required this.repo, required this.save});
   final AdminRepository repo;
+
+  /// The page's sticky save bar.
+  final AdminSaveState save;
 
   @override
   State<_CompanyProfile> createState() => _CompanyProfileState();
@@ -411,11 +434,13 @@ class _CompanyProfileState extends State<_CompanyProfile> {
   @override
   void initState() {
     super.initState();
+    widget.save.update(ready: false, busy: false, dirty: true, onSave: _save);
     load();
   }
 
   @override
   void dispose() {
+    widget.save.update(ready: false);
     for (final c in [_name, _legal, _email, _phone, _website, _address]) {
       c.dispose();
     }
@@ -439,13 +464,17 @@ class _CompanyProfileState extends State<_CompanyProfile> {
         _locale = c.locale;
         _timezone = c.timezone;
       });
+      widget.save.update(ready: true);
     } catch (e) {
       if (mounted) setState(() => _error = adminErrorText(e));
     }
   }
 
   Future<void> _save() async {
+    // Nothing is sent before the profile has loaded into the fields.
+    if (_company == null || _busy) return;
     setState(() => _busy = true);
+    widget.save.update(busy: true);
     try {
       await widget.repo.updateCompany({
         'name': _name.text,
@@ -467,32 +496,12 @@ class _CompanyProfileState extends State<_CompanyProfile> {
       adminReport(e, 'admin.couldNotSaveCompany'.tr);
     } finally {
       if (mounted) setState(() => _busy = false);
+      widget.save.update(busy: false);
     }
-  }
-
-  Widget _section(String title, String description, List<Widget> fields) {
-    final t = context.vf;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(title, style: VfType.cardTitle.copyWith(color: t.text)),
-          const SizedBox(height: 2),
-          Text(description, style: VfType.small.copyWith(color: t.muted)),
-          const SizedBox(height: 12),
-          for (var i = 0; i < fields.length; i++) ...[
-            if (i > 0) const SizedBox(height: 12),
-            fields[i],
-          ],
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
     if (_error != null) {
       return VouchFlowErrorState(
         message: _error!,
@@ -501,106 +510,82 @@ class _CompanyProfileState extends State<_CompanyProfile> {
       );
     }
     if (_company == null) {
-      return const VouchFlowLoadingState(rows: 4, rowHeight: 120);
+      return const VouchFlowLoadingState(rows: 3, rowHeight: 150);
     }
     const currencies = ['TZS', 'KES', 'USD', 'EUR'];
-    return VouchFlowCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _section(
-                  'admin.companyProfile'.tr,
-                  'admin.companyProfileDesc'.tr,
-                  [
-                    VouchFlowTextField(
-                      label: 'admin.companyName'.tr,
-                      controller: _name,
-                      required: true,
-                    ),
-                    VouchFlowTextField(
-                      label: 'admin.legalNamePlain'.tr,
-                      controller: _legal,
-                    ),
-                  ],
-                ),
-                _section('admin.phone'.tr, 'admin.contactDesc'.tr, [
-                  VouchFlowTextField(
-                    label: 'admin.businessEmail'.tr,
-                    controller: _email,
-                    required: true,
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  VouchFlowTextField(
-                    label: 'admin.phone'.tr,
-                    controller: _phone,
-                    keyboardType: TextInputType.phone,
-                  ),
-                  VouchFlowTextField(
-                    label: 'admin.website'.tr,
-                    controller: _website,
-                    keyboardType: TextInputType.url,
-                  ),
-                  VouchFlowTextField(
-                    label: 'admin.address'.tr,
-                    controller: _address,
-                  ),
-                ]),
-                _section('admin.currency'.tr, 'admin.currencyDesc'.tr, [
-                  VouchFlowDropdown<String>(
-                    label: 'admin.currency'.tr,
-                    items: [
-                      ...currencies,
-                      if (!currencies.contains(_currency)) _currency,
-                    ],
-                    value: _currency,
-                    itemLabel: (v) => v,
-                    onChanged: (v) =>
-                        setState(() => _currency = v ?? _currency),
-                  ),
-                  VouchFlowDropdown<String>(
-                    label: 'admin.language'.tr,
-                    items: const ['en', 'sw'],
-                    value: _locale,
-                    itemLabel: (v) => v == 'sw' ? 'Kiswahili' : 'English',
-                    onChanged: (v) => setState(() => _locale = v ?? _locale),
-                  ),
-                ]),
+    const gap = SizedBox(height: 22);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminSection(
+          label: 'admin.companyDetails'.tr,
+          child: AdminFields([
+            VouchFlowTextField(
+              label: 'admin.companyName'.tr,
+              controller: _name,
+              required: true,
+              prefixIcon: PhosphorIconsRegular.buildings,
+            ),
+            VouchFlowTextField(
+              label: 'admin.legalNamePlain'.tr,
+              controller: _legal,
+            ),
+          ]),
+        ),
+        gap,
+        AdminSection(
+          label: 'admin.contact'.tr,
+          child: AdminFields([
+            VouchFlowTextField(
+              label: 'admin.businessEmail'.tr,
+              controller: _email,
+              required: true,
+              keyboardType: TextInputType.emailAddress,
+              prefixIcon: PhosphorIconsRegular.envelopeSimple,
+            ),
+            VouchFlowTextField(
+              label: 'admin.phone'.tr,
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              prefixIcon: PhosphorIconsRegular.phone,
+            ),
+            VouchFlowTextField(
+              label: 'admin.website'.tr,
+              controller: _website,
+              keyboardType: TextInputType.url,
+              prefixIcon: PhosphorIconsRegular.globe,
+            ),
+            VouchFlowTextField(
+              label: 'admin.address'.tr,
+              controller: _address,
+              prefixIcon: PhosphorIconsRegular.mapPin,
+            ),
+          ]),
+        ),
+        gap,
+        AdminSection(
+          label: 'admin.regional'.tr,
+          child: AdminFields([
+            VouchFlowDropdown<String>(
+              label: 'admin.currency'.tr,
+              items: [
+                ...currencies,
+                if (!currencies.contains(_currency)) _currency,
               ],
+              value: _currency,
+              itemLabel: (v) => v,
+              onChanged: (v) => setState(() => _currency = v ?? _currency),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: t.surface2,
-              border: Border(top: BorderSide(color: t.border)),
+            VouchFlowDropdown<String>(
+              label: 'admin.language'.tr,
+              items: const ['en', 'sw'],
+              value: _locale,
+              itemLabel: (v) => v == 'sw' ? 'Kiswahili' : 'English',
+              onChanged: (v) => setState(() => _locale = v ?? _locale),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _company!.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: VfType.meta.copyWith(color: t.muted),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                VouchFlowButton(
-                  label: 'admin.saveChanges'.tr,
-                  loading: _busy,
-                  onPressed: _busy ? null : _save,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+          ]),
+        ),
+      ],
     );
   }
 }

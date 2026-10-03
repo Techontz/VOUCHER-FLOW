@@ -53,6 +53,10 @@ class PlatformRepository {
   Future<void> setCompanyStatus(int id, {required bool suspend}) =>
       _api.post('/platform/companies/$id/${suspend ? 'suspend' : 'activate'}');
 
+  /// Lets a self-registered company in (POST platform/companies/{id}/approve).
+  Future<void> approveCompany(int id) =>
+      _api.post('/platform/companies/$id/approve');
+
   Future<void> deleteCompany(int id) => _api.delete('/platform/companies/$id');
 
   Future<CompanyDetail> company(int id) async => CompanyDetail.fromJson(_m(await _api.get('/platform/companies/$id')));

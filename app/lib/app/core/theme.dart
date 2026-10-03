@@ -218,7 +218,7 @@ class VfTokens {
 
   static VfTokens light(VfAccentPalette palette) => VfTokens._(
     brightness: Brightness.light,
-    background: const Color(0xFFF3F5F9),
+    background: const Color(0xFFF2F4F8),
     surface: Colors.white,
     surface2: const Color(0xFFF9FAFB),
     surface3: const Color(0xFFF3F4F6),
@@ -258,13 +258,8 @@ class VfTokens {
     tabBar: Colors.white,
     overlay: const Color(0x80000000),
     cardShadow: const [
-      BoxShadow(color: Color(0x1A000000), blurRadius: 3, offset: Offset(0, 1)),
-      BoxShadow(
-        color: Color(0x1A000000),
-        blurRadius: 2,
-        spreadRadius: -1,
-        offset: Offset(0, 1),
-      ),
+      BoxShadow(color: Color(0x0F0F172A), blurRadius: 18, offset: Offset(0, 6)),
+      BoxShadow(color: Color(0x0A0F172A), blurRadius: 3, offset: Offset(0, 1)),
     ],
     palette: palette,
   );
@@ -326,17 +321,17 @@ class VfSize {
   static const radiusXs = 4.0;
   static const radiusS = 6.0;
   static const radiusM = 8.0;
-  static const radiusL = 10.0; // buttons, inputs, cards, panels
-  static const radiusXl = 14.0; // selection cards, sheets
-  static const radiusCard = 16.0; // the create-voucher cards
+  static const radiusL = 14.0; // buttons, inputs, cards, panels
+  static const radiusXl = 20.0; // selection cards, sheets
+  static const radiusCard = 20.0; // the create-voucher cards
   static const radiusPill = 999.0;
 
-  static const controlH = 44.0; // buttons (web 40–48; taller for touch)
-  static const inputH = 48.0;
-  static const topBarH = 64.0;
-  static const tabBarH = 64.0;
+  static const controlH = 48.0; // buttons, tall for touch
+  static const inputH = 52.0;
+  static const topBarH = 60.0;
+  static const tabBarH = 68.0;
 
-  static const pagePad = 16.0; // the web's phone gutter
+  static const pagePad = 18.0; // the phone gutter
   static const gap = 12.0;
   static const cardPad = 16.0;
 
@@ -467,7 +462,7 @@ class VfTheme {
   static const rSm = VfSize.radiusS;
   static const rMd = VfSize.radiusL;
   static const rLg = VfSize.radiusXl;
-  static const rXl = 18.0;
+  static const rXl = 28.0;
 
   /// The ink a primary button paints on itself: white, as on the web.
   static Color onPrimary(BuildContext context) => Colors.white;
@@ -528,14 +523,14 @@ class VfTheme {
       ),
       iconTheme: IconThemeData(color: t.text2, size: VfSize.iconM),
       appBarTheme: AppBarTheme(
-        backgroundColor: t.chrome,
+        backgroundColor: t.background,
         surfaceTintColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: t.text,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: false,
-        titleTextStyle: VfType.cardTitle.copyWith(color: Colors.white),
-        iconTheme: const IconThemeData(color: Color(0xFFCBD5E1)),
+        centerTitle: true,
+        titleTextStyle: VfType.cardTitle.copyWith(color: t.text, fontSize: 17),
+        iconTheme: IconThemeData(color: t.text),
       ),
       cardTheme: CardThemeData(
         color: t.surface,

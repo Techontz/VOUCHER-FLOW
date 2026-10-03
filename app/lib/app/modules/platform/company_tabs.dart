@@ -830,12 +830,17 @@ class InterfacePreview extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
-          Text(
-            number,
-            style: VfType.meta.copyWith(
-              fontSize: 11.5,
-              color: p.text,
-              fontFeatures: const [FontFeature.tabularFigures()],
+          Flexible(
+            flex: 4,
+            child: Text(
+              number,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: VfType.meta.copyWith(
+                fontSize: 11.5,
+                color: p.text,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
           const SizedBox(width: 6),

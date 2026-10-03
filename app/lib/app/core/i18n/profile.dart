@@ -72,6 +72,11 @@ const Map<String, String> profileEn = {
   'profile.light': 'Light',
   'profile.dark': 'Dark',
   'profile.languageBody': 'The language of the interface.',
+  'profile.group.account': 'Account',
+  'profile.group.preferences': 'Preferences',
+  'profile.darkMode': 'Dark mode',
+  'profile.sigOn': 'Saved',
+  'profile.sigOff': 'Not set',
 };
 
 const Map<String, String> profileSw = {
@@ -141,4 +146,9 @@ const Map<String, String> profileSw = {
   'profile.light': 'Mwanga',
   'profile.dark': 'Giza',
   'profile.languageBody': 'Lugha ya kiolesura.',
+  'profile.group.account': 'Akaunti',
+  'profile.group.preferences': 'Mapendeleo',
+  'profile.darkMode': 'Hali ya giza',
+  'profile.sigOn': 'Imehifadhiwa',
+  'profile.sigOff': 'Haijawekwa',
 };

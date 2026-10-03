@@ -229,6 +229,17 @@ class VoucherRepository {
     );
   }
 
+  /// The voucher as the server renders it in the company's design — the same
+  /// HTML the website shows (logo, stamps and the PAID / REJECTED mark).
+  Future<String> documentHtml(int id) async {
+    final payload = await _api.get('/vouchers/$id/document');
+    final html = payload is Map ? payload['html'] : null;
+    if (html is! String || html.isEmpty) {
+      throw ApiException(500, 'No document.');
+    }
+    return html;
+  }
+
   Future<Uint8List> pdf(int id, {bool download = false}) async =>
       Uint8List.fromList(
         await _api.bytes('/vouchers/$id/pdf${download ? '/download' : ''}'),

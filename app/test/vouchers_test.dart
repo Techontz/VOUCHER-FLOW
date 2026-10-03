@@ -31,9 +31,9 @@ Future<MockApi> _signIn(String email) async {
   return mock;
 }
 
-Widget _app(Widget home, {ThemeMode mode = ThemeMode.dark}) => GetMaterialApp(
+Widget _app(Widget home, {ThemeMode mode = ThemeMode.dark, Locale locale = const Locale('en')}) => GetMaterialApp(
   translations: VfTranslations(),
-  locale: const Locale('en'),
+  locale: locale,
   theme: VfTheme.light(),
   darkTheme: VfTheme.dark(),
   themeMode: mode,
@@ -107,14 +107,24 @@ void main() {
     await _settle(tester);
     expect(tester.takeException(), isNull);
     expect(find.text('Voucher register'), findsOneWidget);
-    expect(find.text('Create voucher'), findsWidgets);
+    // Creating lives on the tab bar's centre button, not on the page.
+    expect(find.text('Create voucher'), findsNothing);
+    expect(find.byTooltip('Export'), findsOneWidget);
 
-    // Status pills and the filters sheet.
+    // Status chips and the filters sheet behind the round filter button.
     await tester.tap(find.text('Drafts'));
     await _settle(tester);
-    await tester.tap(find.text('Filters'));
+    await tester.tap(find.byTooltip('Filters'));
     await _settle(tester);
     expect(find.text('Voucher format'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    Navigator.of(tester.element(find.text('Voucher format'))).pop();
+    await _settle(tester);
+
+    // The export formats sit in a sheet behind the round export button.
+    await tester.tap(find.byTooltip('Export'));
+    await _settle(tester);
+    expect(find.text('Excel (.xlsx)'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -141,12 +151,14 @@ void main() {
     await _settle(tester);
     expect(find.text('What kind of voucher?'), findsOneWidget);
     expect(find.text('Bank Voucher'), findsOneWidget);
+    expect(find.text('Step 1 of 5'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     // Details refuses to pass without a payee and purpose.
     await tester.tap(find.text('Next'));
     await _settle(tester);
-    expect(find.text('Who is being paid, and what for.'), findsOneWidget);
+    expect(find.text('Who are you paying?'), findsOneWidget);
+    expect(find.text('Step 2 of 5'), findsOneWidget);
     await tester.tap(find.text('Next'));
     await _settle(tester);
     expect(find.text('This is required.'), findsNWidgets(2));
@@ -156,7 +168,8 @@ void main() {
     c.purpose.text = 'Vehicle fuel expenses for the September field programme';
     await tester.tap(find.text('Next'));
     await _settle(tester);
-    expect(find.text('How much, and the account it goes into.'), findsOneWidget);
+    expect(find.text('How much?'), findsOneWidget);
+    expect(find.text('Payee bank'), findsOneWidget);
     c.amount.text = '450000';
     await _settle(tester);
     expect(find.text('Four hundred Fifty thousand shillings only'), findsOneWidget);
@@ -169,6 +182,7 @@ void main() {
     await _settle(tester);
     expect(find.text('Review voucher'), findsOneWidget);
     expect(find.text('Submit voucher'), findsOneWidget);
+    expect(find.text('Total'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     // Cash asks for the float instead of a bank account.
@@ -177,6 +191,25 @@ void main() {
     await _settle(tester);
     expect(find.text('Pay from'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the create flow holds in Swahili and light mode at 320px', (tester) async {
+    await tester.runAsync(() => _signIn('frank@watercom.test'));
+    await _size(tester, 320, 640);
+    final c = Get.put(CreateVoucherController());
+    await tester.pumpWidget(_app(const CreateVoucherPage(), mode: ThemeMode.light, locale: const Locale('sw')));
+    await _settle(tester);
+    expect(find.text('Hatua 1 kati ya 5'), findsOneWidget);
+    c.payee.text = 'Puma Energy Tanzania Limited';
+    c.purpose.text = 'Mafuta ya magari';
+    c.amount.text = '450000';
+    for (var step = 1; step <= 4; step++) {
+      c.go(step);
+      await _settle(tester);
+      expect(tester.takeException(), isNull, reason: 'step ${step + 1}');
+    }
+    expect(find.text('Tuma vocha'), findsOneWidget);
+    expect(find.text('Jumla'), findsOneWidget);
   });
 
   testWidgets('the edit form loads a draft at 360px', (tester) async {

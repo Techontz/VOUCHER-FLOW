@@ -60,7 +60,7 @@ void main() {
   Future<void> signIn(WidgetTester tester, String email) async {
     await settle(tester);
     if (find.byType(FloatingActionButton).evaluate().isNotEmpty ||
-        find.byType(NavigationBar).evaluate().isNotEmpty) {
+        find.byType(ShellPage).evaluate().isNotEmpty) {
       // Already inside the app — drop the session and come back to login.
       Get.offAllNamed('/login');
       await settle(tester);
@@ -81,7 +81,7 @@ void main() {
 
       // ── employee ──
       await signIn(tester, 'frank@watercom.test');
-      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(ShellPage), findsOneWidget);
       expect(
         find.textContaining('need your attention'),
         findsWidgets,

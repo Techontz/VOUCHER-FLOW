@@ -40,10 +40,7 @@ class VouchFlowCard extends StatelessWidget {
       children: [
         if (hasHead)
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-            decoration: BoxDecoration(
-              border: child == null ? null : Border(bottom: BorderSide(color: t.border)),
-            ),
+            padding: EdgeInsets.fromLTRB(16, 16, 12, child == null ? 16 : 4),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -53,10 +50,6 @@ class VouchFlowCard extends StatelessWidget {
                     children: [
                       if (title != null)
                         Text(title!, style: VfType.sectionTitle.copyWith(color: t.text, fontSize: 17)),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        Text(subtitle!, style: VfType.small.copyWith(color: t.text2)),
-                      ],
                     ],
                   ),
                 ),
@@ -72,7 +65,9 @@ class VouchFlowCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? t.surface,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: borderColor ?? t.border),
+        border: Border.all(
+          color: borderColor ?? (t.isDark ? t.border : Colors.transparent),
+        ),
         boxShadow: t.cardShadow,
       ),
       child: Material(
@@ -130,17 +125,18 @@ class VouchFlowPageHeader extends StatelessWidget {
               ),
             ),
           ),
-        if (kicker != null) ...[
-          Text(kicker!.toUpperCase(), style: VfType.eyebrow.copyWith(color: t.muted)),
-          const SizedBox(height: 6),
-        ],
-        Text(title, style: VfType.pageTitle.copyWith(color: t.text)),
-        if (subtitle != null) ...[
-          const SizedBox(height: 6),
-          Text(subtitle!, style: VfType.body.copyWith(color: t.text2)),
-        ],
+        // An app shows the title alone: the kicker and the explanatory line
+        // the web prints under it are left out on the phone.
+        Text(
+          title,
+          style: VfType.pageTitle.copyWith(
+            color: t.text,
+            fontSize: 28,
+            letterSpacing: -.7,
+          ),
+        ),
         if (actions != null && actions!.isNotEmpty) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Wrap(spacing: 10, runSpacing: 10, children: actions!),
         ],
       ],
@@ -167,10 +163,6 @@ class VouchFlowSectionHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: VfType.sectionTitle.copyWith(color: t.text)),
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(subtitle!, style: VfType.small.copyWith(color: t.muted)),
-              ],
             ],
           ),
         ),
@@ -303,6 +295,7 @@ class VouchFlowStatCard extends StatelessWidget {
     final figure = tone == VfTone.primary || tone == VfTone.neutral ? t.text : fg;
     return VouchFlowCard(
       onTap: onTap,
+      radius: VfSize.radiusXl,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,10 +387,10 @@ class VouchFlowEmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(color: t.surface3, shape: BoxShape.circle),
-            child: Icon(icon, size: 26, color: t.muted),
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(color: t.primarySoft, shape: BoxShape.circle),
+            child: Icon(icon, size: 32, color: t.primary),
           ),
           const SizedBox(height: 14),
           Text(title, textAlign: TextAlign.center, style: VfType.cardTitle.copyWith(color: t.text)),
@@ -453,8 +446,7 @@ class _VouchFlowLoadingStateState extends State<VouchFlowLoadingState> with Sing
                   margin: const EdgeInsets.only(bottom: VfSize.gap),
                   decoration: BoxDecoration(
                     color: c,
-                    borderRadius: BorderRadius.circular(VfSize.radiusL),
-                    border: Border.all(color: t.border),
+                    borderRadius: BorderRadius.circular(VfSize.radiusXl),
                   ),
                 ),
             ],

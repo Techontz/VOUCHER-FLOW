@@ -47,6 +47,12 @@ class SessionService extends GetxService {
     Get.changeThemeMode(themeMode.value);
     applyAccent(_api.accent, persist: false);
     _api.onUnauthorised.add(() => _clear());
+    // A refusal because the company awaits approval: re-read the account so
+    // the shell swaps to the waiting screen.
+    _api.onCompanyPending.add(() {
+      if (company.value?.isPending == true) return;
+      refresh().catchError((_) {});
+    });
 
     // Development only (profile web builds): sign in with a given token.
     if (DevHooks.token != null) await _api.setToken(DevHooks.token);

@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -7,93 +5,129 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme.dart';
 import '../../data/models/profile_models.dart';
 import '../../widgets/vf/vf.dart';
+import '../approvals/list_bits.dart';
 import '../dashboard/dash_bits.dart' show dashDateTime;
 
-/// A `.vf-panel` holding a form, with the web's `.app-form-foot` below.
-class ProfilePanel extends StatelessWidget {
-  const ProfilePanel({super.key, required this.child, this.footer});
+export '../approvals/list_bits.dart' show AppListGroup, AppIconTile;
 
-  final Widget child;
-  final Widget? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.border),
-        boxShadow: t.cardShadow,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(padding: const EdgeInsets.all(16), child: child),
-          ?footer,
-        ],
-      ),
-    );
-  }
-}
-
-/// The form's foot: a secondary action at the start, the primary at the end.
-class ProfileFormFoot extends StatelessWidget {
-  const ProfileFormFoot({super.key, this.start, required this.end});
-
-  final Widget? start;
-  final Widget end;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: t.surface2,
-        border: Border(top: BorderSide(color: t.border)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          if (start != null) Flexible(child: start!) else const SizedBox(),
-          const SizedBox(width: 10),
-          Flexible(flex: 2, child: end),
-        ],
-      ),
-    );
-  }
-}
-
-/// The web's `FormSection`: a heading, a line of explanation, the fields.
-class ProfileFormSection extends StatelessWidget {
-  const ProfileFormSection({
+/// One settings row: a tinted icon tile, the label, an optional value or
+/// control on the right, and a chevron when it opens something.
+class ProfileSettingsRow extends StatelessWidget {
+  const ProfileSettingsRow({
     super.key,
-    required this.title,
-    this.description,
-    required this.children,
+    required this.icon,
+    required this.label,
+    required this.tint,
+    this.value,
+    this.trailing,
+    this.onTap,
+    this.danger = false,
+    this.chevron = true,
   });
 
-  final String title;
-  final String? description;
+  final IconData icon;
+  final String label;
+
+  /// (foreground, background) of the icon tile.
+  final (Color, Color) tint;
+  final String? value;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool danger;
+  final bool chevron;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final (fg, bg) = tint;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 60),
+        padding: const EdgeInsets.fromLTRB(14, 8, 12, 8),
+        child: Row(
+          children: [
+            AppIconTile(icon: icon, fg: fg, bg: bg, size: 36),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: VfType.body.copyWith(
+                  color: danger ? t.dangerStrong : t.text,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (value != null) ...[
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  value!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: VfType.small.copyWith(color: t.muted),
+                ),
+              ),
+            ],
+            if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+            if (chevron && onTap != null && !danger) ...[
+              const SizedBox(width: 4),
+              Icon(PhosphorIconsRegular.caretRight, size: 18, color: t.faint),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A form's fields on a rounded card, evenly spaced.
+class ProfileFormCard extends StatelessWidget {
+  const ProfileFormCard({super.key, required this.children});
+
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(title, style: VfType.cardTitle.copyWith(color: t.text)),
-        if (description != null) ...[
-          const SizedBox(height: 4),
-          Text(description!, style: VfType.small.copyWith(color: t.muted)),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(VfSize.radiusXl),
+        border: Border.all(color: t.isDark ? t.border : Colors.transparent),
+        boxShadow: t.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 16),
+            children[i],
+          ],
         ],
-        for (final child in children) ...[const SizedBox(height: 16), child],
-      ],
+      ),
     );
   }
+}
+
+/// A pushed profile page's scrolling body, its primary action last.
+class ProfilePageBody extends StatelessWidget {
+  const ProfilePageBody({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: ListView(
+      padding: const EdgeInsets.fromLTRB(VfSize.pagePad, 8, VfSize.pagePad, 28),
+      children: children,
+    ),
+  );
 }
 
 /// Two fields side by side where there is room; stacked on a phone.
@@ -128,69 +162,7 @@ class ProfileFormRow extends StatelessWidget {
   );
 }
 
-/// A file input: a "Choose" button, then the file's name (and a preview).
-class ProfileFilePicker extends StatelessWidget {
-  const ProfileFilePicker({
-    super.key,
-    required this.buttonLabel,
-    required this.fileName,
-    required this.onPick,
-    this.preview,
-  });
-
-  final String buttonLabel;
-  final String fileName;
-  final VoidCallback onPick;
-  final Uint8List? preview;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: t.inputBg,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.inputBorder),
-      ),
-      child: Row(
-        children: [
-          VouchFlowButton(
-            label: buttonLabel,
-            icon: PhosphorIconsRegular.uploadSimple,
-            variant: VfButtonVariant.secondary,
-            compact: true,
-            onPressed: onPick,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              fileName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: VfType.small.copyWith(color: t.muted),
-            ),
-          ),
-          if (preview != null) ...[
-            const SizedBox(width: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(VfSize.radiusS),
-              child: Image.memory(
-                preview!,
-                width: 36,
-                height: 36,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// The web's `.seg`: a pill of mutually exclusive choices.
+/// A pill of mutually exclusive choices, filling the width.
 class ProfileSegmented<T> extends StatelessWidget {
   const ProfileSegmented({
     super.key,
@@ -208,57 +180,56 @@ class ProfileSegmented<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: t.surface3,
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
-          border: Border.all(color: t.border),
-        ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final o in options)
-                Semantics(
-                  selected: o.$1 == value,
-                  button: true,
-                  enabled: o.$4,
-                  child: Material(
-                    color: o.$1 == value ? t.surface : Colors.transparent,
-                    borderRadius: BorderRadius.circular(VfSize.radiusM),
-                    elevation: 0,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(VfSize.radiusM),
-                      onTap: o.$4 ? () => onChanged(o.$1) : null,
-                      child: Container(
-                        constraints: const BoxConstraints(minHeight: 40),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: o.$1 == value
-                            ? BoxDecoration(
-                                borderRadius: BorderRadius.circular(
-                                  VfSize.radiusM,
-                                ),
-                                boxShadow: t.cardShadow,
-                              )
-                            : null,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (o.$3 != null) ...[
-                              Icon(
-                                o.$3,
-                                size: 16,
-                                color: o.$1 == value ? t.text : t.muted,
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: t.surface3,
+        borderRadius: BorderRadius.circular(VfSize.radiusL),
+      ),
+      child: Row(
+        children: [
+          for (final o in options)
+            Expanded(
+              child: Semantics(
+                selected: o.$1 == value,
+                button: true,
+                enabled: o.$4,
+                child: Material(
+                  color: o.$1 == value ? t.surface : Colors.transparent,
+                  borderRadius: BorderRadius.circular(VfSize.radiusM + 2),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(VfSize.radiusM + 2),
+                    onTap: o.$4 ? () => onChanged(o.$1) : null,
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      alignment: Alignment.center,
+                      decoration: o.$1 == value
+                          ? BoxDecoration(
+                              borderRadius: BorderRadius.circular(
+                                VfSize.radiusM + 2,
                               ),
-                              const SizedBox(width: 6),
-                            ],
-                            Text(
+                              boxShadow: t.cardShadow,
+                            )
+                          : null,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (o.$3 != null) ...[
+                            Icon(
+                              o.$3,
+                              size: 16,
+                              color: o.$1 == value ? t.text : t.muted,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Flexible(
+                            child: Text(
                               o.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: VfType.label.copyWith(
+                                fontSize: 13.5,
                                 color: !o.$4
                                     ? t.faint
                                     : o.$1 == value
@@ -269,15 +240,15 @@ class ProfileSegmented<T> extends StatelessWidget {
                                     : FontWeight.w500,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -285,40 +256,33 @@ class ProfileSegmented<T> extends StatelessWidget {
 
 /// One signed-in device, with Revoke — or "This device".
 class SessionRow extends StatelessWidget {
-  const SessionRow({
-    super.key,
-    required this.session,
-    required this.onRevoke,
-    this.last = false,
-  });
+  const SessionRow({super.key, required this.session, required this.onRevoke});
 
   final ProfileSession session;
   final VoidCallback onRevoke;
-  final bool last;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
     final s = session;
-    final name = s.isCurrent
-        ? '${s.device} · ${'profile.thisDevice'.tr}'
-        : s.device;
     return Container(
-      constraints: const BoxConstraints(minHeight: 56),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        border: last ? null : Border(bottom: BorderSide(color: t.border)),
-      ),
+      constraints: const BoxConstraints(minHeight: 64),
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
       child: Row(
         children: [
-          Icon(PhosphorIconsRegular.deviceMobile, size: 18, color: t.muted),
-          const SizedBox(width: 10),
+          AppIconTile(
+            icon: PhosphorIconsFill.deviceMobile,
+            fg: s.isCurrent ? t.successStrong : t.text2,
+            bg: s.isCurrent ? t.successSoft : t.surface3,
+            size: 40,
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  s.device,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: VfType.body.copyWith(
@@ -328,7 +292,7 @@ class SessionRow extends StatelessWidget {
                 ),
                 Text(
                   dashDateTime(s.lastUsedAt ?? s.createdAt),
-                  style: VfType.meta.copyWith(color: t.muted, fontSize: 13),
+                  style: VfType.meta.copyWith(color: t.muted, fontSize: 12.5),
                 ),
               ],
             ),
@@ -340,11 +304,15 @@ class SessionRow extends StatelessWidget {
               tag: 'tag-accent',
             )
           else
-            VouchFlowButton(
-              label: 'profile.revoke'.tr,
-              variant: VfButtonVariant.ghost,
-              compact: true,
+            TextButton(
               onPressed: onRevoke,
+              child: Text(
+                'profile.revoke'.tr,
+                style: VfType.label.copyWith(
+                  color: t.dangerStrong,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
         ],
       ),

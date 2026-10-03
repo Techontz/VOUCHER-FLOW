@@ -280,6 +280,10 @@ class VoucherDetailController extends GetxController {
           final shot = await ImagePicker().pickImage(
             source: ImageSource.camera,
             imageQuality: 85,
+            // A camera photo can be 5–12 MB; 2000px keeps a signed sheet
+            // legible and well under the server's upload limit.
+            maxWidth: 2000,
+            maxHeight: 2000,
           );
           if (shot != null) {
             picked.add(PickedDoc(shot.name, await shot.readAsBytes()));
@@ -288,6 +292,10 @@ class VoucherDetailController extends GetxController {
           if (multiple) {
             for (final image in await ImagePicker().pickMultiImage(
               imageQuality: 85,
+              // A camera photo can be 5–12 MB; 2000px keeps a signed sheet
+              // legible and well under the server's upload limit.
+              maxWidth: 2000,
+              maxHeight: 2000,
             )) {
               picked.add(PickedDoc(image.name, await image.readAsBytes()));
             }
@@ -295,6 +303,10 @@ class VoucherDetailController extends GetxController {
             final image = await ImagePicker().pickImage(
               source: ImageSource.gallery,
               imageQuality: 85,
+              // A camera photo can be 5–12 MB; 2000px keeps a signed sheet
+              // legible and well under the server's upload limit.
+              maxWidth: 2000,
+              maxHeight: 2000,
             );
             if (image != null) {
               picked.add(PickedDoc(image.name, await image.readAsBytes()));

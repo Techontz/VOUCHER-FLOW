@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
+import 'voucher_card.dart';
 import '../../data/models/detail_models.dart';
 import '../../data/models/models.dart';
 import '../../data/services/session_service.dart';
@@ -55,8 +56,8 @@ class VoucherStatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(VfSize.radiusPill),
       ),
       child: Text(
-        voucher.statusLabel,
-        maxLines: 2,
+        large ? voucher.statusLabel : voucherShortStatus(voucher),
+        maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: VfType.meta.copyWith(
           fontSize: large ? 13 : 12.5,
@@ -132,7 +133,8 @@ class CountPill extends StatelessWidget {
   }
 }
 
-/// A panel with the web's head (title, optional count and action) and body.
+/// A section of the voucher page: a short title (count, action) above a
+/// rounded card — the grouped lists of a native settings screen.
 class DetailPanel extends StatelessWidget {
   const DetailPanel({
     super.key,
@@ -152,53 +154,99 @@ class DetailPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return VouchFlowCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            constraints: const BoxConstraints(minHeight: 56),
-            padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: t.border)),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 36),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
             child: Row(
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: VfType.sectionTitle.copyWith(
-                            color: t.text,
-                            fontSize: 17,
-                          ),
-                        ),
-                      ),
-                      if ((count ?? 0) > 0) ...[
-                        const SizedBox(width: 8),
-                        CountPill(count!),
-                      ],
-                    ],
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.cardTitle.copyWith(color: t.text, fontSize: 17),
                   ),
                 ),
-                if (action != null) ...[const SizedBox(width: 8), action!],
+                if ((count ?? 0) > 0) ...[
+                  const SizedBox(width: 8),
+                  CountPill(count!),
+                ],
+                const Spacer(),
+                ?action,
               ],
             ),
           ),
-          Padding(padding: padding, child: child),
-        ],
+        ),
+        VouchFlowCard(
+          padding: padding,
+          radius: VfSize.radiusXl,
+          child: child,
+        ),
+      ],
+    );
+  }
+}
+
+/// A small tinted pill button for a section's action ("Add").
+class PanelAction extends StatelessWidget {
+  const PanelAction({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Material(
+      color: t.primarySoft,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: loading ? null : onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 7, 14, 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (loading)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: t.primaryText),
+                )
+              else
+                Icon(icon, size: 15, color: t.primaryText),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: VfType.label.copyWith(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: t.primaryText,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-/// A muted line with a leading icon (the web's `.app-muted-line`).
+/// A muted line with a leading icon (empty states inside a section).
 class MutedLine extends StatelessWidget {
   const MutedLine({super.key, required this.icon, required this.text});
 
@@ -224,7 +272,7 @@ class MutedLine extends StatelessWidget {
   }
 }
 
-/// A label/value row, label left and value right-aligned — the web's `.vf-dl-row`.
+/// A label/value row: label left, value right — one line of an info list.
 class DlRow extends StatelessWidget {
   const DlRow({
     super.key,
@@ -233,39 +281,181 @@ class DlRow extends StatelessWidget {
     this.mono = false,
     this.strong = false,
     this.valueColor,
+    this.icon,
+    this.stacked = false,
   });
 
   final String label;
   final String? value;
   final bool mono, strong;
   final Color? valueColor;
+  final IconData? icon;
+
+  /// Long text (a description, notes): the value under its label.
+  final bool stacked;
+
+  bool get isEmpty => value == null || value!.trim().isEmpty || value == 'null';
 
   @override
   Widget build(BuildContext context) {
-    final v = value;
-    if (v == null || v.trim().isEmpty) return const SizedBox.shrink();
+    if (isEmpty) return const SizedBox.shrink();
     final t = context.vf;
+    final labelText = Text(
+      label,
+      style: VfType.small.copyWith(color: t.muted, fontSize: 14),
+    );
+    final valueStyle = (strong ? VfType.bodyStrong : VfType.body).copyWith(
+      fontSize: 14.5,
+      fontWeight: strong ? FontWeight.w600 : FontWeight.w500,
+      color: valueColor ?? t.text,
+      height: 1.4,
+      fontFeatures: mono ? _tabular : null,
+    );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: stacked ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
-          Expanded(
-            flex: 42,
-            child: Text(label, style: VfType.small.copyWith(color: t.muted)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 58,
-            child: Text(
-              v,
-              style: (strong ? VfType.bodyStrong : VfType.body).copyWith(
-                fontSize: 14.5,
-                color: valueColor ?? t.text,
-                fontFeatures: mono ? _tabular : null,
+          if (icon != null) ...[
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: t.surface3,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 17, color: t.text2),
+            ),
+            const SizedBox(width: 12),
+          ],
+          if (stacked)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  labelText,
+                  const SizedBox(height: 2),
+                  Text(value!, style: valueStyle),
+                ],
+              ),
+            )
+          else ...[
+            Flexible(flex: 5, child: labelText),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 6,
+              child: Text(value!, textAlign: TextAlign.right, style: valueStyle),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Rows with inset dividers between them; empty rows drop out.
+class InfoList extends StatelessWidget {
+  const InfoList({super.key, required this.rows});
+
+  final List<DlRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final shown = rows.where((r) => !r.isEmpty).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < shown.length; i++) ...[
+          if (i > 0)
+            Divider(
+              height: 1,
+              thickness: 1,
+              indent: shown[i].icon != null ? 44 : 0,
+              color: t.border.withValues(alpha: t.isDark ? 1 : .7),
+            ),
+          shown[i],
+        ],
+      ],
+    );
+  }
+}
+
+/// A folded section: a tappable card row with an icon tile and a chevron.
+class DetailDisclosure extends StatefulWidget {
+  const DetailDisclosure({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.builder,
+  });
+
+  final String title;
+  final IconData icon;
+
+  /// Built on first open, kept afterwards.
+  final WidgetBuilder builder;
+
+  @override
+  State<DetailDisclosure> createState() => _DetailDisclosureState();
+}
+
+class _DetailDisclosureState extends State<DetailDisclosure> {
+  bool open = false;
+  bool opened = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return VouchFlowCard(
+      padding: EdgeInsets.zero,
+      radius: VfSize.radiusXl,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            button: true,
+            expanded: open,
+            child: InkWell(
+              onTap: () => setState(() {
+                open = !open;
+                opened = true;
+              }),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: t.surface3,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(widget.icon, size: 18, color: t.text2),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: VfType.bodyStrong.copyWith(color: t.text),
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: open ? .25 : 0,
+                      duration: const Duration(milliseconds: 160),
+                      child: Icon(
+                        PhosphorIconsBold.caretRight,
+                        size: 15,
+                        color: t.faint,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+          if (opened) Offstage(offstage: !open, child: widget.builder(context)),
         ],
       ),
     );
@@ -640,43 +830,44 @@ class ApprovalTrack extends StatelessWidget {
         row.person != 'null';
     final signature = decodeSignature(row.signature);
 
+    Widget circle(Color bg, Widget? child, {List<BoxShadow>? glow, Border? border}) =>
+        Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            shape: BoxShape.circle,
+            border: border,
+            boxShadow: glow,
+          ),
+          child: child,
+        );
     final Widget mark = switch (state) {
-      'done' => Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(color: t.successSoft, shape: BoxShape.circle),
-        child: Icon(PhosphorIconsBold.check, size: 14, color: t.successStrong),
+      'done' => circle(
+        t.successStrong,
+        const Icon(PhosphorIconsBold.check, size: 14, color: Colors.white),
       ),
-      'rejected' => Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(color: t.dangerSoft, shape: BoxShape.circle),
-        child: Icon(PhosphorIconsBold.x, size: 14, color: t.dangerStrong),
+      'rejected' => circle(
+        t.dangerStrong,
+        const Icon(PhosphorIconsBold.x, size: 14, color: Colors.white),
       ),
-      'current' => Container(
-        width: 28,
-        height: 28,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: t.surface,
-          shape: BoxShape.circle,
-          border: Border.all(color: t.primary, width: 1.5),
-          boxShadow: [BoxShadow(color: t.primarySoft, spreadRadius: 4)],
-        ),
-        child: Container(
+      'current' => circle(
+        t.primary,
+        Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(color: t.primary, shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
         ),
+        glow: [BoxShadow(color: t.primarySoftStrong, spreadRadius: 5)],
       ),
-      _ => Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: t.surface,
-          shape: BoxShape.circle,
-          border: Border.all(color: t.borderStrong, width: 1.5),
-        ),
+      _ => circle(
+        t.surface,
+        null,
+        border: Border.all(color: t.borderStrong, width: 2),
       ),
     };
 
@@ -685,18 +876,21 @@ class ApprovalTrack extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: 28,
+            width: 30,
             child: Column(
               children: [
                 mark,
                 if (!last)
                   Expanded(
                     child: Container(
-                      width: 1.5,
-                      margin: const EdgeInsets.only(top: 2),
-                      color: state == 'done'
-                          ? t.successStrong.withValues(alpha: .5)
-                          : t.border,
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        color: state == 'done'
+                            ? t.successStrong.withValues(alpha: .55)
+                            : t.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
               ],
@@ -705,7 +899,7 @@ class ApprovalTrack extends StatelessWidget {
           const SizedBox(width: 14),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: last ? 0 : 20, top: 3),
+              padding: EdgeInsets.only(bottom: last ? 0 : 18, top: 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -758,8 +952,7 @@ class ApprovalTrack extends StatelessWidget {
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: VfDoc.paper,
-                        borderRadius: BorderRadius.circular(VfSize.radiusS),
-                        border: Border.all(color: t.border),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Image.memory(
                         signature,
@@ -771,12 +964,14 @@ class ApprovalTrack extends StatelessWidget {
                     Container(
                       margin: const EdgeInsets.only(top: 8),
                       width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
                       decoration: BoxDecoration(
-                        color: t.surface2,
-                        borderRadius: BorderRadius.circular(VfSize.radiusM),
-                        border: Border(
-                          left: BorderSide(color: t.borderStrong, width: 2),
+                        color: t.surface3,
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(14),
+                          bottomLeft: Radius.circular(14),
+                          bottomRight: Radius.circular(14),
+                          topLeft: Radius.circular(4),
                         ),
                       ),
                       child: Text(

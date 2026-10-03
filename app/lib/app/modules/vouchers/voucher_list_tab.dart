@@ -222,81 +222,117 @@ class VoucherListTab extends StatelessWidget {
     controller.load();
   }
 
+  static const _gutter = EdgeInsets.symmetric(horizontal: VfSize.pagePad);
+
   @override
   Widget build(BuildContext context) {
+    final t = context.vf;
     final c = controller;
     return RefreshIndicator(
       onRefresh: c.load,
       child: ListView(
         controller: c.scroll,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          VfSize.pagePad,
-          20,
-          VfSize.pagePad,
-          32,
-        ),
+        padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
         children: [
-          VouchFlowPageHeader(
-            title: c.isEmployee
-                ? 'vouchers.myVouchers'.tr
-                : 'vouchers.register'.tr,
-            subtitle: c.isEmployee ? 'vouchers.myVouchersSub'.tr : null,
+          Padding(
+            padding: _gutter,
+            child: Text(
+              c.isEmployee
+                  ? 'vouchers.myVouchers'.tr
+                  : 'vouchers.register'.tr,
+              style: VfType.pageTitle.copyWith(color: t.text),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: _gutter,
+            child: Row(
+              children: [
+                Expanded(child: _PillSearch(controller: c)),
+                const SizedBox(width: 10),
+                Obx(
+                  () => _RoundButton(
+                    icon: PhosphorIconsRegular.slidersHorizontal,
+                    tooltip: 'vouchers.filters'.tr,
+                    badge: c.activeFilters,
+                    onTap: () => _openFilters(context),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Obx(
+                  () => _RoundButton(
+                    icon: PhosphorIconsRegular.export,
+                    tooltip: 'vouchers.export'.tr,
+                    loading: c.exporting.value != null,
+                    onTap: () => _exportMenu(context),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, box) {
-              final export = Obx(
-                () => VouchFlowButton(
-                  label: 'vouchers.exportThisList'.tr,
-                  icon: box.maxWidth < 400 && box.maxWidth >= 340 ? null : PhosphorIconsRegular.downloadSimple,
-                  trailingIcon: PhosphorIconsRegular.caretDown,
-                  variant: VfButtonVariant.secondary,
-                  expand: box.maxWidth < 340,
-                  loading: c.exporting.value != null,
-                  onPressed: () => _exportMenu(context),
+          _StatusChips(controller: c),
+          Obx(() {
+            final r = c.result.value;
+            if (r == null || r.rows.isEmpty) return const SizedBox(height: 14);
+            final money = r.totalAmount == null
+                ? null
+                : Fmt.money(
+                    r.totalAmount!,
+                    r.currency ?? c.session.company.value?.currency ?? 'TZS',
+                  );
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(
+                VfSize.pagePad + 4,
+                12,
+                VfSize.pagePad + 4,
+                10,
+              ),
+              child: Text(
+                [
+                  'vouchers.count'.trParams({
+                    'shown': '${r.rows.length}',
+                    'total': '${r.total}',
+                  }),
+                  ?money,
+                ].join(' · '),
+                style: VfType.meta.copyWith(
+                  color: t.muted,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
-              );
-              if (!c.canCreate) {
-                return Align(alignment: Alignment.centerLeft, child: export);
-              }
-              final create = VouchFlowButton(
-                label: 'vouchers.createVoucher'.tr,
-                icon: PhosphorIconsRegular.plus,
-                // Fills the row on a phone, keeps its own width on a tablet.
-                expand: box.maxWidth < 600,
-                onPressed: _create,
-              );
-              // Side by side as on the web; stacked on the narrowest phones.
-              if (box.maxWidth < 340) {
-                return Column(
-                  children: [export, const SizedBox(height: 10), create],
-                );
-              }
-              return Row(
-                children: [
-                  export,
-                  const SizedBox(width: 12),
-                  if (box.maxWidth < 600) Expanded(child: create) else create,
-                ],
-              );
-            },
+              ),
+            );
+          }),
+          Padding(
+            padding: _gutter,
+            child: _RegisterPanel(
+              controller: c,
+              onCreate: c.canCreate ? _create : null,
+            ),
           ),
-          const SizedBox(height: 18),
-          _FilterCard(controller: c),
-          const SizedBox(height: 16),
-          _RegisterPanel(controller: c, onCreate: c.canCreate ? _create : null),
         ],
       ),
     );
   }
 
+  /// PDF, Excel or CSV of exactly the rows the filters select.
   void _exportMenu(BuildContext context) {
     final t = context.vf;
     Widget item(IconData icon, String label, String format) => ListTile(
-      leading: Icon(icon, color: t.text2),
-      title: Text(label, style: VfType.body.copyWith(color: t.text)),
-      minTileHeight: 52,
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: t.primarySoft,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(icon, size: 21, color: t.primaryText),
+      ),
+      title: Text(label, style: VfType.bodyStrong.copyWith(color: t.text)),
+      trailing: Icon(PhosphorIconsRegular.caretRight, size: 16, color: t.faint),
+      minTileHeight: 60,
       onTap: () {
         Navigator.of(context).pop();
         controller.export(format);
@@ -304,7 +340,7 @@ class VoucherListTab extends StatelessWidget {
     );
     showVouchFlowBottomSheet(
       context,
-      title: 'vouchers.exportThisList'.tr,
+      title: 'vouchers.export'.tr,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -316,102 +352,6 @@ class VoucherListTab extends StatelessWidget {
           ),
           item(PhosphorIconsRegular.fileCsv, 'CSV', 'csv'),
           const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-}
-
-/// Search, the Filters sheet, "Showing N of M · total" and the status pills.
-class _FilterCard extends StatelessWidget {
-  const _FilterCard({required this.controller});
-
-  final VoucherListController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    final c = controller;
-    return VouchFlowCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          VouchFlowSearchField(
-            placeholder: 'vouchers.searchPh'.tr,
-            controller: c.search,
-            onChanged: c.onSearch,
-          ),
-          const SizedBox(height: 12),
-          Obx(() {
-            final r = c.result.value;
-            final n = c.activeFilters;
-            return Wrap(
-              spacing: 12,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                VouchFlowButton(
-                  label: '${'vouchers.filters'.tr}${n > 0 ? ' · $n' : ''}',
-                  icon: PhosphorIconsRegular.slidersHorizontal,
-                  variant: VfButtonVariant.secondary,
-                  onPressed: () => _openFilters(context),
-                ),
-                Text.rich(
-                  TextSpan(
-                    text:
-                        '${'vouchers.showing'.tr} ${r?.rows.length ?? 0} ${'vouchers.of'.tr} ${r?.total ?? 0}',
-                    children: [
-                      if (r?.totalAmount != null)
-                        TextSpan(
-                          text:
-                              ' · ${Fmt.money(r!.totalAmount!, r.currency ?? c.session.company.value?.currency ?? 'TZS')}',
-                          style: TextStyle(
-                            color: t.text,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                    ],
-                  ),
-                  style: VfType.small.copyWith(
-                    color: t.muted,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                if (c.hasFilters)
-                  VouchFlowButton(
-                    label: 'vouchers.clearFilters'.tr,
-                    icon: PhosphorIconsRegular.x,
-                    variant: VfButtonVariant.ghost,
-                    compact: true,
-                    onPressed: c.clearFilters,
-                  ),
-              ],
-            );
-          }),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 44,
-            child: Obx(() {
-              final total = c.result.value?.total;
-              return ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: registerStatuses.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, i) {
-                  final (value, key) = registerStatuses[i];
-                  final selected = c.status.value == value;
-                  return Center(
-                    child: VouchFlowFilterChip(
-                      label: key.tr,
-                      selected: selected,
-                      count: selected && !c.loading.value ? total : null,
-                      onTap: () => c.setStatus(value),
-                    ),
-                  );
-                },
-              );
-            }),
-          ),
         ],
       ),
     );
@@ -521,7 +461,227 @@ class _FilterCard extends StatelessWidget {
   }
 }
 
-/// The register itself: rows in one panel, then the pager.
+/// A pill search bar: filled, borderless, a magnifier and a clear button.
+class _PillSearch extends StatefulWidget {
+  const _PillSearch({required this.controller});
+
+  final VoucherListController controller;
+
+  @override
+  State<_PillSearch> createState() => _PillSearchState();
+}
+
+class _PillSearchState extends State<_PillSearch> {
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final c = widget.controller;
+    final pill = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(VfSize.radiusPill),
+      borderSide: BorderSide.none,
+    );
+    return SizedBox(
+      height: 48,
+      child: TextField(
+        controller: c.search,
+        onChanged: (v) {
+          setState(() {});
+          c.onSearch(v);
+        },
+        textInputAction: TextInputAction.search,
+        style: VfType.body.copyWith(color: t.text),
+        cursorColor: t.primary,
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: t.surface3,
+          hintText: 'vouchers.searchPh'.tr,
+          hintMaxLines: 1,
+          hintStyle: VfType.body.copyWith(color: t.muted),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          isDense: true,
+          border: pill,
+          enabledBorder: pill,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(VfSize.radiusPill),
+            borderSide: BorderSide(color: t.primary, width: 1.5),
+          ),
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(left: 14, right: 8),
+            child: Icon(
+              PhosphorIconsRegular.magnifyingGlass,
+              size: 19,
+              color: t.muted,
+            ),
+          ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 40),
+          suffixIcon: c.search.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: MaterialLocalizations.of(
+                    context,
+                  ).deleteButtonTooltip,
+                  icon: Icon(PhosphorIconsBold.x, size: 14, color: t.muted),
+                  onPressed: () {
+                    c.search.clear();
+                    setState(() {});
+                    c.onSearch('');
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A 48px round icon button beside the search bar, with a count badge.
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.badge = 0,
+    this.loading = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final int badge;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Tooltip(
+      message: tooltip,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Material(
+            color: badge > 0 ? t.primarySoft : t.surface3,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: loading ? null : onTap,
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: loading
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: t.primary,
+                          ),
+                        )
+                      : Icon(
+                          icon,
+                          size: 20,
+                          color: badge > 0 ? t.primaryText : t.text,
+                          semanticLabel: tooltip,
+                        ),
+                ),
+              ),
+            ),
+          ),
+          if (badge > 0)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 19),
+                height: 19,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: t.primary,
+                  borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                  border: Border.all(color: t.background, width: 2),
+                ),
+                child: Text(
+                  '$badge',
+                  style: VfType.meta.copyWith(
+                    fontSize: 10.5,
+                    height: 1,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The status chips in one swipeable row; a Clear chip leads while any
+/// filter is on.
+class _StatusChips extends StatelessWidget {
+  const _StatusChips({required this.controller});
+
+  final VoucherListController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final c = controller;
+    return SizedBox(
+      height: 42,
+      child: Obx(() {
+        final total = c.result.value?.total;
+        final clear = c.hasFilters;
+        return ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: VfSize.pagePad),
+          itemCount: registerStatuses.length + (clear ? 1 : 0),
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (_, i) {
+            if (clear && i == 0) {
+              return Center(
+                child: Tooltip(
+                  message: 'vouchers.clearFilters'.tr,
+                  child: Material(
+                    color: t.dangerSoft,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: c.clearFilters,
+                      child: SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Icon(
+                          PhosphorIconsBold.x,
+                          size: 15,
+                          color: t.dangerStrong,
+                          semanticLabel: 'vouchers.clearFilters'.tr,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+            final (value, key) = registerStatuses[i - (clear ? 1 : 0)];
+            final selected = c.status.value == value;
+            return Center(
+              child: VouchFlowFilterChip(
+                label: key.tr,
+                selected: selected,
+                count: selected && !c.loading.value ? total : null,
+                onTap: () => c.setStatus(value),
+              ),
+            );
+          },
+        );
+      }),
+    );
+  }
+}
+
+/// The register itself: rows grouped in one rounded card, then the pager.
 class _RegisterPanel extends StatelessWidget {
   const _RegisterPanel({required this.controller, this.onCreate});
 
@@ -544,18 +704,21 @@ class _RegisterPanel extends StatelessWidget {
         );
       }
       if (r == null) {
-        return const VouchFlowLoadingState(rows: 5, rowHeight: 128);
+        return const VouchFlowLoadingState(rows: 6, rowHeight: 72);
       }
 
       if (rows.isEmpty) {
         final filtered = c.hasFilters;
         return VouchFlowCard(
           padding: EdgeInsets.zero,
+          radius: VfSize.radiusXl,
           child: VouchFlowEmptyState(
+            icon: filtered
+                ? PhosphorIconsRegular.funnelSimple
+                : PhosphorIconsRegular.receipt,
             title: filtered
                 ? 'vouchers.noResults'.tr
                 : 'vouchers.noVouchersYet'.tr,
-            body: filtered ? null : 'vouchers.noVouchersBody'.tr,
             actionLabel: filtered
                 ? 'vouchers.clearFilters'.tr
                 : (onCreate != null ? 'vouchers.createVoucher'.tr : null),
@@ -580,12 +743,19 @@ class _RegisterPanel extends StatelessWidget {
             opacity: c.loading.value ? .55 : 1,
             child: VouchFlowCard(
               padding: EdgeInsets.zero,
+              radius: VfSize.radiusXl,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (var i = 0; i < rows.length; i++) ...[
                     if (i > 0)
-                      Divider(height: 1, thickness: 1, color: t.border),
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 70,
+                        endIndent: 14,
+                        color: t.border.withValues(alpha: t.isDark ? 1 : .7),
+                      ),
                     VoucherRow(
                       voucher: rows[i].voucher,
                       row: rows[i],
@@ -599,11 +769,10 @@ class _RegisterPanel extends StatelessWidget {
             ),
           ),
           if (r.lastPage > 1) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             _Pager(
               page: r.currentPage,
               lastPage: r.lastPage,
-              total: r.total,
               onChange: c.goToPage,
             ),
           ],
@@ -613,53 +782,61 @@ class _RegisterPanel extends StatelessWidget {
   }
 }
 
-/// The web's `Pagination`: "Showing 65 · Page 1 of 4", Back and Next.
+/// Round back and next buttons around "2 / 4".
 class _Pager extends StatelessWidget {
   const _Pager({
     required this.page,
     required this.lastPage,
-    required this.total,
     required this.onChange,
   });
 
-  final int page, lastPage, total;
+  final int page, lastPage;
   final ValueChanged<int> onChange;
-
-  static Widget _dim(bool off, Widget child) =>
-      Opacity(opacity: off ? .45 : 1, child: child);
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
+    Widget arrow(IconData icon, String tip, int? to) => Opacity(
+      opacity: to == null ? .4 : 1,
+      child: Tooltip(
+        message: tip,
+        child: Material(
+          color: t.surface3,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: to == null ? null : () => onChange(to),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(icon, size: 18, color: t.text, semanticLabel: tip),
+            ),
+          ),
+        ),
+      ),
+    );
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Expanded(
+        arrow(
+          PhosphorIconsBold.caretLeft,
+          'vouchers.back'.tr,
+          page > 1 ? page - 1 : null,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Text(
-            '${'vouchers.showing'.tr} $total · ${'vouchers.page'.tr} $page ${'vouchers.of'.tr} $lastPage',
-            style: VfType.small.copyWith(color: t.muted),
+            '$page / $lastPage',
+            style: VfType.bodyStrong.copyWith(
+              color: t.text2,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
         ),
-        const SizedBox(width: 8),
-        _dim(
-          page <= 1,
-          VouchFlowButton(
-            label: 'vouchers.back'.tr,
-            icon: PhosphorIconsRegular.caretLeft,
-            variant: VfButtonVariant.secondary,
-            compact: true,
-            onPressed: page <= 1 ? null : () => onChange(page - 1),
-          ),
-        ),
-        const SizedBox(width: 8),
-        _dim(
-          page >= lastPage,
-          VouchFlowButton(
-            label: 'vouchers.next'.tr,
-            trailingIcon: PhosphorIconsRegular.caretRight,
-            variant: VfButtonVariant.secondary,
-            compact: true,
-            onPressed: page >= lastPage ? null : () => onChange(page + 1),
-          ),
+        arrow(
+          PhosphorIconsBold.caretRight,
+          'vouchers.next'.tr,
+          page < lastPage ? page + 1 : null,
         ),
       ],
     );

@@ -4,8 +4,53 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
 
-/// The web's `.field`: a label above the control (with a red asterisk when
-/// required), the control, then either the error or a quiet hint.
+/// Corner radius of every filled input and select.
+const vfInputRadius = 16.0;
+
+/// The app's filled-input look: a soft tinted fill, no visible outline in
+/// light (a whisper of one in dark), 16px corners and a primary ring on focus.
+/// Every VouchFlow input and select shares it.
+InputDecoration vfInputDecoration(
+  BuildContext context, {
+  String? hintText,
+  Widget? prefixIcon,
+  String? prefixText,
+  Widget? suffixIcon,
+  bool hasError = false,
+  bool disabled = false,
+  EdgeInsetsGeometry? contentPadding,
+}) {
+  final t = context.vf;
+  final radius = BorderRadius.circular(vfInputRadius);
+  OutlineInputBorder edge(Color c, [double w = 1]) => OutlineInputBorder(
+    borderRadius: radius,
+    borderSide: c == Colors.transparent ? BorderSide.none : BorderSide(color: c, width: w),
+  );
+  final rest = t.isDark ? t.border.withValues(alpha: .9) : Colors.transparent;
+  return InputDecoration(
+    hintText: hintText,
+    hintStyle: VfType.body.copyWith(color: t.placeholder),
+    counterText: '',
+    filled: true,
+    fillColor: disabled ? Color.alphaBlend(t.surface3.withValues(alpha: .55), t.surface) : t.surface3,
+    isDense: false,
+    contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    prefixIcon: prefixIcon,
+    prefixText: prefixText,
+    suffixIcon: suffixIcon,
+    border: edge(rest),
+    enabledBorder: edge(hasError ? t.dangerStrong : rest, hasError ? 1.4 : 1),
+    disabledBorder: edge(rest),
+    focusedBorder: edge(hasError ? t.dangerStrong : t.primary, 1.6),
+    errorBorder: edge(t.dangerStrong, 1.4),
+    focusedErrorBorder: edge(t.dangerStrong, 1.6),
+    errorText: hasError ? '' : null,
+    errorStyle: const TextStyle(height: 0, fontSize: 0),
+  );
+}
+
+/// A small label above the control (a red asterisk when required), the
+/// control, then the error — or a short hint only where one is essential.
 class VouchFlowField extends StatelessWidget {
   const VouchFlowField({
     super.key,
@@ -34,12 +79,15 @@ class VouchFlowField extends StatelessWidget {
             text: label,
             children: [
               if (required)
-                TextSpan(text: ' *', style: TextStyle(color: t.dangerStrong)),
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(color: t.dangerStrong),
+                ),
             ],
           ),
-          style: VfType.label.copyWith(color: t.text2),
+          style: VfType.label.copyWith(color: t.text2, fontSize: 13, fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         child,
         if (error != null && error!.isNotEmpty) ...[
           const SizedBox(height: 6),
@@ -47,8 +95,8 @@ class VouchFlowField extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Icon(PhosphorIconsRegular.warningCircle, size: 15, color: t.dangerStrong),
+                padding: const EdgeInsets.only(top: 1, left: 4),
+                child: Icon(PhosphorIconsFill.warningCircle, size: 15, color: t.dangerStrong),
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -58,14 +106,17 @@ class VouchFlowField extends StatelessWidget {
           ),
         ] else if (hint != null && hint!.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(hint!, style: VfType.meta.copyWith(color: t.muted)),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(hint!, style: VfType.meta.copyWith(color: t.muted)),
+          ),
         ],
       ],
     );
   }
 }
 
-/// A text input in the web's `.input` style, wrapped in a [VouchFlowField].
+/// A filled app-style text input, wrapped in a [VouchFlowField].
 class VouchFlowTextField extends StatelessWidget {
   const VouchFlowTextField({
     super.key,
@@ -152,23 +203,24 @@ class VouchFlowTextField extends StatelessWidget {
         textCapitalization: textCapitalization,
         onTap: onTap,
         style: VfType.body.copyWith(color: readOnly ? t.muted : t.text),
-        decoration: InputDecoration(
+        cursorColor: t.primary,
+        decoration: vfInputDecoration(
+          context,
           hintText: placeholder,
-          counterText: '',
-          filled: true,
-          fillColor: readOnly || !enabled ? t.inputDisabled : t.inputBg,
-          prefixIcon: prefixIcon == null ? null : Icon(prefixIcon, size: 18),
+          prefixIcon: prefixIcon == null ? null : Icon(prefixIcon, size: 19, color: t.muted),
           prefixText: prefixText,
-          suffixIcon: suffix,
-          errorText: (error != null && error!.isNotEmpty) ? '' : null,
-          errorStyle: const TextStyle(height: 0, fontSize: 0),
+          suffixIcon:
+              suffix ??
+              (readOnly && onTap == null ? Icon(PhosphorIconsRegular.lockSimple, size: 16, color: t.faint) : null),
+          hasError: error != null && error!.isNotEmpty,
+          disabled: readOnly || !enabled,
         ),
       ),
     );
   }
 }
 
-/// A select in the web's `.input` style.
+/// A filled app-style select.
 class VouchFlowDropdown<T> extends StatelessWidget {
   const VouchFlowDropdown({
     super.key,
@@ -205,18 +257,20 @@ class VouchFlowDropdown<T> extends StatelessWidget {
         initialValue: items.contains(value) ? value : null,
         isExpanded: true,
         onChanged: onChanged,
-        icon: Icon(PhosphorIconsRegular.caretDown, size: 16, color: t.muted),
+        icon: Icon(
+          onChanged == null ? PhosphorIconsRegular.lockSimple : PhosphorIconsBold.caretDown,
+          size: onChanged == null ? 16 : 14,
+          color: onChanged == null ? t.faint : t.muted,
+        ),
         dropdownColor: t.surface,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        hint: placeholder == null
-            ? null
-            : Text(placeholder!, style: VfType.body.copyWith(color: t.placeholder)),
-        style: VfType.body.copyWith(color: t.text),
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: onChanged == null ? t.inputDisabled : t.inputBg,
-          errorText: (error != null && error!.isNotEmpty) ? '' : null,
-          errorStyle: const TextStyle(height: 0, fontSize: 0),
+        borderRadius: BorderRadius.circular(vfInputRadius),
+        hint: placeholder == null ? null : Text(placeholder!, style: VfType.body.copyWith(color: t.placeholder)),
+        style: VfType.body.copyWith(color: onChanged == null ? t.text2 : t.text),
+        decoration: vfInputDecoration(
+          context,
+          hasError: error != null && error!.isNotEmpty,
+          disabled: onChanged == null,
+          contentPadding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
         ),
         items: [
           for (final item in items)
@@ -230,15 +284,9 @@ class VouchFlowDropdown<T> extends StatelessWidget {
   }
 }
 
-/// The web's search field: a leading magnifier, clear button when filled.
+/// A rounded filled search bar: a leading magnifier, clear button when filled.
 class VouchFlowSearchField extends StatefulWidget {
-  const VouchFlowSearchField({
-    super.key,
-    required this.placeholder,
-    this.controller,
-    this.onChanged,
-    this.onSubmitted,
-  });
+  const VouchFlowSearchField({super.key, required this.placeholder, this.controller, this.onChanged, this.onSubmitted});
 
   final String placeholder;
   final TextEditingController? controller;
@@ -250,8 +298,7 @@ class VouchFlowSearchField extends StatefulWidget {
 }
 
 class _VouchFlowSearchFieldState extends State<VouchFlowSearchField> {
-  late final TextEditingController _c =
-      widget.controller ?? TextEditingController();
+  late final TextEditingController _c = widget.controller ?? TextEditingController();
 
   @override
   void dispose() {
@@ -271,9 +318,12 @@ class _VouchFlowSearchFieldState extends State<VouchFlowSearchField> {
       onSubmitted: widget.onSubmitted,
       textInputAction: TextInputAction.search,
       style: VfType.body.copyWith(color: t.text),
-      decoration: InputDecoration(
+      cursorColor: t.primary,
+      decoration: vfInputDecoration(
+        context,
         hintText: widget.placeholder,
-        prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass, size: 18, color: t.faint),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass, size: 19, color: t.muted),
         suffixIcon: _c.text.isEmpty
             ? null
             : IconButton(
@@ -290,15 +340,10 @@ class _VouchFlowSearchFieldState extends State<VouchFlowSearchField> {
   }
 }
 
-/// A status filter pill (the web's register pills: "All 65", "Drafts" …).
+/// A rounded status filter pill ("All 65", "Drafts" …): solid primary when
+/// chosen, a soft tinted pill otherwise.
 class VouchFlowFilterChip extends StatelessWidget {
-  const VouchFlowFilterChip({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.count,
-  });
+  const VouchFlowFilterChip({super.key, required this.label, required this.selected, required this.onTap, this.count});
 
   final String label;
   final bool selected;
@@ -313,12 +358,14 @@ class VouchFlowFilterChip extends StatelessWidget {
       button: true,
       child: Material(
         color: selected ? t.primary : t.surface,
-        shape: StadiumBorder(side: BorderSide(color: selected ? t.primary : t.border)),
+        shape: StadiumBorder(side: selected || !t.isDark ? BorderSide.none : BorderSide(color: t.border)),
+        elevation: 0,
+        shadowColor: Colors.transparent,
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

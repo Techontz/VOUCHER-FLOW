@@ -12,8 +12,8 @@ import '../../widgets/common.dart' show Fmt;
 import '../../widgets/vf/vf.dart';
 import 'admin_widgets.dart';
 
-/// Audit logs — the web's page: who did what, when and from which device,
-/// searchable by text, action and date range. Append-only; nothing here
+/// Audit logs: who did what, when and from which device — a row per entry,
+/// its details in a sheet, searchable by text, action and date range. Append-only; nothing here
 /// changes anything. A super admin sees every company (each entry names it).
 class AuditPage extends StatefulWidget {
   const AuditPage({super.key, this.repository});
@@ -109,6 +109,60 @@ class _AuditPageState extends State<AuditPage> {
     _load();
   }
 
+  Future<void> _pickAction() async {
+    final v = await showAdminOptions<String>(
+      context,
+      title: 'admin.actions'.tr,
+      selected: _action,
+      options: [('', 'admin.allActions'.tr), for (final a in _actions) (a, a)],
+    );
+    if (v == null || v == _action) return;
+    setState(() {
+      _action = v;
+      _page = 1;
+    });
+    _load();
+  }
+
+  void _openEntry(AuditEntry row) {
+    final t = context.vf;
+    showAdminItemSheet(
+      context,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AdminPerson(
+            initials: row.actorInitials,
+            name: row.actorName,
+            sub: row.company,
+            size: 52,
+          ),
+          const SizedBox(height: 16),
+          Text(row.description, style: VfType.body.copyWith(color: t.text)),
+          if ((row.changeSummary ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              row.changeSummary!,
+              style: VfType.small.copyWith(color: t.muted),
+            ),
+          ],
+        ],
+      ),
+      details: [
+        AdminLine(label: 'admin.date'.tr, value: Fmt.dateTime(row.createdAt)),
+        if (row.device.isNotEmpty)
+          AdminLine(label: 'admin.device'.tr, value: row.device),
+      ],
+    );
+  }
+
+  static String _when(DateTime? at) {
+    if (at == null) return '';
+    return DateTime.now().difference(at).inDays < 7
+        ? Fmt.relative(at)
+        : DateFormat('d MMM').format(at);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
@@ -117,97 +171,42 @@ class _AuditPageState extends State<AuditPage> {
     return AdminPageBody(
       route: '/audit',
       title: 'admin.auditLogs'.tr,
-      subtitle: 'admin.auditSub'.tr,
       onRefresh: _load,
       children: [
-        VouchFlowCard(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              VouchFlowSearchField(
-                placeholder: 'admin.search'.tr,
-                onChanged: _search,
-              ),
-              const SizedBox(height: 10),
-              Semantics(
-                label: 'admin.actions'.tr,
-                child: DropdownButtonFormField<String>(
-                  key: ValueKey('action|${_actions.length}'),
-                  initialValue: _action,
-                  isExpanded: true,
-                  icon: Icon(
-                    PhosphorIconsRegular.caretDown,
-                    size: 16,
-                    color: t.muted,
-                  ),
-                  dropdownColor: t.surface,
-                  borderRadius: BorderRadius.circular(VfSize.radiusL),
-                  style: VfType.body.copyWith(color: t.text),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: t.inputBg,
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: '',
-                      child: Text('admin.allActions'.tr),
-                    ),
-                    for (final a in _actions)
-                      DropdownMenuItem(
-                        value: a,
-                        child: Text(
-                          a,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (v) {
-                    setState(() {
-                      _action = v ?? '';
-                      _page = 1;
-                    });
-                    _load();
-                  },
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _DateButton(
-                      label: 'admin.from'.tr,
-                      value: _from,
-                      onTap: () => _pickDate(true),
-                      onClear: () => _clearDate(true),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _DateButton(
-                      label: 'admin.to'.tr,
-                      value: _to,
-                      onTap: () => _pickDate(false),
-                      onClear: () => _clearDate(false),
-                    ),
-                  ),
-                ],
-              ),
-              if (_result != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  '${_result!.total}',
-                  style: VfType.small.copyWith(
-                    color: t.muted,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ],
-            ],
-          ),
+        AdminSearchField(placeholder: 'admin.search'.tr, onChanged: _search),
+        const SizedBox(height: 12),
+        AdminChipRail(
+          children: [
+            AdminSelectChip(
+              icon: PhosphorIconsRegular.lightning,
+              label: _action.isEmpty ? 'admin.allActions'.tr : _action,
+              active: _action.isNotEmpty,
+              onTap: _pickAction,
+              onClear: () {
+                setState(() {
+                  _action = '';
+                  _page = 1;
+                });
+                _load();
+              },
+            ),
+            AdminSelectChip(
+              icon: PhosphorIconsRegular.calendarBlank,
+              label: _from == null ? 'admin.from'.tr : Fmt.date(_from),
+              active: _from != null,
+              onTap: () => _pickDate(true),
+              onClear: () => _clearDate(true),
+            ),
+            AdminSelectChip(
+              icon: PhosphorIconsRegular.calendarBlank,
+              label: _to == null ? 'admin.to'.tr : Fmt.date(_to),
+              active: _to != null,
+              onTap: () => _pickDate(false),
+              onClear: () => _clearDate(false),
+            ),
+          ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         if (_error != null)
           VouchFlowErrorState(
             message: _error!,
@@ -215,19 +214,34 @@ class _AuditPageState extends State<AuditPage> {
             retryLabel: 'action.retry'.tr,
           )
         else if (_result == null)
-          const VouchFlowLoadingState(rows: 6, rowHeight: 120)
+          const VouchFlowLoadingState(rows: 6, rowHeight: 72)
         else if (rows.isEmpty)
           VouchFlowCard(
+            radius: VfSize.radiusXl,
             child: VouchFlowEmptyState(
               icon: PhosphorIconsRegular.scroll,
               title: 'admin.noResults'.tr,
             ),
           )
         else ...[
-          for (final row in rows) ...[
-            _AuditCard(row: row),
-            const SizedBox(height: 10),
-          ],
+          for (final row in rows)
+            AdminListRow(
+              semanticLabel: '${row.actorName}: ${row.description}',
+              leading: VouchFlowAvatar(
+                initials: row.actorInitials.isEmpty ? '?' : row.actorInitials,
+                size: 44,
+              ),
+              title: row.actorName,
+              meta: row.description,
+              trailing: Text(
+                _when(row.createdAt),
+                style: VfType.meta.copyWith(
+                  color: t.faint,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              onTap: () => _openEntry(row),
+            ),
           AdminPagination(
             page: _result!.page,
             lastPage: _result!.lastPage,
@@ -239,111 +253,6 @@ class _AuditPageState extends State<AuditPage> {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _DateButton extends StatelessWidget {
-  const _DateButton({
-    required this.label,
-    required this.value,
-    required this.onTap,
-    required this.onClear,
-  });
-
-  final String label;
-  final DateTime? value;
-  final VoidCallback onTap, onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    return Semantics(
-      button: true,
-      label: label,
-      child: Material(
-        color: t.inputBg,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
-          side: BorderSide(color: t.inputBorder),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
-          onTap: onTap,
-          child: Container(
-            height: VfSize.inputH,
-            padding: const EdgeInsets.only(left: 12, right: 4),
-            child: Row(
-              children: [
-                Icon(
-                  PhosphorIconsRegular.calendarBlank,
-                  size: 17,
-                  color: t.faint,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    value == null ? label : Fmt.date(value),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: VfType.body.copyWith(
-                      color: value == null ? t.placeholder : t.text,
-                    ),
-                  ),
-                ),
-                if (value != null)
-                  IconButton(
-                    tooltip: MaterialLocalizations.of(
-                      context,
-                    ).deleteButtonTooltip,
-                    icon: Icon(
-                      PhosphorIconsRegular.x,
-                      size: 15,
-                      color: t.muted,
-                    ),
-                    onPressed: onClear,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AuditCard extends StatelessWidget {
-  const _AuditCard({required this.row});
-  final AuditEntry row;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    return VouchFlowCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AdminPerson(
-            initials: row.actorInitials,
-            name: row.actorName,
-            sub: row.company,
-          ),
-          const SizedBox(height: 10),
-          Text(row.description, style: VfType.body.copyWith(color: t.text)),
-          if ((row.changeSummary ?? '').isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              row.changeSummary!,
-              style: VfType.small.copyWith(color: t.muted, fontSize: 13),
-            ),
-          ],
-          const SizedBox(height: 8),
-          AdminLine(label: 'admin.date'.tr, value: Fmt.dateTime(row.createdAt)),
-          if (row.device.isNotEmpty)
-            AdminLine(label: 'admin.device'.tr, value: row.device),
-        ],
-      ),
     );
   }
 }

@@ -10,7 +10,7 @@ import '../../data/services/create_repository.dart';
 import '../../data/services/voucher_repository.dart';
 import '../../widgets/common.dart' show showToast, ToastKind;
 import '../../widgets/vf/vf.dart';
-import 'create_steps.dart' show formRow;
+import 'create_steps.dart' show FormGroup, formRow;
 import 'voucher_form_bits.dart';
 
 /// The edit form's categories (web `/vouchers/{id}/edit`).
@@ -27,11 +27,10 @@ const _currencies = ['TZS', 'USD', 'KES', 'EUR'];
 
 /// Opens a voucher's edit form over the current page. Resolves to true when
 /// the voucher was saved or submitted, so the caller can reload it.
-Future<bool> openEditVoucher(int id) async =>
-    await Get.to<bool>(() => EditVoucherPage(voucherId: id)) == true;
+Future<bool> openEditVoucher(int id) async => await Get.to<bool>(() => EditVoucherPage(voucherId: id)) == true;
 
-/// Editing a draft or a voucher returned for changes: the web's single-page
-/// form in four sections, then Cancel / Save changes / Submit voucher.
+/// Editing a draft or a voucher returned for changes: the web's form in four
+/// rounded groups, then Save changes / Submit voucher in a sticky bar.
 class EditVoucherPage extends StatefulWidget {
   const EditVoucherPage({super.key, required this.voucherId});
 
@@ -69,14 +68,8 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
   void initState() {
     super.initState();
     _load();
-    CreateRepository.to
-        .types()
-        .then((v) => mounted ? setState(() => _types = v) : null)
-        .catchError((_) => null);
-    _vouchers
-        .departments()
-        .then((v) => mounted ? setState(() => _departments = v) : null)
-        .catchError((_) => null);
+    CreateRepository.to.types().then((v) => mounted ? setState(() => _types = v) : null).catchError((_) => null);
+    _vouchers.departments().then((v) => mounted ? setState(() => _departments = v) : null).catchError((_) => null);
   }
 
   Future<void> _load() async {
@@ -95,9 +88,7 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
         _payee.text = v.payee;
         _purpose.text = v.purpose;
         _description.text = v.description ?? '';
-        _amount.text = v.amount % 1 == 0
-            ? v.amount.toStringAsFixed(0)
-            : '${v.amount}';
+        _amount.text = v.amount % 1 == 0 ? v.amount.toStringAsFixed(0) : '${v.amount}';
         _ref.text = v.accountRef ?? '';
         _notes.text = v.notesToApprover ?? '';
       });
@@ -132,10 +123,7 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
       });
       if (submit) {
         final sent = await _vouchers.submit(v.id);
-        showToast(
-          'create.submitted'.tr,
-          body: '${sent.number} — ${sent.statusLabel}',
-        );
+        showToast('create.submitted'.tr, body: '${sent.number} — ${sent.statusLabel}');
       } else {
         showToast('create.changesSaved'.tr, body: v.number);
       }
@@ -144,18 +132,12 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
       showToast('create.couldNotSave'.tr, body: e.message, kind: ToastKind.bad);
       if (mounted) {
         setState(() {
-          _errors = e.errors.map(
-            (k, m) => MapEntry(k, m.isEmpty ? '' : m.first),
-          );
+          _errors = e.errors.map((k, m) => MapEntry(k, m.isEmpty ? '' : m.first));
           _busy = null;
         });
       }
     } catch (_) {
-      showToast(
-        'create.couldNotSave'.tr,
-        body: 'create.offline'.tr,
-        kind: ToastKind.bad,
-      );
+      showToast('create.couldNotSave'.tr, body: 'create.offline'.tr, kind: ToastKind.bad);
       if (mounted) setState(() => _busy = null);
     }
   }
@@ -203,10 +185,7 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
           child: VouchFlowEmptyState(
             icon: PhosphorIconsRegular.lockKey,
             title: 'create.cannotEdit'.tr,
-            body: 'create.cannotEditBody'.trParams({
-              'number': v.number,
-              'status': v.statusLabel.toLowerCase(),
-            }),
+            body: 'create.cannotEditBody'.trParams({'number': v.number, 'status': v.statusLabel.toLowerCase()}),
             actionLabel: 'create.back'.tr,
             onAction: () => Navigator.of(context).maybePop(),
           ),
@@ -228,163 +207,140 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
               28 + MediaQuery.viewInsetsOf(context).bottom,
             ),
             children: [
-              VouchFlowPageHeader(
-                kicker: 'create.editKicker'.trParams({'status': v.statusLabel}),
-                title: v.purpose.isNotEmpty ? v.purpose : v.number,
-                subtitle: v.number,
+              Row(
+                children: [VouchFlowStatusBadge(label: v.statusLabel, tag: v.displayTag)],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                v.purpose.isNotEmpty ? v.purpose : v.number,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: VfType.pageTitle.copyWith(fontSize: 22, color: context.vf.text),
               ),
               const SizedBox(height: 18),
-              VouchFlowCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _Section(
-                      title: 'create.stepType'.tr,
-                      description: 'create.detailsSub'.tr,
-                      children: [
-                        formRow(wide, [
-                          VouchFlowDropdown<int>(
-                            key: ValueKey('type-$_typeId-${_types.length}'),
-                            label: 'create.stepType'.tr,
-                            items: _types.isEmpty && _typeId != null
-                                ? [_typeId!]
-                                : _types.map((x) => x.id).toList(),
-                            value: _typeId,
-                            itemLabel: (id) =>
-                                _types
-                                    .firstWhereOrNull((x) => x.id == id)
-                                    ?.label ??
-                                v.voucherTypeLabel ??
-                                '—',
-                            error: _errors['voucher_type_id'],
-                            onChanged: (id) =>
-                                setState(() => _typeId = id ?? _typeId),
-                          ),
-                          VfDateInput(
-                            label: 'create.date'.tr,
-                            value: _date,
-                            error: _errors['voucher_date'],
-                            onChanged: (d) =>
-                                setState(() => _date = d ?? _date),
-                          ),
-                        ]),
-                        formRow(wide, [
-                          // The API keeps a voucher in its own department.
-                          VouchFlowDropdown<int>(
-                            key: ValueKey(
-                              'dept-$_departmentId-${_departments.length}',
-                            ),
-                            label: 'create.department'.tr,
-                            items: _departments.map((d) => d.id).toList(),
-                            value: _departmentId,
-                            placeholder: v.departmentName ?? '—',
-                            hint: 'create.ownDepartmentOnly'.tr,
-                            error: _errors['department_id'],
-                            itemLabel: (id) =>
-                                _departments
-                                    .firstWhereOrNull((d) => d.id == id)
-                                    ?.name ??
-                                '—',
-                            onChanged: null,
-                          ),
-                          VouchFlowDropdown<String>(
-                            key: ValueKey('cat-$_category'),
-                            label: 'create.category'.tr,
-                            items: editCategories.contains(_category)
-                                ? editCategories
-                                : [_category, ...editCategories],
-                            value: _category,
-                            itemLabel: (x) => x,
-                            onChanged: (x) =>
-                                setState(() => _category = x ?? _category),
-                          ),
-                        ]),
-                      ],
-                    ),
-                    _Section(
-                      title: 'create.stepDetails'.tr,
-                      children: [
-                        VouchFlowTextField(
-                          label: 'create.payee'.tr,
-                          controller: _payee,
-                          required: true,
-                          error: _errors['payee'],
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Section(
+                    title: 'create.stepType'.tr,
+                    children: [
+                      formRow(wide, [
+                        VouchFlowDropdown<int>(
+                          key: ValueKey('type-$_typeId-${_types.length}'),
+                          label: 'create.stepType'.tr,
+                          items: _types.isEmpty && _typeId != null ? [_typeId!] : _types.map((x) => x.id).toList(),
+                          value: _typeId,
+                          itemLabel: (id) =>
+                              _types.firstWhereOrNull((x) => x.id == id)?.label ?? v.voucherTypeLabel ?? '—',
+                          error: _errors['voucher_type_id'],
+                          onChanged: (id) => setState(() => _typeId = id ?? _typeId),
                         ),
-                        VouchFlowTextField(
-                          label: 'create.purpose'.tr,
-                          controller: _purpose,
-                          required: true,
-                          error: _errors['purpose'],
+                        VfDateInput(
+                          label: 'create.date'.tr,
+                          value: _date,
+                          error: _errors['voucher_date'],
+                          onChanged: (d) => setState(() => _date = d ?? _date),
                         ),
-                        VouchFlowTextField(
-                          label: 'create.description'.tr,
-                          controller: _description,
-                          maxLines: 5,
-                          minLines: 3,
-                          error: _errors['description'],
+                      ]),
+                      formRow(wide, [
+                        // The API keeps a voucher in its own department.
+                        VouchFlowDropdown<int>(
+                          key: ValueKey('dept-$_departmentId-${_departments.length}'),
+                          label: 'create.department'.tr,
+                          items: _departments.map((d) => d.id).toList(),
+                          value: _departmentId,
+                          placeholder: v.departmentName ?? '—',
+                          error: _errors['department_id'],
+                          itemLabel: (id) => _departments.firstWhereOrNull((d) => d.id == id)?.name ?? '—',
+                          onChanged: null,
                         ),
-                      ],
-                    ),
-                    _Section(
-                      title: 'create.stepPayment'.tr,
-                      description: 'create.paymentSubBank'.tr,
-                      children: [
-                        formRow(wide, [
-                          VouchFlowTextField(
-                            label: 'create.amount'.tr,
-                            controller: _amount,
-                            required: true,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            error: _errors['amount'],
-                          ),
-                          VouchFlowDropdown<String>(
-                            key: ValueKey('cur-$_currency'),
-                            label: 'create.currency'.tr,
-                            items: _currencies.contains(_currency)
-                                ? _currencies
-                                : [_currency, ..._currencies],
-                            value: _currency,
-                            itemLabel: (x) => x,
-                            onChanged: (x) =>
-                                setState(() => _currency = x ?? _currency),
-                          ),
-                        ]),
                         VouchFlowDropdown<String>(
-                          key: ValueKey('method-$_method'),
-                          label: 'create.paymentMethod'.tr,
-                          items: _methods.contains(_method)
-                              ? _methods
-                              : [_method, ..._methods],
-                          value: _method,
+                          key: ValueKey('cat-$_category'),
+                          label: 'create.category'.tr,
+                          items: editCategories.contains(_category) ? editCategories : [_category, ...editCategories],
+                          value: _category,
                           itemLabel: (x) => x,
-                          onChanged: (x) =>
-                              setState(() => _method = x ?? _method),
+                          onChanged: (x) => setState(() => _category = x ?? _category),
                         ),
+                      ]),
+                    ],
+                  ),
+                  _Section(
+                    title: 'create.stepDetails'.tr,
+                    children: [
+                      VouchFlowTextField(
+                        label: 'create.payee'.tr,
+                        controller: _payee,
+                        required: true,
+                        error: _errors['payee'],
+                      ),
+                      VouchFlowTextField(
+                        label: 'create.purpose'.tr,
+                        controller: _purpose,
+                        required: true,
+                        error: _errors['purpose'],
+                      ),
+                      VouchFlowTextField(
+                        label: 'create.description'.tr,
+                        controller: _description,
+                        placeholder: 'create.optional'.tr,
+                        maxLines: 5,
+                        minLines: 3,
+                        error: _errors['description'],
+                      ),
+                    ],
+                  ),
+                  _Section(
+                    title: 'create.stepPayment'.tr,
+                    children: [
+                      formRow(wide, [
                         VouchFlowTextField(
-                          label: 'create.accountRef'.tr,
-                          controller: _ref,
-                          error: _errors['account_ref'],
+                          label: 'create.amount'.tr,
+                          controller: _amount,
+                          required: true,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          error: _errors['amount'],
                         ),
-                      ],
-                    ),
-                    _Section(
-                      title: 'create.notesSection'.tr,
-                      last: true,
-                      children: [
-                        VouchFlowTextField(
-                          label: 'create.notesApprover'.tr,
-                          controller: _notes,
-                          hint: 'create.optional'.tr,
-                          maxLines: 5,
-                          minLines: 3,
-                          error: _errors['notes_to_approver'],
+                        VouchFlowDropdown<String>(
+                          key: ValueKey('cur-$_currency'),
+                          label: 'create.currency'.tr,
+                          items: _currencies.contains(_currency) ? _currencies : [_currency, ..._currencies],
+                          value: _currency,
+                          itemLabel: (x) => x,
+                          onChanged: (x) => setState(() => _currency = x ?? _currency),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ]),
+                      VouchFlowDropdown<String>(
+                        key: ValueKey('method-$_method'),
+                        label: 'create.paymentMethod'.tr,
+                        items: _methods.contains(_method) ? _methods : [_method, ..._methods],
+                        value: _method,
+                        itemLabel: (x) => x,
+                        onChanged: (x) => setState(() => _method = x ?? _method),
+                      ),
+                      VouchFlowTextField(
+                        label: 'create.accountRef'.tr,
+                        controller: _ref,
+                        placeholder: 'create.accountRefHint'.tr,
+                        error: _errors['account_ref'],
+                      ),
+                    ],
+                  ),
+                  _Section(
+                    title: 'create.notesSection'.tr,
+                    last: true,
+                    children: [
+                      VouchFlowTextField(
+                        label: 'create.notesApprover'.tr,
+                        controller: _notes,
+                        placeholder: 'create.optional'.tr,
+                        maxLines: 5,
+                        minLines: 3,
+                        error: _errors['notes_to_approver'],
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           );
@@ -395,54 +351,50 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
 
   Widget _footer(BuildContext context) {
     final t = context.vf;
+    const h = 54.0;
     return Container(
       decoration: BoxDecoration(
-        color: Color.alphaBlend(t.surface2.withValues(alpha: .7), t.surface),
-        border: Border(top: BorderSide(color: t.border)),
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: t.isDark ? Border(top: BorderSide(color: t.border)) : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: t.isDark ? .45 : .08),
+            blurRadius: 24,
+            offset: const Offset(0, -6),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: LayoutBuilder(
             builder: (context, box) {
-              final narrow = box.maxWidth < 420;
-              Widget grow(Widget child) =>
-                  narrow ? Expanded(child: child) : child;
+              final narrow = box.maxWidth < 380;
               return Row(
                 children: [
-                  if (!narrow) ...[
-                    VouchFlowButton(
-                      label: 'create.cancel'.tr,
-                      variant: VfButtonVariant.ghost,
-                      height: 46,
-                      onPressed: _busy != null
-                          ? null
-                          : () => Navigator.of(context).maybePop(),
-                    ),
-                    const Spacer(),
-                  ],
-                  grow(
-                    VouchFlowButton(
+                  Expanded(
+                    flex: 2,
+                    child: VouchFlowButton(
                       label: 'create.saveChanges'.tr,
                       variant: VfButtonVariant.secondary,
-                      height: 46,
+                      height: h,
+                      expand: true,
                       loading: _busy == 'save',
-                      onPressed: _busy != null
-                          ? null
-                          : () => _save(submit: false),
+                      onPressed: _busy != null ? null : () => _save(submit: false),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  grow(
-                    VouchFlowButton(
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 3,
+                    child: VouchFlowButton(
                       label: 'create.submitVoucher'.tr,
-                      icon: narrow ? null : PhosphorIconsRegular.paperPlaneTilt,
-                      height: 46,
+                      icon: narrow ? null : PhosphorIconsBold.paperPlaneTilt,
+                      height: h,
+                      expand: true,
                       loading: _busy == 'submit',
-                      onPressed: _busy != null
-                          ? null
-                          : () => _save(submit: true),
+                      onPressed: _busy != null ? null : () => _save(submit: true),
                     ),
                   ),
                 ],
@@ -455,38 +407,30 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
   }
 }
 
-/// The web's `FormSection`: a heading, an optional line, then its fields.
+/// A small label over a rounded group of fields.
 class _Section extends StatelessWidget {
-  const _Section({
-    required this.title,
-    this.description,
-    required this.children,
-    this.last = false,
-  });
+  const _Section({required this.title, required this.children, this.last = false});
 
   final String title;
-  final String? description;
   final List<Widget> children;
   final bool last;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Container(
+    return Padding(
       padding: EdgeInsets.only(bottom: last ? 0 : 20),
-      margin: EdgeInsets.only(bottom: last ? 0 : 20),
-      decoration: BoxDecoration(
-        border: last ? null : Border(bottom: BorderSide(color: t.border)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: VfType.cardTitle.copyWith(color: t.text)),
-          if (description != null) ...[
-            const SizedBox(height: 4),
-            Text(description!, style: VfType.small.copyWith(color: t.muted)),
-          ],
-          for (final child in children) ...[const SizedBox(height: 16), child],
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            child: Text(
+              title,
+              style: VfType.label.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: t.muted),
+            ),
+          ),
+          FormGroup(children: children),
         ],
       ),
     );

@@ -967,16 +967,17 @@ Future<DocSource?> pickDocSource(
         final t = ctx.vf;
         Widget tile(IconData icon, String label, DocSource source) => ListTile(
           contentPadding: EdgeInsets.zero,
-          minTileHeight: 52,
+          minTileHeight: 60,
           leading: Container(
-            width: 40,
-            height: 40,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: t.surface3,
-              borderRadius: BorderRadius.circular(VfSize.radiusM),
+              color: t.primarySoft,
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, size: 20, color: t.text2),
+            child: Icon(icon, size: 21, color: t.primaryText),
           ),
+          trailing: Icon(PhosphorIconsBold.caretRight, size: 14, color: t.faint),
           title: Text(label, style: VfType.body.copyWith(color: t.text)),
           onTap: () => Navigator.of(ctx).pop(source),
         );
@@ -1117,13 +1118,11 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
     return VouchFlowPushedScaffold(
       title: widget.file.name,
       actions: [
-        VouchFlowIconButton(
+        VfBarButton(
           icon: PhosphorIconsRegular.shareNetwork,
           tooltip: dt('share'),
-          color: Colors.white,
           onPressed: _share,
         ),
-        const SizedBox(width: 6),
       ],
       body: ColoredBox(color: t.surface2, child: body),
     );

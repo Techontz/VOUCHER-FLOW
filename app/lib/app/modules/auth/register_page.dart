@@ -111,9 +111,13 @@ class RegOutcome {
     required this.logo,
     required this.company,
     required this.identifier,
+    this.requiresVerification = true,
   });
   final SaveState details, logo;
   final String company, identifier;
+
+  /// False when the server registered the company without an e-mail code.
+  final bool requiresVerification;
 }
 
 class RegisterController extends GetxController {
@@ -472,6 +476,7 @@ class RegisterController extends GetxController {
       logo: logoState,
       company: res.company.name,
       identifier: res.otpIdentifier,
+      requiresVerification: res.requiresVerification,
     );
     busy.value = false;
   }
@@ -658,22 +663,18 @@ class _RegisterPageState extends State<RegisterPage> {
                       Row(
                         children: [
                           if (done == null && Navigator.of(context).canPop())
-                            IconButton(
-                              tooltip: MaterialLocalizations.of(
-                                context,
-                              ).backButtonTooltip,
-                              onPressed: c.busy.value
-                                  ? null
-                                  : () => Navigator.of(context).maybePop(),
-                              icon: Icon(
-                                PhosphorIconsRegular.arrowLeft,
-                                color: t.text,
+                            Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: AuthBackButton(
+                                onTap: c.busy.value
+                                    ? null
+                                    : () => Navigator.of(context).maybePop(),
                               ),
                             ),
                           const Expanded(
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: VfWordmark(size: 28),
+                              child: VfBrandMark(size: 40),
                             ),
                           ),
                           const AuthTools(),
@@ -1987,7 +1988,9 @@ class _Outcome extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'auth.rg.doneSub'.tr,
+            outcome.requiresVerification
+                ? 'auth.rg.doneSub'.tr
+                : 'auth.rg.doneSubPending'.tr,
             textAlign: TextAlign.center,
             style: VfType.body.copyWith(color: t.muted),
           ),
@@ -2008,17 +2011,29 @@ class _Outcome extends StatelessWidget {
           ),
           const SizedBox(height: 26),
           VouchFlowButton(
-            label: 'auth.rg.verify'.tr,
+            label: outcome.requiresVerification
+                ? 'auth.rg.verify'.tr
+                : 'auth.rg.continue2'.tr,
             trailingIcon: PhosphorIconsRegular.arrowRight,
-            height: 48,
+            height: 54,
             expand: true,
-            onPressed: () => Get.to(
-              () => AccountCodePage(
-                purpose: CodePurpose.registration,
-                identifier: outcome.identifier,
-                toOnboarding: true,
-              ),
-            ),
+            onPressed: () {
+              // Without a code step the administrator goes straight in; the
+              // shell shows the waiting screen while the company is pending.
+              if (!outcome.requiresVerification) {
+                Get.offAllNamed(Routes.shell);
+                return;
+              }
+              final pending =
+                  Get.find<SessionService>().company.value?.isPending == true;
+              Get.to(
+                () => AccountCodePage(
+                  purpose: CodePurpose.registration,
+                  identifier: outcome.identifier,
+                  toOnboarding: !pending,
+                ),
+              );
+            },
           ),
         ],
       ),

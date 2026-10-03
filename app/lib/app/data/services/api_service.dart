@@ -74,6 +74,10 @@ class ApiService extends GetxService {
   /// Raised when the server rejects the stored token, so the app can sign out.
   final onUnauthorised = <void Function()>[];
 
+  /// Called when the API refuses a request because the company is still
+  /// waiting for platform approval (403 `company_pending`).
+  final onCompanyPending = <void Function()>[];
+
   Future<ApiService> init() async {
     _prefs = await SharedPreferences.getInstance();
     _token = _prefs.getString(_tokenKey);
@@ -298,6 +302,11 @@ class ApiService extends GetxService {
 
       if (response.statusCode == 401) {
         for (final handler in onUnauthorised) {
+          handler();
+        }
+      }
+      if (map['code'] == 'company_pending') {
+        for (final handler in onCompanyPending) {
           handler();
         }
       }

@@ -22,6 +22,7 @@ String? _join(List<String?> parts) {
 
 /* ─────────────────────────────────────────────────────── the request ── */
 
+/// Who, what, where and how — one info list with icons.
 class RequestDetailsPanel extends StatelessWidget {
   const RequestDetailsPanel({super.key, required this.voucher});
 
@@ -29,57 +30,91 @@ class RequestDetailsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
     final v = voucher;
     final hasBank =
         !v.isCash &&
         ((v.payeeBank ?? '').isNotEmpty ||
             (v.payeeAccountNumber ?? '').isNotEmpty);
     return DetailPanel(
-      title: dt('requestDetails'),
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          DlRow(label: dt('payee'), value: v.payee),
-          DlRow(label: dt('description'), value: v.description),
+      title: dt('details'),
+      padding: const EdgeInsets.fromLTRB(14, 2, 16, 2),
+      child: InfoList(
+        rows: [
           DlRow(
+            icon: PhosphorIconsRegular.user,
+            label: dt('payee'),
+            value: v.payee,
+          ),
+          DlRow(
+            icon: PhosphorIconsRegular.userCircle,
             label: dt('requestedBy'),
             value: _join([v.requesterName, v.requesterJobTitle]),
           ),
           DlRow(
+            icon: PhosphorIconsRegular.buildings,
             label: dt('department'),
             value: _join([v.departmentName, v.costCentre]),
           ),
-          DlRow(label: dt('voucherType'), value: v.voucherTypeLabel),
-          DlRow(label: dt('category'), value: v.category),
           DlRow(
-            label: dt('requestedOn'),
+            icon: PhosphorIconsRegular.calendarBlank,
+            label: dt('date'),
             value: v.voucherDate == null ? null : Fmt.date(v.voucherDate),
           ),
-          DlRow(label: dt('notes'), value: v.notesToApprover),
-          Divider(height: 17, color: t.border),
           DlRow(
+            icon: PhosphorIconsRegular.tag,
+            label: dt('voucherType'),
+            value: v.voucherTypeLabel,
+          ),
+          DlRow(
+            icon: PhosphorIconsRegular.folderSimple,
+            label: dt('category'),
+            value: v.category,
+          ),
+          DlRow(
+            icon: v.isCash
+                ? PhosphorIconsRegular.money
+                : PhosphorIconsRegular.bank,
             label: dt('voucherFormat'),
             value: v.isCash ? dt('cash') : dt('bank'),
           ),
-          DlRow(label: dt('paymentMethod'), value: v.paymentMethod),
-          DlRow(label: dt('accountRef'), value: v.accountRef, mono: true),
+          DlRow(
+            icon: PhosphorIconsRegular.creditCard,
+            label: dt('paymentMethod'),
+            value: v.paymentMethod,
+          ),
+          DlRow(
+            icon: PhosphorIconsRegular.hash,
+            label: dt('accountRef'),
+            value: v.accountRef,
+            mono: true,
+          ),
           if (hasBank) ...[
             DlRow(
+              icon: PhosphorIconsRegular.bank,
               label: dt('bank'),
               value: _join([v.payeeBank, v.payeeBankBranch]),
             ),
-            DlRow(label: dt('accountName'), value: v.payeeAccountName),
             DlRow(
+              icon: PhosphorIconsRegular.identificationCard,
+              label: dt('accountName'),
+              value: v.payeeAccountName,
+            ),
+            DlRow(
+              icon: PhosphorIconsRegular.hash,
               label: dt('accountNumber'),
               value: v.payeeAccountNumber,
               mono: true,
             ),
           ],
-          if (v.isCash) DlRow(label: dt('payFrom'), value: v.cashFloat),
+          if (v.isCash)
+            DlRow(
+              icon: PhosphorIconsRegular.wallet,
+              label: dt('payFrom'),
+              value: v.cashFloat,
+            ),
           if (v.status == 'paid') ...[
             DlRow(
+              icon: PhosphorIconsRegular.checkCircle,
               label: dt('paidByOn'),
               value: _join([
                 v.paidBy,
@@ -87,12 +122,29 @@ class RequestDetailsPanel extends StatelessWidget {
               ]),
             ),
             DlRow(
+              icon: PhosphorIconsRegular.receipt,
               label: dt('paymentRef'),
               value: v.paymentReference,
               mono: true,
             ),
-            DlRow(label: dt('receivedBy'), value: v.receivedBy),
+            DlRow(
+              icon: PhosphorIconsRegular.handCoins,
+              label: dt('receivedBy'),
+              value: v.receivedBy,
+            ),
           ],
+          DlRow(
+            icon: PhosphorIconsRegular.textAlignLeft,
+            label: dt('description'),
+            value: v.description,
+            stacked: true,
+          ),
+          DlRow(
+            icon: PhosphorIconsRegular.note,
+            label: dt('notes'),
+            value: v.notesToApprover,
+            stacked: true,
+          ),
         ],
       ),
     );
@@ -122,60 +174,41 @@ class PaymentsPanel extends StatelessWidget {
         : (v.status == 'paid' ? v.amount : 0.0);
     final balance = v.balance ?? (v.status == 'paid' ? 0.0 : v.amount);
 
-    Widget figure(String label, String value, {bool owing = false}) =>
-        Container(
-          color: owing ? t.warningSoft : null,
-          padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
-          decoration: null,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  label.toUpperCase(),
-                  style: VfType.eyebrow.copyWith(
-                    fontSize: 11.5,
-                    letterSpacing: .5,
-                    color: t.muted,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                value,
-                textAlign: TextAlign.right,
-                style: VfType.bodyStrong.copyWith(
-                  color: owing ? t.warning : t.text,
-                  fontFeatures: _tabular,
-                ),
-              ),
-            ],
-          ),
-        );
-
     return DetailPanel(
       title: dt('payments'),
       count: v.payments.length,
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          figure(dt('approvedAmount'), v.amountText),
-          Divider(height: 1, color: t.border),
-          figure(
-            dt('paidSoFar'),
-            v.amountPaidText ?? Fmt.money(paid, v.currency),
-          ),
-          Divider(height: 1, color: t.border),
-          figure(
-            dt('balanceLabel'),
-            v.balanceText ?? Fmt.money(balance, v.currency),
-            owing: balance > 0,
+          InfoList(
+            rows: [
+              DlRow(
+                label: dt('approvedAmount'),
+                value: v.amountText,
+                mono: true,
+                strong: true,
+              ),
+              DlRow(
+                label: dt('paidSoFar'),
+                value: v.amountPaidText ?? Fmt.money(paid, v.currency),
+                mono: true,
+                strong: true,
+                valueColor: paid > 0 ? t.successStrong : null,
+              ),
+              DlRow(
+                label: dt('balanceLabel'),
+                value: v.balanceText ?? Fmt.money(balance, v.currency),
+                mono: true,
+                strong: true,
+                valueColor: balance > 0 ? t.warningStrong : null,
+              ),
+            ],
           ),
           Divider(height: 1, color: t.border),
           if (v.payments.isEmpty)
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(vertical: 14),
               child: MutedLine(
                 icon: PhosphorIconsRegular.wallet,
                 text: dt('noPaymentsYet'),
@@ -250,7 +283,7 @@ class _PaymentRow extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -445,15 +478,14 @@ class AttachmentsPanel extends StatelessWidget {
     return DetailPanel(
       title: dt('attachments'),
       count: v.attachments.length,
+      padding: EdgeInsets.fromLTRB(14, v.attachments.isEmpty ? 14 : 4, 14, v.attachments.isEmpty ? 14 : 4),
       action: v.actions.attach
           ? Obx(
-              () => VouchFlowButton(
+              () => PanelAction(
                 label: afterDecision ? dt('addReceipt') : dt('add'),
-                icon: PhosphorIconsRegular.paperclip,
-                variant: VfButtonVariant.secondary,
-                compact: true,
+                icon: PhosphorIconsBold.plus,
                 loading: controller.working.value == 'attach',
-                onPressed: controller.working.value != null
+                onTap: controller.working.value != null
                     ? null
                     : () async {
                         final source = await pickDocSource(
@@ -470,27 +502,21 @@ class AttachmentsPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Receipts often arrive after the money is released, so an approved
-          // or paid voucher still takes documents — its details stay locked.
-          if (afterDecision && v.actions.attach) ...[
-            MutedLine(
-              icon: PhosphorIconsRegular.info,
-              text: dt('attachAfterPaymentNote'),
-            ),
-            const SizedBox(height: 12),
-          ],
           if (v.attachments.isEmpty)
             MutedLine(
               icon: PhosphorIconsRegular.paperclip,
               text: dt('noneAttached'),
             )
           else
-            for (final file in v.attachments) ...[
-              _FileRow(controller: controller, voucher: v, file: file),
-              const SizedBox(height: 6),
+            for (var i = 0; i < v.attachments.length; i++) ...[
+              if (i > 0)
+                Divider(
+                  height: 1,
+                  indent: 52,
+                  color: t.border.withValues(alpha: t.isDark ? 1 : .7),
+                ),
+              _FileRow(controller: controller, voucher: v, file: v.attachments[i]),
             ],
-          if (v.attachments.isNotEmpty)
-            SizedBox(height: 0, child: ColoredBox(color: t.border)),
         ],
       ),
     );
@@ -521,35 +547,29 @@ class _FileRow extends StatelessWidget {
       file.uploadedBy,
       file.createdAt == null ? null : Fmt.date(file.createdAt),
     ]);
-    return Material(
-      color: t.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(VfSize.radiusM),
-        side: BorderSide(color: t.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
+    return InkWell(
         onTap: () => openAttachment(controller, file),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 9, 12, 9),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: t.surface3,
-                  borderRadius: BorderRadius.circular(VfSize.radiusS),
+                  color: file.isImage ? t.infoSoft : t.dangerSoft,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   file.isImage
-                      ? PhosphorIconsRegular.image
-                      : PhosphorIconsRegular.filePdf,
-                  size: 19,
-                  color: t.text2,
+                      ? PhosphorIconsFill.image
+                      : PhosphorIconsFill.filePdf,
+                  size: 20,
+                  color: file.isImage ? t.infoStrong : t.dangerStrong,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -610,15 +630,14 @@ class _FileRow extends StatelessWidget {
                         ),
                       )
                     : Icon(
-                        PhosphorIconsRegular.arrowSquareOut,
-                        size: 15,
+                        PhosphorIconsBold.caretRight,
+                        size: 14,
                         color: t.faint,
                       ),
               ),
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -638,9 +657,14 @@ class CommentsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
+    final pill = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(VfSize.radiusPill),
+      borderSide: BorderSide.none,
+    );
     return DetailPanel(
       title: dt('comments'),
       count: voucher.comments.length,
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -648,51 +672,65 @@ class CommentsPanel extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: t.primarySoft,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    c.authorInitials,
-                    style: VfType.meta.copyWith(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: t.primaryText,
-                    ),
-                  ),
-                ),
+                VouchFlowAvatar(initials: c.authorInitials, size: 34),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        c.authorName,
-                        style: VfType.bodyStrong.copyWith(color: t.text),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
+                    decoration: BoxDecoration(
+                      color: t.surface3,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(4),
+                        topRight: Radius.circular(16),
+                        bottomLeft: Radius.circular(16),
+                        bottomRight: Radius.circular(16),
                       ),
-                      Text(
-                        _join([
-                              c.authorDepartment ?? c.authorRole,
-                              Fmt.dateTime(c.createdAt),
-                            ]) ??
-                            '',
-                        style: VfType.meta.copyWith(
-                          fontSize: 13,
-                          color: t.muted,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                c.authorName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: VfType.small.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: t.text,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              Fmt.relative(c.createdAt),
+                              style: VfType.meta.copyWith(
+                                fontSize: 12,
+                                color: t.muted,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(c.body, style: VfType.body.copyWith(color: t.text)),
-                    ],
+                        if ((c.authorDepartment ?? c.authorRole ?? '').isNotEmpty)
+                          Text(
+                            (c.authorDepartment ?? c.authorRole)!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: VfType.meta.copyWith(
+                              fontSize: 12,
+                              color: t.muted,
+                            ),
+                          ),
+                        const SizedBox(height: 3),
+                        Text(c.body, style: VfType.body.copyWith(color: t.text)),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
           ],
           Row(
             children: [
@@ -702,22 +740,52 @@ class CommentsPanel extends StatelessWidget {
                   style: VfType.body.copyWith(color: t.text),
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => controller.postComment(),
+                  cursorColor: t.primary,
                   decoration: InputDecoration(
                     hintText: dt('addComment'),
+                    hintMaxLines: 1,
+                    hintStyle: VfType.body.copyWith(color: t.muted),
                     isDense: true,
+                    filled: true,
+                    fillColor: t.surface3,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 13,
+                    ),
+                    border: pill,
+                    enabledBorder: pill,
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                      borderSide: BorderSide(color: t.primary, width: 1.5),
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              Obx(
-                () => VouchFlowButton(
-                  label: dt('post'),
-                  variant: VfButtonVariant.secondary,
-                  onPressed: controller.commentText.value.trim().isEmpty
-                      ? null
-                      : controller.postComment,
-                ),
-              ),
+              Obx(() {
+                final empty = controller.commentText.value.trim().isEmpty;
+                return Tooltip(
+                  message: dt('post'),
+                  child: Material(
+                    color: empty ? t.surface3 : t.primary,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: empty ? null : controller.postComment,
+                      child: SizedBox(
+                        width: 46,
+                        height: 46,
+                        child: Icon(
+                          PhosphorIconsFill.paperPlaneRight,
+                          size: 19,
+                          color: empty ? t.faint : Colors.white,
+                          semanticLabel: dt('post'),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
             ],
           ),
         ],
@@ -736,14 +804,13 @@ class AuditTrail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = voucher;
-    return Disclosure(
+    return DetailDisclosure(
       title: dt('auditTrail'),
       icon: PhosphorIconsRegular.scroll,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+        child: InfoList(
+          rows: [
             DlRow(
               label: dt('auditCreated'),
               value: Fmt.dateTime(v.createdAt),

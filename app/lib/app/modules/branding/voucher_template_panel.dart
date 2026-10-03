@@ -6,7 +6,7 @@ import '../../core/theme.dart';
 import '../../data/services/template_repository.dart';
 import '../../widgets/common.dart' show Fmt, showToast;
 import '../../widgets/vf/vf.dart';
-import '../admin/admin_widgets.dart' show adminReport, AdminNote;
+import '../admin/admin_widgets.dart' show adminReport, AdminNote, AdminSection;
 
 /// A company's voucher design, and what may be done about it — the web's
 /// VoucherTemplatePanel.
@@ -401,16 +401,15 @@ class _VoucherTemplatePanelState extends State<VoucherTemplatePanel> {
   Widget build(BuildContext context) {
     final t = context.vf;
     if (_loadError) {
-      return VouchFlowCard(
-        title: 'branding.vt.title'.tr,
-        subtitle: 'branding.vt.sub'.tr,
+      return AdminSection(
+        label: 'branding.vt.title'.tr,
         child: AdminNote('branding.vt.unavailable'.tr),
       );
     }
     final s = _state;
     if (s == null) {
-      return VouchFlowCard(
-        title: 'branding.vt.title'.tr,
+      return AdminSection(
+        label: 'branding.vt.title'.tr,
         child: const Center(
           child: Padding(
             padding: EdgeInsets.all(12),
@@ -430,21 +429,28 @@ class _VoucherTemplatePanelState extends State<VoucherTemplatePanel> {
         onTap: () => _viewFullSize(),
         borderRadius: BorderRadius.circular(VfSize.radiusL),
         child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(5),
           decoration: BoxDecoration(
-            color: t.surface2,
+            color: t.surface3,
             borderRadius: BorderRadius.circular(VfSize.radiusL),
-            border: Border.all(color: t.border),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             child: html == null
                 ? AspectRatio(
                     aspectRatio: kA4Width / kA4Height,
                     child: ColoredBox(
-                      color: t.surface3,
+                      color: t.surface2,
                       child: _previewsLoading
-                          ? const Center(child: CircularProgressIndicator())
+                          ? const Center(
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
                           : null,
                     ),
                   )
@@ -457,23 +463,24 @@ class _VoucherTemplatePanelState extends State<VoucherTemplatePanel> {
       ),
     );
 
+    final locked = _spent && !_platform;
     final meter = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: _spent && !_platform ? t.warningSoft : t.surface3,
+        color: locked ? t.warningSoft : t.surface3,
         borderRadius: BorderRadius.circular(VfSize.radiusPill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            _spent && !_platform
+            locked
                 ? PhosphorIconsRegular.lockSimple
                 : PhosphorIconsRegular.arrowsClockwise,
-            size: 15,
-            color: _spent && !_platform ? t.warningStrong : t.text2,
+            size: 14,
+            color: locked ? t.warningStrong : t.text2,
           ),
-          const SizedBox(width: 7),
+          const SizedBox(width: 6),
           Flexible(
             child: Text.rich(
               _platform
@@ -496,8 +503,8 @@ class _VoucherTemplatePanelState extends State<VoucherTemplatePanel> {
                         ),
                       ],
                     ),
-              style: VfType.small.copyWith(
-                color: _spent && !_platform ? t.warningStrong : t.text2,
+              style: VfType.meta.copyWith(
+                color: locked ? t.warningStrong : t.text2,
               ),
             ),
           ),
@@ -505,105 +512,83 @@ class _VoucherTemplatePanelState extends State<VoucherTemplatePanel> {
       ),
     );
 
-    final body = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final summary = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        VouchFlowEyebrow('branding.vt.current'.tr),
-        const SizedBox(height: 4),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Flexible(
-              child: Text(
-                _nameOf(s.template),
-                style: VfType.cardTitle.copyWith(color: t.text, fontSize: 17),
-              ),
-            ),
-            if (current != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                _numberOf(current),
-                style: VfType.eyebrow.copyWith(color: t.muted, fontSize: 11.5),
-              ),
-            ],
-          ],
-        ),
-        if (current != null) ...[
-          const SizedBox(height: 2),
+        if (current != null)
           Text(
-            current.description(_locale),
-            style: VfType.small.copyWith(color: t.muted),
+            _numberOf(current),
+            style: VfType.eyebrow.copyWith(color: t.primaryText, fontSize: 12),
           ),
-        ],
-        const SizedBox(height: 12),
-        Align(alignment: Alignment.centerLeft, child: meter),
-        if (!_platform && _spent) ...[
-          const SizedBox(height: 12),
-          VouchFlowAlert(
-            tone: VfTone.warn,
-            icon: PhosphorIconsRegular.lockSimple,
-            message: 'branding.vt.locked'.tr,
-          ),
-        ],
-        if (!_platform && !widget.canManage && !_spent) ...[
-          const SizedBox(height: 12),
-          AdminNote('branding.vt.adminOnly'.tr),
-        ],
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            VouchFlowButton(
-              label: 'branding.vt.view'.tr,
-              icon: PhosphorIconsRegular.eye,
-              variant: VfButtonVariant.secondary,
-              compact: true,
-              onPressed: () => _viewFullSize(),
-            ),
-            if (_mayChange)
-              VouchFlowButton(
-                label: 'branding.vt.change'.tr,
-                icon: PhosphorIconsRegular.layout,
-                compact: true,
-                onPressed: _choose,
-              ),
-            if (!_platform && widget.canManage && _spent)
-              VouchFlowButton(
-                label: 'branding.vt.request'.tr,
-                icon: PhosphorIconsRegular.paperPlaneTilt,
-                compact: true,
-                onPressed: _request,
-              ),
-          ],
+        Text(
+          _nameOf(s.template),
+          style: VfType.cardTitle.copyWith(color: t.text, fontSize: 17),
         ),
+        const SizedBox(height: 10),
+        meter,
       ],
     );
 
-    return VouchFlowCard(
-      title: 'branding.vt.title'.tr,
-      subtitle: 'branding.vt.sub'.tr,
+    return AdminSection(
+      label: 'branding.vt.title'.tr,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LayoutBuilder(
-            builder: (context, box) {
-              if (box.maxWidth >= 560) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(width: box.maxWidth * .42, child: thumb),
-                    const SizedBox(width: 18),
-                    Expanded(child: body),
-                  ],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [thumb, const SizedBox(height: 16), body],
-              );
-            },
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 92, child: thumb),
+              const SizedBox(width: 14),
+              Expanded(child: summary),
+            ],
+          ),
+          if (locked) ...[
+            const SizedBox(height: 14),
+            VouchFlowAlert(
+              tone: VfTone.warn,
+              icon: PhosphorIconsRegular.lockSimple,
+              message: 'branding.vt.locked'.tr,
+            ),
+          ],
+          if (!_platform && !widget.canManage && !_spent) ...[
+            const SizedBox(height: 14),
+            AdminNote('branding.vt.adminOnly'.tr),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: VouchFlowButton(
+                  label: 'branding.vt.view'.tr,
+                  icon: PhosphorIconsRegular.eye,
+                  variant: VfButtonVariant.secondary,
+                  compact: true,
+                  onPressed: () => _viewFullSize(),
+                ),
+              ),
+              if (_mayChange) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: VouchFlowButton(
+                    label: 'branding.vt.change'.tr,
+                    icon: PhosphorIconsRegular.layout,
+                    compact: true,
+                    onPressed: _choose,
+                  ),
+                ),
+              ],
+              if (!_platform && widget.canManage && _spent) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: VouchFlowButton(
+                    label: 'branding.vt.request'.tr,
+                    icon: PhosphorIconsRegular.paperPlaneTilt,
+                    compact: true,
+                    onPressed: _request,
+                  ),
+                ),
+              ],
+            ],
           ),
           if (_platform || s.history.isNotEmpty) ...[
             const SizedBox(height: 20),
@@ -617,11 +602,6 @@ class _VoucherTemplatePanelState extends State<VoucherTemplatePanel> {
             else
               for (final row in s.history)
                 _HistoryRow(row: row, nameOf: _nameOf),
-            const SizedBox(height: 8),
-            Text(
-              'branding.vt.historyNote'.tr,
-              style: VfType.meta.copyWith(color: t.muted),
-            ),
           ],
         ],
       ),
@@ -671,7 +651,6 @@ class _HistoryRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: t.surface2,
         borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

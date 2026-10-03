@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -16,6 +17,7 @@ import '../admin/employees_page.dart';
 import '../admin/settings_page.dart';
 import '../admin/subscription_page.dart';
 import '../approvals/bulk_approve_page.dart';
+import '../auth/pending_page.dart';
 import '../branding/branding_page.dart';
 import '../dashboard/dashboard_tab.dart';
 import '../notifications/notifications_tab.dart';
@@ -45,7 +47,10 @@ class ShellController extends GetxController {
   final closedGroups = <String>[].obs;
 
   late final List<VfNavItem> items = navFor(session.me.role);
-  late final List<VfNavItem> tabs = tabsFor(session.me.role);
+  /// With a create button in the middle of the bar, four tabs flank it.
+  late final List<VfNavItem> tabs = tabsFor(
+    session.me.role,
+  ).take(session.me.canCreateVouchers ? 4 : 5).toList();
 
   late final VoucherListController register = Get.put(
     VoucherListController(),
@@ -163,6 +168,13 @@ class ShellPage extends GetView<ShellController> {
   Widget build(BuildContext context) {
     final t = context.vf;
     return Obx(() {
+      // A company the platform has not approved yet sees only the waiting
+      // screen; the API refuses everything else for it.
+      final me = controller.session.user.value;
+      if (controller.session.company.value?.isPending == true &&
+          me?.isSuperAdmin != true) {
+        return const PendingApprovalPage();
+      }
       final href = controller.current.value;
       return Scaffold(
         backgroundColor: t.background,
@@ -185,7 +197,7 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
   final ShellController controller;
 
   @override
-  Size get preferredSize => const Size.fromHeight(VfSize.topBarH);
+  Size get preferredSize => const Size.fromHeight(VfSize.topBarH + 4);
 
   @override
   Widget build(BuildContext context) {
@@ -193,86 +205,53 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
     final session = controller.session;
     return Obx(() {
       final me = session.user.value;
+      final company = session.company.value;
       final name = me?.isSuperAdmin == true
           ? 'nav.platformName'.tr
-          : (session.company.value?.name ?? 'app.name'.tr);
-      final dark = session.themeMode.value == ThemeMode.dark;
+          : (company?.name ?? 'app.name'.tr);
       return AppBar(
-        backgroundColor: t.chrome,
-        toolbarHeight: VfSize.topBarH,
+        backgroundColor: t.background,
+        systemOverlayStyle: t.isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
+        toolbarHeight: VfSize.topBarH + 4,
         automaticallyImplyLeading: false,
+        centerTitle: false,
         titleSpacing: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: t.chromeLine),
-        ),
-        title: Row(
-          children: [
-            const SizedBox(width: 6),
-            Builder(
-              builder: (ctx) => VouchFlowIconButton(
-                icon: PhosphorIconsRegular.list,
-                tooltip: 'nav.openMenu'.tr,
-                color: const Color(0xFFCBD5E1),
-                onPressed: () => Scaffold.of(ctx).openDrawer(),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: VfType.cardTitle.copyWith(color: Colors.white),
-              ),
-            ),
-            VouchFlowIconButton(
-              icon: dark ? PhosphorIconsRegular.sun : PhosphorIconsRegular.moon,
-              tooltip: dark ? 'nav.toLight'.tr : 'nav.toDark'.tr,
-              color: const Color(0xFFCBD5E1),
-              size: 40,
-              onPressed: session.toggleTheme,
-            ),
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                VouchFlowIconButton(
-                  icon: PhosphorIconsRegular.bell,
-                  tooltip: 'nav.notifications'.tr,
-                  color: const Color(0xFFCBD5E1),
-                  size: 40,
-                  onPressed: () => controller.go('/notifications'),
+        title: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              Builder(
+                builder: (ctx) => VfBarButton(
+                  icon: PhosphorIconsRegular.squaresFour,
+                  tooltip: 'nav.openMenu'.tr,
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
-                if (session.unread.value > 0)
-                  Positioned(
-                    top: 9,
-                    right: 10,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: t.dangerStrong,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: t.chrome, width: 2),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            if (controller.canCreate) ...[
-              const SizedBox(width: 4),
-              VouchFlowIconButton(
-                icon: PhosphorIconsRegular.plus,
-                tooltip: 'nav.newVoucher'.tr,
-                filled: true,
-                size: 40,
-                onPressed: controller.openCreate,
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: VfType.bodyStrong.copyWith(
+                    fontSize: 15.5,
+                    color: t.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              VfBarButton(
+                icon: PhosphorIconsRegular.bell,
+                tooltip: 'nav.notifications'.tr,
+                badge: session.unread.value > 0,
+                onPressed: () => controller.go('/notifications'),
+              ),
+              const SizedBox(width: 10),
+              _UserMenu(controller: controller),
             ],
-            const SizedBox(width: 6),
-            _UserMenu(controller: controller),
-            const SizedBox(width: 6),
-          ],
+          ),
         ),
       );
     });
@@ -288,22 +267,9 @@ class _UserMenu extends StatelessWidget {
     final session = controller.session;
     final me = session.me;
     return InkWell(
-      borderRadius: BorderRadius.circular(VfSize.radiusL),
+      customBorder: const CircleBorder(),
       onTap: () => _open(context),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Row(
-          children: [
-            VouchFlowAvatar(initials: me.initials, size: 36),
-            const SizedBox(width: 2),
-            const Icon(
-              PhosphorIconsRegular.caretDown,
-              size: 15,
-              color: Color(0xFF94A3B8),
-            ),
-          ],
-        ),
-      ),
+      child: VouchFlowAvatar(initials: me.initials, size: 42),
     );
   }
 
@@ -493,7 +459,10 @@ class _Drawer extends StatelessWidget {
     };
 
     return Drawer(
-      backgroundColor: t.drawer,
+      backgroundColor: t.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
+      ),
       child: SafeArea(
         child: Obx(() {
           final current = controller.current.value;
@@ -505,22 +474,20 @@ class _Drawer extends StatelessWidget {
                 height: 76,
                 padding: const EdgeInsets.fromLTRB(20, 0, 10, 0),
                 decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: t.chromeLine)),
+                  border: Border(bottom: BorderSide(color: t.border)),
                 ),
                 child: Row(
                   children: [
                     Container(
                       width: 40,
                       height: 40,
+                      padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                        color: t.primary,
-                        borderRadius: BorderRadius.circular(VfSize.radiusL),
-                      ),
-                      child: const Icon(
-                        PhosphorIconsBold.checkFat,
                         color: Colors.white,
-                        size: 20,
+                        borderRadius: BorderRadius.circular(VfSize.radiusL),
+                        border: Border.all(color: t.border),
                       ),
+                      child: Image.asset('assets/brand/mark.png'),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -531,7 +498,7 @@ class _Drawer extends StatelessWidget {
                           Text(
                             'app.name'.tr,
                             style: VfType.sectionTitle.copyWith(
-                              color: Colors.white,
+                              color: t.text,
                               fontWeight: FontWeight.w700,
                               fontSize: 20,
                             ),
@@ -540,7 +507,7 @@ class _Drawer extends StatelessWidget {
                             me.roleLabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: VfType.meta.copyWith(color: t.chromeMuted),
+                            style: VfType.meta.copyWith(color: t.muted),
                           ),
                         ],
                       ),
@@ -550,7 +517,7 @@ class _Drawer extends StatelessWidget {
                       onPressed: () => Navigator.of(context).pop(),
                       icon: Icon(
                         PhosphorIconsRegular.x,
-                        color: t.chromeMuted,
+                        color: t.muted,
                         size: 18,
                       ),
                     ),
@@ -569,7 +536,7 @@ class _Drawer extends StatelessWidget {
                           groupLabel[entry.key]!.tr.toUpperCase(),
                           style: VfType.eyebrow.copyWith(
                             fontSize: 11,
-                            color: t.chromeLabel,
+                            color: t.faint,
                           ),
                         ),
                       ),
@@ -655,9 +622,9 @@ class _WorkspaceCard extends StatelessWidget {
     final card = Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: t.chromeCard,
+        color: t.surface3,
         borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.chromeLine),
+        border: Border.all(color: t.border),
       ),
       child: Row(
         children: [
@@ -679,7 +646,10 @@ class _WorkspaceCard extends StatelessWidget {
                 ? Image.network(
                     company!.logoMarkUrl!,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => const SizedBox(),
+                    errorBuilder: (_, _, _) => Text(
+                      name.characters.first.toUpperCase(),
+                      style: VfType.bodyStrong.copyWith(color: t.primary),
+                    ),
                   )
                 : isPlatform
                 ? const Icon(
@@ -703,7 +673,7 @@ class _WorkspaceCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: VfType.bodyStrong.copyWith(
                     fontSize: 14,
-                    color: Colors.white,
+                    color: t.text,
                   ),
                 ),
                 if (sub.isNotEmpty)
@@ -711,7 +681,7 @@ class _WorkspaceCard extends StatelessWidget {
                     sub,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: VfType.meta.copyWith(color: t.chromeMuted),
+                    style: VfType.meta.copyWith(color: t.muted),
                   ),
               ],
             ),
@@ -720,7 +690,7 @@ class _WorkspaceCard extends StatelessWidget {
             Icon(
               PhosphorIconsRegular.caretDown,
               size: 16,
-              color: t.chromeMuted,
+              color: t.muted,
             ),
           const SizedBox(width: 6),
         ],
@@ -798,27 +768,20 @@ class _NavRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final fg = active ? Colors.white : t.chromeText;
+    final fg = active ? t.primaryText : t.text2;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
-        color: active ? t.primary : Colors.transparent,
+        color: active ? t.primarySoftStrong : Colors.transparent,
         borderRadius: BorderRadius.circular(VfSize.radiusL),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          hoverColor: t.chromeHover,
+          hoverColor: t.surface3,
           child: Container(
             height: 48,
-            decoration: active
-                ? const BoxDecoration(
-                    border: Border(
-                      left: BorderSide(color: Color(0xFF93C5FD), width: 4),
-                    ),
-                  )
-                : null,
             padding: EdgeInsets.only(
-              left: active ? 12 : 16,
+              left: 16,
               right: caretOpen == null ? 12 : 4,
             ),
             child: Row(
@@ -840,7 +803,7 @@ class _NavRow extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 7),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: active ? Colors.white : const Color(0xFF2563EB),
+                      color: t.dangerStrong,
                       borderRadius: BorderRadius.circular(VfSize.radiusPill),
                     ),
                     child: Text(
@@ -848,7 +811,7 @@ class _NavRow extends StatelessWidget {
                       style: VfType.meta.copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: active ? t.primary : Colors.white,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -862,7 +825,7 @@ class _NavRow extends StatelessWidget {
                           ? PhosphorIconsRegular.caretUp
                           : PhosphorIconsRegular.caretDown,
                       size: 15,
-                      color: t.chromeMuted,
+                      color: t.muted,
                     ),
                   ),
               ],
@@ -883,63 +846,165 @@ class _TabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
+    final bottom = MediaQuery.paddingOf(context).bottom;
     return Obx(() {
       final tabs = controller.tabs;
-      final index = tabs.indexWhere((i) => i.href == controller.current.value);
-      // A page reached from the drawer (Reports, Employees, …) is not a tab:
-      // NavigationBar still needs an index, so tab 0 is drawn as unselected.
-      final none = index < 0;
-      final bar = NavigationBar(
-        selectedIndex: none ? 0 : index,
-        onDestinationSelected: (i) => controller.go(tabs[i].href),
-        destinations: [
-          for (final item in tabs)
-            NavigationDestination(
-              icon: _badge(context, item, Icon(item.icon)),
-              selectedIcon: _badge(
-                context,
-                item,
-                Icon(none ? item.icon : item.activeIcon),
-              ),
-              label: (item.short ?? item.label).tr,
-              tooltip: item.label.tr,
-            ),
-        ],
+      final current = controller.current.value;
+      final create = controller.canCreate;
+      final half = (tabs.length / 2).ceil();
+
+      Widget slot(VfNavItem item) => Expanded(
+        child: _TabSlot(
+          item: item,
+          active: item.href == current,
+          badge: controller.badgeFor(item),
+          onTap: () => controller.go(item.href),
+        ),
       );
+
       return Container(
         decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: t.border)),
+          color: t.tabBar,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          border: t.isDark ? Border(top: BorderSide(color: t.border)) : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: t.isDark ? .35 : .07),
+              blurRadius: 24,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
-        child: !none
-            ? bar
-            : NavigationBarTheme(
-                data: NavigationBarTheme.of(context).copyWith(
-                  indicatorColor: Colors.transparent,
-                  labelTextStyle: WidgetStatePropertyAll(
-                    VfType.meta.copyWith(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: t.muted,
-                    ),
-                  ),
-                  iconTheme: WidgetStatePropertyAll(
-                    IconThemeData(size: 21, color: t.muted),
-                  ),
-                ),
-                child: bar,
-              ),
+        padding: EdgeInsets.fromLTRB(8, 8, 8, bottom > 0 ? bottom - 6 : 10),
+        child: SizedBox(
+          height: 58,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!create)
+                for (final item in tabs) slot(item)
+              else ...[
+                for (final item in tabs.take(half)) slot(item),
+                Expanded(child: Center(child: _CreateButton(controller.openCreate))),
+                for (final item in tabs.skip(half)) slot(item),
+              ],
+            ],
+          ),
+        ),
       );
     });
   }
+}
 
-  Widget _badge(BuildContext context, VfNavItem item, Widget icon) {
-    final n = controller.badgeFor(item);
-    if (n == null) return icon;
-    return Badge(
-      backgroundColor: VfBadge.background(Theme.of(context).brightness),
-      textColor: Colors.white,
-      label: Text(n > 99 ? '99+' : '$n'),
-      child: icon,
+class _TabSlot extends StatelessWidget {
+  const _TabSlot({
+    required this.item,
+    required this.active,
+    required this.onTap,
+    this.badge,
+  });
+
+  final VfNavItem item;
+  final bool active;
+  final VoidCallback onTap;
+  final int? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final colour = active ? t.primary : t.muted;
+    Widget icon = AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      width: active ? 52 : 40,
+      height: 30,
+      decoration: BoxDecoration(
+        color: active ? t.primarySoftStrong : Colors.transparent,
+        borderRadius: BorderRadius.circular(VfSize.radiusPill),
+      ),
+      child: Icon(active ? item.activeIcon : item.icon, size: 22, color: colour),
+    );
+    if (badge != null) {
+      icon = Badge(
+        backgroundColor: VfBadge.background(Theme.of(context).brightness),
+        textColor: Colors.white,
+        offset: const Offset(-2, -2),
+        label: Text(badge! > 99 ? '99+' : '$badge'),
+        child: icon,
+      );
+    }
+    return Semantics(
+      button: true,
+      selected: active,
+      label: item.label.tr,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            icon,
+            const SizedBox(height: 4),
+            Text(
+              (item.short ?? item.label).tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: VfType.meta.copyWith(
+                fontSize: 11,
+                height: 1.1,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                color: colour,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The raised "+" in the middle of the tab bar: create a voucher.
+class _CreateButton extends StatelessWidget {
+  const _CreateButton(this.onTap);
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Tooltip(
+      message: 'nav.newVoucher'.tr,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [t.palette.hoverDark, t.palette.primaryLight],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: t.primary.withValues(alpha: .45),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: const Icon(
+              PhosphorIconsBold.plus,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

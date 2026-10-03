@@ -116,7 +116,7 @@ void main() {
 
       testWidgets('users, plans and payments, $label', (tester) async {
         await host(tester, const PlatformUsersPage(), width: width, dark: dark);
-        expect(find.text('Every account across all tenants.'), findsOneWidget);
+        expect(find.text('Every account across all tenants.'), findsNothing);
         await host(tester, const PlatformPlansPage(), width: width, dark: dark);
         expect(find.text('Starter'), findsOneWidget);
         await tester.tap(find.byTooltip('Edit Starter'));

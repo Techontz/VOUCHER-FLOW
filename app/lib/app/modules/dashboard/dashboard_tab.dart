@@ -12,6 +12,7 @@ import '../../data/services/dashboard_repository.dart';
 import '../../data/services/session_service.dart';
 import '../../routes/routes.dart';
 import '../../widgets/vf/vf.dart';
+import '../shell/nav.dart';
 import '../shell/shell_page.dart';
 import 'dash_bits.dart';
 import 'dash_panels.dart';
@@ -19,8 +20,8 @@ import 'queue_row.dart';
 
 export 'dash_bits.dart' show dashTr;
 
-/// The dashboard: a greeting, one plain sentence about what is waiting on
-/// you, the figures for your role, and the work itself.
+/// Home: a greeting, one hero figure for what is waiting on you, round
+/// shortcuts, compact figures for your role, and the work itself.
 ///
 /// What each role sees — and every number on it — is decided by the backend
 /// from the vouchers that user may see. This screen decides only how it
@@ -208,6 +209,7 @@ class DashboardTab extends GetView<DashboardController> {
       controller.session.user.value;
       controller.session.company.value;
       controller.session.locale.value;
+      final unread = controller.session.unread.value;
       return LayoutBuilder(
         builder: (context, box) => VouchFlowPageBody(
           onRefresh: controller.load,
@@ -217,7 +219,7 @@ class DashboardTab extends GetView<DashboardController> {
             box.maxWidth >= 700 ? 24 : VfSize.pagePad,
             32,
           ),
-          children: _content(context, d, routes, box.maxWidth),
+          children: _content(context, d, routes, box.maxWidth, unread),
         ),
       );
     });
@@ -228,13 +230,14 @@ class DashboardTab extends GetView<DashboardController> {
     DashboardData d,
     List<QueueWorkflow>? routes,
     double width,
+    int unread,
   ) {
+    final t = context.vf;
     final session = controller.session;
     final user = session.user.value;
     final company = session.company.value;
     final view = controller.viewFor(d);
     final isPlatform = view == 'platform';
-    final canCreate = !isPlatform && view != 'cashier';
     final expiring =
         company != null &&
         company.status == 'trial' &&
@@ -242,23 +245,31 @@ class DashboardTab extends GetView<DashboardController> {
 
     final firstName = (user?.name ?? '').split(' ').first;
     final greeting = dashTr('greeting.${d.greeting}', d.greeting);
-    final gap = const SizedBox(height: 16);
+    const gap = SizedBox(height: 24);
+
+    // The platform's hero is its monthly revenue; that figure then leaves
+    // the tiles so it is not shown twice.
+    final heroStat = isPlatform
+        ? (d.stats.firstWhereOrNull(
+                (s) => s.key == 'dash.stat.monthlyRevenue',
+              ) ??
+              d.stats.firstOrNull)
+        : null;
+    final stats = d.stats.where((s) => s != heroStat).toList();
 
     final main = <Widget>[
-      if (!isPlatform && d.queue.isNotEmpty)
-        KeyedSubtree(key: controller.queueKey, child: _queue(d, view, routes)),
       if (!isPlatform && d.activity != null)
         ActivityPanel(
           title: dashTr(d.activityKey, d.activityLabel),
           rows: d.activity!,
           selfId: user?.id,
           onOpen: controller.openVoucher,
-          link: view == 'employee'
-              ? (
-                  'dash.panel.voucherHistory'.tr,
-                  () => controller.go('/vouchers'),
-                )
-              : ('dash.panel.viewReports'.tr, () => controller.go('/reports')),
+          link: (
+            'dash.panel.viewAll'.tr,
+            view == 'employee'
+                ? () => controller.go('/vouchers')
+                : () => controller.go('/reports'),
+          ),
         ),
       if (d.attention != null)
         AttentionCompaniesPanel(
@@ -311,7 +322,6 @@ class DashboardTab extends GetView<DashboardController> {
       if (view == 'cashier' && d.paymentTotals != null)
         DashPanel(
           title: 'dash.panel.paymentTotals'.tr,
-          subtitle: 'dash.panel.paymentTotalsSub'.tr,
           child: DashFacts([
             (
               '${'dash.panel.paidTotal'.tr} · ${d.paymentTotals!.paid.count}',
@@ -344,9 +354,6 @@ class DashboardTab extends GetView<DashboardController> {
           (view == 'approver' || d.byDepartment!.isNotEmpty))
         DashPanel(
           title: 'dash.panel.deptSpending'.tr,
-          subtitle: view == 'approver'
-              ? 'dash.panel.deptSpendingMonth'.tr
-              : 'dash.panel.deptSpendingAll'.tr,
           child: d.byDepartment!.isEmpty
               ? DashEmpty('dash.activity.empty'.tr)
               : DashBars([
@@ -364,29 +371,6 @@ class DashboardTab extends GetView<DashboardController> {
           rows: d.recentCompanies!,
           onOpen: controller.openCompany,
         ),
-      if (view == 'employee')
-        VouchFlowCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              VouchFlowButton(
-                label: 'dash.panel.voucherHistory'.tr,
-                icon: PhosphorIconsRegular.clockCounterClockwise,
-                variant: VfButtonVariant.secondary,
-                expand: true,
-                onPressed: () => controller.go('/vouchers'),
-              ),
-              const SizedBox(height: 10),
-              VouchFlowButton(
-                label: 'dash.panel.viewReports'.tr,
-                icon: PhosphorIconsRegular.chartLine,
-                variant: VfButtonVariant.secondary,
-                expand: true,
-                onPressed: () => controller.go('/reports'),
-              ),
-            ],
-          ),
-        ),
     ];
 
     List<Widget> spaced(List<Widget> items) => [
@@ -397,65 +381,65 @@ class DashboardTab extends GetView<DashboardController> {
 
     return [
       if (company != null && !company.isUsable) ...[
-        VouchFlowAlert(
+        DashAlertRow(
           tone: VfTone.bad,
           icon: PhosphorIconsRegular.warningCircle,
-          title: 'dashboard.expired'.tr,
-          message: 'dashboard.expiredBody'.tr,
-          action: VouchFlowButton(
-            label: 'dashboard.payNow'.tr,
-            compact: true,
-            onPressed: () => controller.go('/subscription'),
-          ),
+          text: 'dashboard.expired'.tr,
+          trailing: 'dashboard.payNow'.tr,
+          onTap: () => controller.go('/subscription'),
         ),
-        gap,
+        const SizedBox(height: 16),
       ],
       if (expiring && company.isUsable) ...[
-        VouchFlowAlert(
+        DashAlertRow(
           tone: VfTone.warn,
           icon: PhosphorIconsRegular.clock,
-          title: '${'dashboard.trialEnds'.tr} ${dashDate(company.trialEndsAt)}',
-          message: dashTr(
-            'dash.trialBanner',
-            '${company.daysRemaining} days remaining on your ${company.plan?.name ?? ''} trial.',
-            {
-              'days': '${company.daysRemaining ?? 0}',
-              'plan': company.plan?.name ?? '',
-            },
-          ),
-          action: VouchFlowButton(
-            label: 'dashboard.changePlan'.tr,
-            compact: true,
-            variant: VfButtonVariant.secondary,
-            onPressed: () => controller.go('/subscription'),
-          ),
+          text: '${'dashboard.trialEnds'.tr} ${dashDate(company.trialEndsAt)}',
+          onTap: () => controller.go('/subscription'),
         ),
-        gap,
+        const SizedBox(height: 16),
       ],
 
-      VouchFlowPageHeader(
-        title: firstName.isEmpty ? greeting : '$greeting, $firstName',
-        subtitle: isPlatform
-            ? dashTr('dash.introPlatform', "Here's the platform at a glance.")
-            : dashTr('dash.intro', "Here's your voucher activity at a glance."),
+      // Greeting: a quiet line, then the name, large.
+      Padding(
+        padding: const EdgeInsets.only(left: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              greeting,
+              style: VfType.body.copyWith(
+                color: t.muted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (firstName.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                firstName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: VfType.pageTitle.copyWith(color: t.text, fontSize: 30),
+              ),
+            ],
+          ],
+        ),
       ),
-      const SizedBox(height: 16),
-      _headActions(isPlatform, canCreate, width),
-      const SizedBox(height: 20),
+      const SizedBox(height: 18),
 
-      if (d.banner != null) ...[
-        AttentionBanner(
-          banner: d.banner!,
-          onAction: d.queue.isEmpty ? null : controller.showQueue,
-        ),
-        gap,
-      ] else if (isPlatform) ...[
-        AttentionBanner.plain(title: d.headline, body: d.sub),
+      _hero(d, view, heroStat),
+      const SizedBox(height: 22),
+
+      // What is waiting on this person comes first, each with its action.
+      if (!isPlatform && d.queue.isNotEmpty) ...[
+        KeyedSubtree(key: controller.queueKey, child: _queue(d, view, routes)),
         gap,
       ],
 
-      _figures(context, d, isPlatform, width),
-      const SizedBox(height: 20),
+      _quickActions(user?.role ?? 'employee', unread),
+      gap,
+
+      if (stats.isNotEmpty) ...[_figures(d, stats, isPlatform, width), gap],
 
       if (wide && main.isNotEmpty && aside.isNotEmpty)
         Row(
@@ -471,58 +455,96 @@ class DashboardTab extends GetView<DashboardController> {
     ];
   }
 
-  Widget _headActions(bool isPlatform, bool canCreate, double width) {
-    if (isPlatform) {
-      return VouchFlowButton(
-        label: 'nav.companies'.tr,
-        icon: PhosphorIconsRegular.buildings,
-        expand: width < 700,
-        onPressed: () => controller.go('/platform/companies'),
+  /// The one figure that matters: what is waiting on this person — or, on
+  /// the platform, this month's revenue.
+  Widget _hero(DashboardData d, String view, DashboardStat? platformStat) {
+    if (view == 'platform') {
+      final s = platformStat;
+      return DashHero(
+        icon: PhosphorIconsRegular.currencyCircleDollar,
+        label: s == null ? 'nav.platformName'.tr : dashTr(s.key, s.label),
+        figure: (s?.value ?? '—').replaceAll(' ', ' '),
+        note: d.headline.isEmpty ? null : d.headline,
+        actionLabel: 'nav.companies'.tr,
+        onAction: () => controller.go('/platform/companies'),
       );
     }
-    final reports = VouchFlowButton(
-      label: 'nav.reports'.tr,
-      icon: PhosphorIconsRegular.chartLine,
-      variant: VfButtonVariant.secondary,
-      expand: width < 700,
-      onPressed: () => controller.go('/reports'),
+    final b = d.banner;
+    final waiting = b?.count ?? d.queue.length;
+    final total = d.queueTotalText;
+    return DashHero(
+      icon: waiting > 0
+          ? PhosphorIconsRegular.bellRinging
+          : PhosphorIconsRegular.checkCircle,
+      label: waiting == 0
+          ? 'dashboard.hero.clear'.tr
+          : view == 'admin'
+          ? 'dashboard.stalled'.tr
+          : 'dashboard.hero.waiting'.tr,
+      figure: '$waiting',
+      note: waiting > 0 && total != null && total.isNotEmpty ? total : null,
+      actionLabel: 'dashboard.hero.review'.tr,
+      onAction: d.queue.isEmpty ? null : controller.showQueue,
+      // The full sentence stays for screen readers.
+      semanticLabel: b == null
+          ? null
+          : [
+              dashTr(b.key, b.title, b.params),
+              dashTr(b.bodyKey, b.body),
+            ].where((s) => s.isNotEmpty).join(' '),
     );
-    if (!canCreate) {
-      return Align(alignment: Alignment.centerLeft, child: reports);
+  }
+
+  /// Round shortcuts into this role's own pages, as its navigation lists
+  /// them; creating a voucher is the tab bar's raised +.
+  Widget _quickActions(String role, int unread) {
+    const skip = {'/dashboard', '/vouchers/new', '/notifications', '/profile'};
+    final items = <(IconData, String, String)>[
+      for (final i in navFor(role))
+        if (!skip.contains(i.href)) (i.icon, i.short ?? i.label, i.href),
+    ];
+    if (role == 'employee') {
+      items.add((PhosphorIconsRegular.chartLine, 'nav.reports', '/reports'));
     }
-    final create = VouchFlowButton(
-      label: 'dashboard.createVoucher'.tr,
-      icon: PhosphorIconsRegular.plus,
-      expand: width < 700,
-      onPressed: () => controller.go('/vouchers/new'),
-    );
-    if (width >= 700) {
-      return Wrap(spacing: 10, runSpacing: 10, children: [reports, create]);
+    final extras = <(IconData, String, String)>[
+      (PhosphorIconsRegular.bell, 'dashboard.quick.alerts', '/notifications'),
+      (PhosphorIconsRegular.user, 'dashboard.quick.me', '/profile'),
+    ];
+    for (final e in extras) {
+      if (items.length >= 4) break;
+      items.add(e);
     }
+    final shown = items.take(4).toList();
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(flex: 4, child: reports),
-        const SizedBox(width: 12),
-        Expanded(flex: 5, child: create),
+        for (final (icon, label, href) in shown)
+          Expanded(
+            child: DashQuickAction(
+              icon: icon,
+              label: label.tr,
+              badge: href == '/notifications' ? unread : 0,
+              onTap: () => controller.go(href),
+            ),
+          ),
       ],
     );
   }
 
   Widget _figures(
-    BuildContext context,
     DashboardData d,
+    List<DashboardStat> stats,
     bool isPlatform,
     double width,
   ) {
-    final count = d.stats.length;
-    final cols = width < 560
+    final count = stats.length;
+    final cols = width < 700
         ? 2
-        : (count % 4 == 0 && width >= 720)
+        : (count % 4 == 0 && width >= 900)
         ? 4
         : 3;
     final tiles = <Widget>[];
-    for (var i = 0; i < d.stats.length; i++) {
-      final s = d.stats[i];
+    for (final s in stats) {
       final look =
           _looks[s.key] ?? (PhosphorIconsRegular.chartBar, VfTone.primary);
       final value = double.tryParse(s.value.replaceAll(',', '')) ?? 0;
@@ -534,15 +556,18 @@ class DashboardTab extends GetView<DashboardController> {
       final sub = s.subKey == null
           ? s.sub
           : dashTr(s.subKey, s.sub, s.subParams);
-      final trend = s.trend == null
-          ? null
-          : '${s.up == true ? '↑' : '↓'} ${s.trend}';
+      // Only a trend or a note of a few words earns a line.
+      final note = s.trend != null
+          ? '${s.up == true ? '↑' : '↓'} ${s.trend}'
+          : (sub.isNotEmpty && sub.trim().split(RegExp(r'\s+')).length <= 3)
+          ? sub
+          : null;
       tiles.add(
-        VouchFlowStatCard(
+        DashStatTile(
           label: dashTr(s.key, s.label, s.params),
           // Unbreakable, so a long figure scales rather than wraps.
-          value: s.value.replaceAll(' ', '\u00A0'),
-          sub: [?trend, if (sub.isNotEmpty) sub].join(' · ').nullIfEmpty,
+          value: s.value.replaceAll(' ', ' '),
+          note: note,
           icon: look.$1,
           tone: look.$2,
           onTap: actionable ? controller.showQueue : null,
@@ -581,15 +606,16 @@ class DashboardTab extends GetView<DashboardController> {
 
   Widget _queue(DashboardData d, String view, List<QueueWorkflow>? routes) {
     final sw = dashIsSw;
+    final bulk = view == 'approver' && d.queue.length > 1;
     return DashPanel(
       title: dashTr('dash.queue.$view', 'dashboard.needsYourAction'.tr),
       count: d.queue.length,
-      below: _queueHeadLine(d, view),
-      footer: QueueFootnote(
-        view == 'admin'
-            ? 'dashboard.stalledNote'.tr
-            : 'dashboard.clearedNote'.tr,
-      ),
+      trailing: bulk
+          ? DashLink(
+              label: 'nav.approvals'.tr,
+              onTap: () => Get.find<ShellController>().go('/approvals'),
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -613,72 +639,21 @@ class DashboardTab extends GetView<DashboardController> {
   }
 }
 
-Widget _queueHeadLine(DashboardData d, String view) {
-  final total = d.queueTotalText;
-  final bulk = view == 'approver' && d.queue.length > 1;
-  if ((total == null || total.isEmpty) && !bulk) return const SizedBox.shrink();
-  return Builder(
-    builder: (context) {
-      final t = context.vf;
-      return Padding(
-        padding: const EdgeInsets.only(top: 2, right: 8),
-        child: Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            if (total != null && total.isNotEmpty)
-              Text.rich(
-                TextSpan(
-                  text: '${'dashboard.total'.tr} ',
-                  children: [
-                    TextSpan(
-                      text: total,
-                      style: TextStyle(
-                        color: t.text,
-                        fontWeight: FontWeight.w600,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ],
-                ),
-                style: VfType.small.copyWith(color: t.muted),
-              ),
-            if (bulk)
-              VouchFlowButton(
-                label: 'dashboard.approveSelected'.tr,
-                icon: PhosphorIconsRegular.checks,
-                variant: VfButtonVariant.ghost,
-                compact: true,
-                onPressed: () => Get.find<ShellController>().go('/approvals'),
-              ),
-          ],
-        ),
-      );
-    },
-  );
-}
-
-extension on String {
-  String? get nullIfEmpty => isEmpty ? null : this;
-}
-
-/// The shape of the dashboard, so the page does not jump when data arrives.
+/// The shape of the home, so the page does not jump when data arrives.
 class _Skeleton extends StatelessWidget {
   const _Skeleton();
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    Widget bar(double w, double h) => FractionallySizedBox(
+    Widget block(double w, double h, double r) => FractionallySizedBox(
       alignment: Alignment.centerLeft,
       widthFactor: w,
       child: Container(
         height: h,
         decoration: BoxDecoration(
           color: t.surface3,
-          borderRadius: BorderRadius.circular(VfSize.radiusS),
+          borderRadius: BorderRadius.circular(r),
         ),
       ),
     );
@@ -689,16 +664,31 @@ class _Skeleton extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              bar(.7, 26),
-              const SizedBox(height: 10),
-              bar(.6, 14),
+              block(.3, 14, VfSize.radiusS),
+              const SizedBox(height: 8),
+              block(.5, 28, VfSize.radiusS),
+              const SizedBox(height: 18),
+              block(1, 150, 24),
               const SizedBox(height: 22),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  for (var i = 0; i < 4; i++)
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: t.surface3,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
-        const VouchFlowLoadingState(rows: 1, rowHeight: 64),
-        const VouchFlowLoadingState(rows: 2, rowHeight: 120),
-        const VouchFlowLoadingState(rows: 2, rowHeight: 220),
+        const VouchFlowLoadingState(rows: 2, rowHeight: 110),
       ],
     );
   }

@@ -9,8 +9,8 @@ import '../../widgets/vf/vf.dart';
 /// `yyyy-MM-dd`, the date format the API takes.
 String apiDate(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
 
-/// A date control in the web's `.input` style: tap to pick, with a clear
-/// button when [clearable] and a date is set.
+/// A filled app-style date control: tap to pick, with a clear button when
+/// [clearable] and a date is set.
 class VfDateInput extends StatelessWidget {
   const VfDateInput({
     super.key,
@@ -51,42 +51,30 @@ class VfDateInput extends StatelessWidget {
       hint: hint,
       child: InkWell(
         onTap: () => _pick(context),
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
+        borderRadius: BorderRadius.circular(vfInputRadius),
         child: InputDecorator(
           isEmpty: value == null,
-          decoration: InputDecoration(
+          decoration: vfInputDecoration(
+            context,
             hintText: placeholder,
-            errorText: (error != null && error!.isNotEmpty) ? '' : null,
-            errorStyle: const TextStyle(height: 0, fontSize: 0),
+            hasError: error != null && error!.isNotEmpty,
             suffixIcon: clearable && value != null
                 ? IconButton(
-                    tooltip: MaterialLocalizations.of(
-                      context,
-                    ).deleteButtonTooltip,
-                    icon: Icon(
-                      PhosphorIconsRegular.x,
-                      size: 16,
-                      color: t.muted,
-                    ),
+                    tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                    icon: Icon(PhosphorIconsRegular.x, size: 16, color: t.muted),
                     onPressed: () => onChanged(null),
                   )
-                : Icon(
-                    PhosphorIconsRegular.calendarBlank,
-                    size: 18,
-                    color: t.faint,
-                  ),
+                : Icon(PhosphorIconsRegular.calendarBlank, size: 19, color: t.muted),
           ),
-          child: Text(
-            value == null ? '' : Fmt.date(value),
-            style: VfType.body.copyWith(color: t.text),
-          ),
+          child: Text(value == null ? '' : Fmt.date(value), style: VfType.body.copyWith(color: t.text)),
         ),
       ),
     );
   }
 }
 
-/// The web's `.vf-fieldset`: a bordered group with an uppercase legend.
+/// A labelled group of fields: a short bold label, then the fields with
+/// app spacing — no box around them.
 class VfFieldset extends StatelessWidget {
   const VfFieldset({super.key, required this.legend, required this.children});
 
@@ -96,25 +84,20 @@ class VfFieldset extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.border),
-        color: t.surface2,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          VouchFlowEyebrow(legend),
-          for (final child in children) ...[const SizedBox(height: 14), child],
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          legend,
+          style: VfType.bodyStrong.copyWith(fontSize: 15.5, fontWeight: FontWeight.w700, color: t.text),
+        ),
+        for (final child in children) ...[const SizedBox(height: 14), child],
+      ],
     );
   }
 }
 
-/// The web's `Note`: a quiet info line.
+/// A compact info line in a soft tinted pill.
 class VfNote extends StatelessWidget {
   const VfNote(this.text, {super.key});
 
@@ -124,17 +107,13 @@ class VfNote extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.vf;
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.border),
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+      decoration: BoxDecoration(color: t.primarySoft, borderRadius: BorderRadius.circular(VfSize.radiusL)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(PhosphorIconsRegular.info, size: 18, color: t.muted),
-          const SizedBox(width: 10),
+          Icon(PhosphorIconsFill.info, size: 17, color: t.primaryText),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(text, style: VfType.small.copyWith(color: t.text2)),
           ),

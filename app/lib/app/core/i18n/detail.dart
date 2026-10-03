@@ -243,6 +243,11 @@ const Map<String, String> detailEn = {
   'detail.signedCopyTitle': 'Signed copy',
   'detail.scanHint': 'Photograph the page the receiver signed, or choose the scanned PDF.',
   'detail.shareText': '@number — @purpose',
+  'detail.details': 'Details',
+  'detail.withdraw': 'Withdraw',
+  'detail.changesShort': 'Changes',
+  'detail.signShort': 'Sign',
+  'detail.document': 'Document',
 };
 
 const Map<String, String> detailSw = {
@@ -486,4 +491,9 @@ const Map<String, String> detailSw = {
   'detail.signedCopyTitle': 'Nakala iliyosainiwa',
   'detail.scanHint': 'Piga picha ya ukurasa aliosaini mpokeaji, au chagua PDF iliyochanganuliwa.',
   'detail.shareText': '@number — @purpose',
+  'detail.details': 'Maelezo',
+  'detail.withdraw': 'Ondoa',
+  'detail.changesShort': 'Rekebisha',
+  'detail.signShort': 'Saini',
+  'detail.document': 'Hati',
 };

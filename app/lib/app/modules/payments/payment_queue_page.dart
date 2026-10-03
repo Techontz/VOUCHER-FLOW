@@ -35,7 +35,8 @@ class PaymentQueueController extends GetxController {
   final page = 1.obs;
   final due = Rxn<VoucherPage>();
   final paid = Rxn<VoucherPage>();
-  final figures = Rxn<({_Tally due, _Tally bank, _Tally cash, _Tally paidMonth})>();
+  final figures =
+      Rxn<({_Tally due, _Tally bank, _Tally cash, _Tally paidMonth})>();
   final error = RxnString();
   final workflows = Rxn<List<WorkflowInfo>>();
   final exporting = RxnString();
@@ -54,14 +55,17 @@ class PaymentQueueController extends GetxController {
     await Future.wait([loadFigures(), loadLists()]);
   }
 
-  void _fail(Object e) => error.value = e is ApiException ? e.message : 'state.offline'.tr;
+  void _fail(Object e) =>
+      error.value = e is ApiException ? e.message : 'state.offline'.tr;
 
   /// What is owed, from the list's own balance total (part payments deducted).
-  _Tally _owed(VoucherPage p) => (count: p.total, amount: p.totalBalance ?? p.totalAmount);
+  _Tally _owed(VoucherPage p) =>
+      (count: p.total, amount: p.totalBalance ?? p.totalAmount);
 
   Future<void> loadFigures() async {
     final now = DateTime.now();
-    String d(DateTime x) => '${x.year}-${x.month.toString().padLeft(2, '0')}-${x.day.toString().padLeft(2, '0')}';
+    String d(DateTime x) =>
+        '${x.year}-${x.month.toString().padLeft(2, '0')}-${x.day.toString().padLeft(2, '0')}';
     final from = d(DateTime(now.year, now.month, 1));
     final to = d(DateTime(now.year, now.month + 1, 0));
     try {
@@ -85,7 +89,12 @@ class PaymentQueueController extends GetxController {
   Future<void> loadLists() async {
     try {
       final r = await Future.wait([
-        repo.page(status: 'approved', kind: kind, page: page.value, perPage: 20),
+        repo.page(
+          status: 'approved',
+          kind: kind,
+          page: page.value,
+          perPage: 20,
+        ),
         repo.page(status: 'paid', kind: kind, perPage: 10),
       ]);
       due.value = r[0];
@@ -112,15 +121,23 @@ class PaymentQueueController extends GetxController {
     final reportKind = filter.value == 'cash' ? 'cash' : 'payments';
     exporting.value = format;
     try {
-      final bytes = await repo.exportReport(reportKind, {if (filter.value == 'bank') 'kind': 'bank'}, format);
+      final bytes = await repo.exportReport(reportKind, {
+        if (filter.value == 'bank') 'kind': 'bank',
+      }, format);
       final today = DateTime.now().toIso8601String().substring(0, 10);
       final name = 'vouchflow-$reportKind-$today.$format';
-      await Share.shareXFiles([XFile.fromData(bytes, name: name)], subject: name);
+      await Share.shareXFiles([
+        XFile.fromData(bytes, name: name),
+      ], subject: name);
       showToast(pt('exportReady'), body: format.toUpperCase());
     } on ApiException catch (e) {
       showToast(pt('exportFailed'), body: e.message, kind: ToastKind.bad);
     } catch (_) {
-      showToast(pt('exportFailed'), body: 'state.offline'.tr, kind: ToastKind.bad);
+      showToast(
+        pt('exportFailed'),
+        body: 'state.offline'.tr,
+        kind: ToastKind.bad,
+      );
     } finally {
       exporting.value = null;
     }
@@ -158,7 +175,8 @@ class _PaymentQueuePageState extends State<PaymentQueuePage> {
 
   String _plural(int n) => n == 1 ? pt('voucherWord') : pt('vouchersWord');
 
-  String _kindCount(int n, String kind) => n == 1 ? pt('${kind}One') : pt('${kind}Many', {'count': '$n'});
+  String _kindCount(int n, String kind) =>
+      n == 1 ? pt('${kind}One') : pt('${kind}Many', {'count': '$n'});
 
   @override
   Widget build(BuildContext context) {
@@ -169,11 +187,19 @@ class _PaymentQueuePageState extends State<PaymentQueuePage> {
       if (c.error.value != null && (due == null || figures == null)) {
         return VouchFlowPageBody(
           onRefresh: c.reload,
-          children: [VouchFlowErrorState(message: c.error.value!, onRetry: c.reload, retryLabel: 'action.retry'.tr)],
+          children: [
+            VouchFlowErrorState(
+              message: c.error.value!,
+              onRetry: c.reload,
+              retryLabel: 'action.retry'.tr,
+            ),
+          ],
         );
       }
       if (due == null || figures == null) {
-        return const VouchFlowPageBody(children: [VouchFlowLoadingState(rows: 5)]);
+        return const VouchFlowPageBody(
+          children: [VouchFlowLoadingState(rows: 5)],
+        );
       }
 
       final currency = c.session.company.value?.currency ?? 'TZS';
@@ -183,161 +209,123 @@ class _PaymentQueuePageState extends State<PaymentQueuePage> {
 
       return VouchFlowPageBody(
         onRefresh: c.reload,
+        padding: const EdgeInsets.fromLTRB(
+          VfSize.pagePad,
+          16,
+          VfSize.pagePad,
+          32,
+        ),
         children: [
-          VouchFlowPageHeader(
-            title: '${figures.due.count} ${_plural(figures.due.count)} ${pt('awaitingPayment').toLowerCase()}',
-            subtitle: pt('payNote'),
-            actions: [
+          AppScreenTitle(
+            title: 'nav.payments'.tr,
+            count: figures.due.count,
+            trailing: [
               _ExportMenu(controller: c),
               if (hasShell)
-                VouchFlowButton(
-                  label: pt('voucherRegister'),
+                VfBarButton(
                   icon: PhosphorIconsRegular.receipt,
-                  variant: VfButtonVariant.secondary,
+                  tooltip: pt('voucherRegister'),
                   onPressed: () => _go('/vouchers'),
                 ),
             ],
           ),
-          const SizedBox(height: 20),
-          FigureGrid(
-            children: [
-              VouchFlowStatCard(
-                label: pt('awaitingPayment'),
-                value: Fmt.money(figures.due.amount, currency),
+          const SizedBox(height: 16),
+          AppStatStrip(
+            stats: [
+              AppStat(
+                pt('awaitingPayment'),
+                Fmt.money(figures.due.amount, currency),
                 sub: '${figures.due.count} ${_plural(figures.due.count)}',
-                tone: figures.due.count > 0 ? VfTone.info : VfTone.primary,
+                icon: PhosphorIconsFill.hourglassMedium,
+                tint: figures.due.count > 0 ? (t.infoStrong, t.infoSoft) : null,
               ),
-              VouchFlowStatCard(
-                label: pt('bankTransfers'),
-                value: Fmt.money(figures.bank.amount, currency),
+              AppStat(
+                pt('bankTransfers'),
+                Fmt.money(figures.bank.amount, currency),
                 sub: _kindCount(figures.bank.count, 'bank'),
+                icon: PhosphorIconsFill.bank,
               ),
-              VouchFlowStatCard(
-                label: pt('cashDue'),
-                value: Fmt.money(figures.cash.amount, currency),
+              AppStat(
+                pt('cashDue'),
+                Fmt.money(figures.cash.amount, currency),
                 sub: _kindCount(figures.cash.count, 'cash'),
+                icon: PhosphorIconsFill.money,
+                tint: (t.warningStrong, t.warningSoft),
               ),
-              VouchFlowStatCard(
-                label: pt('paidThisMonth'),
-                value: Fmt.money(figures.paidMonth.amount, currency),
-                sub: '${figures.paidMonth.count} ${_plural(figures.paidMonth.count)}',
-                tone: VfTone.ok,
+              AppStat(
+                pt('paidThisMonth'),
+                Fmt.money(figures.paidMonth.amount, currency),
+                sub:
+                    '${figures.paidMonth.count} ${_plural(figures.paidMonth.count)}',
+                icon: PhosphorIconsFill.checkCircle,
+                tint: (t.successStrong, t.successSoft),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          VouchFlowCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          const SizedBox(height: 18),
+          KindFilter(value: c.filter.value, onChanged: c.setFilter),
+          const SizedBox(height: 18),
+          _SectionHead(title: pt('awaitingPayment'), count: due.total),
+          const SizedBox(height: 8),
+          if (due.data.isEmpty)
+            VouchFlowCard(
+              radius: VfSize.radiusXl,
+              padding: EdgeInsets.zero,
+              child: VouchFlowEmptyState(
+                icon: PhosphorIconsRegular.checkCircle,
+                title: pt('nothingAwaiting'),
+                actionLabel: hasShell ? pt('voucherRegister') : null,
+                onAction: () => _go('/vouchers'),
+              ),
+            )
+          else ...[
+            AppListGroup(
               children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                  decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: t.border)),
+                for (final v in due.data)
+                  QueueRow(
+                    voucher: v,
+                    owing: true,
+                    progress: deriveProgress(v, workflows),
+                    onOpen: () => openVoucher(v.id, then: _afterVoucher),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              pt('awaitingPayment'),
-                              style: VfType.sectionTitle.copyWith(color: t.text, fontSize: 17),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          CountPill(due.total),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      KindFilter(value: c.filter.value, onChanged: c.setFilter),
-                    ],
-                  ),
-                ),
-                if (due.data.isEmpty)
-                  VouchFlowEmptyState(
-                    icon: PhosphorIconsRegular.checkCircle,
-                    title: pt('nothingAwaiting'),
-                    body: pt('nothingAwaitingBody'),
-                    actionLabel: hasShell ? pt('voucherRegister') : null,
-                    onAction: () => _go('/vouchers'),
-                  )
-                else ...[
-                  for (var i = 0; i < due.data.length; i++) ...[
-                    if (i > 0) Divider(height: 1, color: t.border),
-                    QueueRow(
-                      voucher: due.data[i],
-                      owing: true,
-                      progress: deriveProgress(due.data[i], workflows),
-                      onOpen: () => openVoucher(due.data[i].id, then: _afterVoucher),
-                    ),
-                  ],
-                  if (due.lastPage > 1)
-                    _Pagination(page: due.currentPage, lastPage: due.lastPage, total: due.total, onChange: c.setPage),
-                  PanelFoot(text: pt('approveNextNote')),
-                ],
               ],
             ),
-          ),
-          if (paid != null && paid.data.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            VouchFlowCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: t.border)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  pt('paidVouchers'),
-                                  style: VfType.sectionTitle.copyWith(color: t.text, fontSize: 17),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              CountPill(paid.total),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (hasShell)
-                          Flexible(
-                            child: VouchFlowButton(
-                              label: pt('viewAllPaid'),
-                              trailingIcon: PhosphorIconsRegular.arrowRight,
-                              variant: VfButtonVariant.ghost,
-                              compact: true,
-                              onPressed: () {
-                                // The web's /vouchers?status=paid.
-                                Get.find<ShellController>().register.setStatus('paid');
-                                _go('/vouchers');
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  for (var i = 0; i < paid.data.length; i++) ...[
-                    if (i > 0) Divider(height: 1, color: t.border),
-                    QueueRow(
-                      voucher: paid.data[i],
-                      history: true,
-                      showCta: false,
-                      onOpen: () => openVoucher(paid.data[i].id, then: _afterVoucher),
-                    ),
-                  ],
-                ],
+            if (due.lastPage > 1) ...[
+              const SizedBox(height: 10),
+              _Pagination(
+                page: due.currentPage,
+                lastPage: due.lastPage,
+                onChange: c.setPage,
               ),
+            ],
+          ],
+          if (paid != null && paid.data.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _SectionHead(
+              title: pt('paidVouchers'),
+              count: paid.total,
+              action: hasShell
+                  ? AppTextAction(
+                      label: pt('viewAll'),
+                      onPressed: () {
+                        // The web's /vouchers?status=paid.
+                        Get.find<ShellController>().register.setStatus('paid');
+                        _go('/vouchers');
+                      },
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            AppListGroup(
+              children: [
+                for (final v in paid.data)
+                  QueueRow(
+                    voucher: v,
+                    history: true,
+                    showCta: false,
+                    onOpen: () => openVoucher(v.id, then: _afterVoucher),
+                  ),
+              ],
             ),
           ],
         ],
@@ -346,52 +334,78 @@ class _PaymentQueuePageState extends State<PaymentQueuePage> {
   }
 }
 
-class _Pagination extends StatelessWidget {
-  const _Pagination({required this.page, required this.lastPage, required this.total, required this.onChange});
+/// A list section's label, count and optional action.
+class _SectionHead extends StatelessWidget {
+  const _SectionHead({required this.title, required this.count, this.action});
 
-  final int page, lastPage, total;
+  final String title;
+  final int count;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Row(
+        children: [
+          Flexible(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: VfType.sectionTitle.copyWith(color: t.text, fontSize: 17),
+            ),
+          ),
+          const SizedBox(width: 8),
+          CountPill(count),
+          const Spacer(),
+          ?action,
+        ],
+      ),
+    );
+  }
+}
+
+/// ‹  2 / 5  ›
+class _Pagination extends StatelessWidget {
+  const _Pagination({
+    required this.page,
+    required this.lastPage,
+    required this.onChange,
+  });
+
+  final int page, lastPage;
   final ValueChanged<int> onChange;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: t.border)),
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 12,
-        runSpacing: 10,
-        children: [
-          Text(
-            '${pt('showing')} $total · ${pt('page')} $page ${pt('of')} $lastPage',
-            style: VfType.small.copyWith(color: t.muted),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        VfBarButton(
+          icon: PhosphorIconsRegular.caretLeft,
+          tooltip: pt('back'),
+          onPressed: page <= 1 ? null : () => onChange(page - 1),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            '$page / $lastPage',
+            style: VfType.label.copyWith(
+              color: t.text2,
+              fontWeight: FontWeight.w600,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              VouchFlowButton(
-                label: pt('back'),
-                icon: PhosphorIconsRegular.caretLeft,
-                variant: VfButtonVariant.secondary,
-                compact: true,
-                onPressed: page <= 1 ? null : () => onChange(page - 1),
-              ),
-              const SizedBox(width: 8),
-              VouchFlowButton(
-                label: pt('next'),
-                trailingIcon: PhosphorIconsRegular.caretRight,
-                variant: VfButtonVariant.secondary,
-                compact: true,
-                onPressed: page >= lastPage ? null : () => onChange(page + 1),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+        VfBarButton(
+          icon: PhosphorIconsRegular.caretRight,
+          tooltip: pt('next'),
+          onPressed: page >= lastPage ? null : () => onChange(page + 1),
+        ),
+      ],
     );
   }
 }
@@ -412,6 +426,9 @@ class _ExportMenu extends StatelessWidget {
         tooltip: pt('exportBtn'),
         position: PopupMenuPosition.under,
         color: t.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(VfSize.radiusL),
+        ),
         onSelected: controller.export,
         itemBuilder: (_) => [
           for (final (format, icon, label) in [
@@ -431,14 +448,26 @@ class _ExportMenu extends StatelessWidget {
             ),
         ],
         child: IgnorePointer(
-          child: VouchFlowButton(
-            label: pt('exportBtn'),
-            icon: PhosphorIconsRegular.downloadSimple,
-            trailingIcon: PhosphorIconsRegular.caretDown,
-            variant: VfButtonVariant.secondary,
-            loading: busy,
-            onPressed: () {},
-          ),
+          child: busy
+              ? SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: t.text2,
+                      ),
+                    ),
+                  ),
+                )
+              : VfBarButton(
+                  icon: PhosphorIconsRegular.export,
+                  tooltip: pt('exportBtn'),
+                  onPressed: () {},
+                ),
         ),
       );
     });

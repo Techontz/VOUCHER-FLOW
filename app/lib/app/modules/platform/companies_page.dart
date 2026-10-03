@@ -98,6 +98,12 @@ class _PlatformCompaniesPageState extends State<PlatformCompaniesPage> {
             label: 'platform.companies.viewDetails'.tr,
             value: 'view',
           ),
+          if (c.status == 'pending')
+            _ActionTile(
+              icon: PhosphorIconsRegular.sealCheck,
+              label: 'platform.approve'.tr,
+              value: 'approve',
+            ),
           suspended
               ? _ActionTile(
                   icon: PhosphorIconsRegular.checkCircle,
@@ -123,6 +129,8 @@ class _PlatformCompaniesPageState extends State<PlatformCompaniesPage> {
     if (!mounted || action == null) return;
     if (action == 'view') {
       _openCompany(c);
+    } else if (action == 'approve') {
+      if (await confirmApproveCompany(context, c)) _load();
     } else {
       _confirm(action, c);
     }
@@ -198,6 +206,7 @@ class _PlatformCompaniesPageState extends State<PlatformCompaniesPage> {
                       items: [
                         ('', 'platform.allStatuses'.tr),
                         for (final s in const [
+                          'pending',
                           'active',
                           'trial',
                           'past_due',

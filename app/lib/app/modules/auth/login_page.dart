@@ -179,17 +179,12 @@ class _LoginForm extends StatelessWidget {
               'auth.welcome'.tr,
               style: VfType.pageTitle.copyWith(
                 fontSize: 26,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -.6,
                 color: t.text,
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'auth.welcomeSub'.tr,
-              style: VfType.body.copyWith(color: t.muted),
-            ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
 
             if (c.error.value != null) ...[
               VouchFlowAlert(
@@ -197,22 +192,13 @@ class _LoginForm extends StatelessWidget {
                 tone: VfTone.bad,
                 icon: PhosphorIconsRegular.warningCircle,
               ),
-              const SizedBox(height: 20),
-            ],
-            if (c.done.value) ...[
-              VouchFlowAlert(
-                message: 'auth.signedInOpening'.tr,
-                tone: VfTone.ok,
-                icon: PhosphorIconsRegular.checkCircle,
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
             ],
 
-            AuthLabel('auth.emailAddress'.tr),
-            const SizedBox(height: 8),
             AuthInput(
               controller: c.email,
-              placeholder: 'auth.emailPh'.tr,
+              placeholder: 'auth.emailAddress'.tr,
+              icon: PhosphorIconsRegular.envelopeSimple,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               autofillHints: const [
@@ -223,20 +209,11 @@ class _LoginForm extends StatelessWidget {
               semanticLabel: 'auth.emailAddress'.tr,
             ),
             if (emailError != null) _FieldError(emailError),
-            const SizedBox(height: 20),
-
-            AuthLabel(
-              'auth.password'.tr,
-              trailing: AuthLink(
-                'auth.forgot'.tr,
-                size: 13,
-                onTap: () => Get.toNamed(Routes.forgotPassword),
-              ),
-            ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 14),
             AuthInput(
               controller: c.password,
-              placeholder: 'auth.passwordPh'.tr,
+              placeholder: 'auth.password'.tr,
+              icon: PhosphorIconsRegular.lockSimple,
               obscure: c.obscure.value,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.password],
@@ -249,72 +226,44 @@ class _LoginForm extends StatelessWidget {
               ),
             ),
             if (passwordError != null) _FieldError(passwordError),
-            const SizedBox(height: 12),
-
-            // As on the web: a preference only; the session is kept either way.
-            InkWell(
-              onTap: c.remember.toggle,
-              borderRadius: BorderRadius.circular(VfSize.radiusS),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: Checkbox(
-                        value: c.remember.value,
-                        onChanged: (_) => c.remember.toggle(),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Flexible(
-                      child: Text(
-                        'auth.rememberMe'.tr,
-                        style: VfType.body.copyWith(color: t.text2),
-                      ),
-                    ),
-                  ],
-                ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: AuthLink(
+                'auth.forgot'.tr,
+                size: 13.5,
+                onTap: () => Get.toNamed(Routes.forgotPassword),
               ),
             ),
             const SizedBox(height: 14),
 
             VouchFlowButton(
-              label: c.busy.value && !c.done.value
+              label: c.done.value
+                  ? 'auth.signedInOpening'.tr
+                  : c.busy.value
                   ? 'auth.signingIn'.tr
                   : 'auth.signIn'.tr,
               icon: c.done.value ? PhosphorIconsBold.check : null,
-              trailingIcon: c.done.value || c.busy.value
-                  ? null
-                  : PhosphorIconsRegular.arrowRight,
               loading: c.busy.value && !c.done.value,
-              height: 48,
+              height: 56,
               expand: true,
               onPressed: c.busy.value ? null : c.submit,
             ),
 
-            const SizedBox(height: 26),
+            const SizedBox(height: 28),
             Wrap(
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 4,
               children: [
                 Text(
-                  'auth.newTo'.tr,
+                  'auth.newCompany'.tr,
                   style: VfType.body.copyWith(fontSize: 14, color: t.muted),
                 ),
+                const SizedBox(width: 4),
                 AuthLink(
-                  'auth.registerCompany'.tr,
+                  'auth.registerShort'.tr,
                   onTap: () => Get.toNamed(Routes.register),
                 ),
               ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'auth.staffNote'.tr,
-              textAlign: TextAlign.center,
-              style: VfType.small.copyWith(fontSize: 13, color: t.faint),
             ),
 
             if (VfConfig.useMock) ...[

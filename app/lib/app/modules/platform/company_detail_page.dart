@@ -272,6 +272,16 @@ class _PlatformCompanyPageState extends State<PlatformCompanyPage> {
           ],
         ),
         const SizedBox(height: 10),
+        if (c.status == 'pending') ...[
+          VouchFlowButton(
+            label: 'platform.approve'.tr,
+            icon: PhosphorIconsRegular.sealCheck,
+            onPressed: () async {
+              if (await confirmApproveCompany(context, c)) _load();
+            },
+          ),
+          const SizedBox(height: 10),
+        ],
         suspended
             ? VouchFlowButton(
                 label: 'platform.activate'.tr,

@@ -5,5 +5,5 @@
   white flash before a black app is the most visible thing about a launch.
 -->
 <resources>
-    <color name="vf_window">#FF000000</color>
+    <color name="vf_window">#FF0F172A</color>
 </resources>

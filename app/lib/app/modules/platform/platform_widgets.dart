@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
 import '../../data/models/platform_models.dart';
+import '../../data/services/platform_repository.dart';
 import '../../widgets/common.dart';
 import '../../widgets/vf/vf.dart';
 
@@ -81,6 +82,7 @@ String toHex(Color c) {
 String companyStatusTag(String status) => switch (status) {
   'active' => 'tag-accent',
   'trial' => 'tag-outline',
+  'pending' => 'tag-warn',
   'past_due' || 'suspended' => 'tag-accent-2',
   _ => 'tag-neutral',
 };
@@ -561,5 +563,66 @@ Widget platformPanelState({
   return Padding(
     padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
     child: VouchFlowLoadingState(rows: rows, rowHeight: 64),
+  );
+}
+
+/// Asks to approve a self-registered company, then approves it. True when
+/// the company was approved.
+Future<bool> confirmApproveCompany(BuildContext context, PlatformCompany c) async {
+  final done = await showVouchFlowDialog<bool>(
+    context,
+    dialog: VouchFlowDialog(
+      icon: PhosphorIconsRegular.sealCheck,
+      tone: VfTone.ok,
+      title: 'platform.confirm.approveTitle'.trParams({'name': c.name}),
+      subtitle: 'platform.confirm.approveSub'.tr,
+      child: _ApproveActions(company: c),
+    ),
+  );
+  return done == true;
+}
+
+class _ApproveActions extends StatefulWidget {
+  const _ApproveActions({required this.company});
+  final PlatformCompany company;
+
+  @override
+  State<_ApproveActions> createState() => _ApproveActionsState();
+}
+
+class _ApproveActionsState extends State<_ApproveActions> {
+  bool _busy = false;
+
+  Future<void> _go() async {
+    setState(() => _busy = true);
+    try {
+      await PlatformRepository.to.approveCompany(widget.company.id);
+      showToast('platform.companies.approved'.tr, body: widget.company.name);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      showToast(
+        'platform.couldNotUpdateCompany'.tr,
+        body: errorText(e),
+        kind: ToastKind.bad,
+      );
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => VouchFlowActions(
+    children: [
+      VouchFlowButton(
+        label: 'action.cancel'.tr,
+        variant: VfButtonVariant.secondary,
+        onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+      ),
+      VouchFlowButton(
+        label: 'platform.approve'.tr,
+        icon: PhosphorIconsRegular.sealCheck,
+        loading: _busy,
+        onPressed: _go,
+      ),
+    ],
   );
 }

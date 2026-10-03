@@ -315,7 +315,7 @@ class CreateVoucherController extends GetxController {
 
   Future<void> takePhoto() async {
     try {
-      final shot = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85);
+      final shot = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 2000, maxHeight: 2000);
       if (shot == null) return;
       var name = shot.name;
       if (!name.contains('.')) name = '$name.jpg';
@@ -490,100 +490,134 @@ class _CreateVoucherView extends StatelessWidget {
       VfStep('create.stepDocs'.tr),
       VfStep('create.stepReview'.tr),
     ];
+    final roomy = MediaQuery.sizeOf(context).width >= 380;
 
     return VouchFlowPushedScaffold(
       title: 'create.createVoucher'.tr,
+      actions: [
+        // The number this voucher will take, small, beside the title.
+        if (roomy)
+          Obx(() {
+            final type = c.selectedType;
+            if (type == null) return const SizedBox.shrink();
+            return Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: t.primarySoft, borderRadius: BorderRadius.circular(VfSize.radiusPill)),
+              child: Text(
+                type.nextNumberPreview,
+                style: VfType.meta.copyWith(
+                  color: t.primaryText,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            );
+          }),
+        VfBarButton(
+          icon: PhosphorIconsRegular.eye,
+          tooltip: 'create.fullSize'.tr,
+          onPressed: () =>
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => _FullPreviewPage(controller: c))),
+        ),
+      ],
       bottomBar: _ActionBar(controller: c),
-      body: LayoutBuilder(
-        builder: (context, box) {
-          final wide = box.maxWidth >= 600;
-          return ListView(
-            controller: c.scroll,
-            padding: EdgeInsets.fromLTRB(
-              VfSize.pagePad,
-              20,
-              VfSize.pagePad,
-              28 + MediaQuery.viewInsetsOf(context).bottom,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(VfSize.pagePad + 2, 2, VfSize.pagePad + 2, 4),
+            child: Obx(
+              () => VouchFlowStepper(
+                steps: steps,
+                current: c.step.value,
+                onTap: c.go,
+                progressLabel: (n, _) => 'create.stepOf'.trParams({'n': '$n'}),
+              ),
             ),
-            children: [
-              Obx(() {
-                final type = c.selectedType;
-                return Text.rich(
-                  TextSpan(
-                    text: 'create.newVoucher'.tr.toUpperCase(),
-                    children: [
-                      if (type != null) ...[
-                        TextSpan(
-                          text: '  •  ',
-                          style: TextStyle(color: t.faint),
-                        ),
-                        TextSpan(
-                          text: type.nextNumberPreview,
-                          style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
-                        ),
-                      ],
-                    ],
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final wide = box.maxWidth >= 600;
+                return ListView(
+                  controller: c.scroll,
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(
+                    VfSize.pagePad,
+                    16,
+                    VfSize.pagePad,
+                    28 + MediaQuery.viewInsetsOf(context).bottom,
                   ),
-                  style: VfType.eyebrow.copyWith(color: t.muted, fontSize: 13),
+                  children: [
+                    Obx(() {
+                      // Follow every edit and every list the steps read.
+                      c.rev.value;
+                      c.types.length;
+                      c.typesLoaded.value;
+                      c.typesError.value;
+                      c.departments.length;
+                      c.workflows.length;
+                      c.files.length;
+                      c.rejected.length;
+                      c.serverErrors.length;
+                      c.localErrors.length;
+                      return AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOutCubic,
+                        transitionBuilder: (child, a) => FadeTransition(
+                          opacity: a,
+                          child: SlideTransition(
+                            position: Tween(begin: const Offset(.04, 0), end: Offset.zero).animate(a),
+                            child: child,
+                          ),
+                        ),
+                        // Only the arriving step is laid out; it fades and slides in.
+                        layoutBuilder: (cur, _) => cur ?? const SizedBox.shrink(),
+                        child: KeyedSubtree(
+                          key: ValueKey(c.step.value),
+                          child: switch (c.step.value) {
+                            0 => TypeStep(c: c, wide: wide),
+                            1 => DetailsStep(c: c, wide: wide),
+                            2 => PaymentStep(c: c, wide: wide),
+                            3 => DocumentsStep(c: c),
+                            _ => ReviewStep(c: c),
+                          },
+                        ),
+                      );
+                    }),
+                    // The sheet as it will print, on the review step.
+                    Obx(
+                      () => c.onReview
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 14),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 680),
+                                  child: _PreviewCard(controller: c),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
                 );
-              }),
-              const SizedBox(height: 6),
-              Text('create.createVoucher'.tr, style: VfType.pageTitle.copyWith(color: t.text)),
-              const SizedBox(height: 16),
-              Obx(() => VouchFlowStepper(steps: steps, current: c.step.value, onTap: c.go)),
-              const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: t.surface,
-                  borderRadius: BorderRadius.circular(VfSize.radiusCard),
-                  border: Border.all(color: t.border),
-                  boxShadow: t.cardShadow,
-                ),
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
-                child: Obx(() {
-                  // Follow every edit and every list the steps read.
-                  c.rev.value;
-                  c.types.length;
-                  c.typesLoaded.value;
-                  c.typesError.value;
-                  c.departments.length;
-                  c.workflows.length;
-                  c.files.length;
-                  c.rejected.length;
-                  c.serverErrors.length;
-                  c.localErrors.length;
-                  return KeyedSubtree(
-                    key: ValueKey(c.step.value),
-                    child: switch (c.step.value) {
-                      0 => TypeStep(c: c, wide: wide),
-                      1 => DetailsStep(c: c, wide: wide),
-                      2 => PaymentStep(c: c, wide: wide),
-                      3 => DocumentsStep(c: c),
-                      _ => ReviewStep(c: c),
-                    },
-                  );
-                }),
-              ),
-              const SizedBox(height: 20),
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 680),
-                  child: _PreviewCard(controller: c),
-                ),
-              ),
-            ],
-          );
-        },
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Save draft on the left; Back and Next (Submit on review) on the right.
+/// The sticky bottom bar: a round Back, Save draft, and a big Next (Submit on
+/// the review step).
 class _ActionBar extends StatelessWidget {
   const _ActionBar({required this.controller});
 
   final CreateVoucherController controller;
+
+  static const _h = 54.0;
 
   @override
   Widget build(BuildContext context) {
@@ -591,102 +625,102 @@ class _ActionBar extends StatelessWidget {
     final c = controller;
     return Container(
       decoration: BoxDecoration(
-        color: Color.alphaBlend(t.surface2.withValues(alpha: .7), t.surface),
-        border: Border(top: BorderSide(color: t.border)),
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: t.isDark ? Border(top: BorderSide(color: t.border)) : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: t.isDark ? .45 : .08),
+            blurRadius: 24,
+            offset: const Offset(0, -6),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: LayoutBuilder(
             builder: (context, box) {
-              final narrow = box.maxWidth < 350;
+              final narrow = box.maxWidth < 340;
               return Obx(() {
                 final busy = c.busy.value;
                 final step = c.step.value;
                 final review = step == 4;
+                Widget round({
+                  required IconData icon,
+                  required String tip,
+                  required VoidCallback? onTap,
+                  bool loading = false,
+                }) => Tooltip(
+                  message: tip,
+                  child: Material(
+                    color: t.surface3,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: onTap,
+                      child: SizedBox(
+                        width: _h,
+                        height: _h,
+                        child: loading
+                            ? Padding(
+                                padding: const EdgeInsets.all(17),
+                                child: CircularProgressIndicator(strokeWidth: 2, color: t.text2),
+                              )
+                            : Icon(icon, size: 21, color: t.text, semanticLabel: tip),
+                      ),
+                    ),
+                  ),
+                );
                 final forward = review
                     ? VouchFlowButton(
                         label: 'create.submitVoucher'.tr,
-                        icon: narrow ? null : PhosphorIconsRegular.paperPlaneTilt,
-                        height: 46,
+                        icon: narrow ? null : PhosphorIconsBold.paperPlaneTilt,
+                        height: _h,
+                        expand: true,
                         loading: busy == 'submit',
                         onPressed: busy != null ? null : () => c.save(submit: true),
                       )
                     : VouchFlowButton(
                         label: 'create.next'.tr,
-                        trailingIcon: PhosphorIconsRegular.arrowRight,
-                        height: 46,
+                        trailingIcon: PhosphorIconsBold.arrowRight,
+                        height: _h,
+                        expand: true,
                         onPressed: () => c.go(step + 1),
                       );
-                final saveDraft = VouchFlowButton(
-                  label: 'create.saveDraft'.tr,
-                  variant: VfButtonVariant.secondary,
-                  height: 46,
-                  loading: busy == 'draft',
-                  onPressed: busy != null ? null : () => c.save(submit: false),
-                );
                 return Row(
                   children: [
+                    if (step > 0) ...[
+                      round(
+                        icon: PhosphorIconsBold.arrowLeft,
+                        tip: 'create.back'.tr,
+                        onTap: busy != null ? null : () => c.go(step - 1),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
                     // On the narrowest phones the draft button gives way to an
                     // icon so the way forward never truncates.
-                    if (box.maxWidth < 320)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: t.surface,
-                          border: Border.all(color: t.borderStrong),
-                          borderRadius: BorderRadius.circular(VfSize.radiusL),
-                        ),
-                        child: busy == 'draft'
-                            ? const SizedBox(
-                                width: 46,
-                                height: 46,
-                                child: Padding(
-                                  padding: EdgeInsets.all(13),
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                              )
-                            : VouchFlowIconButton(
-                                icon: PhosphorIconsRegular.floppyDisk,
-                                tooltip: 'create.saveDraft'.tr,
-                                size: 46,
-                                color: t.text,
-                                onPressed: busy != null ? null : () => c.save(submit: false),
-                              ),
+                    if (narrow || step > 0 && box.maxWidth < 380)
+                      round(
+                        icon: PhosphorIconsRegular.floppyDisk,
+                        tip: 'create.saveDraft'.tr,
+                        loading: busy == 'draft',
+                        onTap: busy != null ? null : () => c.save(submit: false),
                       )
                     else
                       ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: box.maxWidth * .42),
-                        child: saveDraft,
+                        constraints: BoxConstraints(maxWidth: box.maxWidth * .4),
+                        child: VouchFlowButton(
+                          label: 'create.saveDraft'.tr,
+                          variant: VfButtonVariant.secondary,
+                          height: _h,
+                          loading: busy == 'draft',
+                          onPressed: busy != null ? null : () => c.save(submit: false),
+                        ),
                       ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (step > 0) ...[
-                            if (narrow)
-                              VouchFlowIconButton(
-                                icon: PhosphorIconsRegular.arrowLeft,
-                                tooltip: 'create.back'.tr,
-                                size: 46,
-                                color: t.text2,
-                                onPressed: busy != null ? null : () => c.go(step - 1),
-                              )
-                            else
-                              VouchFlowButton(
-                                label: 'create.back'.tr,
-                                icon: PhosphorIconsRegular.arrowLeft,
-                                variant: VfButtonVariant.ghost,
-                                height: 46,
-                                onPressed: busy != null ? null : () => c.go(step - 1),
-                              ),
-                            const SizedBox(width: 6),
-                          ],
-                          Flexible(child: forward),
-                        ],
-                      ),
-                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: forward),
                   ],
                 );
               });
@@ -712,69 +746,76 @@ class _PreviewCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(VfSize.radiusCard),
-        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(VfSize.radiusXl),
+        border: t.isDark ? Border.all(color: t.border) : null,
         boxShadow: t.cardShadow,
       ),
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Expanded(child: VouchFlowEyebrow('create.livePreview'.tr)),
+              Icon(PhosphorIconsFill.fileText, size: 18, color: t.primaryText),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'create.livePreview'.tr,
+                  style: VfType.bodyStrong.copyWith(fontSize: 14.5, fontWeight: FontWeight.w700, color: t.text),
+                ),
+              ),
               VouchFlowIconButton(
                 icon: PhosphorIconsRegular.arrowsOutSimple,
                 tooltip: 'create.fullSize'.tr,
+                size: 44,
                 onPressed: () => Navigator.of(
                   context,
                 ).push(MaterialPageRoute<void>(builder: (_) => _FullPreviewPage(controller: c))),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(10),
                 color: t.surface3,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: t.border),
-              ),
-              child: Obx(() {
-                final html = c.previewHtml.value;
-                if (html == null && c.previewFailed.value) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
-                    child: VouchFlowErrorState(
-                      message: 'create.previewFailed'.tr,
-                      retryLabel: 'create.retry'.tr,
-                      onRetry: () => c.refreshPreview(force: true),
-                    ),
+                child: Obx(() {
+                  final html = c.previewHtml.value;
+                  if (html == null && c.previewFailed.value) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+                      child: VouchFlowErrorState(
+                        message: 'create.previewFailed'.tr,
+                        retryLabel: 'create.retry'.tr,
+                        onRetry: () => c.refreshPreview(force: true),
+                      ),
+                    );
+                  }
+                  final skeleton = AspectRatio(
+                    aspectRatio: kA4Width / kA4Height,
+                    child: ColoredBox(color: t.surface2),
                   );
-                }
-                final skeleton = AspectRatio(
-                  aspectRatio: kA4Width / kA4Height,
-                  child: ColoredBox(color: t.surface2),
-                );
-                if (html == null) return skeleton;
-                // The document mounts once the page has finished sliding in, so
-                // the web view never rides the route transition.
-                final route = ModalRoute.of(context)?.animation;
-                return AnimatedBuilder(
-                  animation: route ?? kAlwaysCompleteAnimation,
-                  builder: (context, _) {
-                    if (!(route?.isCompleted ?? true)) return skeleton;
-                    if (kIsWeb) {
-                      return LayoutBuilder(
-                        builder: (_, box) => previewFrame(html: html, width: box.maxWidth),
-                      );
-                    }
-                    return VouchFlowDocumentView(html: html, fit: VfDocumentFit.content);
-                  },
-                );
-              }),
+                  if (html == null) return skeleton;
+                  // The document mounts once the page has finished sliding in, so
+                  // the web view never rides the route transition.
+                  final route = ModalRoute.of(context)?.animation;
+                  return AnimatedBuilder(
+                    animation: route ?? kAlwaysCompleteAnimation,
+                    builder: (context, _) {
+                      if (!(route?.isCompleted ?? true)) return skeleton;
+                      if (kIsWeb) {
+                        return LayoutBuilder(
+                          builder: (_, box) => previewFrame(html: html, width: box.maxWidth),
+                        );
+                      }
+                      return VouchFlowDocumentView(html: html, fit: VfDocumentFit.content);
+                    },
+                  );
+                }),
+              ),
             ),
           ),
         ],

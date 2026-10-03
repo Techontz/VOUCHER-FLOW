@@ -58,19 +58,51 @@ class _SplashPageState extends State<SplashPage> {
   Widget build(BuildContext context) {
     final t = context.vf;
     return Scaffold(
-      backgroundColor: t.drawer,
-      body: Center(
+      backgroundColor: t.chrome,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0, -.25),
+            radius: .9,
+            colors: [
+              t.palette.primaryLight.withValues(alpha: .35),
+              t.chrome,
+            ],
+          ),
+        ),
+        alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const VfWordmark(size: 44, onDark: true),
-            const SizedBox(height: 22),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: [
+                  BoxShadow(
+                    color: t.palette.primaryLight.withValues(alpha: .5),
+                    blurRadius: 36,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: const VfBrandMark(size: 84),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'app.name'.tr,
+              style: VfType.pageTitle.copyWith(
+                fontSize: 30,
+                letterSpacing: -.8,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 28),
             SizedBox(
               width: 22,
               height: 22,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: t.palette.textDark,
+                color: Colors.white.withValues(alpha: .8),
               ),
             ),
           ],

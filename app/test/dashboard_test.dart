@@ -20,6 +20,7 @@ import 'package:vouchflow/app/data/services/session_service.dart';
 import 'package:vouchflow/app/modules/dashboard/dashboard_tab.dart';
 import 'package:vouchflow/app/modules/notifications/notifications_tab.dart';
 import 'package:vouchflow/app/modules/profile/profile_tab.dart';
+import 'package:vouchflow/app/widgets/vf/vf.dart';
 
 Map<String, dynamic> _fixture(String name) =>
     jsonDecode(File('test/fixtures/dashboard/$name.json').readAsStringSync())
@@ -243,13 +244,24 @@ void main() {
             // The trial ends within a week: the web's warning banner.
             expect(find.textContaining('Trial ends'), findsOneWidget);
           }
+          // Home is app-like: a hero with one action, round shortcuts,
+          // and no web-style "Create voucher" button (the tab bar's + is).
+          expect(find.text('Create voucher'), findsNothing);
+          if (entry.key == 'super') {
+            expect(find.text('Monthly revenue'), findsOneWidget);
+            expect(find.text('Companies'), findsWidgets);
+          } else {
+            expect(find.text('Review'), findsOneWidget);
+            expect(find.text('Reports').evaluate().isNotEmpty ||
+                find.text('Approvals').evaluate().isNotEmpty, isTrue);
+          }
           if (entry.key == 'mwajuma') {
             expect(find.text('Payment totals'), findsOneWidget);
-            expect(find.text('Create voucher'), findsNothing);
           }
           if (entry.key == 'admin') {
             expect(find.text('Approval workflow'), findsOneWidget);
             expect(find.text('Stalled vouchers'), findsOneWidget);
+            expect(find.text('Stalled'), findsOneWidget);
           }
         });
       }
@@ -281,39 +293,54 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Notifications'), findsOneWidget);
-    expect(find.text('46 unread'), findsOneWidget);
-    expect(find.text('Mark all read'), findsOneWidget);
-    expect(find.text('EARLIER'), findsOneWidget);
+    expect(find.text('46'), findsOneWidget); // the unread count pill
+    expect(find.byTooltip('Mark all read'), findsOneWidget);
+    expect(find.text('Earlier'), findsOneWidget);
   });
 
-  testWidgets('every profile tab fits 320', (tester) async {
+  testWidgets('every profile page fits 320', (tester) async {
     await _size(tester, 320, 1600);
     await _session('company_admin');
     Get.put(ProfileController());
     await tester.pumpWidget(_app(const ProfileTab()));
     await _settle(tester);
     expect(tester.takeException(), isNull);
-    expect(find.textContaining('Full name', findRichText: true), findsOneWidget);
-
-    for (final tab in [
+    // A settings list, not the web's tab strip.
+    for (final row in [
+      'Personal details',
       'Signature',
       'Change password',
-      'Appearance & language',
-      'Personal details',
+      'Active sessions',
+      'Language',
+      'Dark mode',
+      'Sign out',
     ]) {
-      await tester.ensureVisible(find.text(tab).first);
-      await tester.pump();
-      await tester.tap(find.text(tab).first);
-      await _settle(tester);
-      expect(tester.takeException(), isNull, reason: tab);
+      expect(find.text(row), findsOneWidget, reason: row);
     }
 
-    await tester.ensureVisible(find.text('Change password').first);
-    await tester.pump();
-    await tester.tap(find.text('Change password').first);
-    await _settle(tester);
+    // Each row opens its form as a pushed page.
+    for (final (row, inside) in [
+      ('Personal details', 'Full name'),
+      ('Signature', 'Draw'),
+      ('Active sessions', 'Sign out everywhere'),
+      ('Change password', 'Current password'),
+    ]) {
+      await tester.tap(find.text(row));
+      await _settle(tester);
+      expect(
+        find.textContaining(inside, findRichText: true),
+        findsWidgets,
+        reason: row,
+      );
+      expect(tester.takeException(), isNull, reason: row);
+      if (row != 'Change password') {
+        await tester.tap(find.byTooltip('Back'));
+        await _settle(tester);
+      }
+    }
+
     // Client-side checks mirror the web's required/minLength rules.
-    final submit = find.text('Change password').last;
+    final submit = find.widgetWithText(VouchFlowButton, 'Change password');
     await tester.ensureVisible(submit);
     await tester.pump();
     await tester.tap(submit);

@@ -7,149 +7,79 @@ import '../../data/models/models.dart';
 import '../../widgets/vf/vf.dart';
 import 'dash_bits.dart';
 
-/// "You have 3 vouchers waiting for your attention." — or a plain all-clear;
-/// on the platform, the headline figures. The web's `.app-attn`.
-class AttentionBanner extends StatelessWidget {
-  const AttentionBanner({
-    super.key,
-    required DashboardBanner this.banner,
-    this.onAction,
-  }) : title = null,
-       body = null;
+/// Where a row's hairline starts: past a 40px lead tile and its gap.
+const _rowInset = 68.0;
 
-  const AttentionBanner.plain({
-    super.key,
+TextStyle _title(VfTokens t) =>
+    VfType.bodyStrong.copyWith(color: t.text, fontSize: 14.5, height: 1.35);
+
+TextStyle _meta(VfTokens t) =>
+    VfType.meta.copyWith(color: t.muted, fontSize: 12.5);
+
+TextStyle _amount(VfTokens t) => VfType.small.copyWith(
+  color: t.text,
+  fontWeight: FontWeight.w700,
+  fontFeatures: const [FontFeature.tabularFigures()],
+);
+
+/// A list row: lead tile, title, one muted line, and what sits on the right.
+class _ListRow extends StatelessWidget {
+  const _ListRow({
+    required this.lead,
     required this.title,
-    required this.body,
-  }) : banner = null,
-       onAction = null;
+    this.meta,
+    this.trailing,
+    this.onTap,
+    this.last = false,
+  });
 
-  final DashboardBanner? banner;
-  final VoidCallback? onAction;
-  final String? title, body;
+  final Widget lead;
+  final Widget title;
+  final String? meta;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final b = banner;
-    final pending = (b?.count ?? 0) > 0;
-    final tone = b == null ? 'neutral' : (pending ? 'info' : 'ok');
-
-    final (Color bg, Color edge, Color iconColour) = switch (tone) {
-      'info' => (t.primarySoft, t.primary.withValues(alpha: .35), t.primary),
-      'ok' => (
-        t.successSoft,
-        t.successStrong.withValues(alpha: .30),
-        t.success,
-      ),
-      _ => (t.surface, t.border, t.text2),
-    };
-    final heading = b == null ? title ?? '' : dashTr(b.key, b.title, b.params);
-    final text = b == null ? body ?? '' : dashTr(b.bodyKey, b.body);
-    final icon = b == null
-        ? PhosphorIconsRegular.globeHemisphereEast
-        : pending
-        ? PhosphorIconsRegular.bellRinging
-        : PhosphorIconsRegular.checkCircle;
-
-    return Semantics(
-      liveRegion: b != null,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
-          border: Border.all(color: edge),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+    return DashRow(
+      last: last,
+      inset: _rowInset,
+      onTap: onTap,
+      child: Row(
+        children: [
+          lead,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: t.surface,
-                    borderRadius: BorderRadius.circular(VfSize.radiusM),
-                    border: Border.all(color: t.border),
+                title,
+                if (meta != null && meta!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    meta!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _meta(t),
                   ),
-                  child: Icon(icon, size: 20, color: iconColour),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        heading,
-                        style: VfType.bodyStrong.copyWith(
-                          color: t.text,
-                          fontSize: 16,
-                        ),
-                      ),
-                      if (text.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          text,
-                          style: VfType.small.copyWith(
-                            color: t.text2,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                ],
               ],
             ),
-            if (b?.actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 12),
-              VouchFlowButton(
-                label: dashTr(b!.actionKey, b.actionLabel!),
-                trailingIcon: PhosphorIconsRegular.arrowRight,
-                compact: true,
-                expand: true,
-                onPressed: onAction,
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 150),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: trailing,
               ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The note under the queue: acting moves a voucher on (or, for admins, what
-/// "stalled" means). The web's `.app-panel-foot`.
-class QueueFootnote extends StatelessWidget {
-  const QueueFootnote(this.text, {super.key});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: t.surface2,
-        border: Border(top: BorderSide(color: t.border)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Icon(PhosphorIconsRegular.info, size: 15, color: t.muted),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: VfType.meta.copyWith(color: t.muted, fontSize: 13),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -192,73 +122,54 @@ class ActivityPanel extends StatelessWidget {
 
   Widget _activityRow(VfTokens t, DashboardActivity row, bool last) {
     final you = row.actorId != null && row.actorId == selfId;
-    final dot = switch (row.action) {
-      'approved' || 'paid' => t.successStrong,
-      'signed' || 'submitted' || 'resubmitted' => t.primary,
-      'rejected' => t.dangerStrong,
-      'changes_requested' => t.warningStrong,
-      _ => t.faint,
+    final (IconData icon, Color colour) = switch (row.action) {
+      'approved' => (PhosphorIconsRegular.sealCheck, t.successStrong),
+      'paid' => (PhosphorIconsRegular.money, t.successStrong),
+      'signed' => (PhosphorIconsRegular.signature, t.primary),
+      'submitted' ||
+      'resubmitted' => (PhosphorIconsRegular.paperPlaneTilt, t.primary),
+      'rejected' => (PhosphorIconsRegular.xCircle, t.dangerStrong),
+      'changes_requested' => (
+        PhosphorIconsRegular.arrowUUpLeft,
+        t.warningStrong,
+      ),
+      _ => (PhosphorIconsRegular.clockCounterClockwise, t.text2),
     };
     final meta = [
       ?row.amountText,
       dashRelative(DateTime.tryParse(row.at ?? '')?.toLocal()),
     ].join(' · ');
 
-    return DashRow(
+    return _ListRow(
       last: last,
       onTap: () => onOpen(row.voucherId),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 7),
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+      lead: DashIconTile(icon: icon, color: colour),
+      title: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: you ? 'dash.activity.you'.tr : row.actor,
+              style: TextStyle(color: t.text, fontWeight: FontWeight.w600),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: you ? 'dash.activity.you'.tr : row.actor,
-                        style: TextStyle(
-                          color: t.text,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      TextSpan(
-                        text:
-                            ' ${dashTr('activity.${row.action}', row.actionLabel)} ',
-                      ),
-                      TextSpan(
-                        text: row.voucherNumber,
-                        style: TextStyle(
-                          color: t.primaryText,
-                          fontWeight: FontWeight.w500,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                  style: VfType.body.copyWith(color: t.text2, height: 1.4),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  meta,
-                  style: VfType.meta.copyWith(color: t.muted, fontSize: 13),
-                ),
-              ],
+            TextSpan(
+              text: ' ${dashTr('activity.${row.action}', row.actionLabel)} ',
             ),
-          ),
-        ],
+            TextSpan(
+              text: row.voucherNumber,
+              style: TextStyle(
+                color: t.primaryText,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: VfType.small.copyWith(color: t.text2, height: 1.35),
       ),
+      meta: meta,
+      trailing: Icon(PhosphorIconsBold.caretRight, size: 13, color: t.faint),
     );
   }
 }
@@ -290,63 +201,29 @@ class AttentionCompaniesPanel extends StatelessWidget {
           : Column(
               children: [
                 for (var i = 0; i < rows.length; i++)
-                  DashRow(
+                  _ListRow(
                     last: i == rows.length - 1,
                     onTap: () => onOpen(rows[i].id),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 4,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  VouchFlowStatusBadge(
-                                    label: rows[i].status,
-                                    tag: rows[i].status == 'trial'
-                                        ? 'tag-info'
-                                        : 'tag-accent-2',
-                                  ),
-                                  if (rows[i].plan != null)
-                                    Text(
-                                      rows[i].plan!,
-                                      style: VfType.meta.copyWith(
-                                        color: t.text2,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                rows[i].name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: VfType.bodyStrong.copyWith(
-                                  color: t.text,
-                                ),
-                              ),
-                              Text(
-                                rows[i].note,
-                                style: VfType.small.copyWith(color: t.muted),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          '${rows[i].usersCount} ${'dashboard.users'.tr}',
-                          style: VfType.meta.copyWith(color: t.muted),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          PhosphorIconsRegular.caretRight,
-                          size: 15,
-                          color: t.faint,
-                        ),
-                      ],
+                    lead: DashIconTile(
+                      icon: PhosphorIconsRegular.buildings,
+                      color: t.warningStrong,
+                    ),
+                    title: Text(
+                      rows[i].name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _title(t),
+                    ),
+                    meta: [
+                      if (rows[i].note.isNotEmpty) rows[i].note,
+                      ?rows[i].plan,
+                      '${rows[i].usersCount} ${'dashboard.users'.tr}',
+                    ].join(' · '),
+                    trailing: VouchFlowStatusBadge(
+                      label: rows[i].status,
+                      tag: rows[i].status == 'trial'
+                          ? 'tag-info'
+                          : 'tag-accent-2',
                     ),
                   ),
               ],
@@ -355,7 +232,7 @@ class AttentionCompaniesPanel extends StatelessWidget {
   }
 }
 
-/// The platform's latest subscription invoices; the web's table as rows.
+/// The platform's latest subscription invoices.
 class RecentPaymentsPanel extends StatelessWidget {
   const RecentPaymentsPanel({
     super.key,
@@ -369,66 +246,42 @@ class RecentPaymentsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final figures = const [FontFeature.tabularFigures()];
     return DashPanel(
       title: 'dashboard.recentPayments'.tr,
       trailing: DashLink(label: 'dashboard.all'.tr, onTap: onAll),
       child: Column(
         children: [
           for (var i = 0; i < rows.length; i++)
-            DashRow(
+            _ListRow(
               last: i == rows.length - 1,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              lead: DashIconTile(
+                icon: PhosphorIconsRegular.creditCard,
+                color: t.primary,
+              ),
+              title: Text(
+                rows[i].company ?? '—',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _title(t),
+              ),
+              meta:
+                  '${'dashboard.invoice'.tr} ${rows[i].number} · ${dashDate(rows[i].createdAt)}',
+              trailing: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${'dashboard.invoice'.tr} ${rows[i].number}',
-                          style: VfType.small.copyWith(
-                            color: t.text,
-                            fontWeight: FontWeight.w600,
-                            fontFeatures: figures,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          rows[i].company ?? '—',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: VfType.small.copyWith(color: t.text2),
-                        ),
-                        Text(
-                          dashDate(rows[i].createdAt),
-                          style: VfType.meta.copyWith(color: t.muted),
-                        ),
-                      ],
-                    ),
+                  Text(
+                    dashCompactMoney(rows[i].total, rows[i].currency),
+                    style: _amount(t),
                   ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        dashMoney(rows[i].total, rows[i].currency),
-                        style: VfType.small.copyWith(
-                          color: t.text,
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: figures,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      VouchFlowStatusBadge(
-                        label: rows[i].status,
-                        tag: switch (rows[i].status) {
-                          'paid' => 'tag-accent',
-                          'pending' => 'tag-warn',
-                          _ => 'tag-neutral',
-                        },
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  VouchFlowStatusBadge(
+                    label: rows[i].status,
+                    tag: switch (rows[i].status) {
+                      'paid' => 'tag-accent',
+                      'pending' => 'tag-warn',
+                      _ => 'tag-neutral',
+                    },
                   ),
                 ],
               ),
@@ -463,21 +316,14 @@ class WorkflowPanel extends StatelessWidget {
     final t = context.vf;
     final sw = dashIsSw;
     final w = workflow;
-    final name = w == null
-        ? 'dash.panel.workflowSub'.tr
-        : (sw && (w.nameSw?.isNotEmpty ?? false) ? w.nameSw! : w.name);
 
     return DashPanel(
       title: 'dash.panel.workflow'.tr,
-      subtitle: name,
-      trailing: DashLink(
-        label: 'dash.panel.manageWorkflow'.tr,
-        onTap: onManage,
-      ),
+      trailing: DashLink(label: 'dashboard.manage'.tr, onTap: onManage),
       child: w == null || w.steps.isEmpty
           ? DashEmpty('dash.panel.noWorkflow'.tr)
           : Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               child: Column(
                 children: [
                   for (var i = 0; i < w.steps.length; i++)
@@ -486,38 +332,37 @@ class WorkflowPanel extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           SizedBox(
-                            width: 28,
+                            width: 32,
                             child: Column(
                               children: [
-                                const SizedBox(height: 7),
-                                Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: BoxDecoration(
-                                    color: t.primarySoft,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: t.primary.withValues(alpha: .35),
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    _icons[w.steps[i].action] ??
-                                        PhosphorIconsRegular.circle,
-                                    size: 15,
-                                    color: t.primary,
-                                  ),
+                                const SizedBox(height: 6),
+                                DashIconTile(
+                                  icon:
+                                      _icons[w.steps[i].action] ??
+                                      PhosphorIconsRegular.circle,
+                                  color: t.primary,
+                                  size: 32,
                                 ),
                                 if (i < w.steps.length - 1)
                                   Expanded(
-                                    child: Container(width: 1, color: t.border),
+                                    child: Container(
+                                      width: 2,
+                                      margin: const EdgeInsets.symmetric(
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: t.primarySoftStrong,
+                                        borderRadius: BorderRadius.circular(1),
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                               child: Row(
                                 children: [
                                   Expanded(
@@ -529,11 +374,7 @@ class WorkflowPanel extends StatelessWidget {
                                           : w.steps[i].name,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: VfType.small.copyWith(
-                                        color: t.text,
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 14,
-                                      ),
+                                      style: _title(t),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
@@ -542,10 +383,7 @@ class WorkflowPanel extends StatelessWidget {
                                       'dash.step.${w.steps[i].action}',
                                       w.steps[i].action,
                                     ),
-                                    style: VfType.meta.copyWith(
-                                      color: t.muted,
-                                      fontSize: 13,
-                                    ),
+                                    style: _meta(t),
                                   ),
                                 ],
                               ),
@@ -576,10 +414,7 @@ class SubscriptionPanel extends StatelessWidget {
     final s = subscription;
     return DashPanel(
       title: 'dash.panel.subscription'.tr,
-      trailing: DashLink(
-        label: 'dash.panel.manageSubscription'.tr,
-        onTap: onManage,
-      ),
+      trailing: DashLink(label: 'dashboard.manage'.tr, onTap: onManage),
       child: DashFacts([
         ('dash.panel.plan'.tr, s.plan ?? '—', false),
         (
@@ -593,11 +428,9 @@ class SubscriptionPanel extends StatelessWidget {
           ('dash.panel.renews'.tr, dashDate(s.renewsAt), false),
         if (s.daysRemaining != null)
           (
-            '',
-            dashTr('dash.panel.daysLeft', '${s.daysRemaining} days remaining', {
-              'days': '${s.daysRemaining}',
-            }),
-            true,
+            'dash.panel.daysRemaining'.tr,
+            '${s.daysRemaining}',
+            false,
           ),
       ]),
     );
@@ -618,7 +451,6 @@ class RecentlySignedPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final figures = const [FontFeature.tabularFigures()];
     return DashPanel(
       title: 'dash.panel.recentlySigned'.tr,
       child: rows.isEmpty
@@ -626,47 +458,21 @@ class RecentlySignedPanel extends StatelessWidget {
           : Column(
               children: [
                 for (var i = 0; i < rows.length; i++)
-                  DashRow(
+                  _ListRow(
                     last: i == rows.length - 1,
                     onTap: () => onOpen(rows[i].id),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                rows[i].number,
-                                style: VfType.body.copyWith(
-                                  color: t.text,
-                                  fontWeight: FontWeight.w500,
-                                  fontFeatures: figures,
-                                ),
-                              ),
-                              Text(
-                                rows[i].payee,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: VfType.meta.copyWith(
-                                  color: t.muted,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          rows[i].amountText,
-                          style: VfType.meta.copyWith(
-                            color: t.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            fontFeatures: figures,
-                          ),
-                        ),
-                      ],
+                    lead: DashIconTile(
+                      icon: PhosphorIconsRegular.signature,
+                      color: t.successStrong,
                     ),
+                    title: Text(
+                      rows[i].payee,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _title(t),
+                    ),
+                    meta: rows[i].number,
+                    trailing: Text(rows[i].amountText, style: _amount(t)),
                   ),
               ],
             ),
@@ -693,50 +499,31 @@ class RecentCompaniesPanel extends StatelessWidget {
       child: Column(
         children: [
           for (var i = 0; i < rows.length; i++)
-            DashRow(
+            _ListRow(
               last: i == rows.length - 1,
               onTap: () => onOpen(rows[i].id),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          rows[i].name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: VfType.body.copyWith(
-                            color: t.text,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          [
-                            ?rows[i].plan,
-                            '${rows[i].usersCount} ${'dashboard.users'.tr}',
-                            '${rows[i].vouchersCount} ${'dashboard.vouchers'.tr}',
-                          ].join(' · '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: VfType.meta.copyWith(
-                            color: t.muted,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  VouchFlowStatusBadge(
-                    label: rows[i].status,
-                    tag: switch (rows[i].status) {
-                      'active' => 'tag-accent',
-                      'trial' => 'tag-info',
-                      _ => 'tag-accent-2',
-                    },
-                  ),
-                ],
+              lead: DashIconTile(
+                icon: PhosphorIconsRegular.buildings,
+                color: t.primary,
+              ),
+              title: Text(
+                rows[i].name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _title(t),
+              ),
+              meta: [
+                ?rows[i].plan,
+                '${rows[i].usersCount} ${'dashboard.users'.tr}',
+                '${rows[i].vouchersCount} ${'dashboard.vouchers'.tr}',
+              ].join(' · '),
+              trailing: VouchFlowStatusBadge(
+                label: rows[i].status,
+                tag: switch (rows[i].status) {
+                  'active' => 'tag-accent',
+                  'trial' => 'tag-info',
+                  _ => 'tag-accent-2',
+                },
               ),
             ),
         ],
@@ -745,8 +532,8 @@ class RecentCompaniesPanel extends StatelessWidget {
   }
 }
 
-/// Seven months of voucher value as quiet single-colour columns; the current
-/// month is emphasised.
+/// Seven months of voucher value as rounded columns; the current month
+/// carries the brand gradient.
 class VolumePanel extends StatelessWidget {
   const VolumePanel({super.key, required this.volume, required this.currency});
 
@@ -761,18 +548,13 @@ class VolumePanel extends StatelessWidget {
 
     return DashPanel(
       title: 'dashboard.voucherValue'.tr,
-      subtitle: 'dashboard.last7Months'.tr,
       trailing: current == null
           ? null
           : Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 4),
               child: Text(
                 dashCompactMoney(current.total, currency),
-                style: VfType.bodyStrong.copyWith(
-                  color: t.text,
-                  fontSize: 16,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+                style: _amount(t).copyWith(color: t.primaryText, fontSize: 15),
               ),
             ),
       child: Semantics(
@@ -781,9 +563,9 @@ class VolumePanel extends StatelessWidget {
             .join(', '),
         child: ExcludeSemantics(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
             child: SizedBox(
-              height: 132,
+              height: 140,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -801,32 +583,40 @@ class VolumePanel extends StatelessWidget {
                                 alignment: Alignment.bottomCenter,
                                 child: FractionallySizedBox(
                                   heightFactor: (volume[i].total / max).clamp(
-                                    .03,
+                                    .04,
                                     1.0,
                                   ),
                                   child: Container(
                                     constraints: const BoxConstraints(
-                                      maxWidth: 30,
+                                      maxWidth: 28,
                                     ),
                                     decoration: BoxDecoration(
                                       color: volume[i].isCurrent
-                                          ? t.primary
+                                          ? null
                                           : t.primarySoftStrong,
-                                      borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(VfSize.radiusXs),
-                                      ),
+                                      gradient: volume[i].isCurrent
+                                          ? LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                t.palette.hoverDark,
+                                                t.palette.primaryLight,
+                                              ],
+                                            )
+                                          : null,
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             Text(
                               volume[i].label,
                               maxLines: 1,
                               overflow: TextOverflow.clip,
                               style: VfType.meta.copyWith(
-                                fontSize: 12,
+                                fontSize: 11.5,
                                 color: volume[i].isCurrent ? t.text : t.muted,
                                 fontWeight: volume[i].isCurrent
                                     ? FontWeight.w600

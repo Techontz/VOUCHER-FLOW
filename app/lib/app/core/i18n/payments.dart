@@ -31,6 +31,9 @@ const Map<String, String> paymentsEn = {
   'payments.bankMany': '@count bank vouchers',
   'payments.cashOne': '1 cash voucher',
   'payments.cashMany': '@count cash vouchers',
+  'payments.approve': 'Approve',
+  'payments.selectAll': 'Select all',
+  'payments.viewAll': 'View all',
 };
 
 const Map<String, String> paymentsSw = {
@@ -63,4 +66,7 @@ const Map<String, String> paymentsSw = {
   'payments.bankMany': 'vocha @count za benki',
   'payments.cashOne': '1 vocha ya taslimu',
   'payments.cashMany': 'vocha @count za taslimu',
+  'payments.approve': 'Idhinisha',
+  'payments.selectAll': 'Chagua zote',
+  'payments.viewAll': 'Ona zote',
 };

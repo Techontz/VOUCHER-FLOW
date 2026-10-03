@@ -15,7 +15,7 @@ import '../../data/services/session_service.dart';
 import '../../routes/routes.dart';
 import '../../widgets/common.dart' show showToast, ToastKind, decodeSignature;
 import '../../widgets/vf/vf.dart';
-import '../dashboard/dash_bits.dart' show DashPanel, dashDateTime;
+import '../dashboard/dash_bits.dart' show dashDateTime;
 import 'profile_bits.dart';
 import 'signature_canvas.dart';
 
@@ -365,8 +365,69 @@ class ProfileController extends GetxController {
   }
 }
 
+/// The profile as an app settings screen: who you are, then grouped rows
+/// that open each form as its own page.
 class ProfileTab extends GetView<ProfileController> {
   const ProfileTab({super.key});
+
+  void _push(BuildContext context, String title, Widget body) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => VouchFlowPushedScaffold(title: title, body: body),
+      ),
+    );
+  }
+
+  void _openDetails(BuildContext context) => _push(
+    context,
+    'profile.tab.details'.tr,
+    _DetailsPage(controller: controller),
+  );
+
+  Future<void> _pickLanguage(BuildContext context) async {
+    final s = controller.session;
+    final code = await showVouchFlowBottomSheet<String>(
+      context,
+      title: 'profile.language'.tr,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Builder(
+          builder: (ctx) {
+            final t = ctx.vf;
+            return AppListGroup(
+              indent: 16,
+              children: [
+                for (final (c, label) in const [
+                  ('en', 'English'),
+                  ('sw', 'Kiswahili'),
+                ])
+                  ListTile(
+                    title: Text(
+                      label,
+                      style: VfType.body.copyWith(color: t.text),
+                    ),
+                    trailing: s.locale.value == c
+                        ? Icon(
+                            PhosphorIconsBold.check,
+                            size: 18,
+                            color: t.primary,
+                          )
+                        : null,
+                    onTap: () => Navigator.of(ctx).pop(c),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+    if (code != null && code != s.locale.value) await s.setLocale(code);
+  }
+
+  Future<void> _signOut() async {
+    await controller.session.signOut();
+    unawaited(Get.offAllNamed(Routes.login));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -378,178 +439,325 @@ class ProfileTab extends GetView<ProfileController> {
         );
       }
       final t = context.vf;
-      // Read here, not inside LayoutBuilder, so Obx tracks it.
-      final tab = controller.tab.value;
+      final s = controller.session;
+      final dark = s.themeMode.value == ThemeMode.dark;
+      final locale = s.locale.value;
+      final hasSig =
+          controller.savedSignature.value != null || user.hasSignature;
+      final sessions = controller.sessions.value;
       final line = [
-        ?user.jobTitle,
         user.roleLabel,
         ?user.departmentName,
-      ].where((s) => s.isNotEmpty).join(' · ');
+      ].where((x) => x.isNotEmpty).join(' · ');
 
-      return LayoutBuilder(
-        builder: (context, box) {
-          final pad = box.maxWidth >= 700 ? 24.0 : VfSize.pagePad;
-          return VouchFlowPageBody(
-            padding: EdgeInsets.fromLTRB(pad, 20, pad, 32),
-            onRefresh: () async {
-              await controller.session.refresh();
-              await controller.loadSessions();
-            },
-            children: [
-              Align(
-                alignment: Alignment.topLeft,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 900),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          VouchFlowAvatar(
-                            initials: user.initials,
-                            size: 48,
-                            imageUrl: user.avatarUrl,
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  user.name,
-                                  style: VfType.pageTitle.copyWith(
-                                    color: t.text,
-                                    fontSize: 24,
-                                  ),
-                                ),
-                                if (line.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    line,
-                                    style: VfType.small.copyWith(
-                                      color: t.text2,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      VouchFlowTabs(
-                        labels: [
-                          'profile.tab.details'.tr,
-                          'profile.tab.signature'.tr,
-                          'profile.tab.security'.tr,
-                          'profile.tab.appearance'.tr,
-                        ],
-                        icons: const [
-                          PhosphorIconsRegular.user,
-                          PhosphorIconsRegular.signature,
-                          PhosphorIconsRegular.lockKey,
-                          PhosphorIconsRegular.palette,
-                        ],
-                        current: tab,
-                        onChanged: (i) => controller.tab.value = i,
-                      ),
-                      const SizedBox(height: 20),
-                      switch (tab) {
-                        0 => _Details(
-                          controller: controller,
-                          email: user.email,
+      return VouchFlowPageBody(
+        padding: const EdgeInsets.fromLTRB(
+          VfSize.pagePad,
+          12,
+          VfSize.pagePad,
+          32,
+        ),
+        onRefresh: () async {
+          await controller.session.refresh();
+          await controller.loadSessions();
+        },
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // — who you are —
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(VfSize.radiusXl),
+                      boxShadow: t.cardShadow,
+                    ),
+                    child: Material(
+                      color: t.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(VfSize.radiusXl),
+                        side: BorderSide(
+                          color: t.isDark ? t.border : Colors.transparent,
                         ),
-                        1 => _Signature(controller: controller),
-                        2 => _Security(controller: controller),
-                        _ => _Appearance(controller: controller),
-                      },
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => _openDetails(context),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+                          child: Column(
+                            children: [
+                              VouchFlowAvatar(
+                                initials: user.initials,
+                                size: 80,
+                                imageUrl: user.avatarUrl,
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                user.name,
+                                textAlign: TextAlign.center,
+                                style: VfType.sectionTitle.copyWith(
+                                  color: t.text,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (line.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  line,
+                                  textAlign: TextAlign.center,
+                                  style: VfType.small.copyWith(color: t.muted),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // — account —
+                  AppListGroup(
+                    header: 'profile.group.account'.tr,
+                    indent: 64,
+                    children: [
+                      ProfileSettingsRow(
+                        icon: PhosphorIconsFill.user,
+                        label: 'profile.tab.details'.tr,
+                        tint: (t.primaryText, t.primarySoft),
+                        onTap: () => _openDetails(context),
+                      ),
+                      ProfileSettingsRow(
+                        icon: PhosphorIconsFill.signature,
+                        label: 'profile.tab.signature'.tr,
+                        tint: (t.successStrong, t.successSoft),
+                        value: hasSig
+                            ? 'profile.sigOn'.tr
+                            : 'profile.sigOff'.tr,
+                        onTap: () => _push(
+                          context,
+                          'profile.tab.signature'.tr,
+                          _SignaturePage(controller: controller),
+                        ),
+                      ),
+                      ProfileSettingsRow(
+                        icon: PhosphorIconsFill.lockKey,
+                        label: 'profile.tab.security'.tr,
+                        tint: (t.warningStrong, t.warningSoft),
+                        onTap: () => _push(
+                          context,
+                          'profile.tab.security'.tr,
+                          _PasswordPage(controller: controller),
+                        ),
+                      ),
+                      ProfileSettingsRow(
+                        icon: PhosphorIconsFill.devices,
+                        label: 'profile.activeSessions'.tr,
+                        tint: (t.infoStrong, t.infoSoft),
+                        value: sessions == null ? null : '${sessions.length}',
+                        onTap: () => _push(
+                          context,
+                          'profile.activeSessions'.tr,
+                          _SessionsPage(controller: controller),
+                        ),
+                      ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 24),
+
+                  // — preferences —
+                  AppListGroup(
+                    header: 'profile.group.preferences'.tr,
+                    indent: 64,
+                    children: [
+                      ProfileSettingsRow(
+                        icon: PhosphorIconsFill.translate,
+                        label: 'profile.language'.tr,
+                        tint: (t.primaryText, t.primarySoft),
+                        value: locale == 'sw' ? 'Kiswahili' : 'English',
+                        onTap: () => _pickLanguage(context),
+                      ),
+                      ProfileSettingsRow(
+                        icon: dark
+                            ? PhosphorIconsFill.moon
+                            : PhosphorIconsFill.sun,
+                        label: 'profile.darkMode'.tr,
+                        tint: (t.text2, t.surface3),
+                        chevron: false,
+                        onTap: s.toggleTheme,
+                        trailing: Switch.adaptive(
+                          value: dark,
+                          activeTrackColor: t.primary,
+                          onChanged: (_) => s.toggleTheme(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // — sign out —
+                  AppListGroup(
+                    indent: 64,
+                    children: [
+                      ProfileSettingsRow(
+                        icon: PhosphorIconsFill.signOut,
+                        label: 'nav.signOut'.tr,
+                        tint: (t.dangerStrong, t.dangerSoft),
+                        danger: true,
+                        onTap: _signOut,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       );
     });
   }
 }
 
-class _Details extends StatelessWidget {
-  const _Details({required this.controller, required this.email});
+/* ───────────────────────────────────────────────── pushed pages ── */
+
+class _DetailsPage extends StatelessWidget {
+  const _DetailsPage({required this.controller});
   final ProfileController controller;
-  final String email;
 
   @override
   Widget build(BuildContext context) {
     final c = controller;
+    final t = context.vf;
     return Obx(() {
       final errors = c.profileErrors;
       final avatar = c.avatar.value;
-      return ProfilePanel(
-        footer: ProfileFormFoot(
-          end: VouchFlowButton(
+      final user = c.session.user.value;
+      return ProfilePageBody(
+        children: [
+          // The photo: tap to choose another.
+          Center(
+            child: Column(
+              children: [
+                InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: c.pickAvatar,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      if (avatar != null)
+                        ClipOval(
+                          child: Image.memory(
+                            avatar.bytes,
+                            width: 88,
+                            height: 88,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) =>
+                                const SizedBox(width: 88, height: 88),
+                          ),
+                        )
+                      else
+                        VouchFlowAvatar(
+                          initials: user?.initials ?? '',
+                          size: 88,
+                          imageUrl: user?.avatarUrl,
+                        ),
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: t.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: t.background, width: 3),
+                          ),
+                          child: const Icon(
+                            PhosphorIconsFill.camera,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: c.pickAvatar,
+                  child: Text(
+                    'profile.choosePhoto'.tr,
+                    style: VfType.label.copyWith(
+                      color: t.primaryText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (errors['avatar'] != null)
+                  Text(
+                    errors['avatar']!,
+                    textAlign: TextAlign.center,
+                    style: VfType.meta.copyWith(color: t.dangerStrong),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ProfileFormCard(
+            children: [
+              VouchFlowTextField(
+                label: 'profile.fullName'.tr,
+                controller: c.name,
+                required: true,
+                error: errors['name'],
+                textInputAction: TextInputAction.next,
+                textCapitalization: TextCapitalization.words,
+                autofillHints: const [AutofillHints.name],
+              ),
+              VouchFlowTextField(
+                label: 'profile.email'.tr,
+                initialValue: user?.email ?? '',
+                readOnly: true,
+                hint: 'profile.emailHint'.tr,
+              ),
+              ProfileFormRow(
+                children: [
+                  VouchFlowTextField(
+                    label: 'profile.phone'.tr,
+                    controller: c.phone,
+                    error: errors['phone'],
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.telephoneNumber],
+                  ),
+                  VouchFlowTextField(
+                    label: 'profile.jobTitle'.tr,
+                    controller: c.jobTitle,
+                    error: errors['job_title'],
+                    textInputAction: TextInputAction.done,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          VouchFlowButton(
             label: 'profile.saveChanges'.tr,
+            expand: true,
             loading: c.savingProfile.value,
             onPressed: c.saveProfile,
           ),
-        ),
-        child: ProfileFormSection(
-          title: 'profile.details.title'.tr,
-          description: 'profile.details.body'.tr,
-          children: [
-            VouchFlowTextField(
-              label: 'profile.fullName'.tr,
-              controller: c.name,
-              required: true,
-              error: errors['name'],
-              textInputAction: TextInputAction.next,
-              textCapitalization: TextCapitalization.words,
-              autofillHints: const [AutofillHints.name],
-            ),
-            VouchFlowTextField(
-              label: 'profile.email'.tr,
-              initialValue: email,
-              readOnly: true,
-              hint: 'profile.emailHint'.tr,
-            ),
-            ProfileFormRow(
-              children: [
-                VouchFlowTextField(
-                  label: 'profile.phone'.tr,
-                  controller: c.phone,
-                  error: errors['phone'],
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.telephoneNumber],
-                ),
-                VouchFlowTextField(
-                  label: 'profile.jobTitle'.tr,
-                  controller: c.jobTitle,
-                  error: errors['job_title'],
-                  textInputAction: TextInputAction.done,
-                ),
-              ],
-            ),
-            VouchFlowField(
-              label: 'profile.photo'.tr,
-              error: errors['avatar'],
-              child: ProfileFilePicker(
-                buttonLabel: 'profile.choosePhoto'.tr,
-                fileName: avatar?.filename ?? 'profile.noPhoto'.tr,
-                preview: avatar?.bytes,
-                onPick: c.pickAvatar,
-              ),
-            ),
-          ],
-        ),
+        ],
       );
     });
   }
 }
 
-class _Signature extends StatelessWidget {
-  const _Signature({required this.controller});
+class _SignaturePage extends StatelessWidget {
+  const _SignaturePage({required this.controller});
   final ProfileController controller;
 
   @override
@@ -594,10 +802,41 @@ class _Signature extends StatelessWidget {
         SignatureMode.upload => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ProfileFilePicker(
-              buttonLabel: 'profile.sig.choose'.tr,
-              fileName: 'profile.sig.formats'.tr,
-              onPick: c.pickSignatureImage,
+            Material(
+              color: t.surface2,
+              borderRadius: BorderRadius.circular(VfSize.radiusL),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(VfSize.radiusL),
+                onTap: c.pickSignatureImage,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 22),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(VfSize.radiusL),
+                    border: Border.all(color: t.borderStrong),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        PhosphorIconsRegular.uploadSimple,
+                        size: 24,
+                        color: t.primaryText,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'profile.sig.choose'.tr,
+                        style: VfType.label.copyWith(
+                          color: t.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'profile.sig.formats'.tr,
+                        style: VfType.meta.copyWith(color: t.muted),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
             if (value != null) ...[
               const SizedBox(height: 12),
@@ -613,7 +852,6 @@ class _Signature extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: t.surface2,
                     borderRadius: BorderRadius.circular(VfSize.radiusL),
-                    border: Border.all(color: t.border),
                   ),
                   child: Text(
                     'profile.sig.none'.tr,
@@ -622,163 +860,123 @@ class _Signature extends StatelessWidget {
                 ),
       };
 
-      return ProfilePanel(
-        footer: ProfileFormFoot(
-          start: saved != null
-              ? VouchFlowButton(
-                  label: 'profile.remove'.tr,
-                  icon: PhosphorIconsRegular.trash,
-                  variant: VfButtonVariant.danger,
-                  onPressed: c.removeSignature,
-                )
-              : null,
-          end: VouchFlowButton(
+      return ProfilePageBody(
+        children: [
+          ProfileFormCard(
+            children: [
+              ProfileSegmented<SignatureMode>(
+                value: mode,
+                onChanged: c.setMode,
+                options: [
+                  (
+                    SignatureMode.draw,
+                    'profile.sig.draw'.tr,
+                    PhosphorIconsRegular.pencilSimple,
+                    true,
+                  ),
+                  (
+                    SignatureMode.upload,
+                    'profile.sig.upload'.tr,
+                    PhosphorIconsRegular.uploadSimple,
+                    true,
+                  ),
+                  (
+                    SignatureMode.saved,
+                    'profile.sigOn'.tr,
+                    PhosphorIconsRegular.checkCircle,
+                    saved != null,
+                  ),
+                ],
+              ),
+              body,
+              if (c.signatureError.value != null)
+                Text(
+                  c.signatureError.value!,
+                  style: VfType.meta.copyWith(color: t.dangerStrong),
+                ),
+              if (updated != null && saved != null)
+                Text(
+                  'profile.sig.lastUpdated'.trParams({
+                    'date': dashDateTime(updated),
+                  }),
+                  style: VfType.meta.copyWith(color: t.muted),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          VouchFlowButton(
             label: 'profile.save'.tr,
+            expand: true,
             loading: c.savingSignature.value,
             onPressed: value == null ? null : c.storeSignature,
           ),
-        ),
-        child: ProfileFormSection(
-          title: 'profile.signature'.tr,
-          description: 'profile.signatureBody'.tr,
-          children: [
-            ProfileSegmented<SignatureMode>(
-              value: mode,
-              onChanged: c.setMode,
-              options: [
-                (SignatureMode.draw, 'profile.sig.draw'.tr, null, true),
-                (SignatureMode.upload, 'profile.sig.upload'.tr, null, true),
-                (
-                  SignatureMode.saved,
-                  'profile.sig.saved'.tr,
-                  null,
-                  saved != null,
-                ),
-              ],
+          if (saved != null) ...[
+            const SizedBox(height: 10),
+            VouchFlowButton(
+              label: 'profile.remove'.tr,
+              icon: PhosphorIconsRegular.trash,
+              variant: VfButtonVariant.danger,
+              expand: true,
+              onPressed: c.removeSignature,
             ),
-            body,
-            if (c.signatureError.value != null)
-              Text(
-                c.signatureError.value!,
-                style: VfType.meta.copyWith(color: t.dangerStrong),
-              ),
-            if (updated != null && saved != null)
-              Text(
-                'profile.sig.lastUpdated'.trParams({
-                  'date': dashDateTime(updated),
-                }),
-                style: VfType.meta.copyWith(color: t.muted),
-              ),
           ],
-        ),
+        ],
       );
     });
   }
 }
 
-class _Security extends StatelessWidget {
-  const _Security({required this.controller});
+class _PasswordPage extends StatelessWidget {
+  const _PasswordPage({required this.controller});
   final ProfileController controller;
 
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final t = context.vf;
     return Obx(() {
       final errors = c.passwordErrors;
-      final sessions = c.sessions.value;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      return ProfilePageBody(
         children: [
           AutofillGroup(
-            child: ProfilePanel(
-              footer: ProfileFormFoot(
-                end: VouchFlowButton(
-                  label: 'profile.changePassword'.tr,
-                  loading: c.changingPassword.value,
-                  onPressed: c.changePassword,
+            child: ProfileFormCard(
+              children: [
+                VouchFlowTextField(
+                  label: 'profile.currentPassword'.tr,
+                  controller: c.currentPassword,
+                  obscure: true,
+                  required: true,
+                  error: errors['current_password'],
+                  autofillHints: const [AutofillHints.password],
+                  textInputAction: TextInputAction.next,
                 ),
-              ),
-              child: ProfileFormSection(
-                title: 'profile.changePassword'.tr,
-                description: 'profile.passwordBody'.tr,
-                children: [
-                  VouchFlowTextField(
-                    label: 'profile.currentPassword'.tr,
-                    controller: c.currentPassword,
-                    obscure: true,
-                    required: true,
-                    error: errors['current_password'],
-                    autofillHints: const [AutofillHints.password],
-                    textInputAction: TextInputAction.next,
-                  ),
-                  ProfileFormRow(
-                    children: [
-                      VouchFlowTextField(
-                        label: 'profile.newPassword'.tr,
-                        controller: c.newPassword,
-                        obscure: true,
-                        required: true,
-                        error: errors['password'],
-                        autofillHints: const [AutofillHints.newPassword],
-                        textInputAction: TextInputAction.next,
-                      ),
-                      VouchFlowTextField(
-                        label: 'profile.confirmPassword'.tr,
-                        controller: c.confirmPassword,
-                        obscure: true,
-                        required: true,
-                        error: errors['password_confirmation'],
-                        autofillHints: const [AutofillHints.newPassword],
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => c.changePassword(),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                VouchFlowTextField(
+                  label: 'profile.newPassword'.tr,
+                  controller: c.newPassword,
+                  obscure: true,
+                  required: true,
+                  error: errors['password'],
+                  autofillHints: const [AutofillHints.newPassword],
+                  textInputAction: TextInputAction.next,
+                ),
+                VouchFlowTextField(
+                  label: 'profile.confirmPassword'.tr,
+                  controller: c.confirmPassword,
+                  obscure: true,
+                  required: true,
+                  error: errors['password_confirmation'],
+                  autofillHints: const [AutofillHints.newPassword],
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => c.changePassword(),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          DashPanel(
-            title: 'profile.activeSessions'.tr,
-            below: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: VouchFlowButton(
-                  label: 'profile.signOutEverywhere'.tr,
-                  icon: PhosphorIconsRegular.signOut,
-                  variant: VfButtonVariant.secondary,
-                  compact: true,
-                  loading: c.signingOutEverywhere.value,
-                  onPressed: c.signOutEverywhere,
-                ),
-              ),
-            ),
-            child: sessions == null
-                ? const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: VouchFlowLoadingState(rows: 2, rowHeight: 48),
-                  )
-                : sessions.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'profile.noSessions'.tr,
-                      style: VfType.small.copyWith(color: t.muted),
-                    ),
-                  )
-                : Column(
-                    children: [
-                      for (var i = 0; i < sessions.length; i++)
-                        SessionRow(
-                          session: sessions[i],
-                          last: i == sessions.length - 1,
-                          onRevoke: () => c.revoke(sessions[i]),
-                        ),
-                    ],
-                  ),
+          const SizedBox(height: 20),
+          VouchFlowButton(
+            label: 'profile.changePassword'.tr,
+            expand: true,
+            loading: c.changingPassword.value,
+            onPressed: c.changePassword,
           ),
         ],
       );
@@ -786,65 +984,51 @@ class _Security extends StatelessWidget {
   }
 }
 
-class _Appearance extends StatelessWidget {
-  const _Appearance({required this.controller});
+class _SessionsPage extends StatelessWidget {
+  const _SessionsPage({required this.controller});
   final ProfileController controller;
 
   @override
   Widget build(BuildContext context) {
-    final s = controller.session;
-    return Obx(
-      () => ProfilePanel(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final c = controller;
+    return Obx(() {
+      final sessions = c.sessions.value;
+      return RefreshIndicator(
+        onRefresh: c.loadSessions,
+        child: ProfilePageBody(
           children: [
-            ProfileFormSection(
-              title: 'profile.appearance'.tr,
-              description: 'profile.appearanceBody'.tr,
-              children: [
-                ProfileSegmented<ThemeMode>(
-                  value: s.themeMode.value,
-                  onChanged: (m) {
-                    if (m != s.themeMode.value) s.toggleTheme();
-                  },
-                  options: [
-                    (
-                      ThemeMode.light,
-                      'profile.light'.tr,
-                      PhosphorIconsRegular.sun,
-                      true,
-                    ),
-                    (
-                      ThemeMode.dark,
-                      'profile.dark'.tr,
-                      PhosphorIconsRegular.moon,
-                      true,
-                    ),
-                  ],
+            if (sessions == null)
+              const VouchFlowLoadingState(rows: 2, rowHeight: 56)
+            else if (sessions.isEmpty)
+              VouchFlowCard(
+                radius: VfSize.radiusXl,
+                padding: EdgeInsets.zero,
+                child: VouchFlowEmptyState(
+                  icon: PhosphorIconsRegular.devices,
+                  title: 'profile.noSessions'.tr,
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            ProfileFormSection(
-              title: 'profile.language'.tr,
-              description: 'profile.languageBody'.tr,
-              children: [
-                ProfileSegmented<String>(
-                  value: s.locale.value,
-                  onChanged: (code) {
-                    if (code != s.locale.value) s.setLocale(code);
-                  },
-                  options: const [
-                    ('en', 'English', null, true),
-                    ('sw', 'Kiswahili', null, true),
-                  ],
-                ),
-              ],
+              )
+            else
+              AppListGroup(
+                indent: 66,
+                children: [
+                  for (final s in sessions)
+                    SessionRow(session: s, onRevoke: () => c.revoke(s)),
+                ],
+              ),
+            const SizedBox(height: 20),
+            VouchFlowButton(
+              label: 'profile.signOutEverywhere'.tr,
+              icon: PhosphorIconsRegular.signOut,
+              variant: VfButtonVariant.secondary,
+              expand: true,
+              loading: c.signingOutEverywhere.value,
+              onPressed: c.signOutEverywhere,
             ),
           ],
         ),
-      ),
-    );
+      );
+    });
   }
 }
 

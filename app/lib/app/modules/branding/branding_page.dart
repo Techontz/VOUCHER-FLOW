@@ -405,23 +405,25 @@ class _BrandingPageState extends State<BrandingPage> {
   @override
   Widget build(BuildContext context) {
     final pushed = ModalRoute.of(context)?.settings.name == Routes.branding;
-    final body = _BrandingBody(controller: c, showNav: !pushed);
+    final body = _BrandingBody(controller: c, pushed: pushed);
     if (!pushed) return body;
     return VouchFlowPushedScaffold(title: 'admin.branding'.tr, body: body);
   }
 }
 
 class _BrandingBody extends StatelessWidget {
-  const _BrandingBody({required this.controller, required this.showNav});
+  const _BrandingBody({required this.controller, required this.pushed});
 
   final BrandingController controller;
-  final bool showNav;
+
+  /// Opened on its own, under an app bar that already names the page.
+  final bool pushed;
 
   @override
   Widget build(BuildContext context) {
     final c = controller;
     final t = context.vf;
-    const gap = SizedBox(height: 12);
+    const gap = SizedBox(height: 22);
 
     Widget field(
       String key,
@@ -429,8 +431,8 @@ class _BrandingBody extends StatelessWidget {
       String label, {
       TextInputType? type,
       int lines = 1,
-      String? hint,
       bool required = false,
+      IconData? icon,
     }) => Obx(
       () => VouchFlowTextField(
         label: label,
@@ -438,8 +440,8 @@ class _BrandingBody extends StatelessWidget {
         keyboardType: type ?? (lines > 1 ? TextInputType.multiline : null),
         minLines: lines > 1 ? lines : null,
         maxLines: lines > 1 ? lines + 2 : 1,
-        hint: hint,
         required: required,
+        prefixIcon: icon,
         error: c.fieldErrors[key],
         textInputAction: lines > 1
             ? TextInputAction.newline
@@ -447,22 +449,25 @@ class _BrandingBody extends StatelessWidget {
       ),
     );
 
-    Widget saveButton({bool expand = false}) => Obx(
-      () => VouchFlowButton(
-        label: 'admin.saveChanges'.tr,
-        loading: c.busy.value,
-        expand: expand,
-        onPressed: c.busy.value ? null : c.save,
+    final saveBar = AdminSaveBar(
+      child: Obx(
+        () => VouchFlowButton(
+          label: 'admin.saveChanges'.tr,
+          icon: PhosphorIconsRegular.floppyDisk,
+          loading: c.busy.value,
+          expand: true,
+          onPressed: c.busy.value ? null : c.save,
+        ),
       ),
     );
 
     return AdminPageBody(
       route: '/branding',
-      showNav: showNav,
+      showNav: !pushed,
+      showTitle: !pushed,
       title: 'admin.branding'.tr,
-      subtitle: 'branding.sub'.tr,
       onRefresh: c.seed,
-      actions: [saveButton()],
+      bottomBar: saveBar,
       children: [
         Obx(() {
           final role = c.session.user.value?.role;
@@ -478,103 +483,89 @@ class _BrandingBody extends StatelessWidget {
             },
           );
         }),
-        const SizedBox(height: 16),
+        gap,
 
         // ── identity ──
-        VouchFlowCard(
-          title: 'admin.companyDetails'.tr,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              field('name', c.name, 'admin.companyName'.tr, required: true),
-              gap,
-              field(
-                'legal_name',
-                c.legalName,
-                'admin.legalName'.tr,
-                hint: 'branding.legalHint'.tr,
-              ),
-              gap,
-              field('address', c.address, 'admin.address'.tr, lines: 2),
-              gap,
-              field(
-                'phone',
-                c.phone,
-                'admin.phone'.tr,
-                type: TextInputType.phone,
-              ),
-              gap,
-              field(
-                'email',
-                c.email,
-                'admin.email'.tr,
-                type: TextInputType.emailAddress,
-                required: true,
-              ),
-              gap,
-              field(
-                'website',
-                c.website,
-                'admin.website'.tr,
-                type: TextInputType.url,
-              ),
-              gap,
-              field('tin', c.tin, 'admin.tinNumber'.tr),
-            ],
-          ),
+        AdminSection(
+          label: 'admin.companyDetails'.tr,
+          child: AdminFields([
+            field(
+              'name',
+              c.name,
+              'admin.companyName'.tr,
+              required: true,
+              icon: PhosphorIconsRegular.buildings,
+            ),
+            field('legal_name', c.legalName, 'admin.legalName'.tr),
+            field('address', c.address, 'admin.address'.tr, lines: 2),
+            field(
+              'phone',
+              c.phone,
+              'admin.phone'.tr,
+              type: TextInputType.phone,
+              icon: PhosphorIconsRegular.phone,
+            ),
+            field(
+              'email',
+              c.email,
+              'admin.email'.tr,
+              type: TextInputType.emailAddress,
+              required: true,
+              icon: PhosphorIconsRegular.envelopeSimple,
+            ),
+            field(
+              'website',
+              c.website,
+              'admin.website'.tr,
+              type: TextInputType.url,
+              icon: PhosphorIconsRegular.globe,
+            ),
+            field('tin', c.tin, 'admin.tinNumber'.tr),
+          ]),
         ),
-        const SizedBox(height: 16),
+        gap,
 
         // ── marks and colour ──
-        VouchFlowCard(
-          title: 'admin.documentLetterhead'.tr,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Obx(
-                () => _LogoField(
-                  label: 'admin.logoLockup'.tr,
-                  hint: 'branding.logoHint'.tr,
-                  url: c.shownUrl(LogoSlot.logo),
-                  onPick: () => c.pickLogo(LogoSlot.logo),
-                  onClear: () => c.removeLogo(LogoSlot.logo),
-                ),
+        AdminSection(
+          label: 'admin.documentLetterhead'.tr,
+          child: AdminFields([
+            Obx(
+              () => _LogoField(
+                label: 'admin.logoLockup'.tr,
+                url: c.shownUrl(LogoSlot.logo),
+                onPick: () => c.pickLogo(LogoSlot.logo),
+                onClear: () => c.removeLogo(LogoSlot.logo),
               ),
-              const SizedBox(height: 16),
-              Obx(
-                () => _LogoField(
-                  label: 'admin.logoMark'.tr,
-                  hint: 'branding.markHint'.tr,
-                  url: c.shownUrl(LogoSlot.logoMark),
-                  square: true,
-                  onPick: () => c.pickLogo(LogoSlot.logoMark),
-                  onClear: () => c.removeLogo(LogoSlot.logoMark),
-                ),
+            ),
+            Obx(
+              () => _LogoField(
+                label: 'admin.logoMark'.tr,
+                url: c.shownUrl(LogoSlot.logoMark),
+                square: true,
+                onPick: () => c.pickLogo(LogoSlot.logoMark),
+                onClear: () => c.removeLogo(LogoSlot.logoMark),
               ),
-              const SizedBox(height: 16),
-              Obx(
-                () => _ColourField(
-                  controller: c.primaryColor,
-                  error: c.fieldErrors['primary_color'],
-                ),
+            ),
+            Obx(
+              () => _ColourField(
+                controller: c.primaryColor,
+                error: c.fieldErrors['primary_color'],
               ),
-              gap,
-              field(
-                'voucher_footer_text',
-                c.footer,
-                'admin.voucherFooterText'.tr,
-                lines: 3,
-                hint: 'branding.footerHint'.tr,
-              ),
-            ],
-          ),
+            ),
+            field(
+              'voucher_footer_text',
+              c.footer,
+              'admin.voucherFooterText'.tr,
+              lines: 3,
+            ),
+          ], gap: 18),
         ),
-        const SizedBox(height: 16),
+        gap,
 
         // ── the interface palette ──
-        VouchFlowCard(
-          title: 'branding.interfaceColour'.tr,
-          subtitle: 'branding.interfaceColourSub'.tr,
+        AdminSection(
+          label: 'branding.interfaceColour'.tr,
+          padding: const EdgeInsets.all(12),
           child: Obx(
             () => LayoutBuilder(
               builder: (context, box) {
@@ -602,86 +593,66 @@ class _BrandingBody extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        gap,
 
         // ── the account bank vouchers are drawn on ──
-        VouchFlowCard(
-          title: 'admin.bankDetails'.tr,
-          subtitle: 'branding.bankSub'.tr,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              field('bank_name', c.bankName, 'admin.bank'.tr),
-              gap,
-              field('bank_branch', c.bankBranch, 'admin.branch'.tr),
-              gap,
-              field(
-                'bank_account_name',
-                c.bankAccountName,
-                'admin.accountName'.tr,
-              ),
-              gap,
-              field(
-                'bank_account_number',
-                c.bankAccountNumber,
-                'admin.accountNo'.tr,
-                type: TextInputType.number,
-              ),
-              gap,
-              AdminNote('branding.cashNote'.tr),
-            ],
-          ),
+        AdminSection(
+          label: 'admin.bankDetails'.tr,
+          child: AdminFields([
+            field(
+              'bank_name',
+              c.bankName,
+              'admin.bank'.tr,
+              icon: PhosphorIconsRegular.bank,
+            ),
+            field('bank_branch', c.bankBranch, 'admin.branch'.tr),
+            field(
+              'bank_account_name',
+              c.bankAccountName,
+              'admin.accountName'.tr,
+            ),
+            field(
+              'bank_account_number',
+              c.bankAccountNumber,
+              'admin.accountNo'.tr,
+              type: TextInputType.number,
+            ),
+          ]),
         ),
-        const SizedBox(height: 16),
-        saveButton(expand: true),
-        const SizedBox(height: 24),
+        gap,
 
         // ── live specimen ──
-        Row(
-          children: [
-            Icon(PhosphorIconsRegular.eye, size: 15, color: t.muted),
-            const SizedBox(width: 6),
-            Text(
-              'admin.livePreview'.tr.toUpperCase(),
-              style: VfType.eyebrow.copyWith(color: t.muted),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Obx(() {
-          final html = c.previews[c.currentTemplate.value];
-          if (html == null) {
-            if (c.previewsFailed.value) {
-              return AdminNote('branding.previewUnavailable'.tr);
-            }
-            return AspectRatio(
-              aspectRatio: kA4Width / kA4Height,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: t.surface3,
-                  borderRadius: BorderRadius.circular(VfSize.radiusL),
+        AdminSection(
+          label: 'admin.livePreview'.tr,
+          padding: const EdgeInsets.all(10),
+          child: Obx(() {
+            final html = c.previews[c.currentTemplate.value];
+            if (html == null) {
+              if (c.previewsFailed.value) {
+                return AdminNote('branding.previewUnavailable'.tr);
+              }
+              return AspectRatio(
+                aspectRatio: kA4Width / kA4Height,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: t.surface3,
+                    borderRadius: BorderRadius.circular(VfSize.radiusL),
+                  ),
+                  alignment: Alignment.center,
+                  child: const CircularProgressIndicator(),
                 ),
-                alignment: Alignment.center,
-                child: const CircularProgressIndicator(),
+              );
+            }
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(VfSize.radiusL),
+              child: VouchFlowDocumentView(
+                html: html,
+                fit: VfDocumentFit.content,
+                placeholderReplacements: c.replacements,
               ),
             );
-          }
-          return Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: t.surface2,
-              borderRadius: BorderRadius.circular(VfSize.radiusL),
-              border: Border.all(color: t.border),
-            ),
-            child: VouchFlowDocumentView(
-              html: html,
-              fit: VfDocumentFit.content,
-              placeholderReplacements: c.replacements,
-            ),
-          );
-        }),
-        const SizedBox(height: 12),
-        AdminNote('admin.previewNote'.tr),
+          }),
+        ),
       ],
     );
   }
@@ -693,14 +664,13 @@ class _BrandingBody extends StatelessWidget {
 class _LogoField extends StatelessWidget {
   const _LogoField({
     required this.label,
-    required this.hint,
     required this.url,
     required this.onPick,
     required this.onClear,
     this.square = false,
   });
 
-  final String label, hint;
+  final String label;
   final String? url;
   final bool square;
   final VoidCallback onPick, onClear;
@@ -732,50 +702,71 @@ class _LogoField extends StatelessWidget {
         ),
       );
     }
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: VfType.label.copyWith(color: t.text2)),
-        const SizedBox(height: 6),
-        Container(
-          height: 72,
-          width: square ? 72 : double.infinity,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: VfDoc.paper,
-            border: Border.all(color: t.border),
+        Semantics(
+          button: true,
+          label: label,
+          child: InkWell(
+            onTap: onPick,
             borderRadius: BorderRadius.circular(VfSize.radiusL),
-          ),
-          alignment: Alignment.center,
-          child: image,
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            VouchFlowButton(
-              label: value != null
-                  ? 'admin.replace'.tr
-                  : 'admin.uploadImage'.tr,
-              icon: PhosphorIconsRegular.uploadSimple,
-              variant: VfButtonVariant.secondary,
-              compact: true,
-              onPressed: onPick,
-            ),
-            if (value != null)
-              VouchFlowButton(
-                label: 'admin.remove'.tr,
-                variant: VfButtonVariant.ghost,
-                compact: true,
-                onPressed: onClear,
+            child: Container(
+              height: 76,
+              width: square ? 76 : 112,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: VfDoc.paper,
+                border: Border.all(color: t.border),
+                borderRadius: BorderRadius.circular(VfSize.radiusL),
               ),
-          ],
+              alignment: Alignment.center,
+              child: image,
+            ),
+          ),
         ),
-        const SizedBox(height: 5),
-        Text(
-          '$hint · ${'branding.logoRules'.tr}',
-          style: VfType.meta.copyWith(color: t.muted),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: VfType.bodyStrong.copyWith(
+                  color: t.text,
+                  fontSize: 14.5,
+                ),
+              ),
+              Text(
+                'branding.logoRules'.tr,
+                style: VfType.meta.copyWith(color: t.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  VouchFlowButton(
+                    label: value != null
+                        ? 'admin.replace'.tr
+                        : 'admin.uploadImage'.tr,
+                    icon: PhosphorIconsRegular.uploadSimple,
+                    variant: VfButtonVariant.secondary,
+                    compact: true,
+                    onPressed: onPick,
+                  ),
+                  if (value != null)
+                    VouchFlowIconButton(
+                      icon: PhosphorIconsRegular.trash,
+                      tooltip: 'admin.remove'.tr,
+                      size: 36,
+                      color: t.dangerStrong,
+                      onPressed: onClear,
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -887,7 +878,6 @@ class _ColourFieldState extends State<_ColourField> {
     final invalid = colour == null && widget.controller.text.trim().isNotEmpty;
     return VouchFlowField(
       label: 'admin.colour'.tr,
-      hint: 'branding.colourHint'.tr,
       error: widget.error ?? (invalid ? 'branding.colourInvalid'.tr : null),
       child: Row(
         children: [
@@ -896,13 +886,13 @@ class _ColourFieldState extends State<_ColourField> {
             label: 'branding.colourPick'.tr,
             child: InkWell(
               onTap: _pick,
-              borderRadius: BorderRadius.circular(VfSize.radiusL),
+              customBorder: const CircleBorder(),
               child: Container(
                 width: VfSize.inputH,
                 height: VfSize.inputH,
                 decoration: BoxDecoration(
                   color: colour ?? t.surface3,
-                  borderRadius: BorderRadius.circular(VfSize.radiusL),
+                  shape: BoxShape.circle,
                   border: Border.all(color: t.borderStrong),
                 ),
               ),
@@ -917,7 +907,15 @@ class _ColourFieldState extends State<_ColourField> {
                 color: t.text,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
-              decoration: InputDecoration(filled: true, fillColor: t.inputBg),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: t.inputBg,
+                prefixIcon: Icon(
+                  PhosphorIconsRegular.hash,
+                  size: 17,
+                  color: t.muted,
+                ),
+              ),
             ),
           ),
         ],
@@ -948,16 +946,16 @@ class _PaletteOption extends StatelessWidget {
       inMutuallyExclusiveGroup: true,
       label: label,
       child: Material(
-        color: selected ? t.primarySoft : t.surface,
+        color: selected ? t.primarySoft : t.surface2,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
+          borderRadius: BorderRadius.circular(VfSize.radiusXl),
           side: BorderSide(
-            color: selected ? palette.solid : t.border,
-            width: selected ? 1.6 : 1,
+            color: selected ? palette.solid : Colors.transparent,
+            width: 1.6,
           ),
         ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
+          borderRadius: BorderRadius.circular(VfSize.radiusXl),
           onTap: onTap,
           child: Container(
             constraints: const BoxConstraints(minHeight: 48),

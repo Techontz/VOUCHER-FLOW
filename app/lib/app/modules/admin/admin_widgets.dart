@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -9,9 +10,10 @@ import '../../widgets/common.dart' show showToast, ToastKind;
 import '../../widgets/vf/vf.dart';
 import '../shell/shell_page.dart';
 
-/// Pieces shared by the company-administration pages: the settings menu the
-/// web draws above every admin page on a phone, the page frame, pagination,
-/// badges, meters and the web's `reportError`.
+/// Pieces shared by the company-administration pages: the settings chips,
+/// the page frame (big title, one round action, an optional sticky save
+/// bar), app list rows, grouped sections, option and detail sheets,
+/// pagination, badges, meters and the web's `reportError`.
 
 /// Which part of /settings is showing — the web keeps it in the address
 /// (#workflow, #types, #company); here it lives beside the shell's route.
@@ -28,54 +30,48 @@ class _SettingsLink {
   final String? hash;
 }
 
-/// The web's COMPANY_SETTINGS, group by group.
+/// The web's COMPANY_SETTINGS, in order.
 const _companySettings = [
-  [
-    _SettingsLink(
-      '/settings',
-      'admin.companyProfile',
-      PhosphorIconsRegular.buildings,
-      'company',
-    ),
-    _SettingsLink('/branding', 'admin.branding', PhosphorIconsRegular.palette),
-    _SettingsLink(
-      '/subscription',
-      'admin.subscription',
-      PhosphorIconsRegular.crownSimple,
-    ),
-  ],
-  [
-    _SettingsLink(
-      '/settings',
-      'admin.approvalWorkflow',
-      PhosphorIconsRegular.flowArrow,
-      'workflow',
-    ),
-    _SettingsLink(
-      '/settings',
-      'admin.voucherSettings',
-      PhosphorIconsRegular.receipt,
-      'types',
-    ),
-  ],
-  [
-    _SettingsLink(
-      '/employees',
-      'admin.employees',
-      PhosphorIconsRegular.usersThree,
-    ),
-    _SettingsLink(
-      '/departments',
-      'admin.departments',
-      PhosphorIconsRegular.treeStructure,
-    ),
-    _SettingsLink('/audit', 'admin.auditLogs', PhosphorIconsRegular.scroll),
-  ],
+  _SettingsLink(
+    '/settings',
+    'admin.companyProfile',
+    PhosphorIconsRegular.buildings,
+    'company',
+  ),
+  _SettingsLink('/branding', 'admin.branding', PhosphorIconsRegular.palette),
+  _SettingsLink(
+    '/subscription',
+    'admin.subscription',
+    PhosphorIconsRegular.crownSimple,
+  ),
+  _SettingsLink(
+    '/settings',
+    'admin.approvalWorkflow',
+    PhosphorIconsRegular.flowArrow,
+    'workflow',
+  ),
+  _SettingsLink(
+    '/settings',
+    'admin.voucherSettings',
+    PhosphorIconsRegular.receipt,
+    'types',
+  ),
+  _SettingsLink(
+    '/employees',
+    'admin.employees',
+    PhosphorIconsRegular.usersThree,
+  ),
+  _SettingsLink(
+    '/departments',
+    'admin.departments',
+    PhosphorIconsRegular.treeStructure,
+  ),
+  _SettingsLink('/audit', 'admin.auditLogs', PhosphorIconsRegular.scroll),
 ];
 
-/// The company settings menu: a sideways-scrolling row of links, as the web
-/// draws its settings sidebar under 980px. Only a company administrator has
-/// the whole area; everyone else sees the page alone.
+/// The company settings menu: a sideways-scrolling row of rounded chips.
+/// Only a company administrator has the whole area; everyone else sees the
+/// page alone.
 class AdminSettingsNav extends StatefulWidget {
   const AdminSettingsNav({super.key, required this.current});
 
@@ -107,43 +103,37 @@ class _AdminSettingsNavState extends State<AdminSettingsNav> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
     return Obx(() {
       final section = AdminSettings.section.value;
       bool active(_SettingsLink l) =>
           l.href == widget.current && (l.hash == null || l.hash == section);
-      return Container(
-        margin: const EdgeInsets.only(bottom: 20),
-        padding: const EdgeInsets.only(bottom: 6),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: t.border)),
-        ),
-        child: SingleChildScrollView(
+      return SizedBox(
+        height: 42,
+        child: ListView(
           scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final group in _companySettings)
-                for (final link in group)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: _NavLink(
-                      key: active(link) ? _activeKey : null,
-                      label: link.label.tr,
-                      icon: link.icon,
-                      active: active(link),
-                      onTap: () => _open(link),
-                    ),
-                  ),
-            ],
-          ),
+          // Bleed to the screen edges, as a native chip rail does.
+          padding: const EdgeInsets.symmetric(horizontal: VfSize.pagePad),
+          children: [
+            for (final link in _companySettings)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _NavChip(
+                  key: active(link) ? _activeKey : null,
+                  label: link.label.tr,
+                  icon: link.icon,
+                  active: active(link),
+                  onTap: () => _open(link),
+                ),
+              ),
+          ],
         ),
       );
     });
   }
 }
 
-class _NavLink extends StatelessWidget {
-  const _NavLink({
+class _NavChip extends StatelessWidget {
+  const _NavChip({
     super.key,
     required this.label,
     required this.icon,
@@ -163,23 +153,27 @@ class _NavLink extends StatelessWidget {
       selected: active,
       button: true,
       child: Material(
-        color: active ? t.primarySoft : Colors.transparent,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
+        color: active ? t.primary : t.surface,
+        shape: StadiumBorder(
+          side: active || !t.isDark
+              ? BorderSide.none
+              : BorderSide(color: t.border),
+        ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
+          customBorder: const StadiumBorder(),
           onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 44),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 18, color: active ? t.primaryText : t.faint),
-                const SizedBox(width: 8),
+                Icon(icon, size: 17, color: active ? Colors.white : t.muted),
+                const SizedBox(width: 7),
                 Text(
                   label,
                   style: VfType.label.copyWith(
-                    fontSize: 15,
-                    color: active ? t.primaryText : t.text2,
+                    fontSize: 14,
+                    color: active ? Colors.white : t.text2,
                     fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
@@ -192,59 +186,757 @@ class _NavLink extends StatelessWidget {
   }
 }
 
-/// A company-administration page: the settings menu (company administrators
-/// only), the page head, then the content — the web's SettingsLayout.
+/// A company-administration page: the settings chips (company
+/// administrators only), a big title with one round action beside it, the
+/// content, and — for a form — a sticky save bar at the bottom.
 class AdminPageBody extends StatelessWidget {
   const AdminPageBody({
     super.key,
     required this.route,
     required this.title,
-    this.subtitle,
-    this.actions,
+    this.action,
     required this.children,
     this.onRefresh,
     this.showNav = true,
+    this.showTitle = true,
+    this.bottomBar,
   });
 
   final String route;
   final String title;
-  final String? subtitle;
-  final List<Widget>? actions;
+
+  /// False when an app bar above already names the page.
+  final bool showTitle;
+
+  /// The page's primary action — an [AdminRoundAction] or a compact pill.
+  final Widget? action;
   final List<Widget> children;
   final Future<void> Function()? onRefresh;
   final bool showNav;
 
+  /// Pinned under the scrolling content (an [AdminSaveBar]).
+  final Widget? bottomBar;
+
   @override
   Widget build(BuildContext context) {
+    final t = context.vf;
     final isCompanyAdmin =
         Get.isRegistered<SessionService>() &&
         Get.find<SessionService>().user.value?.role == 'company_admin';
-    return VouchFlowPageBody(
+    final nav = showNav && isCompanyAdmin;
+    const pad = EdgeInsets.symmetric(horizontal: VfSize.pagePad);
+    final body = VouchFlowPageBody(
       onRefresh: onRefresh,
-      padding: const EdgeInsets.fromLTRB(
-        VfSize.pagePad,
-        12,
-        VfSize.pagePad,
-        32,
-      ),
+      padding: const EdgeInsets.fromLTRB(0, 10, 0, 32),
       children: [
-        if (showNav && isCompanyAdmin)
-          AdminSettingsNav(current: route)
-        else
-          const SizedBox(height: 8),
-        VouchFlowPageHeader(title: title, subtitle: subtitle),
-        if (actions != null && actions!.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          for (var i = 0; i < actions!.length; i++) ...[
-            if (i > 0) const SizedBox(height: 10),
-            SizedBox(width: double.infinity, child: actions![i]),
-          ],
+        if (nav) ...[
+          AdminSettingsNav(current: route),
+          const SizedBox(height: 18),
         ],
-        const SizedBox(height: 20),
-        ...children,
+        if (showTitle) ...[
+          Padding(
+            padding: pad,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.pageTitle.copyWith(
+                      color: t.text,
+                      fontSize: 28,
+                      letterSpacing: -.7,
+                    ),
+                  ),
+                ),
+                if (action != null) ...[const SizedBox(width: 12), action!],
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+        ],
+        for (final c in children) Padding(padding: pad, child: c),
+      ],
+    );
+    if (bottomBar == null) return body;
+    return Column(
+      children: [
+        Expanded(child: body),
+        bottomBar!,
       ],
     );
   }
+}
+
+/// The page's primary action: a round primary button beside the title.
+/// [label] is its accessible name and tooltip.
+class AdminRoundAction extends StatelessWidget {
+  const AdminRoundAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: Material(
+          color: onPressed == null ? t.borderStrong : t.primary,
+          shape: const CircleBorder(),
+          elevation: 0,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: SizedBox(
+              width: 46,
+              height: 46,
+              child: Icon(icon, size: 22, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A sticky bottom bar holding a page's save button.
+class AdminSaveBar extends StatelessWidget {
+  const AdminSaveBar({super.key, required this.child, this.leading});
+
+  final Widget child;
+
+  /// A quiet note to the left (e.g. "Unsaved changes").
+  final Widget? leading;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        border: Border(top: BorderSide(color: t.border)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: t.isDark ? .35 : .06),
+            blurRadius: 18,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            VfSize.pagePad,
+            12,
+            VfSize.pagePad,
+            12,
+          ),
+          child: leading == null
+              ? child
+              : Row(
+                  children: [
+                    Expanded(child: leading!),
+                    const SizedBox(width: 12),
+                    child,
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What a page's sticky save bar needs from the form below it: whether
+/// there is anything to save, whether a save is running, and the save.
+/// Safe to update from a build — the bar hears about it after the frame.
+class AdminSaveState extends ChangeNotifier {
+  bool ready = false, busy = false, dirty = true;
+  VoidCallback? onSave;
+
+  void update({bool? ready, bool? busy, bool? dirty, VoidCallback? onSave}) {
+    final changed =
+        (ready != null && ready != this.ready) ||
+        (busy != null && busy != this.busy) ||
+        (dirty != null && dirty != this.dirty);
+    this.ready = ready ?? this.ready;
+    this.busy = busy ?? this.busy;
+    this.dirty = dirty ?? this.dirty;
+    this.onSave = onSave ?? this.onSave;
+    if (!changed) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed) notifyListeners();
+      });
+    } else if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}
+
+/// A short section label above a rounded card — the grouped-form look.
+class AdminSection extends StatelessWidget {
+  const AdminSection({
+    super.key,
+    required this.label,
+    required this.child,
+    this.trailing,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  final String label;
+  final Widget child;
+  final Widget? trailing;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: VfType.label.copyWith(
+                    color: t.muted,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+        ),
+        VouchFlowCard(radius: VfSize.radiusXl, padding: padding, child: child),
+      ],
+    );
+  }
+}
+
+/// Fields stacked with even gaps inside an [AdminSection].
+class AdminFields extends StatelessWidget {
+  const AdminFields(this.children, {super.key, this.gap = 14});
+
+  final List<Widget> children;
+  final double gap;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0) SizedBox(height: gap),
+        children[i],
+      ],
+    ],
+  );
+}
+
+/// A tinted rounded icon tile — the leading mark of a list row.
+class AdminIconTile extends StatelessWidget {
+  const AdminIconTile(
+    this.icon, {
+    super.key,
+    this.tone = VfTone.primary,
+    this.size = 44,
+  });
+
+  final IconData icon;
+  final VfTone tone;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final (fg, bg) = tone == VfTone.primary
+        ? (t.primaryText, t.primarySoftStrong)
+        : tone.colors(t);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(VfSize.radiusL),
+      ),
+      child: Icon(icon, size: size * .48, color: fg),
+    );
+  }
+}
+
+/// An app list row in its own rounded card: a leading avatar or icon tile,
+/// a bold title, one muted line and a small trailing pill or chevron.
+class AdminListRow extends StatelessWidget {
+  const AdminListRow({
+    super.key,
+    required this.leading,
+    required this.title,
+    this.meta,
+    this.trailing,
+    this.onTap,
+    this.semanticLabel,
+  });
+
+  final Widget leading;
+  final String title;
+  final String? meta;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Semantics(
+        label: semanticLabel,
+        button: onTap != null,
+        child: VouchFlowCard(
+          radius: VfSize.radiusXl,
+          onTap: onTap,
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          child: Row(
+            children: [
+              leading,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: VfType.bodyStrong.copyWith(color: t.text),
+                    ),
+                    if (meta != null && meta!.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        meta!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: VfType.meta.copyWith(
+                          color: t.muted,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The quiet chevron at the end of a tappable row.
+class AdminChevron extends StatelessWidget {
+  const AdminChevron({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      Icon(PhosphorIconsRegular.caretRight, size: 16, color: context.vf.faint);
+}
+
+/// A filter chip that shows its current choice and opens a sheet of
+/// options (role, department, action …).
+class AdminSelectChip extends StatelessWidget {
+  const AdminSelectChip({
+    super.key,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.icon,
+    this.onClear,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final IconData? icon;
+
+  /// Shown as an × inside an active chip.
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final fg = active ? t.primaryText : t.text2;
+    return Semantics(
+      button: true,
+      selected: active,
+      child: Material(
+        color: active ? t.primarySoftStrong : t.surface,
+        shape: StadiumBorder(
+          side: active || !t.isDark
+              ? BorderSide.none
+              : BorderSide(color: t.border),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 40),
+            padding: EdgeInsets.only(
+              left: 14,
+              right: active && onClear != null ? 4 : 12,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 16, color: fg),
+                  const SizedBox(width: 6),
+                ],
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 170),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.label.copyWith(
+                      fontSize: 14,
+                      color: fg,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                if (active && onClear != null)
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      tooltip: MaterialLocalizations.of(
+                        context,
+                      ).deleteButtonTooltip,
+                      icon: Icon(PhosphorIconsBold.x, size: 13, color: fg),
+                      onPressed: onClear,
+                    ),
+                  )
+                else
+                  Icon(PhosphorIconsBold.caretDown, size: 12, color: fg),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A pill search field: a soft fill, no outline, a magnifier and a clear
+/// button once something is typed.
+class AdminSearchField extends StatefulWidget {
+  const AdminSearchField({
+    super.key,
+    required this.placeholder,
+    this.controller,
+    this.onChanged,
+  });
+
+  final String placeholder;
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<AdminSearchField> createState() => _AdminSearchFieldState();
+}
+
+class _AdminSearchFieldState extends State<AdminSearchField> {
+  late final TextEditingController _c =
+      widget.controller ?? TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _c.addListener(_changed);
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _c.removeListener(_changed);
+    if (widget.controller == null) _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    const pill = OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(VfSize.radiusPill)),
+      borderSide: BorderSide.none,
+    );
+    return TextField(
+      controller: _c,
+      onChanged: widget.onChanged,
+      textInputAction: TextInputAction.search,
+      cursorColor: t.primary,
+      style: VfType.body.copyWith(color: t.text),
+      decoration: InputDecoration(
+        hintText: widget.placeholder,
+        hintStyle: VfType.body.copyWith(color: t.placeholder),
+        filled: true,
+        // Light pages are already grey, so the field is white there.
+        fillColor: t.isDark ? t.surface3 : t.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 14,
+        ),
+        border: pill,
+        enabledBorder: pill,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: const BorderRadius.all(
+            Radius.circular(VfSize.radiusPill),
+          ),
+          borderSide: BorderSide(color: t.primary, width: 1.5),
+        ),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 6),
+          child: Icon(
+            PhosphorIconsRegular.magnifyingGlass,
+            size: 19,
+            color: t.muted,
+          ),
+        ),
+        suffixIcon: _c.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                icon: Icon(PhosphorIconsBold.xCircle, size: 18, color: t.faint),
+                onPressed: () {
+                  _c.clear();
+                  widget.onChanged?.call('');
+                },
+              ),
+      ),
+    );
+  }
+}
+
+/// A horizontal rail of chips, bleeding to the screen edges.
+class AdminChipRail extends StatelessWidget {
+  const AdminChipRail({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            children[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A sheet of single-choice options; returns the chosen value.
+Future<T?> showAdminOptions<T>(
+  BuildContext context, {
+  required String title,
+  required List<(T, String)> options,
+  required T selected,
+}) {
+  return showVouchFlowBottomSheet<T>(
+    context,
+    title: title,
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final o in options)
+            Builder(
+              builder: (ctx) {
+                final t = ctx.vf;
+                final on = o.$1 == selected;
+                return Semantics(
+                  selected: on,
+                  inMutuallyExclusiveGroup: true,
+                  button: true,
+                  child: Material(
+                    color: on ? t.primarySoft : Colors.transparent,
+                    borderRadius: BorderRadius.circular(VfSize.radiusL),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(VfSize.radiusL),
+                      onTap: () => Navigator.of(ctx).pop(o.$1),
+                      child: Container(
+                        constraints: const BoxConstraints(minHeight: 50),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                o.$2,
+                                style: VfType.body.copyWith(
+                                  color: on ? t.primaryText : t.text,
+                                  fontWeight: on
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                            if (on)
+                              Icon(
+                                PhosphorIconsBold.check,
+                                size: 17,
+                                color: t.primaryText,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// One action in an item sheet.
+class AdminSheetAction {
+  const AdminSheetAction(
+    this.icon,
+    this.label,
+    this.onTap, {
+    this.danger = false,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+}
+
+/// The bottom sheet a list row opens: a header, the item's details and its
+/// actions. The sheet closes before an action runs.
+Future<void> showAdminItemSheet(
+  BuildContext context, {
+  required Widget header,
+  List<Widget> details = const [],
+  List<AdminSheetAction> actions = const [],
+}) async {
+  final chosen = await showModalBottomSheet<AdminSheetAction>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (ctx) {
+      final t = ctx.vf;
+      return SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(ctx).height * .88,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                header,
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: t.surface2,
+                      borderRadius: BorderRadius.circular(VfSize.radiusL),
+                    ),
+                    child: Column(children: details),
+                  ),
+                ],
+                if (actions.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  for (final a in actions)
+                    Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(VfSize.radiusL),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(VfSize.radiusL),
+                        onTap: () => Navigator.of(ctx).pop(a),
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 52),
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Row(
+                            children: [
+                              AdminIconTile(
+                                a.icon,
+                                size: 36,
+                                tone: a.danger ? VfTone.bad : VfTone.neutral,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  a.label,
+                                  style: VfType.bodyStrong.copyWith(
+                                    color: a.danger ? t.dangerStrong : t.text,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+  chosen?.onTap();
 }
 
 /// The web's reportError: the API's message (and its first field error),
@@ -295,7 +987,7 @@ class AdminBadge extends StatelessWidget {
   }
 }
 
-/// The web's Pagination: "Showing 25 · Page 1 of 3", Back and Next.
+/// Pagination: round back and next buttons around "2 / 3".
 class AdminPagination extends StatelessWidget {
   const AdminPagination({
     super.key,
@@ -312,39 +1004,55 @@ class AdminPagination extends StatelessWidget {
   Widget build(BuildContext context) {
     if (lastPage <= 1) return const SizedBox.shrink();
     final t = context.vf;
-    return Padding(
-      padding: const EdgeInsets.only(top: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            '${'admin.showing'.tr} $total · ${'admin.page'.tr} $page ${'admin.of'.tr} $lastPage',
-            textAlign: TextAlign.center,
-            style: VfType.small.copyWith(color: t.muted),
+    Widget round(IconData icon, String tip, VoidCallback? onTap) => Tooltip(
+      message: tip,
+      child: Material(
+        color: t.surface,
+        shape: CircleBorder(
+          side: t.isDark ? BorderSide(color: t.border) : BorderSide.none,
+        ),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(
+              icon,
+              size: 18,
+              color: onTap == null ? t.faint : t.text,
+              semanticLabel: tip,
+            ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: VouchFlowButton(
-                  label: 'admin.back'.tr,
-                  icon: PhosphorIconsRegular.caretLeft,
-                  variant: VfButtonVariant.secondary,
-                  compact: true,
-                  onPressed: page <= 1 ? null : () => onChange(page - 1),
-                ),
+        ),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          round(
+            PhosphorIconsBold.caretLeft,
+            'admin.back'.tr,
+            page <= 1 ? null : () => onChange(page - 1),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Text(
+              '$page / $lastPage',
+              semanticsLabel:
+                  '${'admin.page'.tr} $page ${'admin.of'.tr} $lastPage',
+              style: VfType.bodyStrong.copyWith(
+                color: t.text2,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: VouchFlowButton(
-                  label: 'admin.next'.tr,
-                  trailingIcon: PhosphorIconsRegular.caretRight,
-                  variant: VfButtonVariant.secondary,
-                  compact: true,
-                  onPressed: page >= lastPage ? null : () => onChange(page + 1),
-                ),
-              ),
-            ],
+            ),
+          ),
+          round(
+            PhosphorIconsBold.caretRight,
+            'admin.next'.tr,
+            page >= lastPage ? null : () => onChange(page + 1),
           ),
         ],
       ),
@@ -386,7 +1094,7 @@ class AdminMeter extends StatelessWidget {
   }
 }
 
-/// A labelled switch (the web's `.switch`), 44px tall.
+/// A settings-style switch row: the label, then the switch at the end.
 class AdminSwitch extends StatelessWidget {
   const AdminSwitch({
     super.key,
@@ -408,13 +1116,10 @@ class AdminSwitch extends StatelessWidget {
       borderRadius: BorderRadius.circular(VfSize.radiusL),
       onTap: onChanged == null ? null : () => onChanged!(!value),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 44),
+        constraints: const BoxConstraints(minHeight: 48),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Switch(value: value, onChanged: onChanged),
-            const SizedBox(width: 6),
-            Flexible(
+            Expanded(
               child: Text(
                 label,
                 style: VfType.label.copyWith(
@@ -423,6 +1128,8 @@ class AdminSwitch extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(width: 10),
+            Switch.adaptive(value: value, onChanged: onChanged),
           ],
         ),
       ),
@@ -479,18 +1186,23 @@ class AdminPerson extends StatelessWidget {
     required this.name,
     this.sub,
     this.trailing,
+    this.size = 38,
   });
 
   final String initials, name;
   final String? sub;
   final Widget? trailing;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
     return Row(
       children: [
-        VouchFlowAvatar(initials: initials.isEmpty ? '?' : initials, size: 38),
+        VouchFlowAvatar(
+          initials: initials.isEmpty ? '?' : initials,
+          size: size,
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -518,7 +1230,7 @@ class AdminPerson extends StatelessWidget {
   }
 }
 
-/// Label on the left, value on the right: one line of a list card.
+/// Label on the left, value on the right: one line of a details block.
 class AdminLine extends StatelessWidget {
   const AdminLine({
     super.key,
@@ -537,7 +1249,7 @@ class AdminLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.vf;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -557,6 +1269,7 @@ class AdminLine extends StatelessWidget {
                     textAlign: TextAlign.right,
                     style: (strong ? VfType.bodyStrong : VfType.small).copyWith(
                       color: t.text,
+                      fontWeight: strong ? FontWeight.w600 : FontWeight.w500,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
@@ -599,7 +1312,7 @@ class AdminNote extends StatelessWidget {
   );
 }
 
-/// A small count pill beside a panel title (the web's `.vf-count`).
+/// A small count pill beside a section label (the web's `.vf-count`).
 class AdminCount extends StatelessWidget {
   const AdminCount(this.count, {super.key});
 

@@ -95,13 +95,33 @@ void main() {
   testWidgets('employees list lays out at 320', (tester) async {
     await pump(tester, EmployeesPage(repository: repo));
     expect(tester.takeException(), isNull);
-    expect(find.text('Invite user'), findsOneWidget);
+    expect(find.byTooltip('Invite user'), findsOneWidget);
+    expect(find.text('Anna Lyimo'), findsOneWidget);
+  });
+
+  testWidgets('an employee row opens their details and actions', (tester) async {
+    await pump(tester, EmployeesPage(repository: repo));
+    await tester.tap(find.text('Anna Lyimo'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.takeException(), isNull);
+    expect(find.text('anna@watercom.test'), findsOneWidget);
+    expect(find.text('WC-0061'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Suspend'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
   });
 
   testWidgets('departments list lays out at 320', (tester) async {
     await pump(tester, DepartmentsPage(repository: repo));
     expect(tester.takeException(), isNull);
-    expect(find.text('Add department'), findsOneWidget);
+    expect(find.byTooltip('Add department'), findsOneWidget);
+    await tester.tap(find.text('Human Resources'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.takeException(), isNull);
+    expect(find.text('Anna Lyimo'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
   });
 
   testWidgets('audit log lays out at 320', (tester) async {
@@ -131,6 +151,7 @@ void main() {
     await tester.pump();
     final level = find.textContaining('HOD signature').first;
     await tester.ensureVisible(level);
+    await tester.pump();
     await tester.tap(level);
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);

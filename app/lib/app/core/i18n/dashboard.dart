@@ -33,6 +33,15 @@ const Map<String, String> dashboardEn = {
   'dashboard.bank': 'Bank',
   'dashboard.cash': 'Cash',
 
+  // — home: hero and quick actions —
+  'dashboard.hero.waiting': 'Waiting for you',
+  'dashboard.hero.clear': 'All clear',
+  'dashboard.hero.review': 'Review',
+  'dashboard.quick.alerts': 'Alerts',
+  'dashboard.quick.me': 'Profile',
+  'dashboard.stalled': 'Stalled',
+  'dashboard.manage': 'Manage',
+
   // — the one next step on a queued voucher —
   'dashboard.cta.recordPayment': 'Record payment',
   'dashboard.cta.reviewApprove': 'Review & approve',
@@ -98,6 +107,15 @@ const Map<String, String> dashboardSw = {
   'dashboard.last7Months': 'Miezi 7 iliyopita',
   'dashboard.bank': 'Benki',
   'dashboard.cash': 'Taslimu',
+
+  // — home: hero and quick actions —
+  'dashboard.hero.waiting': 'Zinakusubiri',
+  'dashboard.hero.clear': 'Hakuna kinachosubiri',
+  'dashboard.hero.review': 'Kagua',
+  'dashboard.quick.alerts': 'Arifa',
+  'dashboard.quick.me': 'Wasifu',
+  'dashboard.stalled': 'Zimekwama',
+  'dashboard.manage': 'Simamia',
 
   // — the one next step on a queued voucher —
   'dashboard.cta.recordPayment': 'Rekodi malipo',

@@ -11,56 +11,29 @@ import '../../data/services/session_service.dart';
  * auth-frame.tsx and the sign-in / sign-up styles in vouchflow.css.
  */
 
-/// The VouchFlow mark: a V drawn as a tick on a rounded square
-/// (the web's `VouchFlowMark`).
+/// The VouchFlow mark — the V with the voucher sheet — on a white rounded
+/// tile, so it reads on the navy chrome and on light pages alike.
 class VfBrandMark extends StatelessWidget {
   const VfBrandMark({super.key, this.size = 36});
 
   final double size;
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-    size: Size.square(size),
-    painter: _MarkPainter(context.vf.palette.primaryLight),
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    padding: EdgeInsets.all(size * .14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(size * .26),
+    ),
+    child: Image.asset(
+      'assets/brand/mark.png',
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+      semanticLabel: 'VouchFlow',
+    ),
   );
-}
-
-class _MarkPainter extends CustomPainter {
-  _MarkPainter(this.fill);
-  final Color fill;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.width / 36;
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(.5 * s, .5 * s, 35 * s, 35 * s),
-      Radius.circular(10 * s),
-    );
-    canvas.drawRRect(rect, Paint()..color = fill);
-    canvas.drawRRect(
-      rect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = s
-        ..color = Colors.white.withValues(alpha: .18),
-    );
-    final tick = Path()
-      ..moveTo(10.5 * s, 12.5 * s)
-      ..lineTo(17 * s, 24.5 * s)
-      ..lineTo(26 * s, 10.5 * s);
-    canvas.drawPath(
-      tick,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3 * s
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = Colors.white,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _MarkPainter old) => old.fill != fill;
 }
 
 /// Mark and name, as in the top-left of every public screen.
@@ -199,30 +172,12 @@ class AuthCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: t.isDark ? t.border : Colors.transparent),
         boxShadow: t.cardShadow,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Padding(padding: padding, child: child),
-          Positioned(
-            top: 0,
-            left: 24,
-            right: 24,
-            child: Container(
-              height: 4,
-              decoration: BoxDecoration(
-                color: t.primary,
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(999),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      padding: padding,
+      child: child,
     );
   }
 }
@@ -242,11 +197,11 @@ class AuthLabel extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            text.toUpperCase(),
-            style: VfType.eyebrow.copyWith(
-              fontSize: 12,
-              letterSpacing: .6,
-              color: t.muted,
+            text,
+            style: VfType.label.copyWith(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: t.text2,
             ),
           ),
         ),
@@ -330,11 +285,14 @@ class AuthInput extends StatelessWidget {
     this.focusNode,
     this.textCapitalization = TextCapitalization.none,
     this.semanticLabel,
+    this.icon,
   });
 
   final TextEditingController controller;
   final String? placeholder;
   final bool obscure;
+  /// A leading glyph inside the field, app style.
+  final IconData? icon;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final Iterable<String>? autofillHints;
@@ -369,7 +327,31 @@ class AuthInput extends StatelessWidget {
       decoration: InputDecoration(
         hintText: placeholder,
         filled: true,
-        fillColor: enabled ? t.inputBg : t.inputDisabled,
+        fillColor: enabled ? t.surface3 : t.inputDisabled,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: t.isDark ? t.borderStrong.withValues(alpha: .5) : Colors.transparent),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: t.primary, width: 1.6),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: t.dangerStrong),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: t.dangerStrong, width: 1.6),
+        ),
+        prefixIcon: icon == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(left: 16, right: 10),
+                child: Icon(icon, size: 21, color: t.muted),
+              ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         suffixIcon: suffix,
         errorText: invalid ? '' : null,
         errorStyle: const TextStyle(height: 0, fontSize: 0),
@@ -565,20 +547,14 @@ class AuthFrame extends StatelessWidget {
                   Row(
                     children: [
                       if (onBack != null)
-                        IconButton(
-                          tooltip: MaterialLocalizations.of(
-                            context,
-                          ).backButtonTooltip,
-                          onPressed: onBack,
-                          icon: Icon(
-                            PhosphorIconsRegular.arrowLeft,
-                            color: t.text,
-                          ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: AuthBackButton(onTap: onBack!),
                         ),
                       const Expanded(
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: VfWordmark(),
+                          child: VfBrandMark(size: 40),
                         ),
                       ),
                       const AuthTools(),
@@ -596,20 +572,11 @@ class AuthFrame extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                if (kicker != null && kicker!.isNotEmpty) ...[
-                                  Text(
-                                    kicker!.toUpperCase(),
-                                    style: VfType.eyebrow.copyWith(
-                                      fontSize: 12,
-                                      color: t.muted,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
                                 Text(
                                   title,
                                   style: VfType.pageTitle.copyWith(
-                                    fontSize: 24,
+                                    fontSize: 26,
+                                    letterSpacing: -.6,
                                     color: t.text,
                                   ),
                                 ),
@@ -633,38 +600,38 @@ class AuthFrame extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Icon(
-                            PhosphorIconsRegular.shieldCheck,
-                            size: 15,
-                            color: t.muted,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'auth.v.legal'.tr,
-                            textAlign: TextAlign.center,
-                            style: VfType.meta.copyWith(
-                              fontSize: 13,
-                              color: t.muted,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A round back button for the public screens.
+class AuthBackButton extends StatelessWidget {
+  const AuthBackButton({super.key, required this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Material(
+      color: t.surface,
+      shape: CircleBorder(side: BorderSide(color: t.border)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(
+            PhosphorIconsRegular.caretLeft,
+            size: 20,
+            color: t.text,
+            semanticLabel: MaterialLocalizations.of(context).backButtonTooltip,
           ),
         ),
       ),

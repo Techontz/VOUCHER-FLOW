@@ -153,10 +153,43 @@ String voucherStage(
   }
 }
 
-/// One voucher as the web's `VoucherRow`: number, bank/cash mark and status;
-/// the purpose as the title; payee · requester · department · date; with
-/// [history], where it stands and when it was submitted and last updated;
-/// the amount (and the balance when part-paid); and the call to action.
+/// The status in a word or two, for a list row's pill ("Pending", "Paid").
+/// The voucher page shows the full label.
+String voucherShortStatus(Voucher v) {
+  final key = 'vouchers.short.${v.statusKey}';
+  final out = key.tr;
+  return out == key ? v.statusLabel : out;
+}
+
+/// The kind tile: a rounded square tinted by bank (primary) or cash (green).
+class VoucherKindTile extends StatelessWidget {
+  const VoucherKindTile({super.key, required this.isCash, this.size = 44});
+
+  final bool isCash;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: isCash ? t.successSoft : t.primarySoft,
+        borderRadius: BorderRadius.circular(size * .32),
+      ),
+      child: Icon(
+        isCash ? PhosphorIconsFill.money : PhosphorIconsFill.bank,
+        size: size * .48,
+        color: isCash ? t.successStrong : t.primaryText,
+        semanticLabel: isCash ? 'vouchers.cash'.tr : 'vouchers.bank'.tr,
+      ),
+    );
+  }
+}
+
+/// One voucher as an app list row: the kind tile, the purpose, "number ·
+/// payee", and on the right the amount over a status pill.
 class VoucherRow extends StatelessWidget {
   const VoucherRow({
     super.key,
@@ -186,113 +219,91 @@ class VoucherRow extends StatelessWidget {
     final v = voucher;
     final cta = showCta ? voucherPrimaryAction(v) : null;
     final meta = [
+      v.number,
       v.payee,
-      v.requesterName,
-      v.departmentName,
-      if (v.voucherDate != null) Fmt.date(v.voucherDate),
-    ].whereType<String>().where((s) => s.isNotEmpty && s != 'null').join(' · ');
+    ].where((s) => s.isNotEmpty && s != 'null').join(' · ');
     const tabular = [FontFeature.tabularFigures()];
+    final partial = v.isPartiallyPaid && v.balanceText != null;
 
     return InkWell(
       onTap: _open,
       child: Padding(
-        padding: const EdgeInsets.all(VfSize.cardPad),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Row(
               children: [
-                Text(
-                  v.number,
-                  style: VfType.small.copyWith(
-                    color: t.text2,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: tabular,
+                VoucherKindTile(isCash: v.isCash),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        v.purpose,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: VfType.bodyStrong.copyWith(
+                          color: t.text,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        partial
+                            ? 'vouchers.balanceAmount'.trParams({
+                                'amount': v.balanceText!,
+                              })
+                            : meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: VfType.meta.copyWith(
+                          fontSize: 13,
+                          color: partial ? t.warningStrong : t.muted,
+                          fontWeight: partial ? FontWeight.w500 : null,
+                          fontFeatures: tabular,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                VoucherKindTag(isCash: v.isCash),
-                VouchFlowStatusBadge(label: v.statusLabel, tag: v.displayTag),
+                const SizedBox(width: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 136),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          v.amountText,
+                          maxLines: 1,
+                          style: VfType.bodyStrong.copyWith(
+                            color: t.text,
+                            height: 1.3,
+                            fontFeatures: tabular,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      VouchFlowStatusBadge(
+                        label: voucherShortStatus(v),
+                        tag: v.displayTag,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              v.purpose,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: VfType.cardTitle.copyWith(color: t.text),
-            ),
-            if (meta.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                meta,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: VfType.small.copyWith(color: t.muted),
-              ),
-            ],
-            if (history) ...[
-              const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: voucherStage(
-                        v,
-                        stepRole: row?.stepRole,
-                        decidedBy: row?.decidedBy,
-                        paymentDate: row?.paymentDate,
-                      ),
-                      style: TextStyle(
-                        color: t.text2,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (v.submittedAt != null)
-                      TextSpan(
-                        text:
-                            ' · ${'vouchers.submittedOn'.tr} ${Fmt.date(v.submittedAt)}',
-                      ),
-                    if (row?.updatedAt != null)
-                      TextSpan(
-                        text:
-                            ' · ${'vouchers.lastUpdated'.tr} ${Fmt.date(row!.updatedAt)}',
-                      ),
-                  ],
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: VfType.small.copyWith(color: t.muted),
-              ),
-            ],
-            const SizedBox(height: 10),
-            Text(
-              v.amountText,
-              style: VfType.bodyStrong.copyWith(
-                fontSize: 17,
-                color: t.text,
-                fontFeatures: tabular,
-              ),
-            ),
-            if (v.isPartiallyPaid && v.balanceText != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  'vouchers.balanceAmount'.trParams({'amount': v.balanceText!}),
-                  style: VfType.meta.copyWith(
-                    color: t.warningStrong,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
             if (cta != null) ...[
               const SizedBox(height: 12),
               VouchFlowButton(
                 label: cta.label.tr,
                 icon: cta.icon,
                 compact: true,
+                expand: true,
                 variant: cta.strong
                     ? VfButtonVariant.primary
                     : VfButtonVariant.secondary,
@@ -306,7 +317,7 @@ class VoucherRow extends StatelessWidget {
   }
 }
 
-/// One voucher in its own card (dashboard lists): a [VoucherRow] in a panel.
+/// One voucher in its own rounded card (dashboard lists).
 class VoucherCard extends StatelessWidget {
   const VoucherCard({
     super.key,
@@ -324,6 +335,7 @@ class VoucherCard extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 10),
     child: VouchFlowCard(
       padding: EdgeInsets.zero,
+      radius: VfSize.radiusXl,
       child: VoucherRow(voucher: voucher, onReturn: onReturn, showCta: showCta),
     ),
   );

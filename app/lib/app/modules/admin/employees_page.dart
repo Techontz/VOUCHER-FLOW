@@ -36,9 +36,9 @@ String employeeRoleLabel(String role) => switch (role) {
   _ => role,
 };
 
-/// People in the company — the web's Employees page: search and filters,
-/// each person with their role, status and vouchers, and invite, edit,
-/// suspend/activate and delete.
+/// People in the company: search and filter chips, a row per person, and a
+/// sheet per person with their details — invite, edit, suspend/activate
+/// and delete.
 class EmployeesPage extends StatefulWidget {
   const EmployeesPage({super.key, this.repository});
 
@@ -175,73 +175,149 @@ class _EmployeesPageState extends State<EmployeesPage> {
     if (saved == true) _load();
   }
 
+  String _statusLabel(String status) => switch (status) {
+    'active' => 'admin.active'.tr,
+    'invited' => 'admin.invited'.tr,
+    'suspended' => 'admin.suspended'.tr,
+    _ => status,
+  };
+
+  VfTone _statusTone(String status) => status == 'active'
+      ? VfTone.ok
+      : status == 'invited'
+      ? VfTone.info
+      : VfTone.bad;
+
+  String _deptName(String id) =>
+      _departments.where((d) => '${d.id}' == id).firstOrNull?.name ??
+      'admin.allDepartments'.tr;
+
+  Future<void> _pickRole() async {
+    final v = await showAdminOptions<String>(
+      context,
+      title: 'admin.role'.tr,
+      selected: _role,
+      options: [
+        ('', 'admin.allRoles'.tr),
+        for (final r in employeeRoles) (r, employeeRoleLabel(r)),
+      ],
+    );
+    if (v != null && v != _role) _filter(() => _role = v);
+  }
+
+  Future<void> _pickDept() async {
+    final v = await showAdminOptions<String>(
+      context,
+      title: 'admin.department'.tr,
+      selected: _dept,
+      options: [
+        ('', 'admin.allDepartments'.tr),
+        for (final d in _departments) ('${d.id}', d.name),
+      ],
+    );
+    if (v != null && v != _dept) _filter(() => _dept = v);
+  }
+
+  /// A person's details and what can be done to them.
+  void _openPerson(Employee u) {
+    showAdminItemSheet(
+      context,
+      header: AdminPerson(
+        initials: u.initials,
+        name: u.name,
+        sub: u.email,
+        size: 52,
+      ),
+      details: [
+        AdminLine(
+          label: 'admin.role'.tr,
+          value: [
+            u.roleLabel,
+            if ((u.jobTitle ?? '').isNotEmpty) u.jobTitle!,
+          ].join(' · '),
+        ),
+        AdminLine(label: 'admin.department'.tr, value: u.departmentName ?? '—'),
+        AdminLine(label: 'admin.employeeId'.tr, value: u.employeeCode ?? '—'),
+        AdminLine(label: 'admin.vouchers'.tr, value: '${u.voucherCount}'),
+        AdminLine(label: 'admin.joined'.tr, value: Fmt.date(u.joinedAt)),
+        AdminLine(
+          label: 'admin.status'.tr,
+          value: '',
+          valueWidget: AdminBadge(
+            _statusLabel(u.status),
+            tone: _statusTone(u.status),
+          ),
+        ),
+        if ((u.phone ?? '').isNotEmpty)
+          AdminLine(label: 'admin.phone'.tr, value: u.phone!),
+      ],
+      actions: [
+        AdminSheetAction(
+          PhosphorIconsRegular.pencilSimple,
+          'admin.edit'.tr,
+          () => _openForm(u),
+        ),
+        u.status != 'suspended'
+            ? AdminSheetAction(
+                PhosphorIconsRegular.prohibit,
+                'admin.suspend'.tr,
+                () => _setStatus(u, 'suspended'),
+              )
+            : AdminSheetAction(
+                PhosphorIconsRegular.checkCircle,
+                'admin.activate'.tr,
+                () => _setStatus(u, 'active'),
+              ),
+        AdminSheetAction(
+          PhosphorIconsRegular.trash,
+          'admin.delete'.tr,
+          () => _confirmRemove(u),
+          danger: true,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
     final rows = _result?.data ?? const <Employee>[];
-    final deptIds = ['', for (final d in _departments) '${d.id}'];
 
     return AdminPageBody(
       route: '/employees',
       title: 'admin.employees'.tr,
-      subtitle: 'admin.employeesSub'.tr,
       onRefresh: _load,
-      actions: [
-        VouchFlowButton(
-          label: 'admin.inviteUser'.tr,
-          icon: PhosphorIconsRegular.userPlus,
-          onPressed: () => _openForm(),
-        ),
-      ],
+      action: AdminRoundAction(
+        icon: PhosphorIconsBold.userPlus,
+        label: 'admin.inviteUser'.tr,
+        onPressed: () => _openForm(),
+      ),
       children: [
-        VouchFlowCard(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              VouchFlowSearchField(
-                placeholder: 'admin.search'.tr,
-                onChanged: _search,
+        AdminSearchField(placeholder: 'admin.search'.tr, onChanged: _search),
+        const SizedBox(height: 12),
+        AdminChipRail(
+          children: [
+            for (final s in const ['', 'active', 'invited', 'suspended'])
+              VouchFlowFilterChip(
+                label: s.isEmpty ? 'admin.allStatuses'.tr : _statusLabel(s),
+                selected: _status == s,
+                onTap: () => _filter(() => _status = s),
               ),
-              const SizedBox(height: 10),
-              _FilterDropdown(
-                label: 'admin.role'.tr,
-                value: _role,
-                items: ['', ...employeeRoles],
-                itemLabel: (v) =>
-                    v.isEmpty ? 'admin.allRoles'.tr : employeeRoleLabel(v),
-                onChanged: (v) => _filter(() => _role = v),
+            AdminSelectChip(
+              label: _role.isEmpty ? 'admin.role'.tr : employeeRoleLabel(_role),
+              active: _role.isNotEmpty,
+              onTap: _pickRole,
+              onClear: () => _filter(() => _role = ''),
+            ),
+            if (_departments.isNotEmpty)
+              AdminSelectChip(
+                label: _dept.isEmpty ? 'admin.department'.tr : _deptName(_dept),
+                active: _dept.isNotEmpty,
+                onTap: _pickDept,
+                onClear: () => _filter(() => _dept = ''),
               ),
-              const SizedBox(height: 10),
-              _FilterDropdown(
-                label: 'admin.status'.tr,
-                value: _status,
-                items: const ['', 'active', 'invited', 'suspended'],
-                itemLabel: (v) =>
-                    v.isEmpty ? 'admin.allStatuses'.tr : 'admin.$v'.tr,
-                onChanged: (v) => _filter(() => _status = v),
-              ),
-              const SizedBox(height: 10),
-              _FilterDropdown(
-                label: 'admin.department'.tr,
-                value: _dept,
-                items: deptIds,
-                itemLabel: (v) => v.isEmpty
-                    ? 'admin.allDepartments'.tr
-                    : _departments.firstWhere((d) => '${d.id}' == v).name,
-                onChanged: (v) => _filter(() => _dept = v),
-              ),
-              if (_result != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  '${_result!.total} ${'admin.users'.tr.toLowerCase()}',
-                  style: VfType.small.copyWith(color: t.muted),
-                ),
-              ],
-            ],
-          ),
+          ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         if (_error != null)
           VouchFlowErrorState(
             message: _error!,
@@ -249,27 +325,36 @@ class _EmployeesPageState extends State<EmployeesPage> {
             retryLabel: 'action.retry'.tr,
           )
         else if (_result == null)
-          const VouchFlowLoadingState(rows: 6, rowHeight: 128)
+          const VouchFlowLoadingState(rows: 6, rowHeight: 72)
         else if (rows.isEmpty)
           VouchFlowCard(
+            radius: VfSize.radiusXl,
             child: VouchFlowEmptyState(
               icon: PhosphorIconsRegular.usersThree,
               title: 'admin.noResults'.tr,
             ),
           )
         else ...[
-          for (final u in rows) ...[
-            _EmployeeCard(
-              user: u,
-              onEdit: () => _openForm(u),
-              onStatus: () => _setStatus(
-                u,
-                u.status == 'suspended' ? 'active' : 'suspended',
+          for (final u in rows)
+            AdminListRow(
+              semanticLabel: '${'admin.actions'.tr}: ${u.name}',
+              leading: VouchFlowAvatar(
+                initials: u.initials.isEmpty ? '?' : u.initials,
+                size: 44,
               ),
-              onDelete: () => _confirmRemove(u),
+              title: u.name,
+              meta: [
+                u.roleLabel,
+                if ((u.departmentName ?? '').isNotEmpty) u.departmentName!,
+              ].join(' · '),
+              trailing: u.status == 'active'
+                  ? const AdminChevron()
+                  : AdminBadge(
+                      _statusLabel(u.status),
+                      tone: _statusTone(u.status),
+                    ),
+              onTap: () => _openPerson(u),
             ),
-            const SizedBox(height: 10),
-          ],
           AdminPagination(
             page: _result!.page,
             lastPage: _result!.lastPage,
@@ -281,189 +366,6 @@ class _EmployeesPageState extends State<EmployeesPage> {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _FilterDropdown extends StatelessWidget {
-  const _FilterDropdown({
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.itemLabel,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String value;
-  final List<String> items;
-  final String Function(String) itemLabel;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    return Semantics(
-      label: label,
-      child: DropdownButtonFormField<String>(
-        key: ValueKey('$label|$value|${items.length}'),
-        initialValue: items.contains(value) ? value : '',
-        isExpanded: true,
-        icon: Icon(PhosphorIconsRegular.caretDown, size: 16, color: t.muted),
-        dropdownColor: t.surface,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        style: VfType.body.copyWith(color: t.text),
-        decoration: InputDecoration(filled: true, fillColor: t.inputBg),
-        items: [
-          for (final v in items)
-            DropdownMenuItem(
-              value: v,
-              child: Text(
-                itemLabel(v),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-        ],
-        onChanged: (v) => onChanged(v ?? ''),
-      ),
-    );
-  }
-}
-
-class _EmployeeCard extends StatelessWidget {
-  const _EmployeeCard({
-    required this.user,
-    required this.onEdit,
-    required this.onStatus,
-    required this.onDelete,
-  });
-
-  final Employee user;
-  final VoidCallback onEdit, onStatus, onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    final tone = user.status == 'active'
-        ? VfTone.ok
-        : user.status == 'invited'
-        ? VfTone.info
-        : VfTone.bad;
-    final statusLabel = switch (user.status) {
-      'active' => 'admin.active'.tr,
-      'invited' => 'admin.invited'.tr,
-      'suspended' => 'admin.suspended'.tr,
-      _ => user.status,
-    };
-    return VouchFlowCard(
-      padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AdminPerson(
-            initials: user.initials,
-            name: user.name,
-            sub: user.email,
-            trailing: PopupMenuButton<String>(
-              tooltip: '${'admin.actions'.tr}: ${user.name}',
-              icon: Icon(PhosphorIconsRegular.dotsThree, color: t.text2),
-              position: PopupMenuPosition.under,
-              onSelected: (v) => switch (v) {
-                'edit' => onEdit(),
-                'status' => onStatus(),
-                _ => onDelete(),
-              },
-              itemBuilder: (_) => [
-                _menu(
-                  context,
-                  'edit',
-                  PhosphorIconsRegular.pencilSimple,
-                  'admin.edit'.tr,
-                ),
-                user.status != 'suspended'
-                    ? _menu(
-                        context,
-                        'status',
-                        PhosphorIconsRegular.prohibit,
-                        'admin.suspend'.tr,
-                      )
-                    : _menu(
-                        context,
-                        'status',
-                        PhosphorIconsRegular.checkCircle,
-                        'admin.activate'.tr,
-                      ),
-                const PopupMenuDivider(),
-                _menu(
-                  context,
-                  'delete',
-                  PhosphorIconsRegular.trash,
-                  'admin.delete'.tr,
-                  danger: true,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Column(
-              children: [
-                AdminLine(
-                  label: 'admin.role'.tr,
-                  value: [
-                    user.roleLabel,
-                    if ((user.jobTitle ?? '').isNotEmpty) user.jobTitle!,
-                  ].join(' · '),
-                ),
-                AdminLine(
-                  label: 'admin.department'.tr,
-                  value: user.departmentName ?? '—',
-                ),
-                AdminLine(
-                  label: 'admin.employeeId'.tr,
-                  value: user.employeeCode ?? '—',
-                ),
-                AdminLine(
-                  label: 'admin.vouchers'.tr,
-                  value: '${user.voucherCount}',
-                ),
-                AdminLine(
-                  label: 'admin.joined'.tr,
-                  value: Fmt.date(user.joinedAt),
-                ),
-                AdminLine(
-                  label: 'admin.status'.tr,
-                  value: '',
-                  valueWidget: AdminBadge(statusLabel, tone: tone),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  PopupMenuItem<String> _menu(
-    BuildContext context,
-    String value,
-    IconData icon,
-    String label, {
-    bool danger = false,
-  }) {
-    final t = context.vf;
-    final c = danger ? t.dangerStrong : t.text;
-    return PopupMenuItem(
-      value: value,
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: danger ? t.dangerStrong : t.faint),
-          const SizedBox(width: 12),
-          Text(label, style: VfType.body.copyWith(color: c)),
-        ],
-      ),
     );
   }
 }

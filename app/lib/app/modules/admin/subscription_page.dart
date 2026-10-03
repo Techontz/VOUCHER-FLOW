@@ -10,9 +10,9 @@ import '../../widgets/common.dart' show Fmt, showToast, ToastKind;
 import '../../widgets/vf/vf.dart';
 import 'admin_widgets.dart';
 
-/// Subscription — the web's page: the plan, its renewal or trial end, seats,
-/// usage against the plan's limits with auto-renew, billing history with
-/// Pay now, and changing plan.
+/// Subscription: a hero card with the plan, its status, renewal (or trial
+/// end) and seats; usage against the plan's limits with auto-renew; billing
+/// history with Pay now; and changing plan.
 class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key, this.repository});
 
@@ -141,17 +141,36 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                 selected: selected == plan.id,
                 onTap: () => setSheet(() => selected = plan.id),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
             ],
-            const SizedBox(height: 4),
-            VouchFlowDropdown<String>(
-              label: 'admin.billingCycle'.tr,
-              hint: 'admin.annualHint'.tr,
-              items: const ['monthly', 'annual'],
-              value: cycle,
-              itemLabel: (v) =>
-                  v == 'annual' ? 'admin.annual'.tr : 'admin.monthly'.tr,
-              onChanged: (v) => setSheet(() => cycle = v ?? 'monthly'),
+            const SizedBox(height: 6),
+            Text(
+              'admin.billingCycle'.tr,
+              style: VfType.label.copyWith(
+                color: ctx.vf.text2,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                for (final c in const ['monthly', 'annual']) ...[
+                  if (c == 'annual') const SizedBox(width: 8),
+                  VouchFlowFilterChip(
+                    label: c == 'annual'
+                        ? 'admin.annual'.tr
+                        : 'admin.monthly'.tr,
+                    selected: cycle == c,
+                    onTap: () => setSheet(() => cycle = c),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'admin.annualHint'.tr,
+              style: VfType.meta.copyWith(color: ctx.vf.muted),
             ),
           ],
         ),
@@ -273,28 +292,10 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     final s = _state;
     final company = _session?.company.value;
 
-    String? sub;
-    if (s != null) {
-      final sb = s.subscription;
-      sub = sb != null
-          ? '${s.plan?.name ?? ''} · ${sb.billingCycle == 'annual' ? 'admin.annual'.tr : 'admin.monthly'.tr} · ${Fmt.money(sb.amount, sb.currency)}'
-          : s.plan?.name ?? 'admin.noPlan'.tr;
-    }
-
     return AdminPageBody(
       route: '/subscription',
       title: 'admin.subscription'.tr,
-      subtitle: sub,
       onRefresh: _load,
-      actions: s == null
-          ? null
-          : [
-              VouchFlowButton(
-                label: 'admin.changePlan'.tr,
-                icon: PhosphorIconsRegular.crownSimple,
-                onPressed: _openPlan,
-              ),
-            ],
       children: [
         if (_error != null)
           VouchFlowErrorState(
@@ -303,7 +304,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
             retryLabel: 'action.retry'.tr,
           )
         else if (s == null || company == null)
-          const VouchFlowLoadingState(rows: 5, rowHeight: 100)
+          const VouchFlowLoadingState(rows: 4, rowHeight: 120)
         else ...[
           if (s.isExpired) ...[
             VouchFlowAlert(
@@ -313,27 +314,18 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
               message: 'admin.expiredBody'.tr,
             ),
             const SizedBox(height: 14),
-          ] else if (company.status == 'trial') ...[
-            VouchFlowAlert(
-              tone: VfTone.warn,
-              icon: PhosphorIconsRegular.clock,
-              title: '${'admin.trialEnds'.tr} ${Fmt.date(company.trialEndsAt)}',
-              message: fill('admin.daysRemaining'.tr, {
-                'count': s.daysRemaining,
-              }),
-            ),
-            const SizedBox(height: 14),
           ],
-          _figures(
+          _hero(
+            t,
             company.status,
             company.trialEndsAt,
             company.currentPeriodEnd,
             s,
           ),
-          const SizedBox(height: 14),
-          VouchFlowCard(
-            title: 'admin.usageThisPeriod'.tr,
-            padding: const EdgeInsets.all(16),
+          const SizedBox(height: 22),
+          AdminSection(
+            label: 'admin.usageThisPeriod'.tr,
+            padding: const EdgeInsets.fromLTRB(16, 6, 12, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -342,80 +334,206 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   value: s.autoRenew,
                   onChanged: _toggleAutoRenew,
                 ),
-                const SizedBox(height: 8),
+                Divider(height: 14, color: t.border),
+                const SizedBox(height: 6),
                 for (var i = 0; i < s.metrics.length; i++) ...[
-                  _metric(t, _metricLabel(s.metrics[i], i), s.metrics[i]),
-                  if (i < s.metrics.length - 1) const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: _metric(
+                      t,
+                      _metricLabel(s.metrics[i], i),
+                      s.metrics[i],
+                    ),
+                  ),
+                  if (i < s.metrics.length - 1) const SizedBox(height: 16),
                 ],
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 22),
           _history(t),
         ],
       ],
     );
   }
 
-  Widget _figures(
+  /// The plan at a glance: name, status, renewal (or trial end) and seats,
+  /// on the brand gradient, with Change plan.
+  Widget _hero(
+    VfTokens t,
     String status,
     DateTime? trialEndsAt,
     DateTime? periodEnd,
     BillingState s,
   ) {
     final trial = status == 'trial';
-    final cards = [
-      VouchFlowStatCard(
-        label: 'admin.currentPlan'.tr,
-        value: s.plan?.name ?? '—',
-        sub: _statusLabel(status),
-        tone: VfTone.neutral,
+    final sb = s.subscription;
+    final price = sb == null
+        ? null
+        : '${Fmt.money(sb.amount, sb.currency)} · ${sb.billingCycle == 'annual' ? 'admin.annual'.tr : 'admin.monthly'.tr}';
+    final statusTone = switch (status) {
+      'active' => VfTone.ok,
+      'trial' => VfTone.warn,
+      _ => VfTone.bad,
+    };
+    const white = Colors.white;
+    final soft = Colors.white.withValues(alpha: .78);
+
+    Widget figure(String label, String value, String? sub) => Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: VfType.meta.copyWith(color: soft)),
+          const SizedBox(height: 3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: VfType.figureS.copyWith(
+                color: white,
+                fontSize: 18,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          if (sub != null)
+            Text(
+              sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: VfType.meta.copyWith(color: soft),
+            ),
+        ],
       ),
-      VouchFlowStatCard(
-        label: trial ? 'admin.trialEnds'.tr : 'admin.renewsOn'.tr,
-        value: Fmt.date(trial ? trialEndsAt : periodEnd),
-        sub: s.daysRemaining == null
-            ? null
-            : fill('admin.daysCount'.tr, {'count': s.daysRemaining}),
-        tone: VfTone.neutral,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(VfSize.radiusXl + 4),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [t.palette.hoverDark, t.palette.primaryLight],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: t.palette.primaryLight.withValues(alpha: .28),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      VouchFlowStatCard(
-        label: 'admin.seats'.tr,
-        value: '${s.users.used} / ${s.users.unlimited ? '∞' : s.users.limit}',
-        sub: s.users.unlimited
-            ? fill('admin.seatsUsedUnlimited'.tr, {'used': s.users.used})
-            : fill('admin.seatsUsedN'.tr, {
-                'used': s.users.used,
-                'limit': s.users.limit,
-              }),
-        tone: VfTone.neutral,
-      ),
-    ];
-    return LayoutBuilder(
-      builder: (context, box) {
-        if (box.maxWidth >= 600) {
-          return IntrinsicHeight(
-            child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            right: -30,
+            top: -30,
+            child: Icon(
+              PhosphorIconsFill.crownSimple,
+              size: 150,
+              color: Colors.white.withValues(alpha: .08),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (var i = 0; i < cards.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 12),
-                  Expanded(child: cards[i]),
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .18),
+                        borderRadius: BorderRadius.circular(VfSize.radiusL),
+                      ),
+                      child: const Icon(
+                        PhosphorIconsFill.crownSimple,
+                        size: 20,
+                        color: white,
+                      ),
+                    ),
+                    const Spacer(),
+                    _HeroPill(
+                      _statusLabel(status).capitalizeFirst ?? '',
+                      tone: statusTone,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  s.plan?.name ?? 'admin.noPlan'.tr,
+                  style: VfType.pageTitle.copyWith(color: white, fontSize: 26),
+                ),
+                if (price != null) ...[
+                  const SizedBox(height: 2),
+                  Text(price, style: VfType.small.copyWith(color: soft)),
                 ],
+                const SizedBox(height: 18),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    figure(
+                      trial ? 'admin.trialEnds'.tr : 'admin.renewsOn'.tr,
+                      Fmt.date(trial ? trialEndsAt : periodEnd),
+                      s.daysRemaining == null
+                          ? null
+                          : fill('admin.daysCount'.tr, {
+                              'count': s.daysRemaining,
+                            }),
+                    ),
+                    const SizedBox(width: 14),
+                    figure(
+                      'admin.seats'.tr,
+                      '${s.users.used} / ${s.users.unlimited ? '∞' : s.users.limit}',
+                      null,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Material(
+                    color: white,
+                    shape: const StadiumBorder(),
+                    child: InkWell(
+                      customBorder: const StadiumBorder(),
+                      onTap: _openPlan,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 11,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              PhosphorIconsBold.arrowsLeftRight,
+                              size: 16,
+                              color: t.palette.hoverDark,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'admin.changePlan'.tr,
+                              style: VfType.bodyStrong.copyWith(
+                                color: t.palette.hoverDark,
+                                fontSize: 14.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < cards.length; i++) ...[
-              if (i > 0) const SizedBox(height: 10),
-              cards[i],
-            ],
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 
@@ -459,124 +577,175 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   }
 
   Widget _history(VfTokens t) {
-    return VouchFlowCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    'admin.billingHistory'.tr,
-                    style: VfType.sectionTitle.copyWith(
-                      color: t.text,
-                      fontSize: 17,
-                    ),
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Row(
+            children: [
+              Text(
+                'admin.billingHistory'.tr,
+                style: VfType.label.copyWith(
+                  color: t.muted,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(width: 8),
-                AdminCount(_invoices.length),
-              ],
+              ),
+              const SizedBox(width: 8),
+              AdminCount(_invoices.length),
+            ],
+          ),
+        ),
+        if (_invoices.isEmpty)
+          VouchFlowCard(
+            radius: VfSize.radiusXl,
+            child: VouchFlowEmptyState(
+              icon: PhosphorIconsRegular.receipt,
+              title: 'admin.noInvoices'.tr,
             ),
           ),
-          if (_invoices.isEmpty)
-            Container(
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: t.border)),
-              ),
-              child: VouchFlowEmptyState(
-                icon: PhosphorIconsRegular.receipt,
-                title: 'admin.noInvoices'.tr,
-              ),
-            ),
-          for (final inv in _invoices)
-            Container(
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: t.border)),
-              ),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
+        for (final inv in _invoices) _invoice(t, inv),
+      ],
+    );
+  }
+
+  Widget _invoice(VfTokens t, Invoice inv) {
+    final (label, tone) = switch (inv.status) {
+      'paid' => ('admin.invPaid'.tr, VfTone.ok),
+      'pending' => ('admin.invPending'.tr, VfTone.warn),
+      'failed' => ('admin.invFailed'.tr, VfTone.bad),
+      _ => (inv.status, VfTone.neutral),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: VouchFlowCard(
+        radius: VfSize.radiusXl,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                AdminIconTile(
+                  PhosphorIconsRegular.receipt,
+                  tone: tone == VfTone.neutral ? VfTone.primary : tone,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              inv.number,
-                              style: VfType.bodyStrong.copyWith(
-                                color: t.text,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              inv.description,
-                              style: VfType.small.copyWith(color: t.muted),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
                       Text(
-                        inv.amountText,
+                        inv.number,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: VfType.bodyStrong.copyWith(
                           color: t.text,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
+                      Text(
+                        [
+                          Fmt.date(inv.paidAt ?? inv.issuedAt),
+                          if (inv.methodLabel.isNotEmpty &&
+                              inv.methodLabel != '—')
+                            inv.methodLabel,
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: VfType.meta.copyWith(
+                          color: t.muted,
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  AdminLine(label: 'admin.method'.tr, value: inv.methodLabel),
-                  AdminLine(
-                    label: 'admin.date'.tr,
-                    value: Fmt.date(inv.paidAt ?? inv.issuedAt),
-                  ),
-                  AdminLine(
-                    label: 'admin.status'.tr,
-                    value: '',
-                    valueWidget: AdminBadge(
-                      switch (inv.status) {
-                        'paid' => 'admin.invPaid'.tr,
-                        'pending' => 'admin.invPending'.tr,
-                        'failed' => 'admin.invFailed'.tr,
-                        _ => inv.status,
-                      },
-                      tone: switch (inv.status) {
-                        'paid' => VfTone.ok,
-                        'failed' => VfTone.bad,
-                        'pending' => VfTone.warn,
-                        _ => VfTone.neutral,
-                      },
-                    ),
-                  ),
-                  if (inv.failureReason != null) ...[
-                    const SizedBox(height: 4),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
                     Text(
-                      inv.failureReason!,
-                      style: VfType.small.copyWith(color: t.dangerStrong),
+                      inv.amountText,
+                      style: VfType.bodyStrong.copyWith(
+                        color: t.text,
+                        fontSize: 14,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
+                    const SizedBox(height: 3),
+                    AdminBadge(label, tone: tone),
                   ],
-                  if (inv.payable) ...[
-                    const SizedBox(height: 10),
-                    VouchFlowButton(
-                      label: 'admin.payNow'.tr,
-                      compact: true,
-                      expand: true,
-                      onPressed: () => _openPay(inv),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+              ],
             ),
+            if (inv.description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                inv.description,
+                style: VfType.small.copyWith(color: t.text2),
+              ),
+            ],
+            if (inv.failureReason != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                inv.failureReason!,
+                style: VfType.small.copyWith(color: t.dangerStrong),
+              ),
+            ],
+            if (inv.payable) ...[
+              const SizedBox(height: 10),
+              VouchFlowButton(
+                label: 'admin.payNow'.tr,
+                icon: PhosphorIconsRegular.creditCard,
+                compact: true,
+                expand: true,
+                onPressed: () => _openPay(inv),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A frosted status pill on the hero card.
+class _HeroPill extends StatelessWidget {
+  const _HeroPill(this.label, {required this.tone});
+  final String label;
+  final VfTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final dot = switch (tone) {
+      VfTone.ok => const Color(0xFF4ADE80),
+      VfTone.warn => const Color(0xFFFBBF24),
+      _ => const Color(0xFFF87171),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .18),
+        borderRadius: BorderRadius.circular(VfSize.radiusPill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: VfType.meta.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -602,72 +771,75 @@ class _PlanOption extends StatelessWidget {
       selected: selected,
       inMutuallyExclusiveGroup: true,
       button: true,
-      child: Material(
-        color: selected ? t.primarySoft : Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
-          side: BorderSide(
-            color: selected ? t.primary : t.border,
-            width: selected ? 1.5 : 1,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        decoration: BoxDecoration(
+          color: selected ? t.primarySoft : t.surface2,
+          borderRadius: BorderRadius.circular(VfSize.radiusXl),
+          border: Border.all(
+            color: selected ? t.primary : Colors.transparent,
+            width: 1.6,
           ),
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(4, 12, 12, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 2, 10, 0),
-                  child: Icon(
-                    selected
-                        ? PhosphorIconsFill.radioButton
-                        : PhosphorIconsRegular.circle,
-                    size: 22,
-                    color: selected ? t.primary : t.muted,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(VfSize.radiusXl),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          plan.name,
+                          style: VfType.cardTitle.copyWith(color: t.text),
+                        ),
+                      ),
+                      Icon(
+                        selected
+                            ? PhosphorIconsFill.checkCircle
+                            : PhosphorIconsRegular.circle,
+                        size: 24,
+                        color: selected ? t.primary : t.faint,
+                      ),
+                    ],
                   ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 4),
+                  Text.rich(
+                    TextSpan(
                       children: [
-                        Text.rich(
+                        TextSpan(
+                          text: plan.price > 0
+                              ? Fmt.money(plan.price, plan.currency)
+                              : 'admin.customPrice'.tr,
+                        ),
+                        if (plan.price > 0)
                           TextSpan(
-                            children: [
-                              TextSpan(
-                                text:
-                                    '${plan.name} — ${plan.price > 0 ? Fmt.money(plan.price, plan.currency) : 'admin.customPrice'.tr}',
-                              ),
-                              if (plan.price > 0)
-                                TextSpan(
-                                  text: ' ${'admin.perMonthShort'.tr}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w400,
-                                    color: t.muted,
-                                  ),
-                                ),
-                            ],
+                            text: ' ${'admin.perMonthShort'.tr}',
+                            style: VfType.small.copyWith(color: t.muted),
                           ),
-                          style: VfType.bodyStrong.copyWith(color: t.text),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          fill('admin.planLimits'.tr, {
-                            'users': n(plan.maxUsers),
-                            'vouchers': n(plan.maxVouchersPerMonth),
-                            'levels': n(plan.maxApprovalLevels),
-                          }),
-                          style: VfType.small.copyWith(color: t.text2),
-                        ),
                       ],
                     ),
+                    style: VfType.figureS.copyWith(
+                      color: selected ? t.primaryText : t.text,
+                      fontSize: 19,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Text(
+                    fill('admin.planLimits'.tr, {
+                      'users': n(plan.maxUsers),
+                      'vouchers': n(plan.maxVouchersPerMonth),
+                      'levels': n(plan.maxApprovalLevels),
+                    }),
+                    style: VfType.meta.copyWith(color: t.text2, fontSize: 13),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

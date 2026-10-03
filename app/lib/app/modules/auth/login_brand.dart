@@ -1,14 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
 import 'auth_widgets.dart';
 
-/// The sign-in screen's frame, as the web lays it out on a phone
-/// (components/login-brand.tsx under 960px): the navy hero, the sign-in card
-/// overlapping its foot, then the detail — features, the route a voucher
-/// takes, and the trust line — so the email field is one short screen away.
+/// The sign-in screen's frame, built as an app rather than a web page: a
+/// short brand header on the product's navy and blue, then the form on a
+/// rounded sheet that fills the rest of the screen.
 ///
 /// Used by both steps of signing in; only [card] changes.
 class LoginFrame extends StatelessWidget {
@@ -19,140 +19,119 @@ class LoginFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final ground = t.drawer;
-    final navy = t.chrome;
+    final media = MediaQuery.of(context);
+    final keyboardUp = media.viewInsets.bottom > 0;
 
     return Scaffold(
-      backgroundColor: ground,
-      body: LayoutBuilder(
-        builder: (context, box) {
-          final top = MediaQuery.paddingOf(context).top;
-          return SingleChildScrollView(
+      backgroundColor: t.chrome,
+      resizeToAvoidBottomInset: true,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _Backdrop()),
+          CustomScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.viewInsetsOf(context).bottom,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ColoredBox(
-                  color: navy,
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, top + 14, 12, 16),
-                    child: _Hero(),
-                  ),
-                ),
-                // The card rises 14px into the hero, as on the web.
-                Stack(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: 14,
-                      child: ColoredBox(color: navy),
-                    ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 520),
-                          child: AuthCard(child: card),
-                        ),
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        media.padding.top + 8,
+                        8,
+                        0,
                       ),
+                      child: const Row(
+                        children: [Spacer(), AuthTools(onDark: true)],
+                      ),
+                    ),
+                    AnimatedPadding(
+                      duration: const Duration(milliseconds: 200),
+                      padding: EdgeInsets.fromLTRB(
+                        28,
+                        keyboardUp ? 4 : 18,
+                        28,
+                        keyboardUp ? 20 : 36,
+                      ),
+                      child: const _Brand(),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                ColoredBox(
-                  color: navy,
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      20,
-                      30,
-                      20,
-                      36 + MediaQuery.paddingOf(context).bottom,
+              ),
+              SliverToBoxAdapter(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: t.surface,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(32),
                     ),
-                    child: _Detail(wide: box.maxWidth > 520),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 460),
+                      child: card,
+                    ),
                   ),
                 ),
-              ],
-            ),
-          );
-        },
+              ),
+              // The sheet's colour runs on to the foot of the screen.
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: ColoredBox(
+                  color: t.surface,
+                  child: SizedBox(height: media.padding.bottom),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _Hero extends StatelessWidget {
+/// The mark in a glowing tile, the name and one short line.
+class _Brand extends StatelessWidget {
+  const _Brand();
+
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final width = MediaQuery.sizeOf(context).width;
-    final headline = (width * .074).clamp(28.0, 40.0);
-    final line = VfType.pageTitle.copyWith(
-      fontSize: headline,
-      height: 1.1,
-      letterSpacing: -.03 * headline,
-      fontWeight: FontWeight.w700,
-      color: Colors.white,
-    );
-
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
-          children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: VfWordmark(size: 40, onDark: true),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: t.palette.primaryLight.withValues(alpha: .55),
+                blurRadius: 32,
+                offset: const Offset(0, 10),
               ),
-            ),
-            AuthTools(onDark: true),
-          ],
+            ],
+          ),
+          child: const VfBrandMark(size: 72),
         ),
-        const SizedBox(height: 22),
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Text(
-            'auth.eyebrow'.tr.toUpperCase(),
-            style: VfType.eyebrow.copyWith(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 3.6,
-              color: t.chromeText,
-            ),
+        const SizedBox(height: 18),
+        Text(
+          'app.name'.tr,
+          style: VfType.pageTitle.copyWith(
+            fontSize: 30,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -.8,
+            color: Colors.white,
           ),
         ),
-        const SizedBox(height: 10),
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(text: '${'auth.line1'.tr}\n'),
-                TextSpan(text: '${'auth.line2'.tr}\n'),
-                TextSpan(
-                  text: 'auth.line3'.tr,
-                  style: TextStyle(color: t.palette.textDark),
-                ),
-              ],
-            ),
-            style: line,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.only(right: 8, bottom: 14),
-          child: Text(
-            'auth.body'.tr,
-            style: VfType.body.copyWith(
-              fontSize: 14.5,
-              height: 1.6,
-              color: t.chromeText,
-            ),
+        const SizedBox(height: 6),
+        Text(
+          'auth.tagline'.tr,
+          textAlign: TextAlign.center,
+          style: VfType.body.copyWith(
+            fontSize: 14.5,
+            color: Colors.white.withValues(alpha: .72),
           ),
         ),
       ],
@@ -160,224 +139,41 @@ class _Hero extends StatelessWidget {
   }
 }
 
-class _Detail extends StatelessWidget {
-  const _Detail({required this.wide});
-
-  final bool wide;
-
-  static const _features = [
-    (PhosphorIconsRegular.shieldCheck, 'auth.feat1', 'auth.feat1Sub'),
-    (PhosphorIconsRegular.clockCounterClockwise, 'auth.feat2', 'auth.feat2Sub'),
-    (PhosphorIconsRegular.flowArrow, 'auth.feat3', 'auth.feat3Sub'),
-  ];
-
-  static const _flow = [
-    (PhosphorIconsRegular.notePencil, 'auth.flowCreate', 'auth.flowEmployee'),
-    (PhosphorIconsRegular.signature, 'auth.flowSign', 'auth.flowHod'),
-    (PhosphorIconsRegular.sealCheck, 'auth.flowApprove', 'auth.flowCeo'),
-    (PhosphorIconsRegular.handCoins, 'auth.flowPay', 'auth.flowFinance'),
-  ];
+/// Navy ground with two soft blooms of the company colour.
+class _Backdrop extends StatelessWidget {
+  const _Backdrop();
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final line = Colors.white.withValues(alpha: .10);
-    final card = Colors.white.withValues(alpha: .05);
-    final accent = t.palette.textDark;
+    return CustomPaint(painter: _BackdropPainter(t.chrome, t.palette.primaryLight));
+  }
+}
 
-    Widget stop(int i) {
-      final (icon, action, role) = _flow[i];
-      final state = i < 2 ? 'done' : (i == 2 ? 'current' : 'next');
-      final hasConnector = wide ? i < 3 : i.isEven;
-      return Stack(
-        clipBehavior: Clip.none,
-        children: [
-          if (hasConnector)
-            Positioned(
-              top: 18,
-              left: 46,
-              right: 6,
-              child: Container(
-                height: 2,
-                decoration: BoxDecoration(
-                  color: state == 'done' ? t.primary : line,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: state == 'done'
-                        ? t.primary
-                        : Colors.white.withValues(alpha: .06),
-                    border: Border.all(
-                      color: state == 'done'
-                          ? t.primary
-                          : (state == 'current' ? accent : line),
-                      width: state == 'current' ? 1.5 : 1,
-                    ),
-                    boxShadow: state == 'current'
-                        ? [
-                            BoxShadow(
-                              color: accent.withValues(alpha: .30),
-                              spreadRadius: 3,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 18,
-                    color: state == 'done'
-                        ? Colors.white
-                        : (state == 'current' ? accent : t.chromeText),
-                  ),
-                ),
-                const SizedBox(height: 9),
-                Text(
-                  action.tr,
-                  style: VfType.bodyStrong.copyWith(
-                    fontSize: 14,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  role.tr,
-                  style: VfType.meta.copyWith(color: t.chromeMuted),
-                ),
-              ],
-            ),
-          ),
-        ],
+class _BackdropPainter extends CustomPainter {
+  _BackdropPainter(this.ground, this.accent);
+  final Color ground, accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = ground);
+    void bloom(Offset c, double r, double a) {
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [accent.withValues(alpha: a), accent.withValues(alpha: 0)],
+          ).createShader(Rect.fromCircle(center: c, radius: r)),
       );
     }
 
-    final cols = wide ? 4 : 2;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final (icon, title, sub) in _features)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: card,
-                border: Border.all(color: line),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(icon, size: 20, color: accent),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title.tr,
-                          style: VfType.bodyStrong.copyWith(
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          sub.tr,
-                          style: VfType.small.copyWith(color: t.chromeText),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        const SizedBox(height: 18),
-        Text(
-          'auth.flowTitle'.tr.toUpperCase(),
-          style: VfType.eyebrow.copyWith(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 3.6,
-            color: t.chromeText,
-          ),
-        ),
-        const SizedBox(height: 16),
-        for (var row = 0; row < 4 ~/ cols; row++)
-          Padding(
-            padding: EdgeInsets.only(bottom: row == 4 ~/ cols - 1 ? 0 : 18),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var c = 0; c < cols; c++)
-                  Expanded(child: stop(row * cols + c)),
-              ],
-            ),
-          ),
-        const SizedBox(height: 14),
-        Text(
-          'auth.flowNote'.tr,
-          style: VfType.small.copyWith(fontSize: 13, color: t.chromeMuted),
-        ),
-        const SizedBox(height: 22),
-        Container(
-          padding: const EdgeInsets.fromLTRB(18, 15, 18, 15),
-          decoration: BoxDecoration(
-            color: card,
-            border: Border.all(color: line),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: .10),
-                  border: Border.all(color: accent.withValues(alpha: .22)),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Icon(
-                  PhosphorIconsRegular.lockKey,
-                  size: 20,
-                  color: accent,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'auth.trustTitle'.tr,
-                      style: VfType.bodyStrong.copyWith(
-                        fontSize: 14.5,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'auth.trustBody'.tr,
-                      style: VfType.small.copyWith(
-                        fontSize: 13,
-                        color: t.chromeText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    final w = size.width;
+    bloom(Offset(w * .85, 40), math.max(w * .75, 260), .55);
+    bloom(Offset(w * .05, 280), w * .6, .30);
   }
+
+  @override
+  bool shouldRepaint(covariant _BackdropPainter old) =>
+      old.ground != ground || old.accent != accent;
 }

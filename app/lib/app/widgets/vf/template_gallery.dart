@@ -191,6 +191,9 @@ class _TemplatePreviewPageState extends State<_TemplatePreviewPage> {
           Expanded(
             child: PageView.builder(
               controller: _pages,
+              // Designs change with the arrows only: a drag belongs to the
+              // sheet, to pan and zoom it.
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: widget.templates.length,
               onPageChanged: (i) => setState(() => index = i),
               itemBuilder: (_, i) {

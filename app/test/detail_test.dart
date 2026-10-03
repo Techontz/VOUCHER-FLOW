@@ -295,7 +295,7 @@ void main() {
       });
       await tester.pumpWidget(_app(home: const Scaffold(body: BulkApprovePage())));
       await _settle(tester);
-      expect(find.textContaining('awaiting you'), findsWidgets);
+      expect(find.text('Approvals'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

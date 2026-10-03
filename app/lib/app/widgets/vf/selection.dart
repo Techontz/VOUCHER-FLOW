@@ -9,114 +9,89 @@ class VfStep {
   final String label;
 }
 
-/// The web's `.vf-stepper`: a boxed row of tabs, each a numbered badge and
-/// label, the current one underlined in the primary and done steps ticked in
-/// green. On a phone it scrolls sideways and keeps the current step in view.
-class VouchFlowStepper extends StatefulWidget {
-  const VouchFlowStepper({super.key, required this.steps, required this.current, this.onTap});
+/// An app progress header: the step's name in bold with "Step n of N"
+/// beside it, over a row of rounded segments that fill with the primary as
+/// the flow advances. Tapping a segment jumps to that step via [onTap].
+class VouchFlowStepper extends StatelessWidget {
+  const VouchFlowStepper({super.key, required this.steps, required this.current, this.onTap, this.progressLabel});
 
   final List<VfStep> steps;
   final int current;
   final ValueChanged<int>? onTap;
 
-  @override
-  State<VouchFlowStepper> createState() => _VouchFlowStepperState();
-}
-
-class _VouchFlowStepperState extends State<VouchFlowStepper> {
-  final _keys = <int, GlobalKey>{};
-  final _scroll = ScrollController();
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant VouchFlowStepper old) {
-    super.didUpdateWidget(old);
-    if (old.current != widget.current) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final ctx = _keys[widget.current]?.currentContext;
-        if (ctx != null) {
-          Scrollable.ensureVisible(ctx, alignment: .5, duration: const Duration(milliseconds: 220));
-        }
-      });
-    }
-  }
+  /// The small "Step 1 of 5" line, given the 1-based step and the total.
+  /// Defaults to "1 / 5".
+  final String Function(int step, int total)? progressLabel;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: IntrinsicHeight(
-          child: Row(
-            children: [
-              for (var i = 0; i < widget.steps.length; i++)
-                _item(context, t, i),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _item(BuildContext context, VfTokens t, int i) {
-    final state = i == widget.current ? 'current' : i < widget.current ? 'done' : 'pending';
-    final key = _keys.putIfAbsent(i, GlobalKey.new);
-    final (Color numBg, Color numFg, Color numBorder) = switch (state) {
-      'current' => (t.primary, Colors.white, t.primary),
-      'done' => (t.successSoft, t.success, Colors.transparent),
-      _ => (t.surface3, t.text2, t.border),
-    };
-    return Semantics(
-      key: key,
-      button: widget.onTap != null,
-      selected: state == 'current',
-      child: InkWell(
-        onTap: widget.onTap == null ? null : () => widget.onTap!(i),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          decoration: BoxDecoration(
-            border: Border(
-              right: i == widget.steps.length - 1 ? BorderSide.none : BorderSide(color: t.border),
-              bottom: BorderSide(color: state == 'current' ? t.primary : Colors.transparent, width: 2),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 20,
-                height: 20,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: numBg, shape: BoxShape.circle, border: Border.all(color: numBorder)),
-                child: state == 'done'
-                    ? Icon(PhosphorIconsBold.check, size: 11, color: numFg)
-                    : Text('${i + 1}', style: VfType.meta.copyWith(fontSize: 11.5, height: 1, color: numFg, fontWeight: FontWeight.w600)),
+    final n = steps.length;
+    final i = current.clamp(0, n - 1);
+    final counter = progressLabel?.call(i + 1, n) ?? '${i + 1} / $n';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                layoutBuilder: (cur, prev) => Stack(alignment: Alignment.centerLeft, children: [...prev, ?cur]),
+                child: Text(
+                  steps[i].label,
+                  key: ValueKey(i),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: VfType.cardTitle.copyWith(fontSize: 17, fontWeight: FontWeight.w700, color: t.text),
+                ),
               ),
-              const SizedBox(width: 9),
-              Text(
-                widget.steps[i].label,
-                style: VfType.label.copyWith(
-                  fontSize: 14,
-                  color: state == 'current' ? t.text : state == 'done' ? t.text2 : t.muted,
-                  fontWeight: state == 'current' ? FontWeight.w600 : FontWeight.w500,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              counter,
+              style: VfType.meta.copyWith(
+                color: t.muted,
+                fontWeight: FontWeight.w500,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            for (var s = 0; s < n; s++) ...[
+              if (s > 0) const SizedBox(width: 6),
+              Expanded(
+                child: Semantics(
+                  button: onTap != null,
+                  selected: s == i,
+                  label: steps[s].label,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onTap == null ? null : () => onTap!(s),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: s <= i ? t.primary : t.surface3,
+                          borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
-          ),
+          ],
         ),
-      ),
+      ],
     );
   }
 }
@@ -143,9 +118,9 @@ extension VfCardToneColor on VfCardTone {
   }
 }
 
-/// A large selection card: the web's Bank/Cash payment-method card (`large`)
-/// and voucher-type card. Round tinted icon, title, description, and a tick
-/// badge (or an empty radio for large cards) in the top-right corner.
+/// A large, rounded tappable choice: a tinted icon circle, a bold title and a
+/// few-word hint, with a filled check when chosen (an empty ring for [large]
+/// cards). The chosen card takes a primary border and a soft primary fill.
 class VouchFlowSelectCard extends StatelessWidget {
   const VouchFlowSelectCard({
     super.key,
@@ -171,9 +146,10 @@ class VouchFlowSelectCard extends StatelessWidget {
     final t = context.vf;
     final (fg, bg) = tone.colors(t);
     final selectBg = t.isDark
-        ? Color.alphaBlend(t.primary.withValues(alpha: .14), t.surface)
-        : Color.alphaBlend(t.primary.withValues(alpha: .06), t.surface);
-    final iconSize = large ? 60.0 : 48.0;
+        ? Color.alphaBlend(t.primary.withValues(alpha: .16), t.surface)
+        : Color.alphaBlend(t.primary.withValues(alpha: .07), t.surface);
+    final iconSize = large ? 52.0 : 44.0;
+    final radius = BorderRadius.circular(VfSize.radiusXl);
 
     return Semantics(
       selected: selected,
@@ -181,77 +157,93 @@ class VouchFlowSelectCard extends StatelessWidget {
       inMutuallyExclusiveGroup: true,
       label: title,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
         decoration: BoxDecoration(
           color: selected ? selectBg : t.surface,
-          borderRadius: BorderRadius.circular(VfSize.radiusXl),
-          border: Border.all(color: selected ? t.primary : t.border, width: selected ? 2 : 1.5),
+          borderRadius: radius,
+          border: Border.all(
+            color: selected ? t.primary : (t.isDark ? t.border : Colors.transparent),
+            width: selected ? 2 : 1,
+          ),
           boxShadow: selected
-              ? [BoxShadow(color: t.primary.withValues(alpha: .25), blurRadius: 18, spreadRadius: -10, offset: const Offset(0, 6))]
-              : null,
+              ? [
+                  BoxShadow(
+                    color: t.primary.withValues(alpha: .22),
+                    blurRadius: 20,
+                    spreadRadius: -8,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : t.cardShadow,
         ),
         child: Material(
           type: MaterialType.transparency,
-          borderRadius: BorderRadius.circular(VfSize.radiusXl),
+          borderRadius: radius,
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
-            child: Stack(
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(large ? 16 : 14, large ? 18 : 14, large ? 46 : 30, large ? 18 : 14),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: iconSize,
-                        height: iconSize,
-                        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-                        child: Icon(icon, size: large ? 28 : 22, color: fg),
-                      ),
-                      SizedBox(width: large ? 16 : 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              title,
-                              style: (large ? VfType.cardTitle.copyWith(fontSize: 16.5, fontWeight: FontWeight.w700) : VfType.bodyStrong.copyWith(fontSize: 14.5))
-                                  .copyWith(color: t.text),
-                            ),
-                            if (subtitle != null) ...[
-                              const SizedBox(height: 3),
-                              Text(subtitle!, style: (large ? VfType.small : VfType.meta).copyWith(color: t.muted)),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: large ? 18 : 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: iconSize,
+                    height: iconSize,
+                    decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+                    child: Icon(icon, size: large ? 25 : 21, color: fg),
                   ),
-                ),
-                Positioned(
-                  top: large ? 12 : 8,
-                  right: large ? 12 : 8,
-                  child: selected
-                      ? Container(
-                          width: large ? 26 : 22,
-                          height: large ? 26 : 22,
-                          decoration: BoxDecoration(
-                            color: t.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: t.surface, width: 2),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: VfType.bodyStrong.copyWith(
+                            fontSize: large ? 16.5 : 15,
+                            fontWeight: FontWeight.w700,
+                            color: t.text,
+                            height: 1.3,
                           ),
-                          child: Icon(PhosphorIconsBold.check, size: large ? 13 : 12, color: Colors.white),
-                        )
-                      : large
-                      ? Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: t.borderStrong, width: 2), color: t.surface),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+                        ),
+                        if (subtitle != null && subtitle!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: VfType.meta.copyWith(color: t.muted, fontSize: 13),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 160),
+                    transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
+                    child: selected
+                        ? Container(
+                            key: const ValueKey('on'),
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(color: t.primary, shape: BoxShape.circle),
+                            child: const Icon(PhosphorIconsBold.check, size: 14, color: Colors.white),
+                          )
+                        : Container(
+                            key: const ValueKey('off'),
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: large ? t.borderStrong : t.border, width: 2),
+                            ),
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -260,7 +252,8 @@ class VouchFlowSelectCard extends StatelessWidget {
   }
 }
 
-/// A segmented tab row, the web's `.app-tabs` (underlined current tab).
+/// A row of rounded tab pills that scrolls sideways; the current one sits in
+/// a soft primary pill.
 class VouchFlowTabs extends StatefulWidget {
   const VouchFlowTabs({super.key, required this.labels, required this.current, required this.onChanged, this.icons});
 
@@ -320,40 +313,44 @@ class _VouchFlowTabsState extends State<VouchFlowTabs> {
   Widget build(BuildContext context) {
     final t = context.vf;
     final labels = widget.labels, icons = widget.icons, current = widget.current, onChanged = widget.onChanged;
-    return Container(
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.border))),
+    return SizedBox(
+      height: 44,
       child: SingleChildScrollView(
         controller: _scroll,
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            for (var i = 0; i < labels.length; i++)
-              InkWell(
+            for (var i = 0; i < labels.length; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Material(
                 key: _key(i),
-                onTap: () => onChanged(i),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: i == current ? t.primary : Colors.transparent, width: 2)),
-                  ),
-                  child: Row(
-                    children: [
-                      if (icons != null) ...[
-                        Icon(icons[i], size: 17, color: i == current ? t.primaryText : t.muted),
-                        const SizedBox(width: 6),
-                      ],
-                      Text(
-                        labels[i],
-                        style: VfType.label.copyWith(
-                          fontSize: 15,
-                          color: i == current ? t.primaryText : t.muted,
-                          fontWeight: i == current ? FontWeight.w600 : FontWeight.w500,
+                color: i == current ? t.primarySoftStrong : Colors.transparent,
+                shape: const StadiumBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => onChanged(i),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    child: Row(
+                      children: [
+                        if (icons != null) ...[
+                          Icon(icons[i], size: 17, color: i == current ? t.primaryText : t.muted),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          labels[i],
+                          style: VfType.label.copyWith(
+                            fontSize: 14.5,
+                            color: i == current ? t.primaryText : t.muted,
+                            fontWeight: i == current ? FontWeight.w600 : FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
+            ],
           ],
         ),
       ),

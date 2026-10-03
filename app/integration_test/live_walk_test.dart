@@ -81,8 +81,8 @@ void main() {
       await tester.enterText(find.byType(EditableText).at(0), email);
       await tester.enterText(find.byType(EditableText).at(1), _password);
       await tester.testTextInput.receiveAction(TextInputAction.done);
-      await waitFor(tester, () => Get.isRegistered<ShellController>() && find.byType(NavigationBar).evaluate().isNotEmpty);
-      expect(find.byType(NavigationBar), findsOneWidget, reason: '$email did not reach the app');
+      await waitFor(tester, () => Get.isRegistered<ShellController>() && find.byType(ShellPage).evaluate().isNotEmpty);
+      expect(find.byType(ShellPage), findsOneWidget, reason: '$email did not reach the app');
 
       final session = Get.find<SessionService>();
       final wantDark = session.themeMode.value == ThemeMode.dark;

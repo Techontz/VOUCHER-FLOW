@@ -5,8 +5,8 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme.dart';
 import '../../data/models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/html_voucher_document.dart';
 import '../../widgets/server_voucher_document.dart';
-import '../../widgets/stamps.dart';
 import '../../widgets/voucher_document.dart';
 import '../../widgets/vf/vf.dart';
 import 'detail_bits.dart';
@@ -17,17 +17,16 @@ import 'edit_voucher_page.dart' show openEditVoucher;
 
 export 'detail_controller.dart' show VoucherDetailController;
 
-/// One voucher, arranged around the decision in front of the reader — the
-/// web's voucher page on a phone:
+/// One voucher, as an app screen:
 ///
-///   header      what it is, what it costs, where it stands, print/PDF/share
-///   decision    what this person may do now — straight from `voucher.actions`
-///   progress    who prepared, signed, approved and paid, and when
-///   details     the request, payments, attachments and discussion
-///   document    the voucher as the server prints it, in the company template
+///   hero        number, status, purpose and the amount on a gradient card
+///   actions     round print / PDF / share / edit / withdraw / delete buttons
+///   progress    who prepared, signed, approved and paid — a timeline
+///   sections    details, payments, attachments, comments, document, audit
+///   bottom bar  this person's decision, always within reach
 ///
 /// Nothing here is decided by role: every action comes from the workflow
-/// engine's `actions`, and every consequential one goes through a dialog that
+/// engine's `actions`, and every consequential one goes through a sheet that
 /// restates the voucher and amount.
 class VoucherDetailPage extends StatefulWidget {
   const VoucherDetailPage({super.key});
@@ -43,27 +42,10 @@ class _VoucherDetailPageState extends State<VoucherDetailPage> {
     tag: '$id',
   );
 
-  final _decisionKey = GlobalKey();
-  final _decisionHidden = false.obs;
-
   @override
   void dispose() {
     Get.delete<VoucherDetailController>(tag: '$id');
     super.dispose();
-  }
-
-  /// The sticky action bar only earns its place once the decision panel has
-  /// scrolled away — showing both at once is the same button twice.
-  bool _onScroll(ScrollNotification n) {
-    final box = _decisionKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached) {
-      _decisionHidden.value = false;
-      return false;
-    }
-    final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
-    final top = MediaQuery.paddingOf(context).top + VfSize.topBarH;
-    _decisionHidden.value = bottom < top;
-    return false;
   }
 
   @override
@@ -71,9 +53,9 @@ class _VoucherDetailPageState extends State<VoucherDetailPage> {
     return Obx(() {
       final v = c.voucher.value;
       return VouchFlowPushedScaffold(
-        title: v?.number ?? dt('voucher'),
+        title: dt('voucher'),
         body: _body(context, v),
-        bottomBar: v == null ? null : _stickyBar(context, v),
+        bottomBar: v == null ? null : DecisionBar(controller: c, voucher: v),
       );
     });
   }
@@ -83,7 +65,7 @@ class _VoucherDetailPageState extends State<VoucherDetailPage> {
       return ListView(
         padding: const EdgeInsets.fromLTRB(
           VfSize.pagePad,
-          16,
+          8,
           VfSize.pagePad,
           32,
         ),
@@ -96,6 +78,7 @@ class _VoucherDetailPageState extends State<VoucherDetailPage> {
         children: [
           if (c.forbidden.value)
             VouchFlowCard(
+              radius: VfSize.radiusXl,
               child: VouchFlowEmptyState(
                 icon: PhosphorIconsRegular.lockKey,
                 title: dt('notAuthorised'),
@@ -114,172 +97,63 @@ class _VoucherDetailPageState extends State<VoucherDetailPage> {
       );
     }
 
-    final wide = MediaQuery.sizeOf(context).width >= 760;
-    final aside = [
-      KeyedSubtree(
-        key: _decisionKey,
-        child: DecisionPanel(controller: c, voucher: v),
-      ),
-      const SizedBox(height: 16),
-      DetailPanel(
-        title: dt('approvalProgress'),
-        child: v.timeline.isEmpty
-            ? Text(
-                dt('notStarted'),
-                style: VfType.small.copyWith(color: context.vf.muted),
-              )
-            : ApprovalTrack(
-                rows: v.timeline,
-                youActHere: _hasDecision(v) && v.status != 'draft',
-              ),
-      ),
-    ];
-    final main = [
-      RequestDetailsPanel(voucher: v),
-      if (v.payments.isNotEmpty ||
-          v.status == 'approved' ||
-          v.status == 'paid') ...[
-        const SizedBox(height: 16),
-        PaymentsPanel(controller: c, voucher: v),
-      ],
-      const SizedBox(height: 16),
-      AttachmentsPanel(controller: c, voucher: v),
-      const SizedBox(height: 16),
-      CommentsPanel(controller: c, voucher: v),
-      const SizedBox(height: 16),
-      _DocumentPanel(controller: c, voucher: v),
-      const SizedBox(height: 16),
-      AuditTrail(voucher: v),
-    ];
-
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onScroll,
-      child: RefreshIndicator(
-        onRefresh: c.load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            VfSize.pagePad,
-            16,
-            VfSize.pagePad,
-            40,
-          ),
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    DocumentHeader(controller: c, voucher: v),
-                    const SizedBox(height: 16),
-                    if (wide)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: main,
-                            ),
+    const gap = SizedBox(height: 24);
+    return RefreshIndicator(
+      onRefresh: c.load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(
+          VfSize.pagePad,
+          8,
+          VfSize.pagePad,
+          32,
+        ),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  VoucherHero(voucher: v),
+                  QuickActions(controller: c, voucher: v),
+                  const SizedBox(height: 8),
+                  DetailPanel(
+                    title: dt('approvalProgress'),
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                    child: v.timeline.isEmpty
+                        ? MutedLine(
+                            icon: PhosphorIconsRegular.hourglassMedium,
+                            text: dt('notStarted'),
+                          )
+                        : ApprovalTrack(
+                            rows: v.timeline,
+                            youActHere: _hasDecision(v) && v.status != 'draft',
                           ),
-                          const SizedBox(width: 16),
-                          SizedBox(
-                            width: 330,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: aside,
-                            ),
-                          ),
-                        ],
-                      )
-                    else ...[
-                      ...aside,
-                      const SizedBox(height: 16),
-                      ...main,
-                    ],
+                  ),
+                  gap,
+                  RequestDetailsPanel(voucher: v),
+                  if (v.payments.isNotEmpty ||
+                      v.status == 'approved' ||
+                      v.status == 'paid') ...[
+                    gap,
+                    PaymentsPanel(controller: c, voucher: v),
                   ],
-                ),
+                  gap,
+                  AttachmentsPanel(controller: c, voucher: v),
+                  gap,
+                  CommentsPanel(controller: c, voucher: v),
+                  gap,
+                  _DocumentPanel(controller: c, voucher: v),
+                  const SizedBox(height: 12),
+                  AuditTrail(voucher: v),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
-  }
-
-  Widget? _stickyBar(BuildContext context, Voucher v) {
-    final primary = primaryDecision(v);
-    if (primary == null) return null;
-    return Obx(() {
-      if (!_decisionHidden.value) return const SizedBox.shrink();
-      final t = context.vf;
-      return Container(
-        decoration: BoxDecoration(
-          color: t.surface,
-          border: Border(top: BorderSide(color: t.border)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x40000000),
-              blurRadius: 16,
-              offset: Offset(0, -6),
-              spreadRadius: -10,
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: Row(
-              children: [
-                if (v.actions.reject) ...[
-                  Tooltip(
-                    message: dt('reject'),
-                    child: Material(
-                      color: t.surface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(VfSize.radiusL),
-                        side: BorderSide(
-                          color: Color.lerp(
-                            t.dangerStrong,
-                            t.borderStrong,
-                            .55,
-                          )!,
-                        ),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () => showReasonDialog(context, c, reject: true),
-                        child: SizedBox(
-                          width: VfSize.controlH,
-                          height: VfSize.controlH,
-                          child: Icon(
-                            PhosphorIconsRegular.x,
-                            size: 18,
-                            color: t.dangerStrong,
-                            semanticLabel: dt('reject'),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: VouchFlowButton(
-                    label: primary.label,
-                    icon: primary.icon,
-                    expand: true,
-                    onPressed: () => primary.open(context, c),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    });
   }
 }
 
@@ -343,242 +217,169 @@ primaryDecision(Voucher v) {
   return null;
 }
 
-/* ───────────────────────────────────────────────────────── the header ── */
+/* ─────────────────────────────────────────────────────────── the hero ── */
 
-/// The document's identity, its figure, and what can be done with it.
-class DocumentHeader extends StatelessWidget {
-  const DocumentHeader({
-    super.key,
-    required this.controller,
-    required this.voucher,
-  });
+/// The voucher at a glance on a gradient card: number and status, the
+/// purpose, and the amount large.
+class VoucherHero extends StatelessWidget {
+  const VoucherHero({super.key, required this.voucher});
 
-  final VoucherDetailController controller;
   final Voucher voucher;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
     final v = voucher;
-    final a = v.actions;
-    final facts = <(String, String)>[
-      (dt('payee'), v.payee),
-      (dt('requestedBy'), v.requesterName ?? '—'),
-      (dt('department'), v.departmentName ?? '—'),
-      (dt('date'), Fmt.date(v.voucherDate)),
-      (dt('paymentMethod'), v.paymentMethod ?? '—'),
-    ];
+    const white = Colors.white;
+    final soft = white.withValues(alpha: .78);
+    const tabular = [FontFeature.tabularFigures()];
 
-    Widget fact((String, String) f) => Padding(
-      padding: const EdgeInsets.fromLTRB(14, 9, 14, 9),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            f.$1,
-            style: VfType.meta.copyWith(fontSize: 12.5, color: t.muted),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            f.$2,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: VfType.body.copyWith(
-              fontWeight: FontWeight.w500,
-              color: t.text,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [t.palette.hoverDark, t.palette.primaryLight],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: t.palette.primaryLight.withValues(
+              alpha: t.isDark ? .28 : .34,
             ),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+            spreadRadius: -10,
           ),
         ],
       ),
-    );
-
-    final rows = <Widget>[];
-    for (var i = 0; i < facts.length; i += 2) {
-      rows.add(
-        Container(
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: t.border)),
-          ),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: fact(facts[i])),
-                if (i + 1 < facts.length) ...[
-                  VerticalDivider(width: 1, thickness: 1, color: t.border),
-                  Expanded(child: fact(facts[i + 1])),
-                ] else
-                  const Expanded(child: SizedBox()),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return VouchFlowCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
+          // Two soft rings for depth.
+          Positioned(right: -60, top: -70, child: _Ring(size: 200, alpha: .10)),
+          Positioned(
+            right: 30,
+            bottom: -90,
+            child: _Ring(size: 160, alpha: .07),
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            padding: const EdgeInsets.fromLTRB(20, 18, 18, 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      v.number,
-                      style: VfType.small.copyWith(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: t.text2,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
                     Container(
-                      padding: const EdgeInsets.only(left: 8),
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        border: Border(left: BorderSide(color: t.border)),
+                        color: white.withValues(alpha: .18),
+                        borderRadius: BorderRadius.circular(13),
                       ),
-                      child: Text(
-                        v.voucherTypeLabel ?? dt('voucher'),
-                        style: VfType.meta.copyWith(
-                          fontSize: 13,
-                          color: t.muted,
-                        ),
+                      child: Icon(
+                        v.isCash
+                            ? PhosphorIconsFill.money
+                            : PhosphorIconsFill.bank,
+                        size: 20,
+                        color: white,
+                        semanticLabel: v.isCash ? dt('cash') : dt('bank'),
                       ),
                     ),
-                    VoucherKindTag(isCash: v.isCash),
-                    VoucherStatusBadge(voucher: v),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            v.number,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: VfType.bodyStrong.copyWith(
+                              color: white,
+                              height: 1.3,
+                              fontFeatures: tabular,
+                            ),
+                          ),
+                          Text(
+                            v.voucherTypeLabel ??
+                                (v.isCash ? dt('cash') : dt('bank')),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: VfType.meta.copyWith(color: soft),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _HeroStatus(voucher: v),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 22),
                 Text(
                   v.purpose,
-                  style: VfType.sectionTitle.copyWith(
-                    color: t.text,
-                    fontSize: 19,
-                    height: 1.3,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: VfType.cardTitle.copyWith(
+                    color: soft,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
                   ),
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  dt('amount').toUpperCase(),
-                  style: VfType.eyebrow.copyWith(fontSize: 12, color: t.muted),
-                ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
                     v.amountText,
                     style: VfType.figure.copyWith(
-                      fontSize: 26,
-                      color: t.text,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                      fontSize: 32,
+                      color: white,
+                      fontFeatures: tabular,
                     ),
                   ),
                 ),
                 if ((v.amountInWords ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     v.amountInWords!,
-                    style: VfType.meta.copyWith(fontSize: 13, color: t.muted),
+                    style: VfType.meta.copyWith(color: soft),
                   ),
                 ],
                 if (v.isPartiallyPaid && v.balanceText != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    dt('balanceAmount', {'amount': v.balanceText!}),
-                    style: VfType.meta.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: t.warning,
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(10, 5, 12, 5),
+                    decoration: BoxDecoration(
+                      color: white.withValues(alpha: .16),
+                      borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          PhosphorIconsFill.hourglassMedium,
+                          size: 14,
+                          color: Color(0xFFFDE68A),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            dt('balanceAmount', {'amount': v.balanceText!}),
+                            style: VfType.meta.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFFDE68A),
+                              fontFeatures: tabular,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ],
             ),
-          ),
-          ...rows,
-          Container(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: t.border)),
-            ),
-            child: Obx(() {
-              final working = controller.working.value;
-              return Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  if (a.print)
-                    VouchFlowButton(
-                      label: dt('print'),
-                      icon: PhosphorIconsRegular.printer,
-                      variant: VfButtonVariant.secondary,
-                      compact: true,
-                      loading: working == 'print',
-                      onPressed: working != null ? null : controller.printPdf,
-                    ),
-                  if (a.download) ...[
-                    VouchFlowButton(
-                      label: 'PDF',
-                      icon: PhosphorIconsRegular.downloadSimple,
-                      variant: VfButtonVariant.secondary,
-                      compact: true,
-                      loading: working == 'pdf',
-                      onPressed: working != null ? null : controller.sharePdf,
-                    ),
-                    VouchFlowIconButton(
-                      icon: PhosphorIconsRegular.shareNetwork,
-                      tooltip: dt('share'),
-                      size: 40,
-                      onPressed: controller.shareLink,
-                    ),
-                  ],
-                  if (a.edit)
-                    VouchFlowButton(
-                      label: dt('edit'),
-                      icon: PhosphorIconsRegular.pencilSimple,
-                      variant: VfButtonVariant.secondary,
-                      compact: true,
-                      onPressed: () async {
-                        if (await openEditVoucher(v.id)) await controller.load();
-                      },
-                    ),
-                  if (a.cancel)
-                    _DangerLink(
-                      icon: PhosphorIconsRegular.prohibit,
-                      label: dt('cancelVoucher'),
-                      onTap: () => showCommentActionDialog(
-                        context,
-                        controller,
-                        CommentAction.cancel,
-                      ),
-                    ),
-                  if (a.delete)
-                    _DangerLink(
-                      icon: PhosphorIconsRegular.trash,
-                      label: dt('delete'),
-                      onTap: () async {
-                        final gone = await showDeleteDialog(
-                          context,
-                          controller,
-                        );
-                        if (gone && context.mounted) {
-                          Navigator.of(context).maybePop(true);
-                        }
-                      },
-                    ),
-                ],
-              );
-            }),
           ),
         ],
       ),
@@ -586,41 +387,91 @@ class DocumentHeader extends StatelessWidget {
   }
 }
 
-class _DangerLink extends StatelessWidget {
-  const _DangerLink({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+class _Ring extends StatelessWidget {
+  const _Ring({required this.size, required this.alpha});
 
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
+  final double size;
+  final double alpha;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      border: Border.all(
+        color: Colors.white.withValues(alpha: alpha),
+        width: 26,
+      ),
+    ),
+  );
+}
+
+/// The status on the hero: a frosted pill with a tone dot.
+class _HeroStatus extends StatelessWidget {
+  const _HeroStatus({required this.voucher});
+
+  final Voucher voucher;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
-    return TextButton.icon(
-      onPressed: onTap,
-      style: TextButton.styleFrom(
-        foregroundColor: t.dangerStrong,
-        minimumSize: const Size(44, 40),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
+    final dot = switch (statusTone(voucher.statusKey)) {
+      VfTone.ok => const Color(0xFF4ADE80),
+      VfTone.warn => const Color(0xFFFBBF24),
+      VfTone.bad => const Color(0xFFF87171),
+      VfTone.neutral => const Color(0xFFCBD5E1),
+      _ => Colors.white,
+    };
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 150),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(9, 5, 11, 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .18),
+          borderRadius: BorderRadius.circular(VfSize.radiusPill),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                voucher.statusLabel,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: VfType.meta.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  height: 1.25,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-      icon: Icon(icon, size: 15),
-      label: Text(label, style: VfType.label.copyWith(color: t.dangerStrong)),
     );
   }
 }
 
-/* ─────────────────────────────────────────────────────── the decision ── */
+/* ──────────────────────────────────────────────────── quick actions ── */
 
-/// What this person may do now — or, with nothing to do, where it stands.
-class DecisionPanel extends StatelessWidget {
-  const DecisionPanel({
+typedef _QuickAction = ({
+  IconData icon,
+  String label,
+  VoidCallback? onTap,
+  bool loading,
+  bool danger,
+});
+
+/// Round buttons with one-word labels: whatever this person may do with the
+/// document itself.
+class QuickActions extends StatelessWidget {
+  const QuickActions({
     super.key,
     required this.controller,
     required this.voucher,
@@ -631,204 +482,246 @@ class DecisionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
     final v = voucher;
     final a = v.actions;
-    final primary = primaryDecision(v);
-
-    if (!_hasDecision(v)) {
-      final paid = v.status == 'paid';
-      return VouchFlowCard(
-        padding: const EdgeInsets.all(16),
+    return Obx(() {
+      final working = controller.working.value;
+      final idle = working == null;
+      final items = <_QuickAction>[
+        if (a.print)
+          (
+            icon: PhosphorIconsRegular.printer,
+            label: dt('print'),
+            onTap: idle ? controller.printPdf : null,
+            loading: working == 'print',
+            danger: false,
+          ),
+        if (a.download) ...[
+          (
+            icon: PhosphorIconsRegular.filePdf,
+            label: 'PDF',
+            onTap: idle ? controller.sharePdf : null,
+            loading: working == 'pdf',
+            danger: false,
+          ),
+          (
+            icon: PhosphorIconsRegular.shareNetwork,
+            label: dt('share'),
+            onTap: controller.shareLink,
+            loading: false,
+            danger: false,
+          ),
+        ],
+        if (a.edit)
+          (
+            icon: PhosphorIconsRegular.pencilSimple,
+            label: dt('edit'),
+            onTap: () async {
+              if (await openEditVoucher(v.id)) await controller.load();
+            },
+            loading: false,
+            danger: false,
+          ),
+        if (a.cancel)
+          (
+            icon: PhosphorIconsRegular.prohibit,
+            label: dt('withdraw'),
+            onTap: () => showCommentActionDialog(
+              context,
+              controller,
+              CommentAction.cancel,
+            ),
+            loading: false,
+            danger: true,
+          ),
+        if (a.delete)
+          (
+            icon: PhosphorIconsRegular.trash,
+            label: dt('delete'),
+            onTap: () async {
+              final gone = await showDeleteDialog(context, controller);
+              if (gone && context.mounted) {
+                Navigator.of(context).maybePop(true);
+              }
+            },
+            loading: false,
+            danger: true,
+          ),
+      ];
+      if (items.isEmpty) return const SizedBox(height: 16);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(0, 18, 0, 12),
         child: Row(
+          mainAxisAlignment: items.length < 4
+              ? MainAxisAlignment.spaceEvenly
+              : MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: paid ? t.successSoft : t.surface3,
-                borderRadius: BorderRadius.circular(VfSize.radiusM),
-              ),
-              child: Icon(
-                paid
-                    ? PhosphorIconsRegular.checkCircle
-                    : v.isTerminal
-                    ? PhosphorIconsRegular.archive
-                    : PhosphorIconsRegular.hourglassMedium,
-                size: 20,
-                color: paid ? t.success : t.text2,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    v.isTerminal ? v.statusLabel : dt('noAction'),
-                    style: VfType.cardTitle.copyWith(color: t.text),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    v.isTerminal ? dt('historyInReports') : v.statusLabel,
-                    style: VfType.small.copyWith(color: t.muted),
-                  ),
-                ],
-              ),
-            ),
+            for (final item in items) Flexible(child: _RoundAction(item: item)),
           ],
         ),
       );
-    }
+    });
+  }
+}
 
-    // A signing-only step: the holder signs (and may send back), never decides.
-    final signOnly =
-        (a.sign || a.submitSigned) &&
-        !a.approve &&
-        v.currentStepName != null &&
-        !v.currentStepCanApprove;
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({required this.item});
 
+  final _QuickAction item;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final fg = item.danger ? t.dangerStrong : t.primaryText;
+    final bg = item.danger ? t.dangerSoft : t.primarySoft;
+    return Semantics(
+      button: true,
+      label: item.label,
+      excludeSemantics: true,
+      child: SizedBox(
+        width: 68,
+        child: Column(
+          children: [
+            Material(
+              color: bg,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: item.loading ? null : item.onTap,
+                child: SizedBox(
+                  width: 54,
+                  height: 54,
+                  child: Center(
+                    child: item.loading
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: fg,
+                            ),
+                          )
+                        : Icon(item.icon, size: 22, color: fg),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: VfType.meta.copyWith(
+                fontWeight: FontWeight.w500,
+                color: item.danger ? t.dangerStrong : t.text2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* ─────────────────────────────────────────────────────── decision bar ── */
+
+/// What this person may decide now — straight from `voucher.actions` — as a
+/// sticky bar of full-width buttons at the bottom of the screen.
+class DecisionBar extends StatelessWidget {
+  const DecisionBar({
+    super.key,
+    required this.controller,
+    required this.voucher,
+  });
+
+  final VoucherDetailController controller;
+  final Voucher voucher;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = voucher;
+    final a = v.actions;
+    final primary = primaryDecision(v);
+    final secondary = <(String, IconData, VfButtonVariant, VoidCallback)>[
+      // A step that both signs and approves offers signing as its own act.
+      if (a.sign && primary?.icon != PhosphorIconsRegular.signature)
+        (
+          dt('signShort'),
+          PhosphorIconsRegular.signature,
+          VfButtonVariant.secondary,
+          () => showSignDialog(context, controller),
+        ),
+      if (a.requestChanges)
+        (
+          dt('changesShort'),
+          PhosphorIconsRegular.arrowUUpLeft,
+          VfButtonVariant.secondary,
+          () => showReasonDialog(context, controller, reject: false),
+        ),
+      if (a.reject)
+        (
+          dt('reject'),
+          PhosphorIconsRegular.x,
+          VfButtonVariant.danger,
+          () => showReasonDialog(context, controller, reject: true),
+        ),
+    ];
+    if (primary == null && secondary.isEmpty) return const SizedBox.shrink();
+
+    final t = context.vf;
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.border),
-        boxShadow: t.cardShadow,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: t.isDark ? Border(top: BorderSide(color: t.border)) : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: t.isDark ? .4 : .08),
+            blurRadius: 24,
+            offset: const Offset(0, -6),
+          ),
+        ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: t.primary, width: 3)),
-        ),
-        padding: const EdgeInsets.fromLTRB(14, 16, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: t.primarySoft,
-                    borderRadius: BorderRadius.circular(VfSize.radiusM),
-                  ),
-                  child: Icon(
-                    primary?.icon ?? PhosphorIconsRegular.handPointing,
-                    size: 20,
-                    color: t.primaryText,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      VouchFlowEyebrow(
-                        signOnly ? dt('yourSignature') : dt('yourDecision'),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        v.currentStepName ?? v.statusLabel,
-                        style: VfType.cardTitle.copyWith(
-                          color: t.text,
-                          fontSize: 17,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (secondary.isNotEmpty)
+                Row(
+                  children: [
+                    for (var i = 0; i < secondary.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Expanded(
+                        child: VouchFlowButton(
+                          label: secondary[i].$1,
+                          icon: secondary.length < 3 ? secondary[i].$2 : null,
+                          variant: secondary[i].$3,
+                          height: 46,
+                          expand: true,
+                          onPressed: secondary[i].$4,
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-            if (a.submitSigned) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: t.surface2,
-                  border: Border.all(color: t.border),
-                  borderRadius: BorderRadius.circular(VfSize.radiusM),
-                ),
-                child: Row(
-                  children: [
-                    const Stamp(kind: StampKind.signed, scale: .8, tilt: -.05),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        dt('signedByYou'),
-                        style: VfType.small.copyWith(color: t.text2),
-                      ),
-                    ),
                   ],
                 ),
-              ),
-            ],
-            const SizedBox(height: 14),
-            if (primary != null)
-              VouchFlowButton(
-                label: primary.label,
-                icon: primary.icon,
-                expand: true,
-                height: 48,
-                onPressed: () => primary.open(context, controller),
-              ),
-            // A step that both signs and approves offers signing as its own act.
-            if (a.sign && primary?.icon != PhosphorIconsRegular.signature) ...[
-              const SizedBox(height: 8),
-              VouchFlowButton(
-                label: dt('signVoucher'),
-                icon: PhosphorIconsRegular.signature,
-                variant: VfButtonVariant.secondary,
-                expand: true,
-                onPressed: () => showSignDialog(context, controller),
-              ),
-            ],
-            if (a.requestChanges || a.reject) ...[
-              const SizedBox(height: 8),
-              DialogActions(
-                reverseWhenStacked: false,
-                children: [
-                  if (a.requestChanges)
-                    VouchFlowButton(
-                      label: dt('requestChanges'),
-                      icon: PhosphorIconsRegular.arrowUUpLeft,
-                      variant: VfButtonVariant.secondary,
-                      expand: true,
-                      onPressed: () => showReasonDialog(context, controller, reject: false),
-                    ),
-                  if (a.reject)
-                    VouchFlowButton(
-                      label: dt('reject'),
-                      icon: PhosphorIconsRegular.x,
-                      variant: VfButtonVariant.danger,
-                      expand: true,
-                      onPressed: () => showReasonDialog(context, controller, reject: true),
-                    ),
-                ],
-              ),
-            ],
-            if (signOnly) ...[
-              const SizedBox(height: 12),
-              Text(
-                dt('signOnlyNote'),
-                style: VfType.small.copyWith(fontSize: 13, color: t.muted),
-              ),
-            ],
-            if (a.pay) ...[
-              const SizedBox(height: 12),
-              Text(
-                v.isPartiallyPaid && v.balanceText != null
-                    ? dt('balanceAmount', {'amount': v.balanceText!})
-                    : dt('payNote'),
-                style: VfType.small.copyWith(
-                  fontSize: 13,
-                  color: v.isPartiallyPaid ? t.warning : t.muted,
+              if (secondary.isNotEmpty && primary != null)
+                const SizedBox(height: 10),
+              if (primary != null)
+                VouchFlowButton(
+                  label: primary.label,
+                  icon: primary.icon,
+                  expand: true,
+                  height: 52,
+                  onPressed: () => primary.open(context, controller),
                 ),
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -838,104 +731,55 @@ class DecisionPanel extends StatelessWidget {
 /* ────────────────────────────────────────────────────── the document ── */
 
 /// The printed voucher, in the company's template — folded away until asked
-/// for, as on the web. The server's own PDF, rasterised; the native sheet
-/// stands in while it loads, offline, or where the step may not print.
-class _DocumentPanel extends StatefulWidget {
+/// for. The server's own PDF, rasterised; the native sheet stands in while it
+/// loads, offline, or where the step may not print.
+class _DocumentPanel extends StatelessWidget {
   const _DocumentPanel({required this.controller, required this.voucher});
 
   final VoucherDetailController controller;
   final Voucher voucher;
 
   @override
-  State<_DocumentPanel> createState() => _DocumentPanelState();
-}
-
-class _DocumentPanelState extends State<_DocumentPanel> {
-  bool open = false;
-  bool opened = false;
-
-  @override
   Widget build(BuildContext context) {
-    final t = context.vf;
-    final v = widget.voucher;
-    return VouchFlowCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            button: true,
-            expanded: open,
-            child: InkWell(
-              onTap: () => setState(() {
-                open = !open;
-                opened = true;
-              }),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 56),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        PhosphorIconsRegular.fileText,
-                        size: 18,
-                        color: t.text2,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          dt('voucherDocument'),
-                          style: VfType.cardTitle.copyWith(color: t.text),
-                        ),
-                      ),
-                      Text(
-                        open ? dt('hideDocument') : dt('showDocument'),
-                        style: VfType.meta.copyWith(color: t.muted),
-                      ),
-                      const SizedBox(width: 6),
-                      AnimatedRotation(
-                        turns: open ? .5 : 0,
-                        duration: const Duration(milliseconds: 160),
-                        child: Icon(
-                          PhosphorIconsRegular.caretDown,
-                          size: 16,
-                          color: t.text2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    final v = voucher;
+    return DetailDisclosure(
+      title: dt('voucherDocument'),
+      icon: PhosphorIconsRegular.fileText,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+        child: HtmlVoucherDocument(
+          title: v.number,
+          load: () => controller.repo.documentHtml(v.id),
+          refreshKey: [
+            v.status,
+            v.updatedAt?.toIso8601String(),
+            v.timeline.length,
+            v.attachments.length,
+            v.payments.length,
+            v.amountPaid,
+            currentLocale,
+          ].join('|'),
+          // Without the HTML: the printed PDF, then the drawn copy.
+          fallback: ServerVoucherDocument(
+            title: v.number,
+            load: () => controller.repo.pdf(v.id),
+            refreshKey: [
+              v.status,
+              v.updatedAt?.toIso8601String(),
+              v.timeline.length,
+              v.attachments.length,
+              v.payments.length,
+              v.amountPaid,
+              currentLocale,
+            ].join('|'),
+            fallback: DocumentFrame(
+              child: VoucherDocument(
+                voucher: v,
+                company: controller.session.company.value,
               ),
             ),
           ),
-          if (opened)
-            Offstage(
-              offstage: !open,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                child: ServerVoucherDocument(
-                  title: v.number,
-                  load: () => widget.controller.repo.pdf(v.id),
-                  refreshKey: [
-                    v.status,
-                    v.updatedAt?.toIso8601String(),
-                    v.timeline.length,
-                    v.attachments.length,
-                    v.payments.length,
-                    v.amountPaid,
-                    currentLocale,
-                  ].join('|'),
-                  fallback: DocumentFrame(
-                    child: VoucherDocument(
-                      voucher: v,
-                      company: widget.controller.session.company.value,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }

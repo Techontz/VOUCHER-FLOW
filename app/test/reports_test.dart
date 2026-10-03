@@ -131,7 +131,7 @@ void main() {
       expect(find.text('Company-wide'), findsOneWidget);
       expect(find.text('PV-2026-000059'), findsWidgets);
       expect(find.text('TZS 450,000'), findsWidgets);
-      expect(find.text('28 Sep 2026'), findsWidgets);
+      expect(find.textContaining('28 Sep 2026'), findsWidgets);
 
       for (final title in ['Payment report', 'Cash report', 'Department report', 'Approval report']) {
         await tester.ensureVisible(find.text(title).first);
@@ -165,7 +165,7 @@ void main() {
 
     expect(find.text('Procurement · Production'), findsOneWidget);
 
-    await tester.tap(find.text('Filters'));
+    await tester.tap(find.byTooltip('Filters'));
     await tester.pumpAndSettle();
     // The department picker only offers the caller's own departments.
     expect(find.text('Employee'), findsOneWidget);

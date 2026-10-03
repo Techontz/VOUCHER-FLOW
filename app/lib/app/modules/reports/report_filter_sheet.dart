@@ -77,6 +77,15 @@ Future<Map<String, String>?> showReportFilterSheet(
               ),
             ],
           ),
+          // What the dates mean for this report.
+          Text(
+            c.config.money
+                ? 'reports.hintMoney'.tr
+                : payment
+                ? 'reports.hintApproved'.tr
+                : 'reports.hintVoucher'.tr,
+            style: VfType.meta.copyWith(color: context.vf.muted),
+          ),
           if (c.shows('department_id'))
             VouchFlowDropdown<String>(
               label: 'reports.department'.tr,

@@ -94,6 +94,10 @@ class Company {
   final int? daysRemaining;
   final DateTime? trialEndsAt, currentPeriodEnd;
   final Plan? plan;
+
+  /// Registered but not yet approved by the platform: nothing but the
+  /// account, billing and the waiting screen is open to it.
+  bool get isPending => status == 'pending';
 }
 
 class AppUser {

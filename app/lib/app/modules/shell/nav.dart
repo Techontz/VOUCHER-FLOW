@@ -69,8 +69,10 @@ const _reports = VfNavItem(
 const _approvalsHome = VfNavItem(
   '/dashboard',
   'nav.approvals',
-  PhosphorIconsRegular.listChecks,
-  PhosphorIconsFill.listChecks,
+  PhosphorIconsRegular.house,
+  PhosphorIconsFill.house,
+  // The bar already has an Approvals tab: this one is home.
+  short: 'nav.home',
   badge: 'pending',
 );
 const _bulk = VfNavItem(

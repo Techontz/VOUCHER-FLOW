@@ -61,7 +61,7 @@ void main() {
     Get.put(LoginController());
     await phone(tester, const LoginPage(), width: 320);
     expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.text('Register your company'), findsOneWidget);
+    expect(find.text('Register'), findsOneWidget);
     expect(find.text('Demo sign-in as'.toUpperCase()), findsNothing);
     expect(find.textContaining('Password123!'), findsNothing);
     expect(tester.takeException(), isNull);

@@ -36,12 +36,15 @@ class WorkflowPreset {
 class Registration {
   Registration(this.raw)
     : company = Company.fromJson(Map<String, dynamic>.from(raw['company'] as Map)),
-      otpIdentifier = '${(raw['otp'] as Map?)?['identifier'] ?? (raw['user'] as Map?)?['email'] ?? ''}';
+      otpIdentifier = '${(raw['otp'] as Map?)?['identifier'] ?? (raw['user'] as Map?)?['email'] ?? ''}',
+      // An API that cannot deliver e-mail registers without the code step.
+      requiresVerification = raw['requires_verification'] != false;
 
   /// The whole payload (token, user, company), for starting the session.
   final Map<String, dynamic> raw;
   final Company company;
   final String otpIdentifier;
+  final bool requiresVerification;
 }
 
 /// Every call the public auth screens make that the session does not:

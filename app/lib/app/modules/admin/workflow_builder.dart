@@ -7,7 +7,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme.dart';
 import '../../data/models/admin_models.dart';
 import '../../data/services/admin_repository.dart';
-import '../../data/services/session_service.dart';
 import '../../widgets/common.dart' show showToast, ToastKind;
 import '../../widgets/vf/vf.dart';
 import '../shell/shell_page.dart';
@@ -60,9 +59,13 @@ const _departmentGaps = [
 final _amount = NumberFormat('#,##0.##', 'en_US');
 
 class WorkflowBuilder extends StatefulWidget {
-  const WorkflowBuilder({super.key, this.repository});
+  const WorkflowBuilder({super.key, this.repository, this.saveState});
 
   final AdminRepository? repository;
+
+  /// The page's sticky save bar. Without one the builder shows its own
+  /// Save button.
+  final AdminSaveState? saveState;
 
   @override
   State<WorkflowBuilder> createState() => WorkflowBuilderState();
@@ -627,6 +630,12 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
+    widget.saveState?.update(
+      ready: _error == null && _current != null,
+      busy: _busy,
+      dirty: _dirty,
+      onSave: _save,
+    );
     if (_error != null) {
       return VouchFlowErrorState(
         message: _error!,
@@ -641,10 +650,10 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
     final wf = _current;
     if (wf == null) {
       return VouchFlowCard(
+        radius: VfSize.radiusXl,
         child: VouchFlowEmptyState(
           icon: PhosphorIconsRegular.flowArrow,
           title: 'admin.noWorkflow'.tr,
-          body: 'admin.noWorkflowBody'.tr,
           actionLabel: 'admin.presets'.tr,
           onAction: _openPresets,
         ),
@@ -657,9 +666,6 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
     final noPayer = _steps.length > 1 && !levels.any((s) => s.canPay);
     final noDecider = _steps.length > 1 && !levels.any((s) => s.canApprove);
     final appliesTo = wf.typeLabel(_locale) ?? 'admin.wfcAllTypes'.tr;
-    final company = Get.isRegistered<SessionService>()
-        ? Get.find<SessionService>().company.value?.name
-        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -676,20 +682,77 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
             ].join('\n'),
           ),
         ],
-        const SizedBox(height: 16),
+        const SizedBox(height: 22),
         _flow(t),
-        const SizedBox(height: 16),
+        const SizedBox(height: 26),
         _routingPanel(t, wf),
-        const SizedBox(height: 16),
+        const SizedBox(height: 22),
         _matrix(t),
-        const SizedBox(height: 16),
-        AdminNote(
-          company == null
-              ? 'admin.isolationNote'.tr
-              : 'admin.isolationNote'.tr.replaceAll('this company', company),
-        ),
       ],
     );
+  }
+
+  /// The rest of what can be done to a workflow, in one sheet.
+  void _openMore(Workflow wf) {
+    final canDefault = !_busy && !_dirty && wf.voucherTypeId == null;
+    showAdminItemSheet(
+      context,
+      header: Text(
+        wf.name,
+        style: VfType.sectionTitle.copyWith(color: context.vf.text),
+      ),
+      actions: [
+        AdminSheetAction(
+          PhosphorIconsRegular.pencilSimple,
+          'admin.wfcDetails'.tr,
+          _openDetails,
+        ),
+        AdminSheetAction(
+          PhosphorIconsRegular.plus,
+          'admin.wfcNewWorkflow'.tr,
+          _openCreate,
+        ),
+        AdminSheetAction(
+          PhosphorIconsRegular.magicWand,
+          'admin.presets'.tr,
+          _openPresets,
+        ),
+        if (!wf.isDefault && canDefault)
+          AdminSheetAction(
+            PhosphorIconsRegular.star,
+            'admin.wfcMakeDefault'.tr,
+            _makeDefault,
+          ),
+        if (!wf.isDefault)
+          AdminSheetAction(
+            PhosphorIconsRegular.trash,
+            'admin.delete'.tr,
+            _openDelete,
+            danger: true,
+          ),
+      ],
+    );
+  }
+
+  Future<void> _chooseWorkflow(Workflow wf, List<Workflow> workflows) async {
+    final id = await showAdminOptions<int>(
+      context,
+      title: 'admin.workflow'.tr,
+      selected: wf.id,
+      options: [
+        for (final w in workflows)
+          (
+            w.id,
+            [
+              w.name,
+              if (w.isDefault) 'admin.wfcDefault'.tr,
+              ?w.typeLabel(_locale),
+            ].join(' — '),
+          ),
+      ],
+    );
+    if (id == null || id == wf.id) return;
+    _switchTo(workflows.firstWhere((w) => w.id == id));
   }
 
   Widget _head(
@@ -698,227 +761,221 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
     List<Workflow> workflows,
     String appliesTo,
   ) {
+    final many = workflows.length > 1;
+    final name = Text(
+      wf.name,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: VfType.sectionTitle.copyWith(color: t.text),
+    );
     return VouchFlowCard(
+      radius: VfSize.radiusXl,
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (workflows.length > 1)
-            Semantics(
-              label: 'admin.workflow'.tr,
-              child: DropdownButtonFormField<int>(
-                key: ValueKey('wf|${wf.id}|$_selectNonce'),
-                initialValue: wf.id,
-                isExpanded: true,
-                icon: Icon(
-                  PhosphorIconsRegular.caretDown,
-                  size: 16,
-                  color: t.muted,
-                ),
-                dropdownColor: t.surface,
-                borderRadius: BorderRadius.circular(VfSize.radiusL),
-                style: VfType.bodyStrong.copyWith(color: t.text),
-                decoration: InputDecoration(filled: true, fillColor: t.inputBg),
-                items: [
-                  for (final w in workflows)
-                    DropdownMenuItem(
-                      value: w.id,
-                      child: Text(
-                        [
-                          w.name,
-                          if (w.isDefault) 'admin.wfcDefault'.tr,
-                          ?w.typeLabel(_locale),
-                        ].join(' — '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: (id) {
-                  if (id == null || id == wf.id) return;
-                  _switchTo(workflows.firstWhere((w) => w.id == id));
-                },
-              ),
-            )
-          else
-            Text(wf.name, style: VfType.sectionTitle.copyWith(color: t.text)),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
+          Row(
             children: [
-              if (wf.isDefault)
-                AdminBadge('admin.wfcDefault'.tr, tone: VfTone.info),
-              AdminBadge(
-                wf.isActive ? 'admin.wfcActive'.tr : 'admin.wfcInactive'.tr,
-                tone: wf.isActive ? VfTone.ok : VfTone.neutral,
+              const AdminIconTile(PhosphorIconsRegular.flowArrow),
+              const SizedBox(width: 12),
+              Expanded(
+                child: many
+                    ? Semantics(
+                        button: true,
+                        label: 'admin.workflow'.tr,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(VfSize.radiusM),
+                          onTap: () => _chooseWorkflow(wf, workflows),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                Flexible(child: name),
+                                const SizedBox(width: 6),
+                                Icon(
+                                  PhosphorIconsBold.caretDown,
+                                  size: 14,
+                                  color: t.muted,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    : name,
               ),
-              AdminBadge('${'admin.wfcAppliesTo'.tr}: $appliesTo'),
-              if (_dirty) AdminBadge('admin.wfcUnsaved'.tr, tone: VfTone.warn),
-            ],
-          ),
-          const SizedBox(height: 8),
-          AdminSwitch(
-            label: 'admin.wfcActive'.tr,
-            value: wf.isActive,
-            tooltip: wf.isDefault ? 'admin.wfcDefaultAllTypes'.tr : null,
-            onChanged: wf.isDefault
-                ? null
-                : (v) => _patch(() => wf.isActive = v),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              VouchFlowButton(
-                label: 'admin.wfcDetails'.tr,
-                icon: PhosphorIconsRegular.pencilSimple,
-                variant: VfButtonVariant.secondary,
-                compact: true,
-                onPressed: _openDetails,
+              VouchFlowIconButton(
+                icon: PhosphorIconsBold.dotsThree,
+                tooltip: 'admin.actions'.tr,
+                size: 44,
+                onPressed: () => _openMore(wf),
               ),
-              VouchFlowButton(
-                label: 'admin.wfcNewWorkflow'.tr,
-                icon: PhosphorIconsRegular.plus,
-                variant: VfButtonVariant.secondary,
-                compact: true,
-                onPressed: _openCreate,
-              ),
-              VouchFlowButton(
-                label: 'admin.presets'.tr,
-                icon: PhosphorIconsRegular.magicWand,
-                variant: VfButtonVariant.secondary,
-                compact: true,
-                onPressed: _openPresets,
-              ),
-              if (!wf.isDefault)
-                Tooltip(
-                  message: wf.voucherTypeId != null
-                      ? 'admin.wfcDefaultAllTypes'.tr
-                      : '',
-                  child: VouchFlowButton(
-                    label: 'admin.wfcMakeDefault'.tr,
-                    icon: PhosphorIconsRegular.star,
-                    variant: VfButtonVariant.secondary,
-                    compact: true,
-                    onPressed: _busy || _dirty || wf.voucherTypeId != null
-                        ? null
-                        : _makeDefault,
-                  ),
-                ),
-              if (!wf.isDefault)
-                VouchFlowButton(
-                  label: 'admin.delete'.tr,
-                  icon: PhosphorIconsRegular.trash,
-                  variant: VfButtonVariant.danger,
-                  compact: true,
-                  onPressed: _openDelete,
-                ),
             ],
           ),
           const SizedBox(height: 12),
-          VouchFlowButton(
-            label: 'admin.saveWorkflow'.tr,
-            icon: PhosphorIconsRegular.floppyDisk,
-            expand: true,
-            loading: _busy,
-            onPressed: _busy || !_dirty ? null : _save,
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (wf.isDefault)
+                  AdminBadge('admin.wfcDefault'.tr, tone: VfTone.info),
+                AdminBadge(appliesTo),
+                if (_dirty)
+                  AdminBadge('admin.wfcUnsaved'.tr, tone: VfTone.warn),
+              ],
+            ),
           ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: AdminSwitch(
+              label: 'admin.wfcActive'.tr,
+              value: wf.isActive,
+              tooltip: wf.isDefault ? 'admin.wfcDefaultAllTypes'.tr : null,
+              onChanged: wf.isDefault
+                  ? null
+                  : (v) => _patch(() => wf.isActive = v),
+            ),
+          ),
+          if (widget.saveState == null) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(right: 8, bottom: 6),
+              child: VouchFlowButton(
+                label: 'admin.saveWorkflow'.tr,
+                icon: PhosphorIconsRegular.floppyDisk,
+                expand: true,
+                loading: _busy,
+                onPressed: _busy || !_dirty ? null : _save,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
+  /// A start or end point on the route's line.
   Widget _node(VfTokens t, IconData icon, String label, {bool end = false}) =>
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(VfSize.radiusL),
-            border: Border.all(color: t.border),
+      Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: end ? t.success : t.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 17, color: Colors.white),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: end ? t.success : t.primary,
-                  borderRadius: BorderRadius.circular(VfSize.radiusM),
-                ),
-                child: Icon(icon, size: 16, color: Colors.white),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: VfType.bodyStrong.copyWith(
-                  color: t.text,
-                  fontSize: 14.5,
-                ),
-              ),
-            ],
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: VfType.bodyStrong.copyWith(color: t.text2, fontSize: 14.5),
           ),
-        ),
+        ],
       );
 
+  /// The route as a vertical timeline: numbered circles joined by a line,
+  /// each level a rounded card beside its circle.
   Widget _flow(VfTokens t) {
+    Widget rail({
+      required Widget mark,
+      required Widget child,
+      bool last = false,
+    }) => IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 36,
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                Positioned.fill(
+                  child: Center(
+                    child: Container(width: 2, color: t.borderStrong),
+                  ),
+                ),
+                Padding(padding: const EdgeInsets.only(top: 12), child: mark),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: child,
+            ),
+          ),
+        ],
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _node(t, PhosphorIconsRegular.filePlus, 'admin.voucherRaised'.tr),
-        Container(
-          margin: const EdgeInsets.only(left: 19),
-          padding: const EdgeInsets.fromLTRB(14, 10, 0, 10),
-          decoration: BoxDecoration(
-            border: Border(left: BorderSide(color: t.borderStrong, width: 1.5)),
+        _node(t, PhosphorIconsBold.filePlus, 'admin.voucherRaised'.tr),
+        rail(mark: const SizedBox(height: 0), child: const SizedBox(height: 0)),
+        for (var i = 0; i < _steps.length; i++)
+          rail(
+            mark: _StepNumber(index: i, active: _open == i),
+            child: _StepCard(
+              key: ValueKey(_steps[i].uid),
+              step: _steps[i],
+              index: i,
+              count: _steps.length,
+              expanded: _open == i,
+              who: _whoSummary(_steps[i], i),
+              band: _band(_steps[i]),
+              issue: i == 0 ? null : _personIssue(_steps[i]),
+              bandInvalid: _bandInvalid(_steps[i]),
+              people: _people,
+              personLabel: _personLabel,
+              onToggle: () => setState(() => _open = _open == i ? null : i),
+              onChanged: _patch,
+              onMove: (d) => _move(i, d),
+              onRemove: () => _removeStep(i),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < _steps.length; i++) ...[
-                _StepCard(
-                  key: ValueKey(_steps[i].uid),
-                  step: _steps[i],
-                  index: i,
-                  count: _steps.length,
-                  expanded: _open == i,
-                  who: _whoSummary(_steps[i], i),
-                  band: _band(_steps[i]),
-                  issue: i == 0 ? null : _personIssue(_steps[i]),
-                  bandInvalid: _bandInvalid(_steps[i]),
-                  people: _people,
-                  personLabel: _personLabel,
-                  onToggle: () => setState(() => _open = _open == i ? null : i),
-                  onChanged: _patch,
-                  onMove: (d) => _move(i, d),
-                  onRemove: () => _removeStep(i),
-                ),
-                const SizedBox(height: 10),
-              ],
-              Align(
-                alignment: Alignment.centerLeft,
-                child: VouchFlowButton(
-                  label: 'admin.addStep'.tr,
-                  icon: PhosphorIconsRegular.plus,
-                  variant: VfButtonVariant.secondary,
-                  compact: true,
-                  onPressed: _steps.length >= 12 ? null : _addStep,
-                ),
+        rail(
+          mark: Material(
+            color: t.surface,
+            shape: CircleBorder(
+              side: BorderSide(color: t.borderStrong, width: 1.5),
+            ),
+            child: SizedBox(
+              width: 30,
+              height: 30,
+              child: Icon(
+                PhosphorIconsBold.plus,
+                size: 14,
+                color: t.primaryText,
               ),
-            ],
+            ),
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: VouchFlowButton(
+                label: 'admin.addStep'.tr,
+                variant: VfButtonVariant.secondary,
+                compact: true,
+                onPressed: _steps.length >= 12 ? null : _addStep,
+              ),
+            ),
           ),
         ),
-        _node(t, PhosphorIconsRegular.check, 'admin.completed'.tr, end: true),
+        _node(t, PhosphorIconsBold.check, 'admin.completed'.tr, end: true),
       ],
     );
   }
 
   Widget _routingPanel(VfTokens t, Workflow wf) {
     final routing = _routing;
-    final stale = _dirty || _routingFor == null || _routingFor!.$1 != wf.id;
     final levelSteps =
         routing?.steps.where((s) => !s.isRequestStep).toList() ??
         const <RoutingStep>[];
@@ -928,57 +985,70 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
       }
     }
 
-    return VouchFlowCard(
-      title: 'admin.wfcRoutingTitle'.tr,
-      subtitle:
-          '${'admin.wfcRoutingSub'.tr}${stale && _dirty ? ' ${'admin.wfcRoutingStale'.tr}' : ''}',
+    return AdminSection(
+      label: 'admin.wfcRoutingTitle'.tr,
       padding: const EdgeInsets.all(14),
+      trailing: TextButton.icon(
+        onPressed: toDepartments,
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 32),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          visualDensity: VisualDensity.compact,
+        ),
+        icon: Icon(
+          PhosphorIconsRegular.treeStructure,
+          size: 15,
+          color: t.primaryText,
+        ),
+        label: Text(
+          'admin.departments'.tr,
+          style: VfType.small.copyWith(
+            color: t.primaryText,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          VouchFlowButton(
-            label: 'admin.departments'.tr,
-            icon: PhosphorIconsRegular.treeStructure,
-            variant: VfButtonVariant.secondary,
-            compact: true,
-            onPressed: toDepartments,
-          ),
-          const SizedBox(height: 12),
+          if (_dirty) ...[
+            AdminNote('admin.wfcRoutingStale'.tr, tone: VfTone.warn),
+            const SizedBox(height: 12),
+          ],
           if (routing == null && _routingFor == null)
             const VouchFlowLoadingState(rows: 3, rowHeight: 56)
           else if (routing != null && routing.departments.isEmpty)
             AdminNote('admin.wfcNoDepartments'.tr)
           else if (routing != null) ...[
-            routing.gaps > 0
-                ? AdminNote(
-                    fill('admin.wfcRoutingGaps'.tr, {'count': routing.gaps}),
-                    tone: VfTone.warn,
-                  )
-                : AdminNote('admin.wfcRoutingNoGaps'.tr),
-            const SizedBox(height: 12),
-            for (final dept in routing.departments)
+            if (routing.gaps > 0) ...[
+              AdminNote(
+                fill('admin.wfcRoutingGaps'.tr, {'count': routing.gaps}),
+                tone: VfTone.warn,
+              ),
+              const SizedBox(height: 12),
+            ],
+            for (var d = 0; d < routing.departments.length; d++)
               Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.only(top: d == 0 ? 0 : 10, bottom: 10),
                 decoration: BoxDecoration(
-                  color: t.surface2,
-                  borderRadius: BorderRadius.circular(VfSize.radiusL),
-                  border: Border.all(color: t.border),
+                  border: d == 0
+                      ? null
+                      : Border(top: BorderSide(color: t.border)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      dept.name,
+                      routing.departments[d].name,
                       style: VfType.bodyStrong.copyWith(color: t.text),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     for (var i = 0; i < levelSteps.length; i++)
                       _routingRow(
                         t,
                         i,
                         levelSteps[i],
-                        dept.cells
+                        routing.departments[d].cells
                             .where((c) => c.stepId == levelSteps[i].id)
                             .firstOrNull,
                         toDepartments,
@@ -1064,16 +1134,15 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
   }
 
   Widget _matrix(VfTokens t) {
-    return VouchFlowCard(
-      title: 'admin.permittedHere'.tr,
-      subtitle: 'admin.matrixSub'.tr,
+    return AdminSection(
+      label: 'admin.permittedHere'.tr,
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < _steps.length; i++)
             Container(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
               decoration: BoxDecoration(
                 border: i == 0
                     ? null
@@ -1084,7 +1153,7 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
                 children: [
                   Row(
                     children: [
-                      _StepNumber(index: i),
+                      _StepNumber(index: i, size: 28),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -1124,27 +1193,35 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
 }
 
 class _StepNumber extends StatelessWidget {
-  const _StepNumber({required this.index});
+  const _StepNumber({required this.index, this.active = false, this.size = 30});
   final int index;
+  final bool active;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Container(
-      width: 28,
-      height: 28,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: size,
+      height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: t.primarySoftStrong,
-        borderRadius: BorderRadius.circular(VfSize.radiusM),
+        color: active ? t.primary : t.primarySoftStrong,
+        shape: BoxShape.circle,
+        border: Border.all(color: t.background, width: 2),
       ),
       child: index == 0
-          ? Icon(PhosphorIconsRegular.user, size: 14, color: t.primaryText)
+          ? Icon(
+              PhosphorIconsBold.user,
+              size: size * .45,
+              color: active ? Colors.white : t.primaryText,
+            )
           : Text(
               '$index',
               style: VfType.bodyStrong.copyWith(
-                color: t.primaryText,
-                fontSize: 14,
+                color: active ? Colors.white : t.primaryText,
+                fontSize: size * .45,
                 height: 1,
               ),
             ),
@@ -1271,11 +1348,18 @@ class _StepCardState extends State<_StepCard> {
       (c) => c.$1 != 'can_print' && c.$1 != 'can_download' && s.cap(c.$1),
     );
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: widget.expanded ? t.primaryBorder : t.border),
+        borderRadius: BorderRadius.circular(VfSize.radiusXl),
+        border: Border.all(
+          color: widget.expanded
+              ? t.primary
+              : (t.isDark ? t.border : Colors.transparent),
+          width: widget.expanded ? 1.5 : 1,
+        ),
+        boxShadow: t.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1283,50 +1367,38 @@ class _StepCardState extends State<_StepCard> {
           Material(
             type: MaterialType.transparency,
             child: InkWell(
-              borderRadius: BorderRadius.circular(VfSize.radiusL),
+              borderRadius: BorderRadius.circular(VfSize.radiusXl),
               onTap: widget.onToggle,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _StepNumber(index: widget.index),
-                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          request
-                              ? Text(
-                                  'admin.wfcRequest'.tr,
-                                  style: VfType.bodyStrong.copyWith(
-                                    color: t.text,
-                                  ),
-                                )
-                              : Text.rich(
-                                  TextSpan(
-                                    children: [
-                                      TextSpan(
-                                        text:
-                                            '${'admin.wfcLevel'.tr} ${widget.index}',
-                                        style: TextStyle(color: t.primaryText),
-                                      ),
-                                      TextSpan(text: ' · ${s.name}'),
-                                    ],
-                                  ),
-                                  style: VfType.bodyStrong.copyWith(
-                                    color: t.text,
-                                  ),
-                                ),
+                          Text(
+                            request ? 'admin.wfcRequest'.tr : s.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            semanticsLabel: request
+                                ? null
+                                : '${'admin.wfcLevel'.tr} ${widget.index} · ${s.name}',
+                            style: VfType.bodyStrong.copyWith(color: t.text),
+                          ),
                           const SizedBox(height: 2),
                           Text(
-                            '${'admin.wfcWhoActs'.tr}: ${widget.who}${widget.band == null ? '' : ' · ${widget.band}'}',
+                            '${widget.who}${widget.band == null ? '' : ' · ${widget.band}'}',
                             maxLines: widget.expanded ? 4 : 2,
                             overflow: TextOverflow.ellipsis,
-                            style: VfType.small.copyWith(color: t.muted),
+                            style: VfType.meta.copyWith(
+                              color: t.muted,
+                              fontSize: 13,
+                            ),
                           ),
-                          if (shownCaps.isNotEmpty) ...[
-                            const SizedBox(height: 6),
+                          if (shownCaps.isNotEmpty && !widget.expanded) ...[
+                            const SizedBox(height: 8),
                             Wrap(
                               spacing: 6,
                               runSpacing: 6,
@@ -1335,33 +1407,17 @@ class _StepCardState extends State<_StepCard> {
                                   Tooltip(
                                     message: c.$2.tr,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 7,
-                                        vertical: 3,
-                                      ),
+                                      width: 28,
+                                      height: 28,
                                       decoration: BoxDecoration(
-                                        color: t.surface3,
-                                        borderRadius: BorderRadius.circular(
-                                          VfSize.radiusPill,
-                                        ),
+                                        color: t.primarySoft,
+                                        shape: BoxShape.circle,
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(c.$3, size: 13, color: t.text2),
-                                          const SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text(
-                                              c.$2.tr,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: VfType.meta.copyWith(
-                                                color: t.text2,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                      child: Icon(
+                                        c.$3,
+                                        size: 14,
+                                        color: t.primaryText,
+                                        semanticLabel: c.$2.tr,
                                       ),
                                     ),
                                   ),
@@ -1373,21 +1429,21 @@ class _StepCardState extends State<_StepCard> {
                     ),
                     if (warn)
                       Padding(
-                        padding: const EdgeInsets.only(left: 6, top: 4),
+                        padding: const EdgeInsets.only(left: 6, top: 2),
                         child: Icon(
-                          PhosphorIconsRegular.warning,
-                          size: 17,
+                          PhosphorIconsFill.warningCircle,
+                          size: 18,
                           color: t.warningStrong,
                         ),
                       ),
                     Padding(
-                      padding: const EdgeInsets.only(left: 4, top: 4),
+                      padding: const EdgeInsets.only(left: 4, top: 2),
                       child: AnimatedRotation(
                         turns: widget.expanded ? .5 : 0,
                         duration: const Duration(milliseconds: 180),
                         child: Icon(
-                          PhosphorIconsRegular.caretDown,
-                          size: 17,
+                          PhosphorIconsBold.caretDown,
+                          size: 15,
                           color: t.muted,
                         ),
                       ),
@@ -1409,7 +1465,7 @@ class _StepCardState extends State<_StepCard> {
         s.assignedUserId != null &&
         !widget.people.any((p) => p.id == s.assignedUserId);
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: t.border)),
       ),
@@ -1450,7 +1506,6 @@ class _StepCardState extends State<_StepCard> {
               _Select<String>(
                 key: ValueKey('person|${s.uid}'),
                 label: 'admin.wfcChoosePerson'.tr,
-                hint: 'admin.wfcPersonHint'.tr,
                 value: s.assignedUserId == null ? '' : '${s.assignedUserId}',
                 options: [
                   ('', '${'admin.wfcChoosePerson'.tr}…', true),
@@ -1471,9 +1526,6 @@ class _StepCardState extends State<_StepCard> {
               _Select<String>(
                 key: ValueKey('role|${s.uid}'),
                 label: 'admin.role'.tr,
-                hint: s.role == 'hod' || s.role == 'manager'
-                    ? 'admin.wfcDeptHint'.tr
-                    : 'admin.wfcRoleHint'.tr,
                 value: s.role,
                 options: [
                   for (final r in [
@@ -1520,7 +1572,6 @@ class _StepCardState extends State<_StepCard> {
               label: 'admin.fromAmount'.tr,
               controller: _min,
               placeholder: 'admin.anyAmount'.tr,
-              hint: 'admin.amountThresholds'.tr,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
@@ -1578,49 +1629,38 @@ class _StepCardState extends State<_StepCard> {
               onChanged: (v) => widget.onChanged(() => s.requiresSignature = v),
             ),
           ],
-          if (s.canSign && !s.canApprove && !request) ...[
-            const SizedBox(height: 8),
-            Text(
-              'admin.signOnlyHint'.tr,
-              style: VfType.meta.copyWith(color: t.muted),
-            ),
-          ],
-          if (s.canRequestChanges && !request) ...[
-            const SizedBox(height: 8),
-            Text(
-              'admin.requestChangesHint'.tr,
-              style: VfType.meta.copyWith(color: t.muted),
-            ),
-          ],
           if (!request) ...[
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              alignment: WrapAlignment.spaceBetween,
+            Row(
               children: [
-                VouchFlowButton(
-                  label: 'admin.moveEarlier'.tr,
-                  icon: PhosphorIconsRegular.arrowUp,
-                  variant: VfButtonVariant.ghost,
-                  compact: true,
+                VouchFlowIconButton(
+                  icon: PhosphorIconsBold.arrowUp,
+                  tooltip: 'admin.moveEarlier'.tr,
+                  size: 44,
                   onPressed: widget.index <= 1 ? null : () => widget.onMove(-1),
+                  color: widget.index <= 1 ? t.faint : null,
                 ),
-                VouchFlowButton(
-                  label: 'admin.moveLater'.tr,
-                  icon: PhosphorIconsRegular.arrowDown,
-                  variant: VfButtonVariant.ghost,
-                  compact: true,
+                VouchFlowIconButton(
+                  icon: PhosphorIconsBold.arrowDown,
+                  tooltip: 'admin.moveLater'.tr,
+                  size: 44,
                   onPressed: widget.index >= widget.count - 1
                       ? null
                       : () => widget.onMove(1),
+                  color: widget.index >= widget.count - 1 ? t.faint : null,
                 ),
-                VouchFlowButton(
-                  label: 'admin.removeStep'.tr,
-                  icon: PhosphorIconsRegular.trash,
-                  variant: VfButtonVariant.danger,
-                  compact: true,
-                  onPressed: widget.onRemove,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: VouchFlowButton(
+                      label: 'admin.removeStep'.tr,
+                      icon: PhosphorIconsRegular.trash,
+                      variant: VfButtonVariant.danger,
+                      compact: true,
+                      onPressed: widget.onRemove,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1657,16 +1697,16 @@ class _Segmented extends StatelessWidget {
         button: true,
         child: Material(
           color: selected ? t.surface : Colors.transparent,
-          borderRadius: BorderRadius.circular(VfSize.radiusM),
+          borderRadius: BorderRadius.circular(12),
           child: InkWell(
-            borderRadius: BorderRadius.circular(VfSize.radiusM),
+            borderRadius: BorderRadius.circular(12),
             onTap: onTap,
             child: Container(
               constraints: const BoxConstraints(minHeight: 42),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: selected
                   ? BoxDecoration(
-                      borderRadius: BorderRadius.circular(VfSize.radiusM),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: t.primaryBorder),
                     )
                   : null,
@@ -1700,10 +1740,10 @@ class _Segmented extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: t.surface3,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
@@ -1812,7 +1852,7 @@ class _Select<T> extends StatelessWidget {
       child: DropdownButtonFormField<T>(
         initialValue: options.any((o) => o.$1 == value) ? value : null,
         isExpanded: true,
-        icon: Icon(PhosphorIconsRegular.caretDown, size: 16, color: t.muted),
+        icon: Icon(PhosphorIconsBold.caretDown, size: 14, color: t.muted),
         dropdownColor: t.surface,
         borderRadius: BorderRadius.circular(VfSize.radiusL),
         style: VfType.body.copyWith(color: t.text),

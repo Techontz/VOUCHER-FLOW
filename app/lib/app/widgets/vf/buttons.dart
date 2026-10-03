@@ -42,12 +42,12 @@ class VouchFlowButton extends StatelessWidget {
 
     final (Color bg, Color fg, Color border) = switch (variant) {
       VfButtonVariant.primary => (t.primary, Colors.white, t.primary),
-      VfButtonVariant.secondary => (t.surface, t.text, t.borderStrong),
+      VfButtonVariant.secondary => (t.surface3, t.text, Colors.transparent),
       VfButtonVariant.ghost => (Colors.transparent, t.text2, Colors.transparent),
       VfButtonVariant.danger => (
-        t.surface,
+        t.dangerSoft,
         t.dangerStrong,
-        Color.lerp(t.dangerStrong, t.borderStrong, .55)!,
+        Colors.transparent,
       ),
       VfButtonVariant.dangerSolid => (t.dangerStrong, Colors.white, t.dangerStrong),
     };
@@ -107,7 +107,7 @@ class VouchFlowButton extends StatelessWidget {
         child: Material(
           color: disabledSolid ? t.borderStrong : bg,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(VfSize.radiusL),
+            borderRadius: BorderRadius.circular(compact ? 12 : 16),
             side: BorderSide(color: disabledSolid ? t.borderStrong : border),
           ),
           clipBehavior: Clip.antiAlias,
@@ -175,7 +175,7 @@ class VouchFlowIconButton extends StatelessWidget {
         height: size,
         child: Material(
           color: filled ? t.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(VfSize.radiusL),
+          borderRadius: BorderRadius.circular(size),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onPressed,

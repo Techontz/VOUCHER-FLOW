@@ -25,8 +25,8 @@ String wfcRoleName(String role) => switch (role) {
   _ => role,
 };
 
-/// Departments — the web's page: each department's head (who signs) and
-/// manager (who approves), its people, vouchers and spend this quarter,
+/// Departments: a row per department (people and spend this quarter), and
+/// a sheet with its head (who signs), manager (who approves), vouchers —
 /// with search, add, edit and delete.
 class DepartmentsPage extends StatefulWidget {
   const DepartmentsPage({super.key, this.repository});
@@ -117,6 +117,73 @@ class _DepartmentsPageState extends State<DepartmentsPage> {
     }
   }
 
+  /// A seat that needs attention: nobody in it, or someone inactive.
+  static bool _seatGap(SeatHolder? p) =>
+      p == null || (p.status != null && p.status != 'active');
+
+  void _openDept(AdminDepartment d, String currency) {
+    showAdminItemSheet(
+      context,
+      header: Row(
+        children: [
+          const AdminIconTile(PhosphorIconsRegular.treeStructure, size: 52),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  d.name,
+                  style: VfType.sectionTitle.copyWith(color: context.vf.text),
+                ),
+                if ((d.costCentre ?? d.code ?? '').isNotEmpty)
+                  Text(
+                    [
+                      if ((d.code ?? '').isNotEmpty) d.code!,
+                      if ((d.costCentre ?? '').isNotEmpty) d.costCentre!,
+                    ].join(' · '),
+                    style: VfType.small.copyWith(color: context.vf.muted),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      details: [
+        AdminLine(
+          label: 'admin.headOfDept'.tr,
+          value: '',
+          valueWidget: _Assigned(d.hod),
+        ),
+        AdminLine(
+          label: 'admin.approvingManager'.tr,
+          value: '',
+          valueWidget: _Assigned(d.manager),
+        ),
+        AdminLine(label: 'admin.people'.tr, value: '${d.usersCount}'),
+        AdminLine(label: 'admin.vouchers'.tr, value: '${d.vouchersCount}'),
+        AdminLine(
+          label: 'admin.spendQuarter'.tr,
+          value: Fmt.money(d.spend, currency),
+          strong: true,
+        ),
+      ],
+      actions: [
+        AdminSheetAction(
+          PhosphorIconsRegular.pencilSimple,
+          'admin.edit'.tr,
+          () => _openForm(d),
+        ),
+        AdminSheetAction(
+          PhosphorIconsRegular.trash,
+          'admin.delete'.tr,
+          () => _confirmRemove(d),
+          danger: true,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
@@ -144,15 +211,12 @@ class _DepartmentsPageState extends State<DepartmentsPage> {
     return AdminPageBody(
       route: '/departments',
       title: 'admin.departments'.tr,
-      subtitle: 'admin.wfcDeptIntro'.tr,
       onRefresh: _load,
-      actions: [
-        VouchFlowButton(
-          label: 'admin.addDepartment'.tr,
-          icon: PhosphorIconsRegular.plus,
-          onPressed: () => _openForm(),
-        ),
-      ],
+      action: AdminRoundAction(
+        icon: PhosphorIconsBold.plus,
+        label: 'admin.addDepartment'.tr,
+        onPressed: () => _openForm(),
+      ),
       children: [
         if (_error != null)
           VouchFlowErrorState(
@@ -161,33 +225,27 @@ class _DepartmentsPageState extends State<DepartmentsPage> {
             retryLabel: 'action.retry'.tr,
           )
         else if (rows == null)
-          const VouchFlowLoadingState(rows: 5, rowHeight: 150)
+          const VouchFlowLoadingState(rows: 5, rowHeight: 72)
         else if (rows.isEmpty)
           VouchFlowCard(
+            radius: VfSize.radiusXl,
             child: VouchFlowEmptyState(
               icon: PhosphorIconsRegular.treeStructure,
               title: 'admin.noDepartmentsYet'.tr,
-              body: 'admin.noDepartmentsBody'.tr,
               actionLabel: 'admin.addDepartment'.tr,
               onAction: () => _openForm(),
             ),
           )
         else ...[
-          VouchFlowSearchField(
+          AdminSearchField(
             controller: _searchCtl,
             placeholder: 'admin.searchDepartments'.tr,
             onChanged: (v) => setState(() => _search = v),
           ),
-          if (term.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              '${'admin.showing'.tr} ${shown?.length ?? 0} ${'admin.of'.tr} ${rows.length}',
-              style: VfType.small.copyWith(color: t.muted),
-            ),
-          ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           if (shown!.isEmpty)
             VouchFlowCard(
+              radius: VfSize.radiusXl,
               child: VouchFlowEmptyState(
                 icon: PhosphorIconsRegular.magnifyingGlass,
                 title: 'admin.noResults'.tr,
@@ -199,15 +257,32 @@ class _DepartmentsPageState extends State<DepartmentsPage> {
               ),
             )
           else
-            for (final d in shown) ...[
-              _DepartmentCard(
-                dept: d,
-                currency: currency,
-                onEdit: () => _openForm(d),
-                onDelete: () => _confirmRemove(d),
+            for (final d in shown)
+              AdminListRow(
+                semanticLabel: d.name,
+                leading: const AdminIconTile(
+                  PhosphorIconsRegular.treeStructure,
+                ),
+                title: d.name,
+                meta:
+                    '${d.usersCount} ${'admin.people'.tr.toLowerCase()} · ${Fmt.money(d.spend, currency)}',
+                trailing: _seatGap(d.hod) || _seatGap(d.manager)
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            PhosphorIconsFill.warningCircle,
+                            size: 18,
+                            color: t.warningStrong,
+                            semanticLabel: 'admin.wfcDeptNotAssigned'.tr,
+                          ),
+                          const SizedBox(width: 6),
+                          const AdminChevron(),
+                        ],
+                      )
+                    : const AdminChevron(),
+                onTap: () => _openDept(d, currency),
               ),
-              const SizedBox(height: 10),
-            ],
         ],
       ],
     );
@@ -235,99 +310,14 @@ class _Assigned extends StatelessWidget {
         Text(
           p.name,
           textAlign: TextAlign.right,
-          style: VfType.small.copyWith(color: t.text),
+          style: VfType.small.copyWith(
+            color: t.text,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         if (p.status != null && p.status != 'active')
           AdminBadge('admin.wfcInactive'.tr, tone: VfTone.warn),
       ],
-    );
-  }
-}
-
-class _DepartmentCard extends StatelessWidget {
-  const _DepartmentCard({
-    required this.dept,
-    required this.currency,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  final AdminDepartment dept;
-  final String currency;
-  final VoidCallback onEdit, onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    return VouchFlowCard(
-      padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      dept.name,
-                      style: VfType.bodyStrong.copyWith(color: t.text),
-                    ),
-                    if ((dept.costCentre ?? '').isNotEmpty)
-                      Text(
-                        dept.costCentre!,
-                        style: VfType.small.copyWith(color: t.muted),
-                      ),
-                  ],
-                ),
-              ),
-              VouchFlowIconButton(
-                icon: PhosphorIconsRegular.pencilSimple,
-                tooltip: '${'admin.edit'.tr} ${dept.name}',
-                onPressed: onEdit,
-              ),
-              VouchFlowIconButton(
-                icon: PhosphorIconsRegular.trash,
-                tooltip: '${'admin.delete'.tr} ${dept.name}',
-                color: t.dangerStrong,
-                onPressed: onDelete,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Column(
-              children: [
-                AdminLine(
-                  label: 'admin.headOfDept'.tr,
-                  value: '',
-                  valueWidget: _Assigned(dept.hod),
-                ),
-                AdminLine(
-                  label: 'admin.approvingManager'.tr,
-                  value: '',
-                  valueWidget: _Assigned(dept.manager),
-                ),
-                AdminLine(
-                  label: 'admin.people'.tr,
-                  value: '${dept.usersCount}',
-                ),
-                AdminLine(
-                  label: 'admin.vouchers'.tr,
-                  value: '${dept.vouchersCount}',
-                ),
-                AdminLine(
-                  label: 'admin.spendQuarter'.tr,
-                  value: Fmt.money(dept.spend, currency),
-                  strong: true,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -407,7 +397,6 @@ class _DepartmentFormState extends State<_DepartmentForm> {
 
   Widget _seat({
     required String label,
-    required String hint,
     required String value,
     required SeatHolder? saved,
     required String field,
@@ -421,7 +410,6 @@ class _DepartmentFormState extends State<_DepartmentForm> {
     ];
     return VouchFlowDropdown<String>(
       label: label,
-      hint: hint,
       error: inactive ? 'admin.wfcDeptPersonInactive'.tr : _error?.field(field),
       items: items,
       value: value,
@@ -492,7 +480,6 @@ class _DepartmentFormState extends State<_DepartmentForm> {
           gap,
           _seat(
             label: 'admin.wfcDeptHodSigns'.tr,
-            hint: 'admin.wfcDeptHodHint'.tr,
             value: _hod,
             saved: d?.hod,
             field: 'hod_user_id',
@@ -501,7 +488,6 @@ class _DepartmentFormState extends State<_DepartmentForm> {
           gap,
           _seat(
             label: 'admin.wfcDeptManagerApproves'.tr,
-            hint: 'admin.wfcDeptManagerHint'.tr,
             value: _mgr,
             saved: d?.manager,
             field: 'manager_user_id',

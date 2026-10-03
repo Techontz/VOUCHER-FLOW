@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../data/models/dashboard_models.dart';
 import '../../data/models/models.dart';
 import '../../widgets/vf/vf.dart';
+import '../vouchers/voucher_card.dart' show voucherShortStatus;
 import 'dash_bits.dart';
 
 /// The one next step on a voucher, as a list shows it — never a one-tap
@@ -57,9 +58,9 @@ import 'dash_bits.dart';
   return null;
 }
 
-/// A voucher in the dashboard queue: the web's `VoucherRow` — number, kind
-/// and status; the purpose; who, where and when; its route; the amount and
-/// the one next step.
+/// A voucher in the home queue, as an app list row: a tile for the next
+/// step, the purpose, its number and payee, the amount and status — and a
+/// slim bar for where it is in its route. Tapping opens the voucher.
 class QueueRow extends StatelessWidget {
   const QueueRow({
     super.key,
@@ -79,147 +80,191 @@ class QueueRow extends StatelessWidget {
     final t = context.vf;
     final v = voucher;
     final cta = queueAction(v);
+    final b = Theme.of(context).brightness;
+    final tint = cta != null && cta.strong
+        ? t.primary
+        : VfStatus.foreground(v.displayTag, b);
     final meta = [
-      v.payee,
-      ?v.requesterName,
-      ?v.departmentName,
-      if (v.voucherDate != null) dashDate(v.voucherDate),
-    ].where((s) => s.isNotEmpty && s != 'null').join(' · ');
+      v.number,
+      if (v.payee.isNotEmpty && v.payee != 'null') v.payee,
+    ].join(' · ');
 
-    return DashRow(
-      onTap: onOpen,
-      last: last,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                v.number,
-                style: VfType.small.copyWith(
-                  color: t.text,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              _KindChip(isCash: v.isCash),
-              VouchFlowStatusBadge(label: v.statusLabel, tag: v.displayTag),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            v.purpose,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: VfType.cardTitle.copyWith(color: t.text),
-          ),
-          if (meta.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              meta,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: VfType.small.copyWith(color: t.muted),
+    return Semantics(
+      button: true,
+      hint: cta?.label,
+      child: DashRow(
+        onTap: onOpen,
+        last: last,
+        inset: 68,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DashIconTile(
+              icon:
+                  cta?.icon ??
+                  (v.isCash
+                      ? PhosphorIconsRegular.money
+                      : PhosphorIconsRegular.bank),
+              color: tint,
             ),
-          ],
-          if (progress.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            QueueProgress(progress),
-          ],
-          const SizedBox(height: 12),
-          // Amount left, the next step right; the button drops below the
-          // amount rather than truncating when both do not fit.
-          SizedBox(
-            width: double.infinity,
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      v.amountText,
-                      style: VfType.bodyStrong.copyWith(
-                        fontSize: 17,
-                        color: t.text,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    if (v.isPartiallyPaid && v.balanceText != null)
-                      Text(
-                        v.balanceText!,
-                        style: VfType.meta.copyWith(
-                          color: t.warningStrong,
-                          fontWeight: FontWeight.w500,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          v.purpose,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: VfType.bodyStrong.copyWith(
+                            color: t.text,
+                            fontSize: 14.5,
+                            height: 1.35,
+                          ),
                         ),
                       ),
-                  ],
-                ),
-                if (cta != null)
-                  VouchFlowButton(
-                    label: cta.label,
-                    icon: cta.icon,
-                    compact: true,
-                    variant: cta.strong
-                        ? VfButtonVariant.primary
-                        : VfButtonVariant.secondary,
-                    onPressed: onOpen,
+                      const SizedBox(width: 10),
+                      // Scales down rather than squeezing the purpose out.
+                      Flexible(
+                        flex: 2,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            v.amountText,
+                            style: VfType.small.copyWith(
+                              color: t.text,
+                              fontWeight: FontWeight.w700,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-              ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          meta,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: VfType.meta.copyWith(
+                            color: t.muted,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: VouchFlowStatusBadge(
+                          label: voucherShortStatus(v),
+                          tag: v.displayTag,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (v.isPartiallyPaid && v.balanceText != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      v.balanceText!,
+                      style: VfType.meta.copyWith(
+                        color: t.warningStrong,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  if (progress.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    QueueProgress(progress),
+                  ],
+                  // The next step, spelled out: "Review & sign", "Review &
+                  // approve", "Record payment" — it opens the voucher.
+                  if (cta != null) ...[
+                    const SizedBox(height: 12),
+                    _QueueCta(
+                      label: cta.label,
+                      icon: cta.icon,
+                      strong: cta.strong,
+                      onTap: onOpen,
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// The web's `.vf-kind`: bank or cash, with its mark.
-class _KindChip extends StatelessWidget {
-  const _KindChip({required this.isCash});
-  final bool isCash;
+class _QueueCta extends StatelessWidget {
+  const _QueueCta({
+    required this.label,
+    required this.icon,
+    required this.strong,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool strong;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: t.surface3,
-        borderRadius: BorderRadius.circular(VfSize.radiusS),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isCash ? PhosphorIconsRegular.money : PhosphorIconsRegular.bank,
-            size: 14,
-            color: t.text2,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            isCash ? 'dashboard.cash'.tr : 'dashboard.bank'.tr,
-            style: VfType.meta.copyWith(
-              color: t.text2,
-              fontWeight: FontWeight.w500,
+    final fg = strong ? Colors.white : t.primaryText;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Material(
+        color: strong ? t.primary : t.primarySoft,
+        borderRadius: BorderRadius.circular(VfSize.radiusPill),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: fg),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.label.copyWith(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: fg,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(PhosphorIconsBold.caretRight, size: 12, color: fg),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// The web's `ProgressSteps`: Prepared — HOD — CEO — Cashier, each marked
-/// done, current, pending or rejected.
+/// Where a voucher is in its route (Prepared — HOD — CEO — Cashier) as a
+/// slim segmented bar: done, current, pending or rejected.
 class QueueProgress extends StatelessWidget {
   const QueueProgress(this.steps, {super.key});
   final List<QueueProgressStep> steps;
@@ -227,82 +272,53 @@ class QueueProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        for (var i = 0; i < steps.length; i++)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (i > 0) ...[
-                Container(width: 12, height: 1, color: t.borderStrong),
-                const SizedBox(width: 6),
-              ],
-              _Mark(steps[i].state),
-              const SizedBox(width: 6),
+    final current = steps
+        .where((s) => s.state == QueueStepState.current)
+        .firstOrNull;
+    return Semantics(
+      label: steps.map((s) => '${s.label}: ${s.state.name}').join(', '),
+      child: ExcludeSemantics(
+        child: Row(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  for (var i = 0; i < steps.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 3),
+                    Expanded(
+                      child: Container(
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: switch (steps[i].state) {
+                            QueueStepState.done => t.successStrong,
+                            QueueStepState.current => t.primary,
+                            QueueStepState.rejected => t.dangerStrong,
+                            QueueStepState.pending => t.surface3,
+                          },
+                          borderRadius: BorderRadius.circular(
+                            VfSize.radiusPill,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (current != null) ...[
+              const SizedBox(width: 8),
               Text(
-                steps[i].label,
+                current.label,
                 style: VfType.meta.copyWith(
-                  fontSize: 13,
-                  color: switch (steps[i].state) {
-                    QueueStepState.done => t.text2,
-                    QueueStepState.current => t.text,
-                    _ => t.muted,
-                  },
-                  fontWeight: steps[i].state == QueueStepState.current
-                      ? FontWeight.w500
-                      : FontWeight.w400,
+                  color: t.primaryText,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
-          ),
-      ],
-    );
-  }
-}
-
-class _Mark extends StatelessWidget {
-  const _Mark(this.state);
-  final QueueStepState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.vf;
-    final (Color fill, Color edge) = switch (state) {
-      QueueStepState.done => (t.successStrong, t.successStrong),
-      QueueStepState.rejected => (t.dangerStrong, t.dangerStrong),
-      QueueStepState.current => (t.surface, t.primary),
-      QueueStepState.pending => (t.surface, t.borderStrong),
-    };
-    return Container(
-      width: 16,
-      height: 16,
-      decoration: BoxDecoration(
-        color: fill,
-        shape: BoxShape.circle,
-        border: Border.all(color: edge, width: 1.5),
+          ],
+        ),
       ),
-      alignment: Alignment.center,
-      child: switch (state) {
-        QueueStepState.done => const Icon(
-          PhosphorIconsBold.check,
-          size: 9,
-          color: Colors.white,
-        ),
-        QueueStepState.rejected => const Icon(
-          PhosphorIconsBold.x,
-          size: 9,
-          color: Colors.white,
-        ),
-        QueueStepState.current => Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: t.primary, shape: BoxShape.circle),
-        ),
-        QueueStepState.pending => null,
-      },
     );
   }
 }

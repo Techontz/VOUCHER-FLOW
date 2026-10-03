@@ -132,6 +132,9 @@ class _BulkApprovePageState extends State<BulkApprovePage> {
   late final BulkApproveController c = Get.put(BulkApproveController());
   final search = TextEditingController();
 
+  /// Selection mode: round checks on the rows, a bar to approve them.
+  bool selecting = false;
+
   @override
   void dispose() {
     search.dispose();
@@ -142,7 +145,7 @@ class _BulkApprovePageState extends State<BulkApprovePage> {
   @override
   Widget build(BuildContext context) {
     final pushed = ModalRoute.of(context)?.settings.name == Routes.bulkApprove;
-    final body = Obx(() => _body(context));
+    final body = Obx(() => _body(context, pushed));
     return pushed
         ? VouchFlowPushedScaffold(title: 'nav.bulkApprove'.tr, body: body)
         : body;
@@ -157,7 +160,12 @@ class _BulkApprovePageState extends State<BulkApprovePage> {
     }
   }
 
-  Widget _body(BuildContext context) {
+  void _setSelecting(bool on) {
+    setState(() => selecting = on);
+    if (!on) c.selected.clear();
+  }
+
+  Widget _body(BuildContext context, bool pushed) {
     final t = context.vf;
     final queue = c.queue.value;
     if (c.error.value != null && queue == null) {
@@ -182,268 +190,236 @@ class _BulkApprovePageState extends State<BulkApprovePage> {
     final shown = c.shown;
     final eligible = shown.where(bulkEligible).toList();
     final chosen = c.chosen;
+    // A selection made elsewhere (or kept across a reload) shows its checks.
+    final inSelection = (selecting && eligible.isNotEmpty) || chosen.isNotEmpty;
     final allChosen =
         eligible.isNotEmpty && eligible.every((v) => c.selected.contains(v.id));
     final total = queue.fold<double>(0, (s, v) => s + v.amount);
     final oldest = queue.isEmpty
         ? null
         : ([...queue]..sort((a, b) => _since(a).compareTo(_since(b)))).first;
-    final word = queue.length == 1 ? dt('voucherWord') : dt('vouchersWord');
     final signOnly =
         queue.isNotEmpty && queue.every((v) => !v.currentStepCanApprove);
     final workflows = c.workflows.value;
+    final hasShell = Get.isRegistered<ShellController>();
 
-    final list = Stack(
+    return Stack(
       children: [
         VouchFlowPageBody(
           onRefresh: c.load,
           padding: EdgeInsets.fromLTRB(
             VfSize.pagePad,
-            20,
+            pushed ? 4 : 16,
             VfSize.pagePad,
-            chosen.isEmpty ? 32 : 120,
+            chosen.isEmpty ? 32 : 140,
           ),
           children: [
-            VouchFlowPageHeader(
-              title: queue.isNotEmpty
-                  ? '${queue.length} $word ${dt('awaitingYou')}'
-                  : dt('nothingAwaiting'),
-              subtitle: signOnly ? dt('signOnlyNote') : dt('bulkApproveIntro'),
-              actions: [
-                if (Get.isRegistered<ShellController>())
-                  VouchFlowButton(
-                    label: dt('voucherRegister'),
+            AppScreenTitle(
+              title: pushed ? '' : 'nav.approvals'.tr,
+              count: queue.isEmpty ? null : queue.length,
+              trailing: [
+                if (eligible.isNotEmpty)
+                  AppTextAction(
+                    label: inSelection ? dt('cancel') : dt('select'),
+                    icon: inSelection ? null : PhosphorIconsRegular.checkCircle,
+                    onPressed: () => _setSelecting(!inSelection),
+                  ),
+                if (hasShell)
+                  VfBarButton(
                     icon: PhosphorIconsRegular.receipt,
-                    variant: VfButtonVariant.secondary,
+                    tooltip: dt('voucherRegister'),
                     onPressed: _toRegister,
                   ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             if (queue.isNotEmpty) ...[
-              FigureGrid(
-                children: [
-                  VouchFlowStatCard(
-                    label: dt('awaitingYouLabel'),
-                    value: '${queue.length}',
-                    tone: VfTone.info,
+              AppStatStrip(
+                stats: [
+                  AppStat(
+                    dt('total'),
+                    Fmt.money(total, currency),
+                    icon: PhosphorIconsFill.wallet,
                   ),
-                  VouchFlowStatCard(
-                    label: dt('total'),
-                    value: Fmt.money(total, currency),
+                  AppStat(
+                    dt('bank'),
+                    '${queue.where((v) => !v.isCash).length}',
+                    icon: PhosphorIconsFill.bank,
+                    tint: (t.infoStrong, t.infoSoft),
                   ),
-                  VouchFlowStatCard(
-                    label: dt('bank'),
-                    value: '${queue.where((v) => !v.isCash).length}',
-                  ),
-                  VouchFlowStatCard(
-                    label: dt('cash'),
-                    value: '${queue.where((v) => v.isCash).length}',
+                  AppStat(
+                    dt('cash'),
+                    '${queue.where((v) => v.isCash).length}',
+                    icon: PhosphorIconsFill.money,
+                    tint: (t.successStrong, t.successSoft),
                   ),
                   if (oldest != null)
-                    VouchFlowStatCard(
-                      label: dt('waitingSince'),
-                      value: Fmt.date(oldest.submittedAt ?? oldest.voucherDate),
+                    AppStat(
+                      dt('waitingSince'),
+                      Fmt.date(oldest.submittedAt ?? oldest.voucherDate),
                       sub: oldest.number,
+                      icon: PhosphorIconsFill.clock,
+                      tint: (t.warningStrong, t.warningSoft),
                     ),
                 ],
               ),
-              const SizedBox(height: 20),
-            ],
-            VouchFlowCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              const SizedBox(height: 16),
+              if (signOnly) ...[
+                _Note(text: dt('signOnlyNote')),
+                const SizedBox(height: 12),
+              ],
+              VouchFlowSearchField(
+                placeholder: dt('searchPh'),
+                controller: search,
+                onChanged: (q) => c.query.value = q,
+              ),
+              const SizedBox(height: 12),
+              Row(
                 children: [
-                  if (queue.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: t.border)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          VouchFlowSearchField(
-                            placeholder: dt('searchPh'),
-                            controller: search,
-                            onChanged: (q) => c.query.value = q,
-                          ),
-                          const SizedBox(height: 12),
-                          KindFilter(
-                            value: c.kind.value,
-                            onChanged: (k) => c.kind.value = k,
-                          ),
-                          if (eligible.length > 1)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: StatementCheck(
-                                value: allChosen,
-                                onChanged: (_) => allChosen
-                                    ? c.selected.clear()
-                                    : c.selected.addAll(
-                                        eligible.map((v) => v.id),
-                                      ),
-                                text: dt('selectAllForApproval'),
-                              ),
-                            ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${dt('showing')} ${shown.length} ${dt('of')} ${queue.length}',
-                            style: VfType.small.copyWith(color: t.muted),
-                          ),
-                        ],
+                  Expanded(
+                    child: KindFilter(
+                      value: c.kind.value,
+                      onChanged: (k) => c.kind.value = k,
+                    ),
+                  ),
+                  if (inSelection && eligible.length > 1)
+                    TextButton(
+                      onPressed: () => allChosen
+                          ? c.selected.clear()
+                          : c.selected.addAll(eligible.map((v) => v.id)),
+                      child: Text(
+                        allChosen
+                            ? dt('clearSelection')
+                            : 'payments.selectAll'.tr,
+                        style: VfType.label.copyWith(
+                          color: t.primaryText,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  if (queue.isEmpty)
-                    VouchFlowEmptyState(
-                      icon: PhosphorIconsRegular.checkCircle,
-                      title: dt('nothingAwaiting'),
-                      body: dt('nothingAwaitingBody'),
-                      actionLabel: Get.isRegistered<ShellController>()
-                          ? dt('register')
-                          : null,
-                      onAction: _toRegister,
-                    )
-                  else if (shown.isEmpty)
-                    VouchFlowEmptyState(
-                      icon: PhosphorIconsRegular.magnifyingGlass,
-                      title: dt('noResults'),
-                    )
-                  else ...[
-                    for (var i = 0; i < shown.length; i++) ...[
-                      if (i > 0) Divider(height: 1, color: t.border),
-                      _row(context, shown[i], eligible.isNotEmpty, workflows),
-                    ],
-                    PanelFoot(
-                      text: dt('clearedNote'),
-                      icon: PhosphorIconsRegular.shieldCheck,
-                    ),
-                  ],
                 ],
               ),
-            ),
+              const SizedBox(height: 14),
+            ],
+            if (queue.isEmpty)
+              VouchFlowCard(
+                radius: VfSize.radiusXl,
+                padding: EdgeInsets.zero,
+                child: VouchFlowEmptyState(
+                  icon: PhosphorIconsRegular.checkCircle,
+                  title: dt('nothingAwaiting'),
+                  actionLabel: hasShell ? dt('register') : null,
+                  onAction: _toRegister,
+                ),
+              )
+            else if (shown.isEmpty)
+              VouchFlowCard(
+                radius: VfSize.radiusXl,
+                padding: EdgeInsets.zero,
+                child: VouchFlowEmptyState(
+                  icon: PhosphorIconsRegular.magnifyingGlass,
+                  title: dt('noResults'),
+                ),
+              )
+            else
+              AppListGroup(
+                children: [
+                  for (final v in shown)
+                    QueueRow(
+                      voucher: v,
+                      progress: deriveProgress(v, workflows),
+                      onOpen: () => openVoucher(v.id, then: c.load),
+                      selecting: inSelection,
+                      selectable: bulkEligible(v),
+                      selected: c.selected.contains(v.id),
+                      onToggle: () => c.toggle(v.id),
+                      onLongPress: bulkEligible(v)
+                          ? () {
+                              setState(() => selecting = true);
+                              c.toggle(v.id);
+                            }
+                          : null,
+                    ),
+                ],
+              ),
           ],
         ),
         if (chosen.isNotEmpty)
           Positioned(
-            left: VfSize.pagePad,
-            right: VfSize.pagePad,
-            bottom: 12,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: _bulkBar(context, chosen, currency),
           ),
       ],
-    );
-    return list;
-  }
-
-  Widget _row(
-    BuildContext context,
-    Voucher v,
-    bool withChecks,
-    List<WorkflowInfo>? workflows,
-  ) {
-    final t = context.vf;
-    final row = QueueRow(
-      voucher: v,
-      progress: deriveProgress(v, workflows),
-      onOpen: () => openVoucher(v.id, then: c.load),
-    );
-    if (!withChecks) return row;
-    final eligible = bulkEligible(v);
-    final selected = c.selected.contains(v.id);
-    return Container(
-      color: selected ? t.primarySoft : null,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, top: 4),
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: eligible
-                  ? Checkbox(
-                      value: selected,
-                      onChanged: (_) => c.toggle(v.id),
-                      activeColor: t.primary,
-                      side: BorderSide(color: t.borderStrong, width: 1.5),
-                      semanticLabel: '${dt('select')} ${v.number}',
-                    )
-                  : null,
-            ),
-          ),
-          Expanded(child: row),
-        ],
-      ),
     );
   }
 
   Widget _bulkBar(BuildContext context, List<Voucher> chosen, String currency) {
     final t = context.vf;
-    return Material(
-      color: t.surface,
-      elevation: 8,
-      shadowColor: Colors.black45,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        side: BorderSide(color: t.borderStrong),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        VfSize.pagePad,
+        12,
+        VfSize.pagePad,
+        12,
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '${chosen.length}',
-                    style: TextStyle(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(VfSize.radiusXl),
+        ),
+        border: Border(top: BorderSide(color: t.border)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: t.isDark ? .45 : .10),
+            blurRadius: 24,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${chosen.length} ${dt('selected')}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: VfType.meta.copyWith(color: t.muted),
+                ),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    Fmt.money(c.chosenTotal, currency),
+                    style: VfType.bodyStrong.copyWith(
                       color: t.text,
                       fontWeight: FontWeight.w700,
+                      fontSize: 16.5,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
-                  ),
-                  TextSpan(text: ' ${dt('selected')} · '),
-                  TextSpan(
-                    text: Fmt.money(c.chosenTotal, currency),
-                    style: TextStyle(
-                      color: t.text,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              style: VfType.body.copyWith(color: t.text2),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: VouchFlowButton(
-                    label: dt('clearSelection'),
-                    variant: VfButtonVariant.ghost,
-                    compact: true,
-                    expand: true,
-                    onPressed: c.selected.clear,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
-                  child: VouchFlowButton(
-                    label: '${dt('approveSelected')} (${chosen.length})',
-                    icon: PhosphorIconsRegular.sealCheck,
-                    compact: true,
-                    expand: true,
-                    onPressed: () => _confirm(context),
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 6),
+          VouchFlowIconButton(
+            icon: PhosphorIconsRegular.x,
+            tooltip: dt('clearSelection'),
+            onPressed: () => _setSelecting(false),
+          ),
+          const SizedBox(width: 6),
+          VouchFlowButton(
+            label: '${'payments.approve'.tr} (${chosen.length})',
+            icon: PhosphorIconsRegular.sealCheck,
+            onPressed: () => _confirm(context),
+          ),
+        ],
       ),
     );
   }
@@ -454,6 +430,38 @@ class _BulkApprovePageState extends State<BulkApprovePage> {
     useSafeArea: true,
     builder: (_) => _BulkConfirm(controller: c),
   );
+}
+
+/// A one-line tinted note (shown only when it changes what the reader does).
+class _Note extends StatelessWidget {
+  const _Note({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+      decoration: BoxDecoration(
+        color: t.infoSoft,
+        borderRadius: BorderRadius.circular(VfSize.radiusL),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(PhosphorIconsFill.info, size: 17, color: t.infoStrong),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: VfType.small.copyWith(color: t.infoStrong),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 DateTime _since(Voucher v) => v.submittedAt ?? v.voucherDate ?? DateTime(2100);
