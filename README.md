@@ -65,23 +65,6 @@ flutter run --dart-define=API_URL=https://api.example.com/api
 flutter run --dart-define=API_MODE=mock     # offline, no backend
 ```
 
-### Demo accounts
-
-Password for every one of them: `Password123!`
-
-| Role | Email | What they see |
-| --- | --- | --- |
-| Employee | `frank@watercom.test` | their own vouchers, nothing else |
-| HOD | `joseph@watercom.test` | Procurement & Production — reviews and **signs**, never approves |
-| HOD | `salum@watercom.test` | Transport & Logistics, Sales |
-| Managing Director | `emmanuel@watercom.test` | company-wide; approves or rejects |
-| Cashier | `mwajuma@watercom.test` | approved and unpaid; releases the money |
-| Company Admin | `admin@watercom.test` | all of Watercom |
-| Super Admin | `super@vouchflow.test` | all companies |
-
-Two further tenants exist — **Zamani Logistics** (a five-step route with Finance
-in the middle) and **Baobab Business Solutions** (on trial) — so tenant isolation
-and configurable workflows are exercised against real variety rather than claimed.
 
 ---
 
