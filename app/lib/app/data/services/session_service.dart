@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../core/dev_hooks.dart';
 
 import '../../core/theme.dart';
+import '../../routes/routes.dart';
 import '../models/models.dart';
 import 'api_service.dart';
 
@@ -46,7 +47,14 @@ class SessionService extends GetxService {
     themeMode.value = _modeFrom(_api.theme);
     Get.changeThemeMode(themeMode.value);
     applyAccent(_api.accent, persist: false);
-    _api.onUnauthorised.add(() => _clear());
+    // A session the server ended mid-use (expired token, company deleted):
+    // leave the app for the sign-in screen rather than sit on failing pages.
+    // While booting, the splash screen decides where to go itself.
+    _api.onUnauthorised.add(() {
+      final wasSignedIn = isSignedIn;
+      unawaited(_clear());
+      if (wasSignedIn && !booting.value) Get.offAllNamed(Routes.login);
+    });
     // A refusal because the company awaits approval: re-read the account so
     // the shell swaps to the waiting screen.
     _api.onCompanyPending.add(() {

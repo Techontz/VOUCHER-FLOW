@@ -46,9 +46,16 @@ class ResolveTenant
         $company = $user->company;
 
         if (! $company) {
+            // The company was deleted (or never existed). This session can do
+            // nothing, so end it: a 401 sends the web and the app back to the
+            // sign-in screen, where the account is then refused with a reason.
             $this->tenant->clear();
+            $user->currentAccessToken()?->delete();
 
-            return response()->json(['message' => 'This account is not attached to a company.'], 403);
+            return response()->json([
+                'message' => 'This company account is no longer available. Contact support@vouchflow.co.tz.',
+                'code' => 'company_unavailable',
+            ], 401);
         }
 
         $this->tenant->set($company);

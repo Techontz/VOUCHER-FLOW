@@ -240,6 +240,12 @@ class AuthController extends Controller
             return 'This account has been suspended.';
         }
 
+        // A deleted company is soft-deleted, so `company` comes back empty: its
+        // people must not get in to a workspace that no longer exists.
+        if (! $user->isSuperAdmin() && ! $user->company) {
+            return 'This company account is no longer available. Contact support@vouchflow.co.tz.';
+        }
+
         if ($user->company && ! $user->isSuperAdmin() && in_array($user->company->status, ['suspended', 'cancelled'], true)) {
             return 'This company account is not active. Contact your administrator.';
         }
