@@ -7,6 +7,7 @@ import { money } from "@/lib/format";
 import { AuthFrame } from "@/components/auth-frame";
 import { PayDialog, PlanDialog } from "@/components/billing-dialogs";
 import { Icon, Spinner } from "@/components/ui";
+import { CONTACT, mailto } from "@/lib/contact";
 import type { Company, Invoice, Paginated, Plan, User } from "@/lib/types";
 
 /**
@@ -121,6 +122,9 @@ export function PendingGate() {
             {checking ? <Spinner /> : <><Icon name="ph-arrows-clockwise" size={18} /> {t("pendingCheckStatus")}</>}
           </button>
         </div>
+        <p className="vf-pending-help">
+          {t("pendingHelp")} <a href={mailto(CONTACT.support, company?.name)}>{CONTACT.support}</a>
+        </p>
       </div>
 
       <PlanDialog open={planDialog} plans={billing?.available_plans ?? []} initialPlanId={plan?.id ?? null}

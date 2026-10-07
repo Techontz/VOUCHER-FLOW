@@ -928,6 +928,7 @@ const D = {
   pendingNoPlan: ["No plan chosen yet", "Bado hujachagua mpango"],
   pendingChoosePlan: ["Choose plan", "Chagua mpango"],
   pendingCheckStatus: ["Check status", "Angalia hali"],
+  pendingHelp: ["Need help? Email", "Unahitaji msaada? Tuandikie"],
   pendingStill: ["Still under review", "Bado inakaguliwa"],
   pendingStillSub: ["We'll let you know as soon as it's approved.", "Tutakujulisha mara itakapoidhinishwa."],
   pendingApprovedToast: ["Your company is approved", "Kampuni yako imeidhinishwa"],

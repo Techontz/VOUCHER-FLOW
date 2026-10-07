@@ -19,6 +19,7 @@ class ProfileSettingsRow extends StatelessWidget {
     required this.label,
     required this.tint,
     this.value,
+    this.subtitle,
     this.trailing,
     this.onTap,
     this.danger = false,
@@ -31,6 +32,9 @@ class ProfileSettingsRow extends StatelessWidget {
   /// (foreground, background) of the icon tile.
   final (Color, Color) tint;
   final String? value;
+
+  /// A second line under the label, shown in full (an email address).
+  final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool danger;
@@ -50,14 +54,22 @@ class ProfileSettingsRow extends StatelessWidget {
             AppIconTile(icon: icon, fg: fg, bg: bg, size: 36),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: VfType.body.copyWith(
-                  color: danger ? t.dangerStrong : t.text,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.body.copyWith(
+                      color: danger ? t.dangerStrong : t.text,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(subtitle!, style: VfType.small.copyWith(color: t.muted)),
+                ],
               ),
             ),
             if (value != null) ...[

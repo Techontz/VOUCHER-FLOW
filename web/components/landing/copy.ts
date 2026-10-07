@@ -199,5 +199,8 @@ export const FOOTER = {
   product: ["Product", "Bidhaa"] as L,
   account: ["Account", "Akaunti"] as L,
   register: ["Register your company", "Sajili kampuni yako"] as L,
+  contact: ["Contact", "Mawasiliano"] as L,
+  general: ["General enquiries", "Maswali ya jumla"] as L,
+  support: ["Customer support", "Huduma kwa wateja"] as L,
   rights: ["Vouchers, signatures and payments — on the record.", "Vocha, saini na malipo — kwenye kumbukumbu."] as L,
 };

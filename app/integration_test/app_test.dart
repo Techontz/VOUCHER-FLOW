@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:vouchflow/app/data/mock/mock_api.dart';
 import 'package:vouchflow/app/modules/auth/verify_login_page.dart';
+import 'package:vouchflow/app/modules/shell/shell_page.dart';
 import 'package:vouchflow/main.dart' as app;
 
 void main() {

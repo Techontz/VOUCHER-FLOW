@@ -58,7 +58,7 @@ class VoucherTemplateManager
             $locked = Company::whereKey($company->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->voucherTemplateChangesRemaining() <= 0) {
-                throw new HttpException(403, 'Your voucher template can no longer be changed from company settings. Contact VouchFlow support or your platform administrator if you need another change.');
+                throw new HttpException(403, 'Your voucher template can no longer be changed from company settings. Contact VouchFlow support (support@vouchflow.co.tz) or your platform administrator if you need another change.');
             }
 
             $this->assertDifferent($locked, $template);

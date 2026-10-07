@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../../core/contact.dart';
 import '../../core/theme.dart';
 import '../../data/models/profile_models.dart';
 import '../../data/services/api_service.dart';
@@ -594,6 +595,29 @@ class ProfileTab extends GetView<ProfileController> {
                           activeTrackColor: t.primary,
                           onChanged: (_) => s.toggleTheme(),
                         ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // — help: urgent help first, then general enquiries —
+                  AppListGroup(
+                    header: 'contact.help'.tr,
+                    indent: 64,
+                    children: [
+                      ProfileSettingsRow(
+                        icon: PhosphorIconsFill.lifebuoy,
+                        label: 'contact.support'.tr,
+                        tint: (t.successStrong, t.successSoft),
+                        subtitle: VfContact.support,
+                        onTap: () => VfContact.email(VfContact.support),
+                      ),
+                      ProfileSettingsRow(
+                        icon: PhosphorIconsFill.envelopeSimple,
+                        label: 'contact.general'.tr,
+                        tint: (t.primaryText, t.primarySoft),
+                        subtitle: VfContact.info,
+                        onTap: () => VfContact.email(VfContact.info),
                       ),
                     ],
                   ),

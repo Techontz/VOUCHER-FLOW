@@ -30,7 +30,7 @@ const COPY = {
   change: ["Change template", "Badilisha kiolezo"],
   view: ["View full size", "Tazama kwa ukubwa kamili"],
   lockedTitle: ["Template changes remaining: 0", "Mabadiliko ya kiolezo yaliyobaki: 0"],
-  locked: ["Your voucher template can no longer be changed from company settings. Contact VouchFlow support or your platform administrator if you need another change.", "Kiolezo cha vocha yenu hakiwezi tena kubadilishwa kupitia mipangilio ya kampuni. Wasiliana na msaada wa VouchFlow au msimamizi wa jukwaa kama mnahitaji badiliko jingine."],
+  locked: ["Your voucher template can no longer be changed from company settings. Contact VouchFlow support (support@vouchflow.co.tz) or your platform administrator if you need another change.", "Kiolezo cha vocha yenu hakiwezi tena kubadilishwa kupitia mipangilio ya kampuni. Wasiliana na msaada wa VouchFlow (support@vouchflow.co.tz) au msimamizi wa jukwaa kama mnahitaji badiliko jingine."],
   request: ["Request a change", "Omba badiliko"],
   requestTitle: ["Request a template change", "Omba kubadilisha kiolezo"],
   requestSub: ["The VouchFlow platform team is notified and can switch your design for you.", "Timu ya jukwaa la VouchFlow itaarifiwa na inaweza kubadilisha muundo wenu."],

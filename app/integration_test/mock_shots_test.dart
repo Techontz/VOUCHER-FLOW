@@ -108,11 +108,20 @@ void main() {
         if (!wanted(name)) continue;
         shell.go(item.href);
         await shot(tester, name);
+        if (item.href == '/profile') {
+          await tester.drag(find.byType(Scrollable).first, const Offset(0, -2000));
+          await shot(tester, '$who-profile-bottom-$mode');
+        }
       }
       for (final href in const ['/notifications', '/profile']) {
         if (!seen.add(href) || !wanted('$who-${href.substring(1)}')) continue;
         shell.go(href);
         await shot(tester, '$who-${href.substring(1)}-$mode');
+        if (href == '/profile') {
+          // The lower groups (preferences, help, sign out) sit below the fold.
+          await tester.drag(find.byType(Scrollable).first, const Offset(0, -2000));
+          await shot(tester, '$who-profile-bottom-$mode');
+        }
       }
       shell.go('/dashboard');
 

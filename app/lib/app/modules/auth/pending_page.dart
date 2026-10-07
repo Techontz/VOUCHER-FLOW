@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../../core/contact.dart';
 import '../../core/theme.dart';
 import '../../data/models/models.dart';
 import '../../data/services/session_service.dart';
@@ -42,12 +43,7 @@ class _PendingApprovalPageState extends State<PendingApprovalPage> {
   }
 
   Future<void> _openBilling() async {
-    await Get.to(
-      () => VouchFlowPushedScaffold(
-        title: 'pending.plan'.tr,
-        body: const SubscriptionPage(),
-      ),
-    );
+    await Get.to(() => VouchFlowPushedScaffold(title: 'pending.plan'.tr, body: const SubscriptionPage()));
   }
 
   Future<void> _signOut() async {
@@ -69,21 +65,12 @@ class _PendingApprovalPageState extends State<PendingApprovalPage> {
             final company = _session.company.value;
             final plan = company?.plan;
             return ListView(
-              padding: EdgeInsets.fromLTRB(
-                VfSize.pagePad,
-                12,
-                VfSize.pagePad,
-                24 + bottom,
-              ),
+              padding: EdgeInsets.fromLTRB(VfSize.pagePad, 12, VfSize.pagePad, 24 + bottom),
               children: [
                 Row(
                   children: [
                     const Spacer(),
-                    VfBarButton(
-                      icon: PhosphorIconsRegular.signOut,
-                      tooltip: 'nav.signOut'.tr,
-                      onPressed: _signOut,
-                    ),
+                    VfBarButton(icon: PhosphorIconsRegular.signOut, tooltip: 'nav.signOut'.tr, onPressed: _signOut),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -92,11 +79,7 @@ class _PendingApprovalPageState extends State<PendingApprovalPage> {
                 Text(
                   'pending.title'.tr,
                   textAlign: TextAlign.center,
-                  style: VfType.pageTitle.copyWith(
-                    fontSize: 28,
-                    letterSpacing: -.7,
-                    color: t.text,
-                  ),
+                  style: VfType.pageTitle.copyWith(fontSize: 28, letterSpacing: -.7, color: t.text),
                 ),
                 const SizedBox(height: 8),
                 if (company != null)
@@ -133,6 +116,15 @@ class _PendingApprovalPageState extends State<PendingApprovalPage> {
                   loading: _checking,
                   onPressed: _check,
                 ),
+                const SizedBox(height: 18),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () =>
+                        VfContact.email(VfContact.support, subject: Get.find<SessionService>().company.value?.name),
+                    icon: const Icon(PhosphorIconsRegular.lifebuoy, size: 18),
+                    label: Text('${'contact.needHelp'.tr} ${VfContact.support}', textAlign: TextAlign.center),
+                  ),
+                ),
               ],
             );
           }),
@@ -150,10 +142,7 @@ class _Badge extends StatelessWidget {
     return Container(
       width: 112,
       height: 112,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: t.warningSoft,
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: t.warningSoft),
       alignment: Alignment.center,
       child: Container(
         width: 76,
@@ -173,11 +162,7 @@ class _Badge extends StatelessWidget {
             ),
           ],
         ),
-        child: const Icon(
-          PhosphorIconsFill.hourglassMedium,
-          color: Colors.white,
-          size: 34,
-        ),
+        child: const Icon(PhosphorIconsFill.hourglassMedium, color: Colors.white, size: 34),
       ),
     );
   }
@@ -200,36 +185,21 @@ class _PlanCard extends StatelessWidget {
           Container(
             width: 46,
             height: 46,
-            decoration: BoxDecoration(
-              color: t.primarySoftStrong,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              PhosphorIconsRegular.crownSimple,
-              color: t.primary,
-              size: 22,
-            ),
+            decoration: BoxDecoration(color: t.primarySoftStrong, borderRadius: BorderRadius.circular(14)),
+            child: Icon(PhosphorIconsRegular.crownSimple, color: t.primary, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'pending.plan'.tr,
-                  style: VfType.meta.copyWith(color: t.muted),
-                ),
-                Text(
-                  plan.label,
-                  style: VfType.bodyStrong.copyWith(color: t.text),
-                ),
+                Text('pending.plan'.tr, style: VfType.meta.copyWith(color: t.muted)),
+                Text(plan.label, style: VfType.bodyStrong.copyWith(color: t.text)),
               ],
             ),
           ),
           Text(
-            plan.price <= 0
-                ? 'pending.free'.tr
-                : '${plan.currency} ${_money(plan.price)}',
+            plan.price <= 0 ? 'pending.free'.tr : '${plan.currency} ${_money(plan.price)}',
             style: VfType.bodyStrong.copyWith(color: t.text),
           ),
           const SizedBox(width: 6),
@@ -241,10 +211,7 @@ class _PlanCard extends StatelessWidget {
 
   static String _money(double v) {
     final whole = v.round().toString();
-    return whole.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (_) => ',',
-    );
+    return whole.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
   }
 }
 
@@ -272,13 +239,7 @@ class _Steps extends StatelessWidget {
               color: done ? t.successStrong : Colors.transparent,
               border: Border.all(color: colour, width: 2),
             ),
-            child: done
-                ? const Icon(
-                    PhosphorIconsBold.check,
-                    size: 14,
-                    color: Colors.white,
-                  )
-                : null,
+            child: done ? const Icon(PhosphorIconsBold.check, size: 14, color: Colors.white) : null,
           ),
           const SizedBox(width: 12),
           Text(

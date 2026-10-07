@@ -111,8 +111,15 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
+        'address' => env('MAIL_FROM_ADDRESS', 'info@vouchflow.co.tz'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
+    ],
+
+    // Replies to any system email (sign-in codes, invitations, approvals)
+    // reach customer care rather than the general inbox.
+    'reply_to' => [
+        'address' => env('MAIL_REPLY_TO_ADDRESS', 'support@vouchflow.co.tz'),
+        'name' => env('MAIL_REPLY_TO_NAME', 'VouchFlow Support'),
     ],
 
 ];

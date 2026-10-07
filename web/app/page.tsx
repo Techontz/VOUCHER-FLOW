@@ -8,6 +8,7 @@ import { CONTENT, translate, type MessageKey } from "@/lib/i18n";
 import { money } from "@/lib/format";
 import { Icon, LanguageToggle, ThemeToggle } from "@/components/ui";
 import { VouchFlowMark } from "@/components/login-brand";
+import { CONTACT, mailto } from "@/lib/contact";
 import {
   AUDIT, COMPANIES, CONTROLS, FINAL, FOOTER, HERO, NAV, REPORTS, STATEMENT, VOUCHERS, WORKFLOW, pick,
   type L, type VoucherTab,
@@ -217,9 +218,16 @@ export default function LandingPage() {
                     {live && live.price > 0 && <span>{pickT(locale, "perMonthShort")}</span>}
                   </div>
                   <p>{plan.blurb[i] ?? plan.blurb[0]}</p>
-                  <Link className={`lp-cta ${featured ? "lp-cta-primary" : "lp-cta-outline"}`} href="/register">
-                    {pickT(locale, plan.cta)}
-                  </Link>
+                  {plan.name === "Enterprise" ? (
+                    // A quoted plan: the conversation starts with an email, not a sign-up.
+                    <a className="lp-cta lp-cta-outline" href={mailto(CONTACT.info, "VouchFlow Enterprise")}>
+                      {plan.price[i] ?? plan.price[0]}
+                    </a>
+                  ) : (
+                    <Link className={`lp-cta ${featured ? "lp-cta-primary" : "lp-cta-outline"}`} href="/register">
+                      {pickT(locale, plan.cta)}
+                    </Link>
+                  )}
                   <ul>
                     {plan.items.map((item) => (
                       <li key={item[0]}><Icon name="ph-check" size={15} /> {item[i] ?? item[0]}</li>
@@ -338,6 +346,11 @@ function SiteFooter() {
           <h3>{l(FOOTER.account)}</h3>
           <Link href="/login">{l(HERO.signIn)}</Link>
           <Link href="/register">{l(FOOTER.register)}</Link>
+        </div>
+        <div>
+          <h3>{l(FOOTER.contact)}</h3>
+          <a href={mailto(CONTACT.info)}><span className="lp-footer-note">{l(FOOTER.general)}</span>{CONTACT.info}</a>
+          <a href={mailto(CONTACT.support)}><span className="lp-footer-note">{l(FOOTER.support)}</span>{CONTACT.support}</a>
         </div>
       </div>
       <div className="lp-wrap lp-footer-base">
