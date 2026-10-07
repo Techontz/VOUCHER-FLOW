@@ -313,8 +313,11 @@ class ApiService extends GetxService {
 
       throw ApiException(
         response.statusCode,
-        (map['message'] as String?) ??
-            'Request failed (${response.statusCode})',
+        // An empty message (a bare `abort(404)`) still says what happened.
+        switch (map['message']) {
+          final String m when m.trim().isNotEmpty => m,
+          _ => 'Request failed (${response.statusCode})',
+        },
         errors,
         map['code'] as String?,
         map,

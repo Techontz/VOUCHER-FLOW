@@ -131,7 +131,10 @@ Route::middleware(['auth:sanctum', 'tenant', 'approved', SubstituteBindings::cla
     Route::post('company/voucher-template/request', [VoucherTemplateController::class, 'requestChange'])->middleware('throttle:5,10');
 
     Route::get('directory', [EmployeeController::class, 'directory']);
-    Route::apiResource('employees', EmployeeController::class);
+    // The controller binds `User $user`; without this the route would name the
+    // parameter {employee}, no model would be bound, and every show, update
+    // and delete would 404.
+    Route::apiResource('employees', EmployeeController::class)->parameters(['employees' => 'user']);
     Route::post('employees/{user}/resend-invitation', [EmployeeController::class, 'resendInvitation']);
 
     Route::apiResource('departments', DepartmentController::class);
