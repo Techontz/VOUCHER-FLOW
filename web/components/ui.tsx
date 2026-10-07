@@ -292,10 +292,17 @@ export function Dialog({
   const titleId = useId();
   const safeClose = busy ? () => undefined : onClose;
 
+  // Callers often pass a fresh `onClose` on every render (`() => setDialog(null)`).
+  // Read it and `busy` through a ref so the effect below runs only when the
+  // dialog opens — otherwise each keystroke re-ran it and sent focus back to
+  // the first field.
+  const latest = useRef({ onClose, busy });
+  useEffect(() => { latest.current = { onClose, busy }; });
+
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) onClose();
+      if (event.key === "Escape" && !latest.current.busy) latest.current.onClose();
     };
     document.addEventListener("keydown", onKey);
     // Focus the first real control, not the close button — keyboard users land
@@ -313,7 +320,7 @@ export function Dialog({
       window.clearTimeout(timer);
       document.body.style.overflow = overflow;
     };
-  }, [open, onClose, busy]);
+  }, [open]);
 
   if (!open) return null;
 
