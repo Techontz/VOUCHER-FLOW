@@ -5,6 +5,7 @@ namespace App\Notifications;
 use App\Notifications\Channels\SmsChannel;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\HtmlString;
 
 /**
  * A one-time code for signing in, confirming a new account or resetting a
@@ -41,6 +42,9 @@ class OneTimeCodeNotification extends Notification
             ->subject($this->subject($swahili))
             ->greeting($swahili ? 'Habari,' : 'Hello,')
             ->line($this->sentence($swahili))
+            // The code on its own line, large and spaced, so it reads at a glance
+            // and copies cleanly on a phone.
+            ->line(new HtmlString('<p style="margin:18px 0;text-align:center;font-size:30px;font-weight:700;letter-spacing:8px;font-family:Menlo,Consolas,monospace;color:#111827">'.e($this->code).'</p>'))
             ->line($this->warning($swahili))
             ->salutation($swahili ? 'Timu ya VouchFlow' : 'The VouchFlow team');
     }

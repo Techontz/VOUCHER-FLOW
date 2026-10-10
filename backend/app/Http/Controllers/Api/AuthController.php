@@ -396,6 +396,7 @@ class AuthController extends Controller
     public function forgotPassword(Request $request)
     {
         $data = $request->validate(['email' => ['required', 'email']]);
+        $data['email'] = mb_strtolower(trim($data['email']));
 
         $user = User::where('email', $data['email'])->first();
 
@@ -417,6 +418,8 @@ class AuthController extends Controller
             'code' => ['required', 'string', 'max:10'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
+        $data['email'] = mb_strtolower(trim($data['email']));
+        $data['code'] = preg_replace('/\D/', '', $data['code']);
 
         $otp = OtpCode::where('identifier', $data['email'])
             ->where('purpose', 'password_reset')
@@ -496,8 +499,17 @@ class AuthController extends Controller
         try {
             $user->notify(new OneTimeCodeNotification($code, $purpose, $channel, 10));
         } catch (\Throwable $e) {
-            // The account exists either way; the person can ask for a new code.
+            // Say so rather than claim a code is on its way: the person would
+            // wait for an email that never comes. The details go to the log
+            // (and `php artisan vouchflow:mail-test` reproduces them).
             report($e);
+            OtpCode::where('user_id', $user->id)->where('purpose', $purpose)->whereNull('consumed_at')
+                ->update(['consumed_at' => now()]);
+
+            abort(response()->json([
+                'message' => 'We could not send your code right now. Please try again shortly, or contact support@vouchflow.co.tz.',
+                'code' => 'delivery_failed',
+            ], 503));
         }
 
         return [
