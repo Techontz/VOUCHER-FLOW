@@ -19,6 +19,8 @@ const ROLES = [
   { value: "company_admin", label: "Administrator" },
 ];
 
+type InvitationResult = { invitation_url?: string; invitation_sent?: boolean };
+
 const blank = { name: "", email: "", phone: "", employee_code: "", job_title: "", role: "employee", department_id: "" };
 
 export default function EmployeesPage() {
@@ -35,6 +37,8 @@ export default function EmployeesPage() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<ApiError | null>(null);
   const [removing, setRemoving] = useState<User | null>(null);
+  // The set-password link just issued, shown so it can be passed on by hand.
+  const [invitation, setInvitation] = useState<{ name: string; email: string; url: string; sent: boolean } | null>(null);
 
   useEffect(() => {
     api.get<{ data: Department[] }>("/departments").then((r) => setDepartments(r.data)).catch(() => undefined);
@@ -71,10 +75,8 @@ export default function EmployeesPage() {
     try {
       const payload = { ...form, department_id: form.department_id ? Number(form.department_id) : null };
       if (dialog === "create") {
-        const res = await api.post<{ data: User; temporary_password?: string }>("/employees", { ...payload, send_invitation: true });
-        toast("Invitation created", res.temporary_password
-          ? `Temporary password for ${res.data.name}: ${res.temporary_password}`
-          : `${res.data.name} has been invited.`, "ok");
+        const res = await api.post<{ data: User } & InvitationResult>("/employees", { ...payload, send_invitation: true });
+        showInvitation(res.data, res);
       } else if (editing) {
         await api.put(`/employees/${editing.id}`, payload);
         toast("Updated", `${form.name} saved.`, "ok");
@@ -86,6 +88,31 @@ export default function EmployeesPage() {
       reportError(err, "Could not save the user");
     } finally {
       setBusy(false);
+    }
+  }
+
+  function showInvitation(user: User, res: InvitationResult) {
+    if (res.invitation_url) {
+      setInvitation({ name: user.name, email: user.email, url: res.invitation_url, sent: !!res.invitation_sent });
+    } else {
+      toast("Invitation created", `${user.name} has been invited.`, "ok");
+    }
+  }
+
+  async function resend(user: User) {
+    try {
+      const res = await api.post<InvitationResult>(`/employees/${user.id}/resend-invitation`);
+      showInvitation(user, res);
+      load();
+    } catch (err) { reportError(err, "Could not send the invitation"); }
+  }
+
+  async function copyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("Link copied", "Paste it in a message to the person.", "ok");
+    } catch {
+      toast("Copy the link", "Select the link and copy it by hand.", "warn");
     }
   }
 
@@ -180,7 +207,7 @@ export default function EmployeesPage() {
                       <td className="num">{user.voucher_count ?? 0}</td>
                       <td className="text-muted" style={{ whiteSpace: "nowrap" }}>{formatDate(user.joined_at, locale)}</td>
                       <td className="app-row-actions">
-                        <Dropdown label={user.name}
+                        <Dropdown floating label={user.name}
                           trigger={({ open, toggle, id }) => (
                             <button type="button" className="btn btn-icon btn-sm" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu" aria-label={`${t("actions")}: ${user.name}`}>
                               <Icon name="ph-dots-three" size={16} />
@@ -189,6 +216,9 @@ export default function EmployeesPage() {
                           {(close) => (
                             <>
                               <MenuItem icon="ph-pencil-simple" onSelect={() => { close(); openEdit(user); }}>{t("edit")}</MenuItem>
+                              {user.status !== "suspended" && !user.last_login_at && (
+                                <MenuItem icon="ph-envelope-simple" onSelect={() => { close(); void resend(user); }}>{t("resendInvite")}</MenuItem>
+                              )}
                               {user.status !== "suspended"
                                 ? <MenuItem icon="ph-prohibit" onSelect={() => { close(); void setStatus(user, "suspended"); }}>{t("suspend")}</MenuItem>
                                 : <MenuItem icon="ph-check-circle" onSelect={() => { close(); void setStatus(user, "active"); }}>{t("activate")}</MenuItem>}
@@ -225,6 +255,36 @@ export default function EmployeesPage() {
           </>
         }
       />
+
+      <Dialog
+        open={!!invitation}
+        icon={invitation?.sent ? "ph-envelope-simple" : "ph-link"} tone={invitation?.sent ? "ok" : "warn"}
+        title={invitation?.sent ? "Invitation sent" : "The email could not be sent"}
+        sub={invitation?.sent
+          ? `We emailed ${invitation.email} a link to set their password. You can also send them the link below.`
+          : `Send ${invitation?.name ?? "them"} this link, for example on WhatsApp. It lets them set their password and sign in.`}
+        onClose={() => setInvitation(null)}
+        actions={invitation && (
+          <>
+            <a className="btn btn-secondary" target="_blank" rel="noreferrer"
+              href={`https://wa.me/?text=${encodeURIComponent(`Hello ${invitation.name}, set your VouchFlow password here: ${invitation.url}`)}`}>
+              <Icon name="ph-whatsapp-logo" size={15} /> WhatsApp
+            </a>
+            <button className="btn btn-primary" onClick={() => void copyLink(invitation.url)}>
+              <Icon name="ph-copy" size={15} /> Copy link
+            </button>
+          </>
+        )}
+      >
+        {invitation && (
+          <div style={{ display: "grid", gap: "var(--space-3)" }}>
+            <Field label="Set-password link" htmlFor="invite-link">
+              <input id="invite-link" className="input" readOnly value={invitation.url} onFocus={(e) => e.currentTarget.select()} />
+            </Field>
+            <Note>The link works once and expires in 7 days. They sign in with {invitation.email}.</Note>
+          </div>
+        )}
+      </Dialog>
 
       <Dialog
         open={dialog !== null}
@@ -266,7 +326,7 @@ export default function EmployeesPage() {
           </div>
           <Field label={t("jobTitle")} htmlFor="e-title"><input id="e-title" className="input" value={form.job_title} onChange={setField("job_title")} /></Field>
           {dialog === "create" && (
-            <Note>A temporary password is generated and shown once. The user is asked to sign in with it.</Note>
+            <Note>They are emailed a link to set their own password. You also get the link, to share another way if the email does not arrive.</Note>
           )}
         </div>
       </Dialog>

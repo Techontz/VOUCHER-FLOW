@@ -174,7 +174,7 @@ export default function PlatformCompaniesPage() {
                           <Icon name="ph-check-circle" size={15} /> {t("approve")}
                         </button>
                       )}
-                      <Dropdown label={`Actions for ${company.name}`}
+                      <Dropdown floating label={`Actions for ${company.name}`}
                         trigger={({ open, toggle, id }) => (
                           <button type="button" className="btn btn-icon btn-sm" onClick={toggle} aria-expanded={open} aria-controls={id}
                             aria-haspopup="menu" aria-label={`Actions for ${company.name}`}>
@@ -263,7 +263,7 @@ export default function PlatformCompaniesPage() {
         title={pending?.kind === "approve" ? t("approveCompanyQ").replace("{name}", pending.company.name)
           : pending?.kind === "delete" ? "Delete this company?" : pending?.kind === "suspend" ? "Suspend this company?" : "Reactivate this company?"}
         sub={pending?.kind === "approve" ? t("approveCompanySub") : pending?.kind === "delete"
-          ? "The company disappears from the platform and every one of its people is signed out and can no longer sign in. Its records are kept in the database, not erased."
+          ? "The company disappears from the platform, and every one of its people is signed out and deleted. Its records are kept in the database, not erased."
           : pending?.kind === "suspend"
             ? "Everyone in the company is signed out immediately and cannot use VouchFlow until you reactivate it. Nothing is deleted."
             : "Its people can sign in again straight away."}

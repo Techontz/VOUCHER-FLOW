@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useApp } from "@/lib/app-context";
 import type { MessageKey } from "@/lib/i18n";
 import { Icon } from "@/components/ui";
@@ -42,40 +43,94 @@ export function ThemeSwitch({ compact }: { compact?: boolean }) {
 /* ─────────────────────────────────────────────────────────── menus ── */
 
 /** Closes on outside click and Escape, and returns focus to its trigger. */
-function useDismiss(open: boolean, close: () => void, root: React.RefObject<HTMLElement | null>) {
+function useDismiss(open: boolean, close: () => void, root: React.RefObject<HTMLElement | null>, extra?: React.RefObject<HTMLElement | null>) {
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => { if (root.current && !root.current.contains(e.target as Node)) close(); };
+    const inside = (node: Node) => !!root.current?.contains(node) || !!extra?.current?.contains(node);
+    const onDown = (e: MouseEvent) => { if (root.current && !inside(e.target as Node)) close(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, [open, close, root]);
+  }, [open, close, root, extra]);
 }
 
+/**
+ * Places a floating menu against its trigger in viewport coordinates: below
+ * when it fits, above when the trigger sits near the bottom of the screen,
+ * and never past either edge. It follows the trigger as anything scrolls.
+ */
+function useFloatingPlacement(active: boolean, anchor: React.RefObject<HTMLElement | null>, menu: React.RefObject<HTMLElement | null>, align: "start" | "end") {
+  const [place, setPlace] = useState<{ style: CSSProperties; placement: "below" | "above" } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!active) return;
+    const position = () => {
+      const trigger = (anchor.current?.firstElementChild ?? anchor.current) as HTMLElement | null;
+      const el = menu.current;
+      if (!trigger || !el) return;
+      const a = trigger.getBoundingClientRect();
+      const gap = 6, edge = 8;
+      const w = el.offsetWidth, h = el.offsetHeight;
+      const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+      const roomBelow = vh - a.bottom - gap - edge, roomAbove = a.top - gap - edge;
+      const placement = h <= roomBelow || roomBelow >= roomAbove ? "below" : "above";
+      const top = Math.max(edge, Math.min(placement === "below" ? a.bottom + gap : a.top - gap - h, vh - h - edge));
+      const left = Math.max(edge, Math.min(align === "end" ? a.right - w : a.left, vw - w - edge));
+      setPlace({ style: { top, left }, placement });
+    };
+    position();
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => { window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); };
+  }, [active, anchor, menu, align]);
+
+  return active ? place : null;
+}
+
+/**
+ * `floating` renders the menu at the top of the page instead of inside its
+ * parent, for menus in tables and other scrolling boxes, which would
+ * otherwise cut it off — the last rows' actions used to be unreachable.
+ */
 export function Dropdown({
-  trigger, children, align = "end", placement = "below", label,
+  trigger, children, align = "end", placement = "below", label, floating,
 }: {
   trigger: (props: { open: boolean; toggle: () => void; id: string }) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "start" | "end";
   placement?: "below" | "above";
   label?: string;
+  floating?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const id = useId();
+  // Where a floating menu is mounted, found when it is first opened.
+  const [host, setHost] = useState<Element | null>(null);
   const close = useCallback(() => setOpen(false), []);
-  useDismiss(open, close, ref);
+  const toggle = () => {
+    if (floating && !host) setHost(document.querySelector(".vf-shell") ?? document.body);
+    setOpen((v) => !v);
+  };
+  useDismiss(open, close, ref, menuRef);
+  const place = useFloatingPlacement(!!floating && open, ref, menuRef, align);
+
+  const menu = (
+    <div ref={menuRef} id={id} className="app-menu" role="menu" aria-label={label} data-align={align}
+      data-placement={floating ? place?.placement ?? "below" : placement}
+      data-floating={floating ? "" : undefined}
+      // Measured before it is shown, so it never flashes in the wrong place.
+      style={floating ? place?.style ?? { top: 0, left: 0, visibility: "hidden" } : undefined}>
+      {children(close)}
+    </div>
+  );
 
   return (
     <div className="app-dropdown" ref={ref}>
-      {trigger({ open, toggle: () => setOpen((v) => !v), id })}
-      {open && (
-        <div id={id} className="app-menu" role="menu" aria-label={label} data-align={align} data-placement={placement}>
-          {children(close)}
-        </div>
-      )}
+      {trigger({ open, toggle, id })}
+      {open && (floating ? host && createPortal(menu, host) : menu)}
     </div>
   );
 }

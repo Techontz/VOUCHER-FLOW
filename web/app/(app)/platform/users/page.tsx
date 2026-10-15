@@ -4,23 +4,30 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDateTime } from "@/lib/format";
-import { EmptyState, ErrorState, Icon, LoadingBlock, PageHeader, Pagination } from "@/components/ui";
+import { Dialog, EmptyState, ErrorState, Icon, LoadingBlock, PageHeader, Pagination } from "@/components/ui";
+import { Dropdown, MenuItem, MenuSeparator } from "@/components/app-ui";
 import type { Paginated, User } from "@/lib/types";
 
+type BulkResult = { deleted: number; skipped: { id: number; name: string; reason: string }[]; message: string };
+
 export default function PlatformUsersPage() {
-  const { t, locale, toast, reportError } = useApp();
+  const { t, locale, toast, reportError, user: me } = useApp();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ q: "", role: "", status: "" });
   const [result, setResult] = useState<Paginated<User> | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The user listing carries company_id only; name it from the companies list,
   // which the platform operator can already read, rather than showing "#1".
-  const [companyNames, setCompanyNames] = useState<Record<number, string>>({});
+  const [companyNames, setCompanyNames] = useState<Record<number, string> | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  // One account, or every selected one, waiting for the operator to confirm.
+  const [removing, setRemoving] = useState<User[] | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api.get<{ data: { id: number; name: string }[] }>("/platform/companies", { per_page: 500 })
       .then((r) => setCompanyNames(Object.fromEntries(r.data.map((c) => [c.id, c.name]))))
-      .catch(() => undefined);
+      .catch(() => setCompanyNames({}));
   }, []);
 
   const load = useCallback(() => {
@@ -42,7 +49,44 @@ export default function PlatformUsersPage() {
     } catch (err) { reportError(err); }
   }
 
+  async function confirmRemove() {
+    if (!removing) return;
+    setBusy(true);
+    try {
+      if (removing.length === 1) {
+        await api.delete(`/platform/users/${removing[0].id}`);
+        toast("User deleted", removing[0].name, "warn");
+      } else {
+        const res = await api.post<BulkResult>("/platform/users/bulk-delete", { ids: removing.map((u) => u.id) });
+        toast(res.message, res.skipped.length
+          ? `Kept ${res.skipped.length}: ${res.skipped.map((s) => `${s.name} — ${s.reason}`).join(" ")}`
+          : undefined, res.skipped.length ? "warn" : "ok");
+      }
+      setRemoving(null);
+      setSelected(new Set());
+      load();
+    } catch (err) {
+      reportError(err, "Could not delete");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const rows = result?.data ?? [];
+  const selectable = rows.filter((u) => u.id !== me?.id);
+  const allChosen = selectable.length > 0 && selectable.every((u) => selected.has(u.id));
+  const chosen = rows.filter((u) => selected.has(u.id));
+  const toggle = (id: number) => setSelected((s) => {
+    const next = new Set(s);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const companyCell = (user: User) => {
+    if (!user.company_id) return <span className="badge tone-info">Platform</span>;
+    if (!companyNames) return "—";
+    return companyNames[user.company_id] ?? <span className="badge tag-outline" title="This company was deleted">Deleted company</span>;
+  };
 
   return (
     <div className="app-page">
@@ -75,17 +119,30 @@ export default function PlatformUsersPage() {
           <div className="table-wrap">
             <table className="table">
               <thead>
-                <tr><th>{t("fullName")}</th><th>{t("companyName")}</th><th>{t("role")}</th>
-                  <th>{t("status")}</th><th>Last seen</th><th /></tr>
+                <tr>
+                  <th style={{ width: 36 }}>
+                    <input type="checkbox" aria-label="Select every user on this page" checked={allChosen}
+                      onChange={() => setSelected(allChosen ? new Set() : new Set(selectable.map((u) => u.id)))}
+                      style={{ accentColor: "var(--primary)" }} />
+                  </th>
+                  <th>{t("fullName")}</th><th>{t("companyName")}</th><th>{t("role")}</th>
+                  <th>{t("status")}</th><th>Last seen</th><th><span className="sr-only">{t("actions")}</span></th>
+                </tr>
               </thead>
               <tbody>
                 {rows.map((user) => (
-                  <tr key={user.id}>
+                  <tr key={user.id} style={selected.has(user.id) ? { background: "var(--primary-soft)" } : undefined}>
+                    <td>
+                      {user.id !== me?.id && (
+                        <input type="checkbox" aria-label={`Select ${user.name}`} checked={selected.has(user.id)}
+                          onChange={() => toggle(user.id)} style={{ accentColor: "var(--primary)" }} />
+                      )}
+                    </td>
                     <td>
                       <span style={{ fontWeight: 500 }}>{user.name}</span>
                       <span style={{ display: "block", fontSize: 12.5, color: "var(--color-neutral-600)" }}>{user.email}</span>
                     </td>
-                    <td>{user.company_id ? companyNames[user.company_id] ?? "—" : <span className="badge tone-info">Platform</span>}</td>
+                    <td>{companyCell(user)}</td>
                     <td>{user.role_label}</td>
                     <td>
                       <span className={`badge ${user.status === "active" ? "tag-accent" : user.status === "invited" ? "tag-outline" : "tag-accent-2"}`}>
@@ -93,15 +150,25 @@ export default function PlatformUsersPage() {
                       </span>
                     </td>
                     <td style={{ whiteSpace: "nowrap", color: "var(--color-neutral-700)" }}>{formatDateTime(user.last_login_at, locale)}</td>
-                    <td style={{ textAlign: "right" }}>
-                      {user.status !== "suspended" ? (
-                        <button className="btn btn-ghost btn-sm" onClick={() => setStatus(user, "suspended")} title={t("suspend")} style={{ color: "var(--color-accent-2-700)" }}>
-                          <Icon name="ph-prohibit" size={14} />
-                        </button>
-                      ) : (
-                        <button className="btn btn-ghost btn-sm" onClick={() => setStatus(user, "active")} title={t("activate")}>
-                          <Icon name="ph-check-circle" size={14} />
-                        </button>
+                    <td className="app-row-actions">
+                      {user.id !== me?.id && (
+                        <Dropdown floating label={user.name}
+                          trigger={({ open, toggle: toggleMenu, id }) => (
+                            <button type="button" className="btn btn-icon btn-sm" onClick={toggleMenu} aria-expanded={open} aria-controls={id}
+                              aria-haspopup="menu" aria-label={`${t("actions")}: ${user.name}`}>
+                              <Icon name="ph-dots-three" size={16} />
+                            </button>
+                          )}>
+                          {(close) => (
+                            <>
+                              {user.status !== "suspended"
+                                ? <MenuItem icon="ph-prohibit" onSelect={() => { close(); void setStatus(user, "suspended"); }}>{t("suspend")}</MenuItem>
+                                : <MenuItem icon="ph-check-circle" onSelect={() => { close(); void setStatus(user, "active"); }}>{t("activate")}</MenuItem>}
+                              <MenuSeparator />
+                              <MenuItem icon="ph-trash" tone="danger" onSelect={() => { close(); setRemoving([user]); }}>{t("delete")}</MenuItem>
+                            </>
+                          )}
+                        </Dropdown>
                       )}
                     </td>
                   </tr>
@@ -114,6 +181,45 @@ export default function PlatformUsersPage() {
         </>
       )}
       </section>
+
+      {chosen.length > 0 && (
+        <div className="app-bulk-bar" role="region" aria-label="Selected users">
+          <span><strong className="tnum">{chosen.length}</strong> {t("selected")}</span>
+          <div className="app-bulk-bar-actions">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>{t("clearSelection")}</button>
+            <button type="button" className="btn btn-danger-solid btn-sm" onClick={() => setRemoving(chosen)}>
+              <Icon name="ph-trash" size={15} /> {t("delete")} ({chosen.length})
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Dialog
+        open={!!removing} busy={busy}
+        icon="ph-trash" tone="bad"
+        title={removing?.length === 1 ? `${t("delete")} ${removing[0].name}?` : `${t("delete")} ${removing?.length ?? 0} users?`}
+        sub="They are signed out and can no longer sign in. Vouchers they raised or acted on stay on the record. A company's last administrator is kept — delete the company instead."
+        summary={removing?.length === 1
+          ? [{ label: t("email"), value: removing[0].email }, { label: t("role"), value: removing[0].role_label }]
+          : undefined}
+        onClose={() => setRemoving(null)}
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setRemoving(null)} disabled={busy}>{t("cancel")}</button>
+            <button className="btn btn-danger-solid" onClick={() => void confirmRemove()} disabled={busy}>
+              <Icon name="ph-trash" size={15} /> {t("delete")}
+            </button>
+          </>
+        }
+      >
+        {removing && removing.length > 1 && (
+          <ul className="app-bulk-list">
+            {removing.map((u) => (
+              <li key={u.id}><Icon name="ph-user" size={15} /><span className="app-bulk-list-purpose">{u.name} · {u.email}</span><span>{u.role_label}</span></li>
+            ))}
+          </ul>
+        )}
+      </Dialog>
     </div>
   );
 }

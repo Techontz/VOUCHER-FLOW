@@ -371,6 +371,22 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
     return { message: "Password updated. Sign in with your new password." };
   }
 
+  // Invitation links in the mock carry the user's id: /invite?token=mock-<id>.
+  if (seg[0] === "auth" && seg[1] === "invitation") {
+    const tokenValue = method === "GET" ? seg[2] : String(body.token ?? "");
+    const invited = db.users.find((u) => `mock-${u.id}` === tokenValue && u.status === "invited");
+    const gone = "This invitation link has expired or was already used. Ask your administrator to send a new one.";
+    if (method === "GET") {
+      if (!invited) throw new MockError(404, gone);
+      return { name: invited.name, email: invited.email, company: db.companies.find((c) => c.id === invited.company_id)?.name ?? null };
+    }
+    if (method === "POST" && seg[2] === "accept") {
+      if (!invited) throw new MockError(422, gone, { token: [gone] });
+      store.mutate((d) => { d.users.find((u) => u.id === invited.id)!.status = "active"; });
+      return { message: "Password set. Sign in with your email and new password.", email: invited.email };
+    }
+  }
+
   /* --------------------------------------------------- authenticated ---- */
 
   const user = requireUser(token);
@@ -1111,7 +1127,10 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
       });
     });
     recordAudit("user.created", `Added ${body.name} as ${roleLabel(String(body.role))}`, user, { type: "User", id });
-    return { data: userResource(store.db, store.db.users.find((u) => u.id === id)!), temporary_password: "Password123!" };
+    return {
+      data: userResource(store.db, store.db.users.find((u) => u.id === id)!),
+      invitation_url: `${window.location.origin}/invite?token=mock-${id}`, invitation_sent: true,
+    };
   }
 
   if (seg[0] === "employees" && seg[1] && method === "PUT") {
@@ -1132,7 +1151,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
     return { message: "Removed." };
   }
   if (seg[0] === "employees" && seg[2] === "resend-invitation") {
-    return { message: "Invitation reissued.", temporary_password: "Password123!" };
+    return { message: "Invitation reissued.", invitation_url: `${window.location.origin}/invite?token=mock-${num(seg[1])}`, invitation_sent: true };
   }
 
   /* -------------------------------------------------------- workflows ---- */
@@ -1747,6 +1766,13 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
         })),
         meta: page.meta,
       };
+    }
+    if (seg[1] === "users" && (method === "DELETE" || seg[2] === "bulk-delete")) {
+      const ids = method === "DELETE" ? [num(seg[2])] : (body.ids as number[]).map(Number);
+      const gone = ids.filter((id) => id !== user.id);
+      store.mutate((d) => { d.users = d.users.filter((u) => !gone.includes(u.id)); });
+      const skipped = ids.includes(user.id) ? [{ id: user.id, name: user.name, reason: "You cannot delete your own account." }] : [];
+      return { deleted: gone.length, skipped, message: `${gone.length} users deleted.` };
     }
     if (seg[1] === "users" && seg[2] && method === "PUT") {
       store.mutate((d) => {

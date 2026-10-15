@@ -435,7 +435,11 @@ export function ExportMenu({ kind, params, label }: { kind: string; params: Expo
   const { run, busy } = useReportExport();
 
   return (
+    // Floating: placed in the viewport and kept on screen — the button often
+    // sits at the left of the page, where an end-aligned menu ran off it.
     <Dropdown
+      floating
+      align="start"
       label={label ?? t("exportBtn")}
       trigger={({ open, toggle, id }) => (
         <button type="button" className="btn btn-secondary btn-sm" onClick={toggle} aria-expanded={open} aria-controls={id} aria-haspopup="menu" disabled={busy !== null}>
