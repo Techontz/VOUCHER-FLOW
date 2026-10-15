@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\AuditLogger;
-use App\Services\Notifier;
+use App\Services\Invitations;
 use App\Services\UsageLimits;
 use App\Support\TenantContext;
 use Illuminate\Http\Request;
@@ -22,7 +22,7 @@ class EmployeeController extends Controller
     public function __construct(
         private readonly AuditLogger $audit,
         private readonly UsageLimits $limits,
-        private readonly Notifier $notifier,
+        private readonly Invitations $invitations,
         private readonly TenantContext $tenant,
     ) {}
 
@@ -77,7 +77,9 @@ class EmployeeController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:180'],
-            'email' => ['required', 'email', 'max:180', Rule::unique('users')->where('company_id', $this->tenant->id())],
+            // Someone removed earlier may be added again: their old row is
+            // brought back below rather than blocking the address for good.
+            'email' => ['required', 'email', 'max:180', Rule::unique('users')->where('company_id', $this->tenant->id())->whereNull('deleted_at')],
             'phone' => ['nullable', 'string', 'max:40'],
             'employee_code' => ['nullable', 'string', 'max:40'],
             'job_title' => ['nullable', 'string', 'max:120'],
@@ -89,8 +91,9 @@ class EmployeeController extends Controller
 
         $invite = $data['send_invitation'] ?? true;
         $password = $data['password'] ?? Str::password(12);
+        $data['email'] = mb_strtolower(trim($data['email']));
 
-        $user = User::create([
+        $attributes = [
             'company_id' => $this->tenant->id(),
             'name' => $data['name'],
             'email' => $data['email'],
@@ -102,14 +105,29 @@ class EmployeeController extends Controller
             'password' => $password,
             'status' => $invite ? 'invited' : 'active',
             'locale' => $this->tenant->company()?->locale ?? 'en',
-            'invited_at' => $invite ? now() : null,
-            'invitation_token' => $invite ? Str::random(48) : null,
-        ]);
+            'invited_at' => null,
+            'invitation_token' => null,
+        ];
+
+        $user = User::onlyTrashed()->forTenant($this->tenant->id())->where('email', $data['email'])->first();
+
+        if ($user) {
+            $user->restore();
+            $user->forceFill($attributes + ['last_login_at' => null])->save();
+        } else {
+            $user = User::create($attributes);
+        }
 
         $this->audit->log('user.created', "Added {$user->name} as {$user->role}", $user);
 
+        // The person chooses their own password from the emailed link. The
+        // generated one above only fills the column until they do.
+        $invitation = $invite ? $this->invitations->issue($user, $request->user()) : [];
+
         return (new UserResource($user->refresh()->load('department')))
-            ->additional(['temporary_password' => app()->environment('production') ? null : $password])
+            ->additional($invitation + [
+                'temporary_password' => $invite || app()->environment('production') ? null : $password,
+            ])
             ->response()->setStatusCode(201);
     }
 
@@ -191,31 +209,22 @@ class EmployeeController extends Controller
         $this->authorizeAdmin($request);
         $this->authorizeSameTenant($user);
 
-        $password = Str::password(12);
+        abort_if($user->status === 'suspended', 422, 'Activate this person before sending them a new link.');
 
-        $user->forceFill([
-            'password' => $password,
-            'status' => 'invited',
-            'invited_at' => now(),
-            'invitation_token' => Str::random(48),
-        ])->save();
+        // Their password is left alone: someone already using the account
+        // keeps it until they choose a new one from the link.
+        if (! $user->last_login_at) {
+            $user->forceFill(['status' => 'invited'])->save();
+        }
 
-        $this->notifier->toUser(
-            $user,
-            'user.invited',
-            'You have been invited to VouchFlow',
-            'Umealikwa kwenye VouchFlow',
-            'Sign in with the temporary password your administrator shared with you.',
-            'Ingia kwa nenosiri la muda ulilopewa na msimamizi wako.',
-            null,
-            'ph-envelope-simple',
-        );
+        $invitation = $this->invitations->issue($user, $request->user());
 
         $this->audit->log('user.invited', "Re-invited {$user->name}", $user);
 
-        return response()->json([
-            'message' => 'Invitation reissued.',
-            'temporary_password' => app()->environment('production') ? null : $password,
+        return response()->json($invitation + [
+            'message' => $invitation['invitation_sent']
+                ? "A new invitation is on its way to {$user->email}."
+                : 'The invitation email could not be sent. Share the link instead.',
         ]);
     }
 

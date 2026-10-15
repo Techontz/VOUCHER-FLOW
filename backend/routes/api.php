@@ -37,6 +37,8 @@ Route::prefix('auth')->group(function () {
     Route::post('otp/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:20,1');
     Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:6,1');
     Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:6,1');
+    Route::get('invitation/{token}', [AuthController::class, 'invitation'])->middleware('throttle:30,1');
+    Route::post('invitation/accept', [AuthController::class, 'acceptInvitation'])->middleware('throttle:10,1');
 });
 
 // The pricing table on the marketing pages.
@@ -207,6 +209,8 @@ Route::middleware(['auth:sanctum', 'tenant', 'approved', SubstituteBindings::cla
         Route::post('payments/{invoice}/mark-paid', [Platform\PaymentController::class, 'markPaid']);
 
         Route::get('users', [Platform\UserController::class, 'index']);
+        Route::post('users/bulk-delete', [Platform\UserController::class, 'bulkDestroy']);
         Route::put('users/{user}', [Platform\UserController::class, 'update']);
+        Route::delete('users/{user}', [Platform\UserController::class, 'destroy']);
     });
 });

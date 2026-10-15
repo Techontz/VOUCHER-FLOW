@@ -13,6 +13,7 @@ use App\Models\VoucherTemplateChange;
 use App\Notifications\OneTimeCodeNotification;
 use App\Services\AuditLogger;
 use App\Services\CompanyProvisioner;
+use App\Services\Invitations;
 use App\Services\Notifier;
 use App\Services\TwoFactorLogin;
 use App\Services\VoucherTemplateManager;
@@ -33,6 +34,7 @@ class AuthController extends Controller
         private readonly TwoFactorLogin $twoFactor,
         private readonly VoucherTemplateManager $voucherTemplates,
         private readonly Notifier $notifier,
+        private readonly Invitations $invitations,
     ) {}
 
     /** Registers a company together with its first administrator. */
@@ -449,6 +451,55 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Password updated. Sign in with your new password.']);
     }
+
+    /* ------------------------------------------------------------ invitations */
+
+    /** Who an invitation link is for, so the page can greet them by name. */
+    public function invitation(string $token)
+    {
+        $user = $this->invitations->find($token);
+
+        abort_unless($user, 404, self::INVITATION_GONE);
+
+        return response()->json([
+            'name' => $user->name,
+            'email' => $user->email,
+            'company' => $user->company?->name,
+        ]);
+    }
+
+    /** The invited person chooses their password; the link then stops working. */
+    public function acceptInvitation(Request $request)
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:128'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = $this->invitations->find($data['token']);
+
+        if (! $user) {
+            throw ValidationException::withMessages(['token' => [self::INVITATION_GONE]]);
+        }
+
+        // Following the emailed link proves the address, as a code would.
+        $user->forceFill([
+            'password' => $data['password'],
+            'status' => $user->status === 'invited' ? 'active' : $user->status,
+            'invitation_token' => null,
+            'email_verified_at' => $user->email_verified_at ?? now(),
+        ])->save();
+        $user->tokens()->delete();
+
+        $this->audit->log('auth.invitation_accepted', "{$user->name} set their password", $user, null, null, $user->company_id, $user);
+
+        return response()->json([
+            'message' => 'Password set. Sign in with your email and new password.',
+            'email' => $user->email,
+        ]);
+    }
+
+    private const INVITATION_GONE = 'This invitation link has expired or was already used. Ask your administrator to send a new one.';
 
     public function changePassword(Request $request)
     {

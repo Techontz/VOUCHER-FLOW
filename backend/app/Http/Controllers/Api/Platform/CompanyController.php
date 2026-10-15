@@ -328,7 +328,13 @@ class CompanyController extends Controller
     public function destroy(Request $request, Company $company)
     {
         $name = $company->name;
-        User::forTenant($company->id)->get()->each(fn (User $u) => $u->tokens()->delete());
+
+        // Its people go with it: signed out and deleted, so they no longer
+        // fill the platform's user list as accounts nobody can use.
+        User::forTenant($company->id)->get()->each(function (User $u) {
+            $u->tokens()->delete();
+            $u->delete();
+        });
         $company->delete();
 
         $this->audit->log('platform.company_deleted', "Deleted company {$name}", null, null, null, null);
