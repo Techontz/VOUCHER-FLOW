@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { LoginBrand } from "@/components/login-brand";
+import { AuthShowcase, VouchFlowMark } from "@/components/login-brand";
 import { LoginVerification } from "@/components/login-verification";
 import type { LoginChallenge } from "@/lib/types";
 import { Icon, LanguageToggle, Spinner, ThemeToggle } from "@/components/ui";
@@ -14,7 +14,7 @@ import { Icon, LanguageToggle, Spinner, ThemeToggle } from "@/components/ui";
  * Whether to offer the seeded demo accounts.
  *
  * Off on a real deployment. These are working credentials for a live database,
- * and a public site should not print them beside a sign-in box — least of all
+ * and a public site should not print them beside a sign-in box, least of all
  * the company administrator's.
  *
  * Both tests are written against `process.env` directly, rather than through
@@ -22,7 +22,7 @@ import { Icon, LanguageToggle, Spinner, ThemeToggle } from "@/components/ui";
  * NODE_ENV is set by every build, and NEXT_PUBLIC_API_MODE is required for the
  * app to run at all. That matters more than it looks. The bundler only
  * substitutes environment variables it can see, so a condition resting on an
- * optional flag stays a runtime lookup and cannot fold — the panel survives
+ * optional flag stays a runtime lookup and cannot fold, the panel survives
  * in the bundle, hidden but readable by anyone who opens the JS. Resting it on
  * two guaranteed values folds the whole expression to `false`, and the panel,
  * the account list and the shared password are dropped from the output.
@@ -41,18 +41,18 @@ const SHOW_DEMO_ACCOUNTS =
 
 /**
  * Seeded accounts, offered so the whole workflow can be walked through
- * immediately — one per step of the default route, plus the two admin scopes.
+ * immediately, one per step of the default route, plus the two admin scopes.
  *
  * Referenced only by <DemoAccounts>, which is only rendered when
- * SHOW_DEMO_ACCOUNTS holds — so when that folds to false this becomes
+ * SHOW_DEMO_ACCOUNTS holds, so when that folds to false this becomes
  * unreachable and goes with it.
  */
 const DEMO_PASSWORD = "Password123!";
 
 const DEMO = [
   { label: "Employee", person: "Frank Kessy", email: "frank@watercom.test", icon: "ph-user", note: "raises vouchers, sees only their own" },
-  { label: "HOD", person: "Joseph Mrisho", email: "joseph@watercom.test", icon: "ph-signature", note: "reviews and signs — never approves" },
-  { label: "Managing Director", person: "Emmanuel Massawe", email: "emmanuel@watercom.test", icon: "ph-seal-check", note: "approves or rejects — the final decision" },
+  { label: "HOD", person: "Joseph Mrisho", email: "joseph@watercom.test", icon: "ph-signature", note: "reviews and signs, never approves" },
+  { label: "Managing Director", person: "Emmanuel Massawe", email: "emmanuel@watercom.test", icon: "ph-seal-check", note: "approves or rejects, the final decision" },
   { label: "Cashier", person: "Mwajuma Hamisi", email: "mwajuma@watercom.test", icon: "ph-wallet", note: "releases the funds and records the reference" },
   { label: "Company Admin", person: "Neema Shirima", email: "admin@watercom.test", icon: "ph-buildings", note: "runs Watercom (T) Limited" },
   { label: "Super Admin", person: "Grace Kimaro", email: "super@vouchflow.test", icon: "ph-globe-hemisphere-east", note: "runs the platform" },
@@ -76,7 +76,7 @@ export default function LoginPage() {
   const [error, setError] = useState<ApiError | Error | null>(null);
 
   useEffect(() => {
-    if (ready && user) router.replace("/dashboard");
+    if (ready && user) router.replace("/home");
   }, [ready, user, router]);
 
   async function submit(event: React.FormEvent) {
@@ -91,7 +91,7 @@ export default function LoginPage() {
         return;
       }
       setDone(true);
-      router.push("/dashboard");
+      router.push("/home");
     } catch (err) {
       setError(err as Error);
       setBusy(false);
@@ -103,23 +103,26 @@ export default function LoginPage() {
   const passwordError = fieldError("password");
 
   return (
-    <div className="vf-login">
-      <LoginBrand />
+    <div className="au au-split">
+      <AuthShowcase />
 
-      <main className="vf-login-panel">
-        <div className="vf-login-tools">
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
+      <main className="au-panel">
+        <header className="au-panel-bar">
+          <span className="au-mobile-brand"><VouchFlowMark size={30} /><span>VouchFlow</span></span>
+          <div className="au-tools">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
+        </header>
 
         {challenge ? (
-          <div className="vf-login-body" key="verify">
+          <div className="au-body vf-login-body" key="verify">
             <LoginVerification
               challenge={challenge}
               showDemoHint={process.env.NEXT_PUBLIC_API_MODE !== "live"}
               onVerified={() => {
                 setDone(true);
-                router.push("/dashboard");
+                router.push("/home");
               }}
               onRestart={(message) => {
                 setChallenge(null);
@@ -129,94 +132,90 @@ export default function LoginPage() {
             />
           </div>
         ) : (
-        <div className="vf-login-body" key="password">
-          <header className="vf-login-head">
-            <h1>{t("loginWelcome")}</h1>
-            <p>{t("loginSub")}</p>
+        <div className="au-body" key="password">
+          <header className="au-head">
+            <h1>{t("authSignInTitle")}</h1>
+            <p>{t("authSignInSub")}</p>
           </header>
 
-          <form onSubmit={submit} className="vf-login-form" noValidate aria-busy={busy}>
+          <form onSubmit={submit} className="au-form" noValidate aria-busy={busy}>
             {error && !emailError && !passwordError && (
-              <div role="alert" className="vf-alert tone-bad vf-login-alert">
-                <Icon name="ph-warning-circle" size={20} style={{ flex: "none" }} />
+              <div role="alert" className="vf-alert tone-bad au-alert">
+                <Icon name="ph-warning-circle" size={18} style={{ flex: "none" }} />
                 <div className="vf-alert-text">{error.message}</div>
               </div>
             )}
 
             {done && (
-              <div role="status" className="vf-alert tone-ok vf-login-alert">
-                <Icon name="ph-check-circle" size={20} style={{ flex: "none" }} />
+              <div role="status" className="vf-alert tone-ok au-alert">
+                <Icon name="ph-check-circle" size={18} style={{ flex: "none" }} />
                 <div className="vf-alert-text">{t("signedInOpening")}</div>
               </div>
             )}
 
-            <div className="field">
+            <div className="au-field">
               <label htmlFor="email">{t("emailAddress")}</label>
               <input
-                id="email" type="email" inputMode="email" className="input vf-login-input" value={email}
+                id="email" type="email" inputMode="email" className="au-input" value={email}
                 autoComplete="username" autoCapitalize="none" spellCheck={false} required
                 aria-invalid={!!emailError} aria-describedby={emailError ? "email-error" : undefined}
                 onChange={(e) => setEmail(e.target.value)} placeholder={t("emailPh")}
               />
               {emailError && (
-                <div className="field-error" id="email-error"><Icon name="ph-warning-circle" size={15} /> {emailError}</div>
+                <div className="au-error" id="email-error"><Icon name="ph-warning-circle" size={14} /> {emailError}</div>
               )}
             </div>
 
-            <div className="field">
-              <div className="vf-login-label-row">
-                <label htmlFor="password">{t("password")}</label>
-                <Link href="/verify?purpose=password_reset">{t("forgotPassword")}</Link>
-              </div>
-              <div className="vf-login-password">
+            <div className="au-field">
+              <label htmlFor="password">{t("password")}</label>
+              <div className="au-password">
                 <input
-                  id="password" className="input vf-login-input" type={reveal ? "text" : "password"} value={password}
+                  id="password" className="au-input" type={reveal ? "text" : "password"} value={password}
                   autoComplete="current-password" required
                   aria-invalid={!!passwordError} aria-describedby={passwordError ? "password-error" : undefined}
                   onChange={(e) => setPassword(e.target.value)} placeholder={t("passwordPh")}
                 />
                 <button
-                  type="button" className="vf-login-reveal" onClick={() => setReveal((v) => !v)}
+                  type="button" className="au-reveal" onClick={() => setReveal((v) => !v)}
                   aria-label={reveal ? t("hidePassword") : t("showPassword")} aria-pressed={reveal}
                   title={reveal ? t("hidePassword") : t("showPassword")}
                 >
-                  <Icon name={reveal ? "ph-eye-slash" : "ph-eye"} size={19} />
+                  <Icon name={reveal ? "ph-eye-slash" : "ph-eye"} size={18} />
                 </button>
               </div>
               {passwordError && (
-                <div className="field-error" id="password-error"><Icon name="ph-warning-circle" size={15} /> {passwordError}</div>
+                <div className="au-error" id="password-error"><Icon name="ph-warning-circle" size={14} /> {passwordError}</div>
               )}
             </div>
 
-            <label className="radio vf-login-remember">
-              <input type="checkbox" defaultChecked />
-              <span className="dot" />
-              {t("rememberMe")}
-            </label>
+            <div className="au-row">
+              <label className="au-check">
+                <input type="checkbox" defaultChecked />
+                <span>{t("rememberMe")}</span>
+              </label>
+              <Link href="/verify?purpose=password_reset" className="au-link">{t("forgotPassword")}</Link>
+            </div>
 
-            <button className="btn btn-primary btn-lg vf-login-submit" disabled={busy} type="submit">
+            <button className="au-submit" disabled={busy} type="submit">
               {done ? (
                 <><Icon name="ph-check" size={18} /> {t("signIn")}</>
               ) : busy ? (
                 <Spinner label={t("signingIn")} />
               ) : (
-                <>{t("signIn")} <Icon name="ph-arrow-right" size={18} /></>
+                t("signIn")
               )}
             </button>
           </form>
 
-          <div className="vf-login-alt">
-            <p>{t("newToVouchflow")} <Link href="/register">{t("registerCompany")}</Link></p>
-            <p className="vf-login-alt-note">{t("staffAccountsNote")}</p>
-          </div>
+          <p className="au-alt">{t("newToVouchflow")} <Link href="/register" className="au-link">{t("registerCompany")}</Link></p>
 
           {SHOW_DEMO_ACCOUNTS && <DemoAccounts selected={email} onPick={pickDemo} />}
         </div>
         )}
 
-        <footer className="vf-login-foot">
-          <Icon name="ph-shield-check" size={15} />
-          <span><strong>VouchFlow</strong> · {t("loginFooter")}</span>
+        <footer className="au-foot">
+          <Icon name="ph-lock-simple" size={14} />
+          <span>{t("authSecure")}</span>
         </footer>
       </main>
     </div>
@@ -235,35 +234,27 @@ function DemoAccounts({ selected, onPick }: { selected: string; onPick: (email: 
   const { t } = useApp();
 
   return (
-    <div className="vf-panel vf-login-demo">
-      <div style={{ fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
-        {t("demoSignInAs")}
-      </div>
-      <div style={{ display: "grid", gap: 6 }}>
+    <details className="au-demo">
+      <summary><Icon name="ph-user-switch" size={16} /> {t("authDemo")} <span className="au-demo-caret"><Icon name="ph-caret-down" size={14} /></span></summary>
+      <div className="au-demo-list">
         {DEMO.map((account) => (
           <button
             key={account.email}
             type="button"
             aria-pressed={selected === account.email}
             onClick={() => onPick(account.email)}
-            className="vf-choice"
-            style={{ padding: "10px 12px", borderRadius: 12 }}
+            className="au-demo-item"
           >
-            <span className="vf-choice-icon" style={{ width: 30, height: 30 }}>
-              <Icon name={account.icon} size={16} />
+            <span className="au-demo-icon"><Icon name={account.icon} size={16} /></span>
+            <span className="au-demo-text">
+              <strong>{account.label}</strong>
+              <span>{account.person} · {account.note}</span>
             </span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontWeight: 600, fontSize: 14.5 }}>
-                {account.label} <span style={{ fontWeight: 400, color: "var(--color-neutral-600)" }}>· {account.person}</span>
-              </span>
-              <span style={{ display: "block", fontSize: 12.5, color: "var(--color-neutral-600)" }}>{account.note}</span>
-            </span>
+            {selected === account.email && <span className="au-demo-tick"><Icon name="ph-check" size={16} /></span>}
           </button>
         ))}
+        <p className="au-demo-note">{t("authDemoNote")}</p>
       </div>
-      <div style={{ fontSize: 12.5, color: "var(--color-neutral-600)", marginTop: "var(--space-3)" }}>
-        Every demo account uses the same password; choosing one fills it in.
-      </div>
-    </div>
+    </details>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Workflow logic for the prototype — the front-end mirror of what the Laravel
+ * Workflow logic for the prototype, the front-end mirror of what the Laravel
  * service layer will do in Phase 2.
  *
  * Nothing assumes an HOD-then-CEO shape. What a participant may do at a step
@@ -143,7 +143,7 @@ export function availableActions(db: MockDataset, user: MockUser, voucher: MockV
   return a;
 }
 
-/* Money can leave in parts — mirrors Voucher::released() / balance() on the API. */
+/* Money can leave in parts, mirrors Voucher::released() / balance() on the API. */
 
 /** What has been released so far: everything once paid, the running total before. */
 export function releasedAmount(v: MockVoucher): number {
@@ -176,7 +176,7 @@ export function presentStatus(db: MockDataset, v: MockVoucher): StatusView {
     // Part of the money out, the rest still owed: still in the payment queue.
     case "approved": return isPartiallyPaid(v)
       ? mk("partially_paid", "Partially paid", "Imelipwa sehemu", "tag-accent-2")
-      : mk("awaiting_payment", "Approved — awaiting payment", "Imeidhinishwa — inasubiri malipo", "tag-info");
+      : mk("awaiting_payment", "Approved, awaiting payment", "Imeidhinishwa, inasubiri malipo", "tag-info");
     default: break;
   }
 
@@ -186,7 +186,7 @@ export function presentStatus(db: MockDataset, v: MockVoucher): StatusView {
   const role = roleLabel(step.role);
   if (step.can_sign && !step.can_approve) {
     return v.step_signed_at
-      ? mk("signed_pending_submit", "Signed — ready to submit", "Imesainiwa — tayari kutumwa", "tag-outline")
+      ? mk("signed_pending_submit", "Signed, ready to submit", "Imesainiwa, tayari kutumwa", "tag-outline")
       : mk("awaiting_signature", `Awaiting ${role} signature`, `Inasubiri sahihi ya ${role}`, "tag-outline");
   }
   if (step.can_approve) {
@@ -255,7 +255,7 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
     let comment: string | null = null;
 
     if (step.position === 1) {
-      if (v.status === "draft") { act = "Draft — not submitted"; actSw = "Rasimu — haijatumwa"; }
+      if (v.status === "draft") { act = "Draft, not submitted"; actSw = "Rasimu, haijatumwa"; }
       else {
         act = "Created and submitted"; actSw = "Imetengenezwa na kutumwa";
         when = v.submitted_at;
@@ -270,7 +270,7 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
       comment = payEvent.comment ?? "Funds released and reference recorded against the voucher.";
     } else if (partEvent && step.can_pay && atThis) {
       const owed = `${v.currency} ${Math.round(balanceOf(v)).toLocaleString("en-US")}`;
-      act = `Partly paid — ${owed} outstanding`; actSw = `Imelipwa sehemu — ${owed} bado`;
+      act = `Partly paid, ${owed} outstanding`; actSw = `Imelipwa sehemu, ${owed} bado`;
       when = partEvent.acted_at; comment = partEvent.comment;
     } else if (approveEvent) {
       act = "Approved"; actSw = "Imeidhinishwa"; when = approveEvent.acted_at;
@@ -279,9 +279,9 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
       act = "Signed and forwarded"; actSw = "Imesainiwa na kupelekwa mbele"; when = signEvent.acted_at;
       comment = forwardEvent.comment ?? "Signature applied and forwarded to the next step.";
     } else if (signEvent && atThis) {
-      act = "Signed — not yet forwarded"; actSw = "Imesainiwa — bado haijapelekwa mbele";
+      act = "Signed, not yet forwarded"; actSw = "Imesainiwa, bado haijapelekwa mbele";
       when = signEvent.acted_at;
-      comment = "Signature recorded. This step signs only — the approval decision sits with the next approval step.";
+      comment = "Signature recorded. This step signs only, the approval decision sits with the next approval step.";
     } else if (atThis) {
       if (step.can_pay) { act = "Awaiting payment"; actSw = "Inasubiri malipo"; }
       else if (step.can_approve) { act = "Awaiting approval"; actSw = "Inasubiri idhini"; }
@@ -317,8 +317,8 @@ export function buildTimeline(db: MockDataset, v: MockVoucher): TimelineRow[] {
   rows.push({
     position: null, name: "Completed", name_sw: "Imekamilika",
     sub: "System", sub_sw: "Mfumo", person: "VouchFlow",
-    act: paid ? "Voucher completed" : rejected ? "Closed — rejected" : returned ? "Returned to the requester" : "Not yet completed",
-    act_sw: paid ? "Vocha imekamilika" : rejected ? "Imefungwa — imekataliwa" : returned ? "Imerudishwa kwa mwombaji" : "Bado haijakamilika",
+    act: paid ? "Voucher completed" : rejected ? "Closed, rejected" : returned ? "Returned to the requester" : "Not yet completed",
+    act_sw: paid ? "Vocha imekamilika" : rejected ? "Imefungwa, imekataliwa" : returned ? "Imerudishwa kwa mwombaji" : "Bado haijakamilika",
     when: paid ? v.paid_at : rejected ? v.rejected_at : null,
     comment: paid && v.verification_code
       ? `Verification code ${v.verification_code}. The PDF includes every recorded signature.`
@@ -428,7 +428,7 @@ export function idleDays(db: MockDataset, voucher: MockVoucher): number {
   return Math.floor((Date.now() - new Date(since).getTime()) / 86_400_000);
 }
 
-/** Open vouchers that have not moved in a while — the administrator's queue. */
+/** Open vouchers that have not moved in a while, the administrator's queue. */
 export function stalledVouchers(db: MockDataset, user: MockUser, thresholdDays = 3): MockVoucher[] {
   return visibleVouchers(db, user)
     .filter((v) => (v.status === "in_review" || v.status === "approved")

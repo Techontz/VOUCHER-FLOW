@@ -21,7 +21,7 @@ function bulkEligible(v: Voucher): boolean {
  * Every voucher waiting on this person's step, laid out for deciding.
  *
  * Each row answers what is being asked, by whom, for how much, from which
- * department, and how far along the route it is — and leads to the voucher,
+ * department, and how far along the route it is, and leads to the voucher,
  * where the decision itself is taken behind a confirmation.
  */
 export default function ApprovalsPage() {
@@ -65,7 +65,7 @@ export default function ApprovalsPage() {
       const skippedText = r.skipped.map((x) => `${x.number ?? `#${x.id}`}: ${x.reason}`).join(" ");
       toast(
         locale === "sw" ? `Vocha ${r.approved.length} zimeidhinishwa` : `${r.approved.length} ${r.approved.length === 1 ? "voucher" : "vouchers"} approved`,
-        r.skipped.length ? `${locale === "sw" ? "Zilizorukwa" : "Skipped"} — ${skippedText}` : undefined,
+        r.skipped.length ? `${locale === "sw" ? "Zilizorukwa" : "Skipped"}, ${skippedText}` : undefined,
         r.skipped.length ? "warn" : "ok",
       );
       setSelected(new Set()); setConfirming(false); setReviewed(false); setComment("");

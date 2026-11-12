@@ -24,7 +24,7 @@ function signIn(email) {
   return out.token;
 }
 
-/** A draft belonging to the signed-in employee — the editable case. */
+/** A draft belonging to the signed-in employee, the editable case. */
 function ownDraft(token) {
   const list = handle("GET", "/vouchers", {}, { status: "draft", per_page: 50 }, token);
   const draft = list.data.find((v) => v.status === "draft");

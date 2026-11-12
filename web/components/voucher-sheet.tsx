@@ -54,16 +54,16 @@ function MetaCell({ term, value, sub }: { term: string; value: string; sub?: str
  *
  * The company's own letterhead sits at the top, the narrative runs down the
  * left with the amount immediately beneath the description, and the right
- * column carries the payment particulars — which differ by format, because a
+ * column carries the payment particulars, which differ by format, because a
  * bank voucher settles into an account and a cash voucher comes out of a float.
  * The authorisation band closes the page: who prepared, signed, approved and
  * paid, each with their mark.
  */
 /**
  * A voucher that has no figure on it yet shows a blank rule, the way a paper
- * form does — never a printed nil, which reads as a decision to pay nothing.
+ * form does, never a printed nil, which reads as a decision to pay nothing.
  */
-const figure = (n: number) => (n > 0 ? Math.round(n).toLocaleString("en-US") : "\u2014");
+const figure = (n: number) => (n > 0 ? Math.round(n).toLocaleString("en-US") : "-");
 
 export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: Company | null }) {
   const { t, locale } = useApp();
@@ -165,10 +165,10 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
         padding: "11px 0", borderBottom: `1px solid ${RULE}`,
       }}>
         <MetaCell term={t("date")} value={formatDate(voucher.voucher_date, locale)} />
-        <MetaCell term={t("department")} value={voucher.department?.name ?? "—"} sub={voucher.cost_centre} />
-        <MetaCell term={t("requestedBy")} value={voucher.requester?.name ?? "—"}
+        <MetaCell term={t("department")} value={voucher.department?.name ?? "-"} sub={voucher.cost_centre} />
+        <MetaCell term={t("requestedBy")} value={voucher.requester?.name ?? "-"}
           sub={voucher.requester?.job_title} />
-        <MetaCell term={t("category")} value={voucher.category ?? "—"} />
+        <MetaCell term={t("category")} value={voucher.category ?? "-"} />
       </div>
 
       {/* ── the substance, with the particulars alongside ── */}
@@ -252,7 +252,7 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
           }}>
             <span style={{ ...label, fontSize: 7 }}>{t("amountWords")}</span>
             <div style={{ fontSize: 10.5, fontStyle: "italic", color: INK, marginTop: 1 }}>
-              {voucher.amount > 0 ? (voucher.amount_in_words ?? money(voucher.amount, voucher.currency)) : "\u2014"}
+              {voucher.amount > 0 ? (voucher.amount_in_words ?? money(voucher.amount, voucher.currency)) : "-"}
             </div>
           </div>
         </div>
@@ -269,23 +269,23 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
             }}>{t("paymentParticulars")}</div>
 
             <div style={{ padding: "2px 10px 8px" }}>
-              <Particular term={t("amount")} value={voucher.amount > 0 ? voucher.amount_text : "\u2014"} strong />
+              <Particular term={t("amount")} value={voucher.amount > 0 ? voucher.amount_text : "-"} strong />
               <Particular term={t("currency")} value={voucher.currency} />
               <Particular term={t("paymentMethod")} value={voucher.payment_method ?? (isCash ? t("cash") : t("bank"))} />
-              <Particular term={t("voucherType")} value={voucher.voucher_type?.label ?? "—"} />
-              <Particular term={t("reference")} value={voucher.account_ref || "—"} />
+              <Particular term={t("voucherType")} value={voucher.voucher_type?.label ?? "-"} />
+              <Particular term={t("reference")} value={voucher.account_ref || "-"} />
 
               {isCash ? (
                 <>
                   <Particular term={t("payFrom")} value={voucher.cash_float ?? "Petty cash float"} />
-                  <Particular term={t("receivedBy")} value={voucher.received_by ?? "—"} />
+                  <Particular term={t("receivedBy")} value={voucher.received_by ?? "-"} />
                 </>
               ) : (
                 <>
-                  <Particular term={t("bank")} value={voucher.payee_bank ?? "—"} />
+                  <Particular term={t("bank")} value={voucher.payee_bank ?? "-"} />
                   <Particular term={t("accountName")} value={voucher.payee_account_name ?? voucher.payee} />
-                  <Particular term={t("accountNo")} value={voucher.payee_account_number ?? "—"} />
-                  <Particular term={t("branch")} value={voucher.payee_bank_branch ?? "—"} />
+                  <Particular term={t("accountNo")} value={voucher.payee_account_number ?? "-"} />
+                  <Particular term={t("branch")} value={voucher.payee_bank_branch ?? "-"} />
                   {voucher.cheque_number && <Particular term={t("chequeNo")} value={voucher.cheque_number} />}
                 </>
               )}
@@ -342,7 +342,7 @@ export function VoucherSheet({ voucher, company }: { voucher: Voucher; company: 
         }}>
           {voucher.notes_to_approver
             ?? remarksFromTrail(rows)
-            ?? <span style={{ color: "#c2c9d6" }}>—</span>}
+            ?? <span style={{ color: "#c2c9d6" }}>-</span>}
         </div>
       </div>
 

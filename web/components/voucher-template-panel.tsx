@@ -14,7 +14,7 @@ import type { VoucherTemplateChange, VoucherTemplateState } from "@/lib/types";
  * `company` mode is the tenant's own Branding page: the administrator may
  * change the design as many times as the platform allows (one), then asks the
  * platform. `platform` mode is the super admin's company page: any design, any
- * time, with a reason, and the full history. The server enforces all of it —
+ * time, with a reason, and the full history. The server enforces all of it
  * this only reflects what the server says is possible.
  */
 
@@ -22,7 +22,7 @@ type Mode = "company" | "platform";
 
 const COPY = {
   title: ["Voucher design", "Muundo wa vocha"],
-  sub: ["The design every voucher this company issues is printed in. Data and approvals never change — only the layout.", "Muundo ambao kila vocha ya kampuni hii inachapishwa nao. Taarifa na idhini hazibadiliki — mpangilio pekee."],
+  sub: ["The design every voucher this company issues is printed in. Data and approvals never change, only the layout.", "Muundo ambao kila vocha ya kampuni hii inachapishwa nao. Taarifa na idhini hazibadiliki, mpangilio pekee."],
   current: ["Current design", "Muundo unaotumika"],
   remaining: ["Template changes remaining", "Mabadiliko ya kiolezo yaliyobaki"],
   used: ["Template changes", "Mabadiliko ya kiolezo"],
@@ -36,12 +36,12 @@ const COPY = {
   requestSub: ["The VouchFlow platform team is notified and can switch your design for you.", "Timu ya jukwaa la VouchFlow itaarifiwa na inaweza kubadilisha muundo wenu."],
   wanted: ["Template you would like", "Kiolezo mnachotaka"],
   reason: ["Reason", "Sababu"],
-  reasonHint: ["A sentence is enough — it helps the platform team decide.", "Sentensi moja inatosha — inasaidia timu ya jukwaa kuamua."],
+  reasonHint: ["A sentence is enough, it helps the platform team decide.", "Sentensi moja inatosha, inasaidia timu ya jukwaa kuamua."],
   send: ["Send request", "Tuma ombi"],
   sent: ["Request sent", "Ombi limetumwa"],
   chooseTitle: ["Choose a new voucher template", "Chagua kiolezo kipya cha vocha"],
   chooseSubCompany: ["This uses your one template change. Preview any design before you commit.", "Hii inatumia badiliko lenu moja la kiolezo. Hakiki muundo wowote kabla ya kuamua."],
-  chooseSubPlatform: ["Platform override — the company's own allowance is not affected.", "Mamlaka ya jukwaa — kiasi cha kampuni hakiathiriwi."],
+  chooseSubPlatform: ["Platform override, the company's own allowance is not affected.", "Mamlaka ya jukwaa, kiasi cha kampuni hakiathiriwi."],
   changeTo: ["Change to this template", "Badilisha kwenda kiolezo hiki"],
   confirmTitle: ["Change the voucher template?", "Badilisha kiolezo cha vocha?"],
   confirmCompany: ["This uses your only template change. Afterwards the template can be changed only by the VouchFlow platform team.", "Hii inatumia badiliko lenu pekee la kiolezo. Baada ya hapo kiolezo kinaweza kubadilishwa na timu ya jukwaa la VouchFlow pekee."],
@@ -246,13 +246,13 @@ export function VoucherTemplatePanel({
                 <tbody>
                   {state.history.map((row) => (
                     <tr key={row.id}>
-                      <td>{row.previous_template ? nameOf(row.previous_template) : "—"}</td>
+                      <td>{row.previous_template ? nameOf(row.previous_template) : "-"}</td>
                       <td><strong>{nameOf(row.new_template)}</strong></td>
-                      <td>{row.changed_by_name ?? "—"}</td>
-                      <td>{row.changed_by_role ? (ROLES[row.changed_by_role]?.[locale === "sw" ? 1 : 0] ?? row.changed_by_role) : "—"}</td>
+                      <td>{row.changed_by_name ?? "-"}</td>
+                      <td>{row.changed_by_role ? (ROLES[row.changed_by_role]?.[locale === "sw" ? 1 : 0] ?? row.changed_by_role) : "-"}</td>
                       <td className="tnum" style={{ whiteSpace: "nowrap" }}>{formatDateTime(row.created_at, locale)}</td>
                       <td>{SOURCES[row.source]?.[locale === "sw" ? 1 : 0] ?? row.source}</td>
-                      <td style={{ color: "var(--color-neutral-600)" }}>{row.reason ?? "—"}</td>
+                      <td style={{ color: "var(--color-neutral-600)" }}>{row.reason ?? "-"}</td>
                     </tr>
                   ))}
                 </tbody>

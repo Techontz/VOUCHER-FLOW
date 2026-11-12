@@ -7,7 +7,7 @@ import type { CSSProperties } from "react";
  *
  * These stand in for the rubber stamps a finance office actually uses, so they
  * are drawn as ink on paper: a ruled border, tracked capitals, the acting
- * officer's name and the moment it happened. They are deliberately plain —
+ * officer's name and the moment it happened. They are deliberately plain
  * a stamp that looks decorative reads as fake.
  */
 export type StampKind = "signed" | "approved" | "paid" | "rejected" | "returned";
@@ -126,7 +126,7 @@ export function AuthorisationBlock({
             )}
             {stamp && <Stamp kind={stamp} date={date} reference={reference} scale={.86} />}
             {/* No mark and no pen stroke means this column records authorship
-                rather than assent — "Prepared by" is a name, not a signature.
+                rather than assent, "Prepared by" is a name, not a signature.
                 Setting the name in a script face here made it read as one, and
                 repeated the name the footer already carries. */}
           </>
@@ -138,7 +138,7 @@ export function AuthorisationBlock({
       </div>
 
       <div style={{ borderTop: "1px solid #d7dde8", paddingTop: 5, fontSize: 8.5, lineHeight: 1.42 }}>
-        <div style={{ fontWeight: 700, color: "#0b1220" }}>{name ?? "—"}</div>
+        <div style={{ fontWeight: 700, color: "#0b1220" }}>{name ?? "-"}</div>
         <div style={{ color: "#5f6b80" }}>{title ?? ""}</div>
         {date && <div style={{ color: "#8892a6", fontVariantNumeric: "tabular-nums" }}>{date}</div>}
       </div>

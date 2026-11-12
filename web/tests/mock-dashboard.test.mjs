@@ -1,6 +1,6 @@
 /**
  * Mock mode returns the same dashboard shape as the API: a view, a banner,
- * figures carrying stable keys, and recent activity — per role.
+ * figures carrying stable keys, and recent activity, per role.
  *
  * Run with:  node --test tests/
  */

@@ -47,6 +47,22 @@ export interface Plan {
   is_public: boolean;
   sort_order: number;
   companies_count?: number;
+  /** The yearly price when set; null means ten months (yearly_price). */
+  price_yearly?: number | null;
+  yearly_price?: number;
+  /** ERP modules the plan includes; vouchflow always. Empty or null means every app. */
+  modules?: string[] | null;
+  /** The apps the plan offers, spelled out (every app when `modules` names none). */
+  apps?: string[];
+  apps_count?: number;
+  all_apps?: boolean;
+  /** Pick-your-apps: the customer chooses from `apps`, at `price` plus `price_per_module` per app. */
+  allows_module_choice?: boolean;
+  price_per_module?: number;
+  is_featured?: boolean;
+  subscriptions_count?: number;
+  name_sw?: string | null;
+  blurb_sw?: string | null;
 }
 
 export interface Company {
@@ -110,6 +126,8 @@ export interface Company {
   auto_renew: boolean;
   plan: Plan | null;
   plan_id: number | null;
+  /** The apps the subscription allows; every app when none is recorded. */
+  licensed_modules?: string[];
   settings: Record<string, unknown>;
   users_count?: number;
   vouchers_count?: number;
@@ -181,7 +199,7 @@ export type RoutingGap =
   | "no_hod" | "inactive_hod" | "no_manager" | "inactive_manager"
   | "inactive_person" | "missing_person" | "no_person_named" | "no_one_with_role";
 
-/** GET /workflows/{id}/routing — who acts at each step, per department. */
+/** GET /workflows/{id}/routing, who acts at each step, per department. */
 export interface WorkflowRouting {
   workflow_id: number;
   steps: {
@@ -230,7 +248,7 @@ export interface VoucherActions {
   request_changes: boolean;
   /** The cashier releases funds and closes the voucher. */
   pay: boolean;
-  /** Documents may be added — also after approval and payment, for receipts. */
+  /** Documents may be added, also after approval and payment, for receipts. */
   attach?: boolean;
   cancel: boolean;
   comment: boolean;
@@ -277,7 +295,7 @@ export interface Attachment {
 
 /**
  * One release of money against a voucher. A voucher approved for 10,000,000
- * may be paid 9,000,000 now and 1,000,000 later — two payments, each with its
+ * may be paid 9,000,000 now and 1,000,000 later, two payments, each with its
  * own receiver, reference and signed acknowledgement.
  */
 export interface VoucherPayment {
@@ -318,8 +336,12 @@ export interface Comment {
 export interface Voucher {
   id: number;
   number: string;
+  /** The ERP document this voucher pays, when it was raised from the books. */
+  source?: { type: string; id: number; label: string | null } | null;
+  /** The account its payment charges, when the company keeps its books here. */
+  ledger_account_id?: number | null;
   status: "draft" | "in_review" | "changes_requested" | "approved" | "paid" | "rejected" | "cancelled";
-  /** Bank transfer or physical cash — each prints its own A4 layout. */
+  /** Bank transfer or physical cash, each prints its own A4 layout. */
   kind: "bank" | "cash";
   status_key: string;
   status_label: string;
@@ -332,7 +354,7 @@ export interface Voucher {
   amount: number;
   currency: string;
   amount_text: string;
-  /** Released so far — the whole amount once paid, part of it while a balance remains. */
+  /** Released so far, the whole amount once paid, part of it while a balance remains. */
   amount_paid?: number;
   amount_paid_text?: string;
   /** Still owed. Zero once paid. */
@@ -502,7 +524,7 @@ export interface DashboardStat {
   up?: boolean | null;
 }
 
-/** Which dashboard the backend built — decided by workflow steps, not only by role. */
+/** Which dashboard the backend built, decided by workflow steps, not only by role. */
 export type DashboardView = "employee" | "hod" | "approver" | "cashier" | "admin" | "platform";
 
 export interface DashboardBanner {
@@ -584,7 +606,7 @@ export interface Paginated<T> {
   };
 }
 
-/* — two-step sign-in (POST /auth/login → /auth/login/send-code → /auth/login/verify) — */
+/*, two-step sign-in (POST /auth/login → /auth/login/send-code → /auth/login/verify): */
 
 export type LoginChannel = "email" | "sms";
 

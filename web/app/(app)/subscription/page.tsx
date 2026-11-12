@@ -74,7 +74,7 @@ export default function SubscriptionPage() {
 
       <div className="app-stack">
         <FigureStrip>
-          <Figure label={t("currentPlan")} value={payload.plan?.name ?? "—"} sub={company.status} />
+          <Figure label={t("currentPlan")} value={payload.plan?.name ?? "-"} sub={company.status} />
           <Figure label={company.status === "trial" ? t("trialEnds") : t("renewsOn")}
             value={formatDate(company.status === "trial" ? company.trial_ends_at : company.current_period_end, locale)}
             sub={payload.days_remaining !== null ? `${payload.days_remaining} days` : undefined} />

@@ -1,7 +1,7 @@
 /**
  * deriveProgress mirrors WorkflowEngine's step rules on the server. If the two
  * disagree, a dashboard tells an approver the wrong thing about where a voucher
- * is — so the rules are pinned here, against a route that is NOT the demo one.
+ * is, so the rules are pinned here, against a route that is NOT the demo one.
  */
 import assert from "node:assert/strict";
 import test from "node:test";

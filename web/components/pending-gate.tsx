@@ -7,6 +7,7 @@ import { money } from "@/lib/format";
 import { AuthFrame } from "@/components/auth-frame";
 import { PayDialog, PlanDialog } from "@/components/billing-dialogs";
 import { Icon, Spinner } from "@/components/ui";
+import { AppStrip, planApps, planMonthlyPrice } from "@/components/app-picker";
 import { CONTACT, mailto } from "@/lib/contact";
 import type { Company, Invoice, Paginated, Plan, User } from "@/lib/types";
 
@@ -15,7 +16,7 @@ import type { Company, Invoice, Paginated, Plan, User } from "@/lib/types";
  * it: who it is, the plan it chose, a way to pay for it, and a way to check
  * whether it has been let in. Nothing of the product itself.
  *
- * Only the calls the API still allows a pending company are made here —
+ * Only the calls the API still allows a pending company are made here
  * billing/*, auth/me and logout.
  */
 
@@ -93,10 +94,12 @@ export function PendingGate() {
           <div className="vf-pending-plan-text">
             <span className="vf-pending-label">{t("plan")}</span>
             <strong>{plan?.name ?? t("pendingNoPlan")}</strong>
+            {plan && <AppStrip apps={company?.licensed_modules ?? planApps(plan)} max={6} size={20} />}
           </div>
           {plan && (
+            // A pick-your-apps plan is priced on the apps chosen at registration.
             <span className="vf-pending-price tnum">
-              {plan.price > 0 ? <>{money(plan.price, plan.currency)} <small>{t("perMonthShort")}</small></> : "—"}
+              {plan.price > 0 ? <>{money(planMonthlyPrice(plan, company?.licensed_modules ?? planApps(plan)), plan.currency)} <small>{t("perMonthShort")}</small></> : "-"}
             </span>
           )}
         </div>

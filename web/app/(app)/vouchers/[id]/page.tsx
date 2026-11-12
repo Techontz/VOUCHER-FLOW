@@ -25,7 +25,7 @@ type Action = "sign" | "submit_signed" | "approve" | "reject" | "request_changes
  * One voucher, arranged around the decision in front of the reader.
  *
  *   header      what it is, what it costs, where it stands
- *   decision    what this person may do now — straight from the workflow engine
+ *   decision    what this person may do now, straight from the workflow engine
  *   progress    who prepared, signed, approved and paid, and when
  *   details     the request itself, then attachments and discussion
  *   document    the printed A4 voucher, exactly as it prints
@@ -60,13 +60,13 @@ export default function VoucherDetailPage() {
   const [payMethod, setPayMethod] = useState("");
   const [receivedBy, setReceivedBy] = useState("");
   const [receiverId, setReceiverId] = useState("");
-  /** As typed — commas allowed — so the field never fights the cashier. */
+  /** As typed, commas allowed, so the field never fights the cashier. */
   const [payAmount, setPayAmount] = useState("");
   const [uploading, setUploading] = useState(false);
   const [signedAt, setSignedAt] = useState<string>("");
 
   // The sticky phone action bar only earns its place once the decision panel
-  // has scrolled away — showing both at once is the same button twice.
+  // has scrolled away, showing both at once is the same button twice.
   const decisionRef = useRef<HTMLElement | null>(null);
   const [decisionVisible, setDecisionVisible] = useState(true);
   const hasVoucher = !!voucher;
@@ -115,9 +115,9 @@ export default function VoucherDetailPage() {
       setReceiverId("");
       // The whole balance by default; the cashier lowers it to pay part now.
       setPayAmount(voucher ? String(voucher.balance ?? voucher.amount) : "");
-      setPayMethod(voucher?.kind === "cash" ? "Cash — office float" : "Bank transfer");
+      setPayMethod(voucher?.kind === "cash" ? "Cash, office float" : "Bank transfer");
     }
-    // A person may reuse only their OWN saved signature — it is fetched from
+    // A person may reuse only their OWN saved signature, it is fetched from
     // their profile, never from anyone else's.
     setSignature(action === "sign" || action === "approve" ? (user?.has_signature ? savedSignature : null) : null);
   }
@@ -141,7 +141,7 @@ export default function VoucherDetailPage() {
       : null;
   const payRemainder = payAmountValue === null ? outstanding : Math.max(0, outstanding - payAmountValue);
 
-  /** Opens a stored file — an attachment or a filed acknowledgement — in a new tab. */
+  /** Opens a stored file, an attachment or a filed acknowledgement, in a new tab. */
   async function openAttachment(attachmentId: number) {
     if (!voucher) return;
     try {
@@ -187,7 +187,7 @@ export default function VoucherDetailPage() {
       setDialog(null);
       void refreshUnread();
 
-      // Payment gets a receipt, not a toast — and with it the next step: the
+      // Payment gets a receipt, not a toast, and with it the next step: the
       // acknowledgement for this payment, for the receiver to sign.
       if (action === "pay") {
         setPaidReceipt({ voucher: res.data, payment: latestPayment(res.data) });
@@ -196,11 +196,11 @@ export default function VoucherDetailPage() {
 
       const messages: Record<Exclude<Action, "pay">, [string, string]> = {
         sign: ["Voucher signed", `${res.data.number} has been signed. Forward it to the next approval step when you are ready.`],
-        submit_signed: ["Signed voucher submitted", `${res.data.number} — ${res.data.status_label}`],
+        submit_signed: ["Signed voucher submitted", `${res.data.number}, ${res.data.status_label}`],
         approve: ["Voucher approved", `${res.data.number} is ${res.data.status_label.toLowerCase()}.`],
         reject: ["Voucher rejected", `${res.data.number} has been rejected and ${res.data.requester?.name ?? "the requester"} has been notified.`],
         request_changes: ["Changes requested", `${res.data.requester?.name ?? "The requester"} has been notified.`],
-        submit: ["Voucher submitted", `${res.data.number} — ${res.data.status_label}`],
+        submit: ["Voucher submitted", `${res.data.number}, ${res.data.status_label}`],
         cancel: ["Voucher withdrawn", res.data.number],
       };
       const [title, bodyText] = messages[action];
@@ -277,8 +277,8 @@ export default function VoucherDetailPage() {
   const settles = payAmountValue !== null && !payAmountError && payRemainder <= 0.001;
 
   /**
-   * Who is offered "Upload signed copy". The server decides — the company
-   * admin, the cashier who paid, or whoever may pay the voucher — and this
+   * Who is offered "Upload signed copy". The server decides, the company
+   * admin, the cashier who paid, or whoever may pay the voucher, and this
    * only avoids showing the button to people who would certainly be refused.
    */
   const canFileAck = (payment: VoucherPayment) =>
@@ -314,6 +314,11 @@ export default function VoucherDetailPage() {
               <span className="app-doc-type">{voucher.voucher_type?.label ?? t("voucher")}</span>
               <KindChip kind={voucher.kind} />
               <StatusBadge voucher={voucher} />
+              {voucher.source?.type === "supplier_invoice" && (
+                <Link className="app-doc-source no-print" href={`/erp/procurement/invoices/${voucher.source.id}`} title={t("linkPaysInvoiceBody")}>
+                  <Icon name="ph-link-simple" size={13} /> {t("linkPaysInvoice")} {voucher.source.label}
+                </Link>
+              )}
             </div>
             <h1 className="vf-voucher-title">{voucher.purpose}</h1>
           </div>
@@ -329,10 +334,10 @@ export default function VoucherDetailPage() {
 
         <dl className="app-doc-facts">
           <div><dt>{t("payee")}</dt><dd>{voucher.payee}</dd></div>
-          <div><dt>{t("requestedBy")}</dt><dd>{voucher.requester?.name ?? "—"}</dd></div>
-          <div><dt>{t("department")}</dt><dd>{voucher.department?.name ?? "—"}</dd></div>
+          <div><dt>{t("requestedBy")}</dt><dd>{voucher.requester?.name ?? "-"}</dd></div>
+          <div><dt>{t("department")}</dt><dd>{voucher.department?.name ?? "-"}</dd></div>
           <div><dt>{t("date")}</dt><dd className="tnum">{formatDate(voucher.voucher_date, locale)}</dd></div>
-          <div><dt>{t("paymentMethod")}</dt><dd>{voucher.payment_method ?? "—"}</dd></div>
+          <div><dt>{t("paymentMethod")}</dt><dd>{voucher.payment_method ?? "-"}</dd></div>
         </dl>
 
         <div className="vf-voucher-tools no-print">
@@ -493,7 +498,7 @@ export default function VoucherDetailPage() {
             </div>
             <div className="vf-panel-pad">
               {/* Receipts often arrive after the money is released, so an approved
-                  or paid voucher still takes documents — its details stay locked. */}
+                  or paid voucher still takes documents, its details stay locked. */}
               {afterDecision && a?.attach && (
                 <p className="app-muted-line" style={{ marginBottom: 10 }}><Icon name="ph-info" size={15} /> {t("attachAfterPaymentNote")}</p>
               )}
@@ -512,7 +517,7 @@ export default function VoucherDetailPage() {
                           {file.document_type === "payment_acknowledgement" && (
                             <span className="app-file-kind">
                               <Icon name="ph-seal-check" size={12} />
-                              {t("signedAckLabel").replace("{n}", String(ackFor?.sequence ?? "—"))}
+                              {t("signedAckLabel").replace("{n}", String(ackFor?.sequence ?? "-"))}
                             </span>
                           )}
                           <span className="vf-file-name">{file.name}</span>
@@ -613,13 +618,13 @@ export default function VoucherDetailPage() {
 
       {/* ─────────────────────────────────────────────────────── dialogs ── */}
 
-      {/* Sign — serious, deliberate, and only ever with your own signature. */}
+      {/* Sign, serious, deliberate, and only ever with your own signature. */}
       <Dialog
         open={dialog === "sign"}
         icon="ph-signature"
         tone="info"
         title={t("confirmSignature")}
-        sub={<>{t("signingAs")} <strong>{user?.name}</strong>{user?.job_title ? ` — ${user.job_title}` : ""}.</>}
+        sub={<>{t("signingAs")} <strong>{user?.name}</strong>{user?.job_title ? `, ${user.job_title}` : ""}.</>}
         summary={[...summary, { label: t("dateTime"), value: signedAt }]}
         onClose={closeDialog}
         busy={busy}
@@ -737,7 +742,7 @@ export default function VoucherDetailPage() {
         </Field>
       </Dialog>
 
-      {/* Pay — the whole balance by default, or part of it now and the rest later. */}
+      {/* Pay, the whole balance by default, or part of it now and the rest later. */}
       <Dialog
         open={dialog === "pay"}
         icon="ph-wallet"
@@ -747,7 +752,7 @@ export default function VoucherDetailPage() {
         summary={[
           ...summary,
           ...(partlyPaid ? [
-            { label: t("paidSoFar"), value: voucher.amount_paid_text ?? "—" },
+            { label: t("paidSoFar"), value: voucher.amount_paid_text ?? "-" },
             { label: t("balanceLabel"), value: <strong>{voucher.balance_text}</strong> },
           ] : []),
           { label: t("voucherFormat"), value: isCash ? t("cash") : t("bank") },
@@ -777,7 +782,7 @@ export default function VoucherDetailPage() {
 
           <Field label={t("payFrom")} htmlFor="pay-method">
             <select id="pay-method" className="input" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-              {(isCash ? ["Cash — office float", "Cash — branch float"] : ["Bank transfer", "Cheque", "Mobile money"])
+              {(isCash ? ["Cash, office float", "Cash, branch float"] : ["Bank transfer", "Cheque", "Mobile money"])
                 .map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </Field>
@@ -807,7 +812,7 @@ export default function VoucherDetailPage() {
         </div>
       </Dialog>
 
-      {/* Payment receipt — and the acknowledgement the receiver signs for it. */}
+      {/* Payment receipt, and the acknowledgement the receiver signs for it. */}
       <Dialog
         open={!!paidReceipt}
         icon="ph-check-circle"
@@ -825,7 +830,7 @@ export default function VoucherDetailPage() {
             ? [{ label: t("balanceAfter"), value: paidReceipt.payment.balance_after_text }] : []),
           ...(paidReceipt.payment?.received_by
             ? [{ label: t("receivedBy"), value: [paidReceipt.payment.received_by, paidReceipt.payment.receiver_id_number].filter(Boolean).join(" · ") }] : []),
-          { label: t("paidByOn"), value: paidReceipt.payment?.paid_by ?? personName(paidReceipt.voucher.paid_by) ?? user?.name ?? "—" },
+          { label: t("paidByOn"), value: paidReceipt.payment?.paid_by ?? personName(paidReceipt.voucher.paid_by) ?? user?.name ?? "-" },
           { label: t("dateTime"), value: formatDateTime(paidReceipt.payment?.paid_at ?? paidReceipt.voucher.paid_at, locale) },
           ...((paidReceipt.payment?.payment_reference ?? paidReceipt.voucher.payment_reference)
             ? [{ label: t("paymentRef"), value: paidReceipt.payment?.payment_reference ?? paidReceipt.voucher.payment_reference }] : []),
@@ -877,7 +882,7 @@ export default function VoucherDetailPage() {
         </Field>
       </Dialog>
 
-      {/* Delete draft — used to happen on a single click. */}
+      {/* Delete draft, used to happen on a single click. */}
       <Dialog
         open={dialog === "delete"}
         icon="ph-trash"

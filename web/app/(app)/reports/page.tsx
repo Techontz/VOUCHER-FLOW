@@ -31,7 +31,7 @@ interface ReportResult {
 }
 
 /**
- * What this caller is allowed to look back over — ReportController::scopeDescriptor.
+ * What this caller is allowed to look back over: ReportController::scopeDescriptor.
  * A department picker may narrow this ceiling and can never widen it.
  */
 interface ReportScope { level: "own" | "departments" | "company"; label: string; department_ids: number[] | null }
@@ -102,7 +102,7 @@ export default function ReportsPage() {
     api.get<{ data: VoucherType[] }>("/voucher-types").then((r) => setTypes(r.data)).catch(() => undefined);
   }, []);
 
-  // People to filter by — only for a caller who can see anyone but themselves.
+  // People to filter by, only for a caller who can see anyone but themselves.
   useEffect(() => {
     if (!scope || scope.level === "own") return;
     api.get<{ data: Person[] }>("/directory").then((r) => setPeople(r.data)).catch(() => undefined);
@@ -138,7 +138,7 @@ export default function ReportsPage() {
       value !== "" && shows(key) && (key !== "status" || statusOptions.some((o) => o.value === value))),
   );
   const searchTerm = params.q ?? "";
-  // A stable key, so the report reloads when the sent filters change — not on every render.
+  // A stable key, so the report reloads when the sent filters change, not on every render.
   const query = JSON.stringify(params);
 
   const load = useCallback(() => {
@@ -346,7 +346,7 @@ export default function ReportsPage() {
                               }}>
                                 {typeof cell === "number"
                                   ? cell.toLocaleString("en-US", { maximumFractionDigits: 2 })
-                                  : isDate ? formatDate(cell as string, locale) : cell ?? "—"}
+                                  : isDate ? formatDate(cell as string, locale) : cell ?? "-"}
                               </td>
                             );
                           })}

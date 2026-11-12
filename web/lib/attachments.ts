@@ -4,7 +4,7 @@
  * The server is the authority (VoucherAttachmentController: PDF or image,
  * config('vouchflow.max_upload_mb') each, at most ten per request). These
  * mirror those rules so a file the server would refuse is caught when it is
- * picked, not after the voucher has already been created — at which point a
+ * picked, not after the voucher has already been created, at which point a
  * refused upload used to fail the whole save and a retry made a second voucher.
  */
 
@@ -68,7 +68,7 @@ export function acceptFiles(existing: File[], picked: File[]): { files: File[]; 
   return { files, rejected };
 }
 
-/** One `files[]` part per file — never collapsed into a single value. */
+/** One `files[]` part per file, never collapsed into a single value. */
 export function attachmentForm(files: File[]): FormData {
   const form = new FormData();
   for (const file of files) form.append("files[]", file, file.name);

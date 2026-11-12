@@ -2,7 +2,7 @@
 
 /*
  * The approval workflow builder: which workflows the company runs, which
- * voucher types each one routes, and — level by level — who acts, in what
+ * voucher types each one routes, and, level by level, who acts, in what
  * order, for which amounts and with which permissions. Below the route sits a
  * read-only matrix of who that resolves to in every department, which is how
  * an administrator sees the person responsible for each approval stage.
@@ -44,7 +44,7 @@ const GAP_KEYS: Record<RoutingGap, MessageKey> = {
 const DEPARTMENT_GAPS: RoutingGap[] = ["no_hod", "inactive_hod", "no_manager", "inactive_manager"];
 
 /*
- * What a step may do. Every flag the backend stores is listed — and, just as
+ * What a step may do. Every flag the backend stores is listed, and, just as
  * important, every flag is SENT on save. The previous builder omitted can_pay
  * from its payload; the API defaults a missing flag to false, so saving any
  * workflow silently removed the payment capability from every step and left
@@ -143,7 +143,7 @@ export function WorkflowBuilder() {
 
   function move(index: number, direction: -1 | 1) {
     const target = index + direction;
-    // The request step must stay first — it is the requester's own step.
+    // The request step must stay first, it is the requester's own step.
     if (index === 0 || target < 1 || target >= steps.length) return;
     setSteps((list) => {
       const next = [...list];
@@ -342,7 +342,7 @@ export function WorkflowBuilder() {
               }}>
               {workflows.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.name}{w.is_default ? ` — ${t("wfcDefault")}` : ""}{w.voucher_type ? ` — ${typeName(w.voucher_type)}` : ""}
+                  {w.name}{w.is_default ? `, ${t("wfcDefault")}` : ""}{w.voucher_type ? `, ${typeName(w.voucher_type)}` : ""}
                 </option>
               ))}
             </select>
@@ -472,7 +472,7 @@ export function WorkflowBuilder() {
                               <option value="">{t("wfcChoosePerson")}…</option>
                               {assignedMissing && step.assigned_user_id != null && (
                                 <option value={step.assigned_user_id} disabled>
-                                  {(step.assigned_user?.name ?? "—")} ({t("wfcInactive")})
+                                  {(step.assigned_user?.name ?? "-")} ({t("wfcInactive")})
                                 </option>
                               )}
                               {people.map((p) => <option key={p.id} value={p.id}>{personLabel(p)}</option>)}
@@ -532,7 +532,7 @@ export function WorkflowBuilder() {
                         </label>
                       )}
                       {step.can_sign && !step.can_approve && !request && (
-                        <p className="field-hint">This step signs only. Its holder signs, then submits onward — the approve or reject decision belongs to a later step.</p>
+                        <p className="field-hint">This step signs only. Its holder signs, then submits onward, the approve or reject decision belongs to a later step.</p>
                       )}
                       {step.can_request_changes && !request && (
                         <p className="field-hint">Requesting changes returns the voucher to the requester to revise and resubmit.</p>
@@ -616,7 +616,7 @@ export function WorkflowBuilder() {
                       <td style={{ fontWeight: 500 }}>{dept.name}</td>
                       {levelSteps.map((s) => {
                         const cell = dept.cells.find((c) => c.step_id === s.id);
-                        if (!cell) return <td key={s.id}>—</td>;
+                        if (!cell) return <td key={s.id}>-</td>;
                         if (cell.gap) {
                           return (
                             <td key={s.id}>
@@ -812,7 +812,7 @@ export function WorkflowBuilder() {
   );
 }
 
-/** Name, Swahili name, description and voucher-type binding — shared by create and edit. */
+/** Name, Swahili name, description and voucher-type binding, shared by create and edit. */
 function WorkflowFields({
   form, onChange, types, typeName, lockType, clashes,
 }: {

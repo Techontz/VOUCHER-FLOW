@@ -1,4 +1,4 @@
-/* The design system. One file now — the structural base and the skin that
+/* The design system. One file now, the structural base and the skin that
    used to be layered over it defined the same components twice. */
 @import "../styles/vouchflow.css";
 /* The signed-in application: scoped to .vf-shell, so it cannot reach the
@@ -8,6 +8,25 @@
 @import "../styles/voucher-templates.css";
 /* The create-voucher flow, drawn to the approved reference. */
 @import "../styles/create-voucher.css";
+/* Liquid glass: the surfaces of the shell, sign-in and registration. Last, so
+   it is the final word on how a surface looks, never on the A4 sheet. */
+@import "../styles/glass.css";
+/* The ERP screens: layout only, on the glass tokens above. */
+@import "../styles/erp.css";
+/* CRM pipeline board and the document library. */
+@import "../styles/crm.css";
+/* Sales timelines and the printable invoice, delivery note and gate pass. */
+@import "../styles/sales.css";
+/* Finance: section tabs, statement rows and the budget grid. */
+@import "../styles/finance.css";
+/* Refined: the calm ground, solid cards, glass chrome and motion. The final layer. */
+@import "../styles/refined.css";
+/* The way in: sign-in, registration and verification, scoped to .au. */
+@import "../styles/auth.css";
+/* The public site's app grid and app catalogue. */
+@import "../styles/site.css";
+/* Platform administration: the operator's overview, charts and plan editor. */
+@import "../styles/platform.css";
 
 /* ── Print ────────────────────────────────────────────────────────────────
    Paper is white whatever the screen was showing. Server-generated PDFs stay
@@ -22,6 +41,10 @@
     --vf-elev-1: #ffffff; --vf-elev-2: #f7f9fc; --vf-elev-3: #eef2f8;
     --vf-line: rgba(15, 32, 66, .16); --vf-line-strong: rgba(15, 32, 66, .28);
     --color-neutral-600: #64718a; --color-neutral-700: #4a566d; --color-neutral-800: #2a3550;
+    /* Glass never prints: every surface is plain paper. */
+    --glass-fill: #ffffff; --glass-fill-strong: #ffffff; --glass-fill-raised: #ffffff; --glass-solid: #ffffff;
+    --glass-border: rgba(15, 32, 66, .16); --glass-highlight: transparent; --glass-blur: none;
+    --glass-shadow: none; --glass-shadow-float: none; --wallpaper: none;
   }
   body { background: #fff; color: #0b1220; }
 
@@ -63,8 +86,10 @@
 }
 
 /* ── App shell ────────────────────────────────────────────────────────────
-   Solid surfaces throughout. The topbar and tab bar used to be translucent and
-   blurred, which let a scrolling page show through them on a phone. */
+   Structure only. The glass itself (floating sidebar, top-bar pill, frosted
+   tab bar) is drawn in styles/app.css and styles/glass.css. Anything that
+   stays put over scrolling content is ≥ .85 opaque and blurred, so a page
+   never reads through it on a phone. */
 .vf-shell { display: flex; min-height: 100vh; min-height: 100dvh; }
 
 .vf-sidebar {
@@ -174,7 +199,7 @@
   border: 1px solid var(--vf-line); border-radius: var(--radius-lg); background: var(--vf-elev-1);
   box-shadow: var(--shadow-sm);
 }
-/* Inside a panel the surface is already drawn — no second frame. */
+/* Inside a panel the surface is already drawn, no second frame. */
 .vf-panel > .table-wrap,
 .vf-panel .vf-panel-pad > .table-wrap { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 
@@ -230,7 +255,7 @@
 .vf-mark-chip { flex: none; display: inline-flex; padding: 2px 0; }
 
 /* The A4 sheet is 794px wide. Inside a narrower column it is scaled as a
-   whole rather than re-laid-out, so the printed geometry always survives —
+   whole rather than re-laid-out, so the printed geometry always survives,
    measured against the frame it sits in, not the window, because the same
    frame appears in a wide page and a narrow preview column. */
 .vf-document-frame { container-type: inline-size; }

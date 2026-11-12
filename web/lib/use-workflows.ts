@@ -35,7 +35,7 @@ function load(companyId: number): Promise<Workflow[]> {
   return request;
 }
 
-/** Drops cached routes — call after a workflow is edited. */
+/** Drops cached routes, call after a workflow is edited. */
 export function invalidateWorkflows(companyId?: number | null) {
   if (companyId == null) cache.clear();
   else cache.delete(companyId);

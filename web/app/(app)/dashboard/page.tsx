@@ -7,17 +7,18 @@ import { useApp } from "@/lib/app-context";
 import { compactMoney, formatDate, money, relativeTime } from "@/lib/format";
 import { translateKey, type Locale } from "@/lib/i18n";
 import {
-  Banner, ErrorState, Icon, StatBlock, StatGrid,
+  Banner, ErrorState, Icon, StatPills,
   type Kpi, type Tone,
 } from "@/components/ui";
 import { VoucherList } from "@/components/voucher-bits";
+import { PlatformOverview } from "@/components/platform-overview";
 import type { DashboardActivity, DashboardPayload, DashboardView, Role } from "@/lib/types";
 
 /**
  * The dashboard: a greeting, one plain sentence about what is waiting on you,
  * the figures for your role, and the work itself.
  *
- * What each role sees — and every number on it — is decided by the backend
+ * What each role sees, and every number on it, is decided by the backend
  * from the vouchers that user may see. This page decides only how it reads,
  * and translates each figure by its stable key, falling back to the English
  * text the API sent.
@@ -26,7 +27,7 @@ import type { DashboardActivity, DashboardPayload, DashboardView, Role } from "@
 type Look = [icon: string, tone: Tone];
 
 /*
- * Icon and tone per figure, by the figure's stable key — so a figure keeps its
+ * Icon and tone per figure, by the figure's stable key, so a figure keeps its
  * look whichever role's dashboard it appears on. Only the numbers that ask
  * for action are coloured.
  */
@@ -75,15 +76,23 @@ const STEP_ICON: Record<string, string> = {
   request: "ph-file-plus", sign: "ph-signature", approve: "ph-seal-check", pay: "ph-wallet", review: "ph-eye",
 };
 
+/**
+ * A platform operator lands on the platform overview (charts, approvals,
+ * renewals); everyone else on their role's dashboard below.
+ */
 export default function DashboardPage() {
+  const { user } = useApp();
+  return user?.role === "super_admin" ? <PlatformOverview /> : <RoleDashboard />;
+}
+
+function RoleDashboard() {
   const { t, user, company, locale } = useApp();
   const [payload, setPayload] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setError(null);
     api.get<DashboardPayload>("/dashboard")
-      .then(setPayload)
+      .then((p) => { setError(null); setPayload(p); })
       .catch((err) => setError(err.message));
   }, []);
 
@@ -141,7 +150,7 @@ export default function DashboardPage() {
         </Banner>
       )}
 
-      <header className="vf-pagehead app-dash-head">
+      <header className="vf-pagehead app-dash-head vf-pagehead-hero">
         <div className="vf-pagehead-main">
           <h1 className="vf-pagehead-title">{greeting}{firstName ? `, ${firstName}` : ""}</h1>
           <p className="vf-pagehead-sub">
@@ -160,7 +169,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* One sentence about what is waiting on you — and where to go. */}
+      {/* One sentence about what is waiting on you, and where to go. */}
       {d.banner ? (
         <AttentionBanner banner={d.banner} tr={tr} />
       ) : isPlatform && (
@@ -174,23 +183,27 @@ export default function DashboardPage() {
       )}
 
       <section className="app-section app-dash-figures" data-count={stats.length} aria-label={tr("dash.keyFigures", "Key figures")}>
-        <StatGrid>
-          {stats.map((stat) => <StatBlock key={stat.id} {...stat.kpi} />)}
-        </StatGrid>
+        <StatPills
+          label={tr("dash.keyFigures", "Key figures")}
+          items={stats.map(({ kpi }) => ({
+            label: kpi.label, value: kpi.value, hint: kpi.sub, tone: kpi.tone, icon: kpi.icon,
+            href: kpi.href, trend: kpi.trend, up: kpi.up,
+          }))}
+        />
       </section>
 
       <div className="app-dash-grid">
         {/* ── the work, then what has happened ── */}
         <div className="app-dash-main">
           {!isPlatform && queue.length > 0 && (
-            <section className="vf-panel" id="queue" aria-labelledby="queue-title">
+            <section className="vf-panel vf-glasscard" id="queue" aria-labelledby="queue-title">
               <div className="vf-panel-head">
                 <div className="vf-panel-head-main app-panel-title">
                   <h2 id="queue-title">{tr(`dash.queue.${view}`, t("needsYourAction"))}</h2>
                   <span className="vf-count">{queue.length}</span>
                 </div>
                 {view === "approver" && queue.length > 1 && (
-                  <Link className="btn btn-ghost btn-sm" href="/approvals"><Icon name="ph-checks" size={14} /> {t("approveSelected")}…</Link>
+                  <Link className="vf-card-link" href="/approvals"><Icon name="ph-checks" size={14} /> {t("approveSelected")}…</Link>
                 )}
                 {queueTotal && (
                   <div className="app-queue-total">{t("total")} <strong className="tnum">{queueTotal}</strong></div>
@@ -219,13 +232,13 @@ export default function DashboardPage() {
 
           {/* The platform's own queue: companies that need a conversation. */}
           {d.attention && (
-            <section className="vf-panel" aria-labelledby="attention-title">
+            <section className="vf-panel vf-glasscard" aria-labelledby="attention-title">
               <div className="vf-panel-head">
                 <div className="vf-panel-head-main app-panel-title">
                   <h2 id="attention-title">{t("companiesNeedingAttention")}</h2>
                   <span className="vf-count">{d.attention.length}</span>
                 </div>
-                <Link className="btn btn-ghost btn-sm" href="/platform/companies">{t("all")} <Icon name="ph-arrow-right" size={13} /></Link>
+                <Link className="vf-card-link" href="/platform/companies">{t("all")} <Icon name="ph-arrow-right" size={13} /></Link>
               </div>
               {d.attention.length === 0 ? (
                 <p className="app-dash-empty">{tr("dash.banner.clear", "Nothing needs your attention.")}</p>
@@ -258,10 +271,10 @@ export default function DashboardPage() {
           )}
 
           {isPlatform && d.recent_payments && d.recent_payments.length > 0 && (
-            <section className="vf-panel" aria-labelledby="payments-title">
+            <section className="vf-panel vf-glasscard" aria-labelledby="payments-title">
               <div className="vf-panel-head">
                 <div className="vf-panel-head-main"><h2 id="payments-title">{t("recentPayments")}</h2></div>
-                <Link className="btn btn-ghost btn-sm" href="/platform/payments">{t("all")} <Icon name="ph-arrow-right" size={13} /></Link>
+                <Link className="vf-card-link" href="/platform/payments">{t("all")} <Icon name="ph-arrow-right" size={13} /></Link>
               </div>
               <div className="table-wrap">
                 <table className="table">
@@ -270,7 +283,7 @@ export default function DashboardPage() {
                     {d.recent_payments.map((p) => (
                       <tr key={p.id}>
                         <td className="tnum">{p.number}</td>
-                        <td>{p.company ?? "—"}</td>
+                        <td>{p.company ?? "-"}</td>
                         <td className="num">{money(p.total, p.currency)}</td>
                         <td><span className={`badge ${p.status === "paid" ? "tone-ok" : p.status === "pending" ? "tone-warn" : "tone-neutral"}`}>{p.status}</span></td>
                         <td className="text-muted">{formatDate(p.created_at, locale)}</td>
@@ -288,7 +301,7 @@ export default function DashboardPage() {
           {view === "admin" && (d.overview || d.workflow !== undefined || d.subscription) && (
             <>
               {d.overview && (
-                <section className="vf-panel">
+                <section className="vf-panel vf-glasscard">
                   <div className="vf-panel-head"><div className="vf-panel-head-main"><h2>{tr("dash.panel.companyOverview", "Company overview")}</h2></div></div>
                   <dl className="app-dash-facts">
                     <div><dt>{tr("dash.panel.activeUsers", "Active users")}</dt><dd className="tnum">{d.overview.active_users}</dd></div>
@@ -298,13 +311,13 @@ export default function DashboardPage() {
               )}
               <WorkflowCard workflow={d.workflow ?? null} locale={locale} tr={tr} />
               {d.subscription && (
-                <section className="vf-panel">
+                <section className="vf-panel vf-glasscard">
                   <div className="vf-panel-head">
                     <div className="vf-panel-head-main"><h2>{tr("dash.panel.subscription", "Subscription")}</h2></div>
-                    <Link className="btn btn-ghost btn-sm" href="/subscription">{tr("dash.panel.manageSubscription", "Manage subscription")} <Icon name="ph-arrow-right" size={13} /></Link>
+                    <Link className="vf-card-link" href="/subscription">{tr("dash.panel.manageSubscription", "Manage subscription")} <Icon name="ph-arrow-right" size={13} /></Link>
                   </div>
                   <dl className="app-dash-facts">
-                    <div><dt>{tr("dash.panel.plan", "Plan")}</dt><dd>{d.subscription.plan ?? "—"}</dd></div>
+                    <div><dt>{tr("dash.panel.plan", "Plan")}</dt><dd>{d.subscription.plan ?? "-"}</dd></div>
                     <div><dt>{tr("dash.panel.status", "Status")}</dt><dd>{tr(`subscription.${d.subscription.status}`, d.subscription.status)}</dd></div>
                     {d.subscription.status === "trial" ? (
                       <div><dt>{tr("dash.panel.trialEnds", "Trial ends")}</dt><dd>{formatDate(d.subscription.trial_ends_at, locale)}</dd></div>
@@ -323,7 +336,7 @@ export default function DashboardPage() {
           )}
 
           {view === "hod" && d.recently_signed && (
-            <section className="vf-panel">
+            <section className="vf-panel vf-glasscard">
               <div className="vf-panel-head"><div className="vf-panel-head-main"><h2>{tr("dash.panel.recentlySigned", "Recently signed")}</h2></div></div>
               {d.recently_signed.length === 0 ? (
                 <p className="app-dash-empty">{tr("dash.activity.empty", "No activity yet.")}</p>
@@ -344,7 +357,7 @@ export default function DashboardPage() {
           )}
 
           {view === "cashier" && d.payment_totals && (
-            <section className="vf-panel">
+            <section className="vf-panel vf-glasscard">
               <div className="vf-panel-head">
                 <div className="vf-panel-head-main">
                   <h2>{tr("dash.panel.paymentTotals", "Payment totals")}</h2>
@@ -367,7 +380,7 @@ export default function DashboardPage() {
           )}
 
           {d.by_stage && d.by_stage.length > 0 && (
-            <section className="vf-panel">
+            <section className="vf-panel vf-glasscard">
               <div className="vf-panel-head"><div className="vf-panel-head-main"><h2>{t("byStage")}</h2></div></div>
               <div className="vf-panel-pad app-bars">
                 {d.by_stage.map((row) => (
@@ -387,7 +400,7 @@ export default function DashboardPage() {
           {d.volume && d.volume.length > 0 && <VolumeChart volume={d.volume} currency={company?.currency} />}
 
           {d.by_department && (view === "approver" || d.by_department.length > 0) && (
-            <section className="vf-panel">
+            <section className="vf-panel vf-glasscard">
               <div className="vf-panel-head">
                 <div className="vf-panel-head-main">
                   <h2>{tr("dash.panel.deptSpending", "Department spending")}</h2>
@@ -418,7 +431,7 @@ export default function DashboardPage() {
           )}
 
           {isPlatform && d.recent_companies && d.recent_companies.length > 0 && (
-            <section className="vf-panel">
+            <section className="vf-panel vf-glasscard">
               <div className="vf-panel-head"><div className="vf-panel-head-main"><h2>{t("recentCompanies")}</h2></div></div>
               <ul className="app-mini-list">
                 {d.recent_companies.map((c) => (
@@ -435,7 +448,7 @@ export default function DashboardPage() {
           )}
 
           {view === "employee" && (
-            <section className="vf-panel">
+            <section className="vf-panel vf-glasscard">
               <div className="vf-panel-pad app-dash-links">
                 <Link className="btn btn-secondary btn-block" href="/vouchers"><Icon name="ph-clock-counter-clockwise" size={16} /> {tr("dash.panel.voucherHistory", "View voucher history")}</Link>
                 <Link className="btn btn-secondary btn-block" href="/reports"><Icon name="ph-chart-line" size={16} /> {tr("dash.panel.viewReports", "View reports")}</Link>
@@ -450,7 +463,7 @@ export default function DashboardPage() {
 
 type Tr = (key: string | null | undefined, fallback: string, params?: Record<string, string | number> | null) => string;
 
-/** "You have 3 vouchers waiting for your attention." — or a plain all-clear. */
+/** "You have 3 vouchers waiting for your attention.", or a plain all-clear. */
 function AttentionBanner({ banner, tr }: { banner: NonNullable<DashboardPayload["data"]["banner"]>; tr: Tr }) {
   const pending = banner.count > 0;
 
@@ -476,10 +489,10 @@ function ActivityPanel({ title, rows, selfId, locale, tr, link }: {
   link: { href: string; label: string };
 }) {
   return (
-    <section className="vf-panel" aria-label={title}>
+    <section className="vf-panel vf-glasscard" aria-label={title}>
       <div className="vf-panel-head">
         <div className="vf-panel-head-main"><h2>{title}</h2></div>
-        <Link className="btn btn-ghost btn-sm" href={link.href}>{link.label} <Icon name="ph-arrow-right" size={13} /></Link>
+        <Link className="vf-card-link" href={link.href}>{link.label} <Icon name="ph-arrow-right" size={13} /></Link>
       </div>
       {rows.length === 0 ? (
         <p className="app-dash-empty">{tr("dash.activity.empty", "No activity yet.")}</p>
@@ -490,7 +503,7 @@ function ActivityPanel({ title, rows, selfId, locale, tr, link }: {
               <span className="app-activity-dot" data-action={row.action} />
               <div className="app-activity-main">
                 <span>
-                  <strong>{row.actor_id && row.actor_id === selfId ? tr("dash.activity.you", "You") : row.actor ?? "—"}</strong>{" "}
+                  <strong>{row.actor_id && row.actor_id === selfId ? tr("dash.activity.you", "You") : row.actor ?? "-"}</strong>{" "}
                   {tr(`activity.${row.action}`, row.action_label)}{" "}
                   <Link href={`/vouchers/${row.voucher_id}`} className="tnum">{row.voucher_number ?? `#${row.voucher_id}`}</Link>
                 </span>
@@ -509,7 +522,7 @@ function ActivityPanel({ title, rows, selfId, locale, tr, link }: {
 /** The default approval route, step by step, with a way into its settings. */
 function WorkflowCard({ workflow, locale, tr }: { workflow: NonNullable<DashboardPayload["data"]["workflow"]> | null; locale: Locale; tr: Tr }) {
   return (
-    <section className="vf-panel">
+    <section className="vf-panel vf-glasscard">
       <div className="vf-panel-head">
         <div className="vf-panel-head-main">
           <h2>{tr("dash.panel.workflow", "Approval workflow")}</h2>
@@ -517,7 +530,7 @@ function WorkflowCard({ workflow, locale, tr }: { workflow: NonNullable<Dashboar
             {workflow ? ((locale === "sw" && workflow.name_sw) || workflow.name) : tr("dash.panel.workflowSub", "Default route for new vouchers")}
           </div>
         </div>
-        <Link className="btn btn-ghost btn-sm" href="/settings#workflow">{tr("dash.panel.manageWorkflow", "Manage workflow")} <Icon name="ph-arrow-right" size={13} /></Link>
+        <Link className="vf-card-link" href="/settings#workflow">{tr("dash.panel.manageWorkflow", "Manage workflow")} <Icon name="ph-arrow-right" size={13} /></Link>
       </div>
       {workflow && workflow.steps.length > 0 ? (
         <ol className="app-wf-route">
@@ -543,7 +556,7 @@ function VolumeChart({ volume, currency }: { volume: NonNullable<DashboardPayloa
   const current = volume.find((v) => v.is_current);
 
   return (
-    <section className="vf-panel">
+    <section className="vf-panel vf-glasscard">
       <div className="vf-panel-head">
         <div className="vf-panel-head-main">
           <h2>{locale === "sw" ? "Thamani ya vocha" : "Voucher value"}</h2>
@@ -571,11 +584,13 @@ function DashboardSkeleton() {
     <div className="app-page app-dashboard" aria-busy="true">
       <span className="sr-only">Loading</span>
       <div style={{ display: "grid", gap: 8, marginBottom: 22 }}>
-        <div className="skeleton" style={{ height: 26, width: "min(320px, 70%)" }} />
+        <div className="skeleton" style={{ height: 40, width: "min(380px, 70%)" }} />
         <div className="skeleton" style={{ height: 14, width: "min(300px, 60%)" }} />
       </div>
       <div className="skeleton" style={{ height: 64, marginBottom: 16 }} />
-      <div className="skeleton" style={{ height: 88, marginBottom: 20 }} />
+      <div className="vf-statpills" style={{ marginBottom: 20 }}>
+        {[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 92, borderRadius: 18 }} />)}
+      </div>
       <div className="app-dash-grid">
         <div className="skeleton" style={{ height: 320 }} />
         <div className="skeleton" style={{ height: 320 }} />

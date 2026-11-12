@@ -123,11 +123,11 @@ export default function CreateVoucherPage() {
   /* The preview is a real Voucher shape so the A4 sheet needs no special case. */
   const preview = useMemo<VoucherModel>(() => ({
     id: 0,
-    number: selectedType?.next_number_preview ?? "—",
+    number: selectedType?.next_number_preview ?? "-",
     status: "draft", kind: form.kind,
     status_key: "draft", status_label: t("drafts"), status_label_en: "Draft", status_label_sw: "Rasimu",
     status_tag: "tag-neutral",
-    payee: form.payee || "—", purpose: form.purpose || "—",
+    payee: form.payee || "-", purpose: form.purpose || "-",
     description: form.description || null,
     amount: amountNumber, currency: form.currency,
     amount_text: money(amountNumber, form.currency), amount_in_words: words,
@@ -160,14 +160,14 @@ export default function CreateVoucherPage() {
 
   /**
    * Adds files from the picker or a drop. Callers pass an array they have
-   * already copied out of the event: reading the FileList later — inside a
-   * state updater, say — finds it emptied, which is how picked documents used
+   * already copied out of the event: reading the FileList later, inside a
+   * state updater, say, finds it emptied, which is how picked documents used
    * to vanish without a trace.
    */
   async function addFiles(picked: File[]) {
     if (!picked.length) return;
-    // Phone photos are shrunk to a JPEG here, so the size check — and the
-    // upload — see the file that will actually be sent.
+    // Phone photos are shrunk to a JPEG here, so the size check, and the
+    // upload, see the file that will actually be sent.
     const result = acceptFiles(files, await prepareImages(picked));
     setFiles(result.files);
     setRejected(result.rejected);
@@ -189,10 +189,10 @@ export default function CreateVoucherPage() {
           await request(`/vouchers/${voucher.id}/attachments`, { method: "POST", form: attachmentForm(files) });
         } catch (err) {
           // The voucher exists now. Staying here would invite a second save and a
-          // duplicate voucher, so go to the draft — where documents can be added
-          // again — and say exactly what did not attach. It is not submitted:
+          // duplicate voucher, so go to the draft, where documents can be added
+          // again, and say exactly what did not attach. It is not submitted:
           // whoever reviews it would expect those documents to be there.
-          toast(t("docsNotAttached"), `${voucher.number} — ${describeUploadError(err, t)}`, "bad");
+          toast(t("docsNotAttached"), `${voucher.number}, ${describeUploadError(err, t)}`, "bad");
           router.push(`/vouchers/${voucher.id}`);
           return;
         }
@@ -200,7 +200,7 @@ export default function CreateVoucherPage() {
 
       if (mode === "submit") {
         const submitted = await api.post<{ data: Voucher }>(`/vouchers/${voucher.id}/submit`);
-        toast("Voucher submitted", `${submitted.data.number} — ${submitted.data.status_label}`, "ok");
+        toast("Voucher submitted", `${submitted.data.number}, ${submitted.data.status_label}`, "ok");
       } else {
         toast("Draft saved", `${voucher.number} is in your drafts.`, "warn");
       }
@@ -230,7 +230,7 @@ export default function CreateVoucherPage() {
     { key: "review", label: t("review") },
   ];
 
-  /** What must be true before leaving a step — the same things the server will insist on. */
+  /** What must be true before leaving a step, the same things the server will insist on. */
   function problemsAt(index: number): Record<string, string> {
     const out: Record<string, string> = {};
     if (index === 1) {
@@ -369,7 +369,7 @@ export default function CreateVoucherPage() {
                   <Field label={t("department")} htmlFor="department_id" error={fe("department_id")} hint={t("ownDepartmentOnly")}>
                     {/* A voucher stays in the requester's own department; the API refuses any other. */}
                     <select id="department_id" className="input" value={form.department_id} disabled>
-                      <option value="">—</option>
+                      <option value="">-</option>
                       {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                   </Field>
@@ -494,7 +494,7 @@ export default function CreateVoucherPage() {
                     <div className="vf-alert-title">{t("filesNotAdded")}</div>
                     {rejected.map((r) => (
                       <div key={`${r.name}-${r.reason}`}>
-                        {r.name} — {r.reason === "type" ? t("fileWrongType") : r.reason === "size" ? `${t("fileTooLarge")} ${MAX_UPLOAD_MB} MB` : t("fileTooMany")}
+                        {r.name}, {r.reason === "type" ? t("fileWrongType") : r.reason === "size" ? `${t("fileTooLarge")} ${MAX_UPLOAD_MB} MB` : t("fileTooMany")}
                       </div>
                     ))}
                   </div>
@@ -688,7 +688,7 @@ function ReviewRow({ label, value, onEdit }: { label: string; value: string | nu
   return (
     <div className="vf-dl-row vf-review-row">
       <dt>{label}</dt>
-      <dd>{value || "—"}</dd>
+      <dd>{value || "-"}</dd>
       <button type="button" className="btn btn-ghost btn-sm" onClick={onEdit}>{t("edit")}</button>
     </div>
   );

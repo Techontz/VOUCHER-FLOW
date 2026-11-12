@@ -15,7 +15,7 @@ import type { VoucherTemplate } from "@/lib/types";
  * isolated iframe, scaled to whatever width the page gives it.
  */
 
-/** A4 at 96 dpi — the width the server lays the sheet out for. */
+/** A4 at 96 dpi, the width the server lays the sheet out for. */
 const PAGE_W = 794;
 const PAGE_H = 1123;
 
@@ -41,7 +41,7 @@ function useCopy() {
 }
 
 export function templateName(template: Pick<VoucherTemplate, "name" | "name_sw"> | undefined, locale: string) {
-  if (!template) return "—";
+  if (!template) return "-";
   return locale === "sw" ? template.name_sw : template.name;
 }
 
@@ -148,7 +148,7 @@ export function useTemplateCatalogue() {
  *
  * `body` is whatever brand the endpoint should render with; it is refetched
  * (debounced) when it changes. A logo the browser holds but the server does
- * not — a file chosen but not yet uploaded — travels as a placeholder the
+ * not, a file chosen but not yet uploaded, travels as a placeholder the
  * server prints and this hook swaps for `logoSrc`.
  */
 export function useTemplatePreviews(path: string | null, body: Record<string, unknown>, logoSrc: string | null = null) {
@@ -377,7 +377,7 @@ function useServerDocument(path: string, refreshKey: string, body?: Record<strin
 }
 
 /**
- * A saved voucher, in the design it was issued in — the same HTML the PDF
+ * A saved voucher, in the design it was issued in, the same HTML the PDF
  * prints. `fallback` renders when the server cannot (the offline mock).
  */
 export function VoucherDocumentView({ voucherId, refreshKey, fallback, onFrame }: {

@@ -197,8 +197,8 @@ export default function EmployeesPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="tnum">{user.employee_code ?? "—"}</td>
-                      <td>{user.department?.name ?? "—"}</td>
+                      <td className="tnum">{user.employee_code ?? "-"}</td>
+                      <td>{user.department?.name ?? "-"}</td>
                       <td>
                         <div>{user.role_label}</div>
                         {user.job_title && <div className="app-cell-sub">{user.job_title}</div>}
@@ -319,7 +319,7 @@ export default function EmployeesPage() {
             </Field>
             <Field label={t("department")} htmlFor="e-dept">
               <select id="e-dept" className="input" value={form.department_id} onChange={setField("department_id")}>
-                <option value="">—</option>
+                <option value="">-</option>
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </Field>

@@ -2,7 +2,7 @@
  * Choosing supporting documents on a new voucher.
  *
  * The files picked must be the files sent: every one of them, each as its own
- * `files[]` part, and anything the server would refuse caught at the picker —
+ * `files[]` part, and anything the server would refuse caught at the picker
  * before a voucher exists that a failed upload could leave half-saved.
  */
 import assert from "node:assert/strict";
@@ -56,7 +56,7 @@ test("no more than ten files are queued for one upload", () => {
   assert.deepEqual(rejected.map((r) => r.reason), ["count", "count"]);
 });
 
-test("every file becomes its own files[] part — none collapsed", () => {
+test("every file becomes its own files[] part, none collapsed", () => {
   const picked = [file("invoice.pdf", "application/pdf"), file("receipt.jpg", "image/jpeg"), file("scan.png", "image/png")];
   const form = attachmentForm(picked);
   const parts = form.getAll("files[]");

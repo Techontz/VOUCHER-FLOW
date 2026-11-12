@@ -286,7 +286,7 @@ export default function OnboardingPage() {
               </label>
             ))}
             <div style={{ fontSize: 13, color: "var(--color-neutral-600)" }}>
-              Your trial runs first — you will not be charged today.
+              Your trial runs first, you will not be charged today.
             </div>
           </div>
         )}

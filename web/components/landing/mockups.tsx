@@ -5,8 +5,8 @@ import { Icon } from "@/components/ui";
 import { MOCK, pick, type VoucherTab } from "./copy";
 
 /**
- * Product pictures for the public site, drawn with the product's own parts —
- * the same status badges, progress marks, kind chips and tones the app uses —
+ * Product pictures for the public site, drawn with the product's own parts
+ * the same status badges, progress marks, kind chips and tones the app uses
  * so what a visitor sees here is what they get after signing in.
  *
  * They are illustrations: every value is fixed, nothing is fetched, and each

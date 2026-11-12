@@ -12,7 +12,7 @@ import type {
 /*
  * The tabs of the platform's company view. Every number and row here comes
  * from the API for this one company (Platform\CompanyInsightController and
- * the existing company, audit and plan endpoints) — nothing is invented.
+ * the existing company, audit and plan endpoints), nothing is invented.
  */
 
 export interface Overview {
@@ -35,6 +35,11 @@ export interface Overview {
 export interface Detail {
   data: Company;
   usage: Usage;
+  /** The ERP modules the company runs, and every module the platform knows. */
+  modules?: string[];
+  /** The apps the subscription allows; `modules` is always among them. */
+  licensed_modules?: string[];
+  module_catalogue?: { key: string; label: string; phase: number; live: boolean }[];
   subscription: Subscription | null;
   invoices: Invoice[];
   admins: User[];
@@ -69,7 +74,7 @@ const ROLE_LABEL: Record<string, string> = {
 
 const STATUS_OPTIONS = [
   ["", "All statuses"], ["draft", "Draft"], ["in_review", "In review"], ["changes_requested", "Changes requested"],
-  ["awaiting_payment", "Approved — awaiting payment"], ["paid", "Paid"], ["rejected", "Rejected"], ["cancelled", "Cancelled"],
+  ["awaiting_payment", "Approved, awaiting payment"], ["paid", "Paid"], ["rejected", "Rejected"], ["cancelled", "Cancelled"],
 ] as const;
 
 /* ───────────────────────────────────────────────────────────── helpers ── */
@@ -142,7 +147,7 @@ export function OverviewTab({ detail, overview, onOpen }: { detail: Detail; over
   const maxMonth = Math.max(1, ...overview.monthly.map((m) => m.value));
   const pipeline: [string, number, string][] = [
     ["Draft", v.draft, "neutral"], ["In review", v.in_review, "info"], ["Changes requested", v.changes_requested, "warn"],
-    ["Approved — awaiting payment", v.approved, "ok"], ["Paid", v.paid, "ok"], ["Rejected", v.rejected, "bad"], ["Cancelled", v.cancelled, "neutral"],
+    ["Approved, awaiting payment", v.approved, "ok"], ["Paid", v.paid, "ok"], ["Rejected", v.rejected, "bad"], ["Cancelled", v.cancelled, "neutral"],
   ];
 
   return (
@@ -175,7 +180,7 @@ export function OverviewTab({ detail, overview, onOpen }: { detail: Detail; over
               <ul className="app-co-stagelist">
                 {overview.stages.map((s) => (
                   <li key={`${s.position}-${s.name}`}>
-                    <span className="app-co-stagenum tnum">{s.position || "—"}</span>
+                    <span className="app-co-stagenum tnum">{s.position || "-"}</span>
                     <span className="app-co-stagename">{s.name}{s.role && <small>{ROLE_LABEL[s.role] ?? s.role}</small>}</span>
                     <span className="tnum">{s.count} · {money(s.value, cur)}</span>
                   </li>
@@ -271,11 +276,11 @@ export function BrandingTab({ company, onEdit, voucherDesign }: { company: Compa
           <p>
             A company chooses its <strong>voucher design</strong> (one of ten payment voucher templates), its <strong>interface
             palette</strong> (the colour of buttons, links, tabs and the current menu item), its default <strong>appearance</strong>,
-            and the <strong>document branding</strong> — logo, colours and footer — carried into that design. These are
+            and the <strong>document branding</strong>, logo, colours and footer, carried into that design. These are
             {" "}{company.name}&apos;s saved settings.
           </p>
           {!customPalette && !hasDocBranding && (
-            <p className="app-co-note"><Icon name="ph-info" size={16} /> No custom branding selected — this company uses the VouchFlow defaults.</p>
+            <p className="app-co-note"><Icon name="ph-info" size={16} /> No custom branding selected, this company uses the VouchFlow defaults.</p>
           )}
         </div>
         <button type="button" className="btn btn-secondary" onClick={onEdit}><Icon name="ph-paint-brush" size={16} /> Edit branding</button>
@@ -396,9 +401,9 @@ export function UsersTab({ companyId, departments, roles, initial }: { companyId
                 {rows.map((u) => (
                   <tr key={u.id}>
                     <td><PersonCell name={u.name} sub={u.email} initials={u.initials} /></td>
-                    <td className="app-vt-date">{u.phone ?? "—"}</td>
+                    <td className="app-vt-date">{u.phone ?? "-"}</td>
                     <td>{u.role_label}{u.job_title && <div className="app-cell-sub">{u.job_title}</div>}</td>
-                    <td>{u.department?.name ?? "—"}</td>
+                    <td>{u.department?.name ?? "-"}</td>
                     <td><span className={`badge ${u.status === "active" ? "tag-accent" : u.status === "suspended" ? "tag-accent-2" : "tag-neutral"}`}>{u.status}</span></td>
                     <td className="num">{u.voucher_count ?? 0}</td>
                     <td className="app-vt-date">{u.last_login_at ? relativeTime(u.last_login_at, locale) : "Never"}</td>
@@ -428,9 +433,9 @@ export function DepartmentsTab({ departments, currency, onOpen }: { departments:
           <tbody>
             {departments.map((d) => (
               <tr key={d.id}>
-                <td><strong>{d.name}</strong><div className="app-cell-sub">{[d.code, d.cost_centre].filter(Boolean).join(" · ") || "—"}</div></td>
+                <td><strong>{d.name}</strong><div className="app-cell-sub">{[d.code, d.cost_centre].filter(Boolean).join(" · ") || "-"}</div></td>
                 <td>{d.hod ? <PersonCell name={d.hod.name} sub={d.hod.email} /> : <span className="badge tag-accent-2">No HOD</span>}</td>
-                <td>{d.manager?.name ?? "—"}</td>
+                <td>{d.manager?.name ?? "-"}</td>
                 <td className="num">{d.users_count}</td>
                 <td className="num">{d.vouchers_count}</td>
                 <td className="num">{money(d.approved_value, currency)}</td>
@@ -504,7 +509,7 @@ export function WorkflowTab({ companyId }: { companyId: number }) {
 
       {data.routing && (
         <Card title="Who approves in each department" pad={false}
-          sub={data.routing.gaps ? `${data.routing.gaps} step(s) resolve to nobody — vouchers would stall there` : "Every step resolves to someone in every department"}>
+          sub={data.routing.gaps ? `${data.routing.gaps} step(s) resolve to nobody, vouchers would stall there` : "Every step resolves to someone in every department"}>
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -518,7 +523,7 @@ export function WorkflowTab({ companyId }: { companyId: number }) {
                       <td key={cell.step_id}>
                         {cell.people.length
                           ? cell.people.map((p) => <div key={p.id}>{p.name}</div>)
-                          : <span className="badge tag-accent-2">Nobody — {cell.gap?.replaceAll("_", " ")}</span>}
+                          : <span className="badge tag-accent-2">Nobody, {cell.gap?.replaceAll("_", " ")}</span>}
                       </td>
                     ))}
                   </tr>
@@ -606,11 +611,11 @@ export function VouchersTab({ companyId, departments, currency, initial }: { com
                     <tr key={v.id}>
                       <td className="app-vt-number"><strong>{v.number}</strong><div><span className="vf-kind">{v.voucher_type?.label ?? v.kind}</span></div></td>
                       <td className="app-vt-purpose"><div className="app-vt-title">{v.purpose}</div><div className="app-vt-meta">{v.payee}</div></td>
-                      <td>{v.requester?.name ?? "—"}</td>
-                      <td>{v.department?.name ?? "—"}</td>
+                      <td>{v.requester?.name ?? "-"}</td>
+                      <td>{v.department?.name ?? "-"}</td>
                       <td className="num app-vt-amount">{v.amount_text || money(v.amount, v.currency)}</td>
                       <td><StatusBadge v={v} /></td>
-                      <td>{v.status === "in_review" ? (v.current_step?.name ?? `Step ${v.current_step_position ?? "—"}`) : <span className="text-muted">—</span>}</td>
+                      <td>{v.status === "in_review" ? (v.current_step?.name ?? `Step ${v.current_step_position ?? "-"}`) : <span className="text-muted">-</span>}</td>
                       <td className="app-vt-date">{formatDate(v.created_at ?? v.voucher_date, locale)}<div className="app-cell-sub">Updated {formatDate(v.updated_at ?? null, locale)}</div></td>
                     </tr>
                   ))}
@@ -648,11 +653,11 @@ export function PaymentsTab({ overview }: { overview: Overview }) {
                   <tr key={r.id}>
                     <td><strong>{r.number}</strong><div className="app-cell-sub">{r.kind === "cash" ? "Cash" : "Bank"}</div></td>
                     <td>{r.payee}<div className="app-cell-sub">{r.purpose}</div></td>
-                    <td>{r.department ?? "—"}</td>
+                    <td>{r.department ?? "-"}</td>
                     <td className="num app-vt-amount">{money(r.amount, r.currency || cur)}</td>
-                    <td>{r.payment_method ?? "—"}</td>
-                    <td className="tnum">{r.payment_reference ?? "—"}</td>
-                    <td>{r.paid_by ?? "—"}</td>
+                    <td>{r.payment_method ?? "-"}</td>
+                    <td className="tnum">{r.payment_reference ?? "-"}</td>
+                    <td>{r.paid_by ?? "-"}</td>
                     <td className="app-vt-date">{formatDate(r.payment_date ?? r.paid_at, locale)}</td>
                   </tr>
                 ))}
@@ -667,7 +672,7 @@ export function PaymentsTab({ overview }: { overview: Overview }) {
 
 /* ───────────────────────────────────────────────────────── subscription ── */
 
-export function SubscriptionTab({ detail, onChangePlan }: { detail: Detail; onChangePlan: () => void }) {
+export function SubscriptionTab({ detail, onChangePlan, onExtend }: { detail: Detail; onChangePlan: () => void; onExtend?: () => void }) {
   const { locale, t } = useApp();
   const c = detail.data;
   const s = detail.subscription;
@@ -676,7 +681,10 @@ export function SubscriptionTab({ detail, onChangePlan }: { detail: Detail; onCh
     <div className="app-stack app-co-stack">
       <div className="app-co-grid">
         <Card title={c.plan?.name ?? "No plan"} sub={c.plan?.blurb ?? undefined}
-          actions={<button type="button" className="btn btn-secondary btn-sm" onClick={onChangePlan}>Change plan</button>}>
+          actions={<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {onExtend && <button type="button" className="btn btn-secondary btn-sm" onClick={onExtend}><Icon name="ph-calendar-plus" size={14} /> {t("pfExtend")}</button>}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onChangePlan}>{t("changePlan")}</button>
+          </div>}>
           <Facts rows={[
             ["Company status", <span key="s" className={`badge ${c.status === "pending" ? "tone-warn" : "tag-neutral"}`}>{c.status === "pending" ? t("pendingApproval") : c.status}</span>],
             ["Subscription status", s ? s.status : "No active subscription"],

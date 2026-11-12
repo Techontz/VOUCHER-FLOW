@@ -70,7 +70,7 @@ export default function EditVoucherPage() {
       });
       if (mode === "submit") {
         const res = await api.post<{ data: Voucher }>(`/vouchers/${voucher.id}/submit`);
-        toast("Voucher submitted", `${res.data.number} — ${res.data.status_label}`, "ok");
+        toast("Voucher submitted", `${res.data.number}, ${res.data.status_label}`, "ok");
       } else {
         toast("Changes saved", voucher.number, "ok");
       }
@@ -123,7 +123,7 @@ export default function EditVoucherPage() {
             <div className="vf-form-row">
               <Field label={t("department")} htmlFor="e-dept">
                 <select id="e-dept" className="input" value={form.department_id} onChange={set("department_id")}>
-                  <option value="">—</option>
+                  <option value="">-</option>
                   {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </Field>

@@ -1,0 +1,10 @@
+"use client";
+
+import { useParams } from "next/navigation";
+import { ErpGate } from "@/components/erp-ui";
+import { TripDetail } from "@/components/fleet-trip";
+
+export default function MyTripPage() {
+  const { id } = useParams<{ id: string }>();
+  return <ErpGate module="fleet" permission="fleet.own"><TripDetail id={id} mine /></ErpGate>;
+}

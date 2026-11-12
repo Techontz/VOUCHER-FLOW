@@ -6,16 +6,20 @@ import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { CONTENT, translate, type MessageKey } from "@/lib/i18n";
 import { money } from "@/lib/format";
-import { Icon, LanguageToggle, ThemeToggle } from "@/components/ui";
-import { VouchFlowMark } from "@/components/login-brand";
+import { Icon } from "@/components/ui";
+import { SiteFooter, SiteNav } from "@/components/landing/site-chrome";
+import { AppIcon } from "@/components/app-icon";
+import { WorkflowShowcase } from "@/components/landing/workflow";
+import { AREAS } from "@/lib/areas";
 import { CONTACT, mailto } from "@/lib/contact";
 import {
-  AUDIT, COMPANIES, CONTROLS, FINAL, FOOTER, HERO, NAV, REPORTS, STATEMENT, VOUCHERS, WORKFLOW, pick,
+  AUDIT, COMPANIES, CONTROLS, FINAL, HERO, REPORTS, STATEMENT, VOUCHERS, WORKFLOW, pick,
   type L, type VoucherTab,
 } from "@/components/landing/copy";
 import {
-  AuditVisual, BuilderVisual, CompaniesVisual, HeroVisual, ReportsVisual, VoucherVisual,
+  AuditVisual, BuilderVisual, CompaniesVisual, VoucherVisual,
 } from "@/components/landing/mockups";
+import { AppStrip, planApps, usePlanAppsLabel } from "@/components/app-picker";
 import type { Plan } from "@/lib/types";
 
 /**
@@ -23,8 +27,8 @@ import type { Plan } from "@/lib/types";
  *
  * Its job is the first ten seconds: what VouchFlow is (corporate voucher
  * management and approval), who it is for, and what happens to a voucher
- * inside it. So the page leads with the product itself — a voucher on its way
- * to approval — and every later section pairs a claim with a picture of the
+ * inside it. So the page leads with the product itself, a voucher on its way
+ * to approval, and every later section pairs a claim with a picture of the
  * part of the product that makes it true.
  */
 
@@ -33,6 +37,7 @@ export default function LandingPage() {
   const l = (entry: L) => pick(entry, locale);
   const i = locale === "sw" ? 1 : 0;
   const [plans, setPlans] = useState<Plan[] | null>(null);
+  const planAppsLabel = usePlanAppsLabel();
   const [tab, setTab] = useState<VoucherTab>("payment");
   const root = useReveal();
 
@@ -46,28 +51,26 @@ export default function LandingPage() {
     <div className="lp" ref={root}>
       <SiteNav />
 
-      {/* ── 1 · hero ── */}
-      <header className="lp-hero">
-        <div className="lp-wrap lp-hero-grid">
-          <div className="lp-hero-copy">
-            <p className="lp-eyebrow lp-eyebrow-on-dark">{l(HERO.eyebrow)}</p>
-            <h1 className="lp-hero-title">
-              <span>{l(HERO.line1)}</span> <span className="lp-hero-accent">{l(HERO.line2)}</span>
-            </h1>
-            <p className="lp-hero-sub">{l(HERO.sub)}</p>
-            <div className="lp-cta-row">
-              <Link className="lp-cta lp-cta-primary" href="/register">
-                {l(HERO.getStarted)} <Icon name="ph-arrow-right" size={18} />
-              </Link>
-              <Link className="lp-cta lp-cta-ghost" href="/login">{l(HERO.signIn)}</Link>
-            </div>
-            <ul className="lp-proof">
-              {HERO.proof.map((item) => (
-                <li key={item[0]}><Icon name="ph-check-circle" size={17} /> {l(item)}</li>
-              ))}
-            </ul>
+      {/* ── 1 · hero: the whole business, as a grid of apps ── */}
+      <header className="st-home-hero">
+        <div className="lp-wrap">
+          <h1 className="st-home-title">{pickT(locale, "siteHeroTitle")}</h1>
+          <p className="st-home-sub">{pickT(locale, "siteHeroSub")}</p>
+          <div className="st-home-cta">
+            <Link className="lp-cta lp-cta-primary" href="/register">{pickT(locale, "siteStart")} <Icon name="ph-arrow-right" size={18} /></Link>
+            <Link className="lp-cta lp-cta-outline" href="/login">{l(HERO.signIn)}</Link>
           </div>
-          <HeroVisual />
+          <ul className="st-home-apps">
+            {AREAS.filter((a) => a.category !== "admin").map((a, index) => (
+              <li key={a.key} style={{ animationDelay: `${index * 45}ms` }}>
+                <Link href="/apps" className="st-home-app">
+                  <AppIcon area={a} size={96} />
+                  <span>{pickT(locale, a.label)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link className="st-home-all" href="/apps">{pickT(locale, "siteSeeApps")} <Icon name="ph-arrow-right" size={16} /></Link>
         </div>
       </header>
 
@@ -91,22 +94,10 @@ export default function LandingPage() {
       </section>
 
       {/* ── 3 · workflow ── */}
-      <section id="workflow" className="lp-section lp-tint" aria-labelledby="lp-workflow">
+      <section id="workflow" className="lp-section wf-section" aria-labelledby="lp-workflow">
         <div className="lp-wrap">
-          <SectionHead id="lp-workflow" eyebrow={l(WORKFLOW.eyebrow)} title={l(WORKFLOW.title)} sub={l(WORKFLOW.sub)} center />
-          <ol className="lp-pipeline">
-            {WORKFLOW.stages.map((stage, index) => (
-              <li key={stage.title[0]} className="lp-stage" data-reveal style={{ transitionDelay: `${index * 60}ms` }}>
-                <div className="lp-stage-top">
-                  <span className="lp-stage-icon"><Icon name={stage.icon} size={22} /></span>
-                  <span className="lp-stage-num tnum">{String(index + 1).padStart(2, "0")}</span>
-                </div>
-                <h3>{l(stage.title)}</h3>
-                <span className="lp-stage-role">{l(stage.role)}</span>
-                <p>{l(stage.body)}</p>
-              </li>
-            ))}
-          </ol>
+          <SectionHead id="lp-workflow" eyebrow={l(WORKFLOW.eyebrow)} title={l(WORKFLOW.title)} sub={l(WORKFLOW.sub)} />
+          <WorkflowShowcase />
         </div>
       </section>
 
@@ -186,18 +177,33 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── 8 · reports ── */}
-      <section id="reports" className="lp-section" aria-labelledby="lp-reports">
-        <div className="lp-wrap lp-split lp-split-flip">
-          <div>
-            <SectionHead id="lp-reports" eyebrow={l(REPORTS.eyebrow)} title={l(REPORTS.title)} sub={l(REPORTS.sub)} />
-            <ul className="lp-report-list">
-              {REPORTS.items.map((item) => (
-                <li key={item.title[0]}><span className="lp-icon-tile lp-icon-sm"><Icon name={item.icon} size={17} /></span> {l(item.title)}</li>
+      {/* ── 8 · reports: a two-tone headline, big figures, a wall of report tiles ── */}
+      <section id="reports" className="lp-section rp-section" aria-labelledby="lp-reports">
+        <div className="lp-wrap rp-grid">
+          <div className="rp-copy">
+            <p className="lp-eyebrow" data-reveal>{l(REPORTS.eyebrow)}</p>
+            <h2 id="lp-reports" className="rp-title" data-reveal>
+              {l(REPORTS.titleLead)} <span className="rp-accent">{l(REPORTS.titleAccent)}</span>
+            </h2>
+            <p className="rp-sub" data-reveal>{l(REPORTS.sub)}</p>
+            <div className="rp-stats" data-reveal data-stagger>
+              {REPORTS.stats.map((stat) => (
+                <div key={stat.label[0]} className="rp-stat">
+                  <span className="rp-stat-value tnum"><span data-count={stat.value}>{stat.value}</span>{stat.suffix}</span>
+                  <span className="rp-stat-label">{l(stat.label)}</span>
+                  <span className="rp-stat-body">{l(stat.body)}</span>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
-          <div className="lp-stage-visual" data-reveal><ReportsVisual /></div>
+          <ul className="rp-tiles" data-reveal data-stagger>
+            {REPORTS.tiles.map((tile) => (
+              <li key={tile.title[0]} className="rp-tile">
+                <Icon name={tile.icon} size={30} />
+                <span>{l(tile.title)}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -217,6 +223,13 @@ export default function LandingPage() {
                     {live && live.price > 0 ? money(live.price, live.currency) : (plan.price[i] ?? plan.price[0])}
                     {live && live.price > 0 && <span>{pickT(locale, "perMonthShort")}</span>}
                   </div>
+                  {live && (
+                    // What the plan includes, from the live catalogue: a few app icons and the count.
+                    <div className="lp-plan-apps" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "4px 0 2px", fontSize: 13.5, fontWeight: 600 }}>
+                      <AppStrip apps={planApps(live)} max={5} size={24} />
+                      <span>{planAppsLabel(live)}</span>
+                    </div>
+                  )}
                   <p>{plan.blurb[i] ?? plan.blurb[0]}</p>
                   {plan.name === "Enterprise" ? (
                     // A quoted plan: the conversation starts with an email, not a sign-up.
@@ -272,101 +285,22 @@ function SectionHead({ id, eyebrow, title, sub, center }: { id: string; eyebrow:
   );
 }
 
-function SiteNav() {
-  const { locale } = useApp();
-  const [open, setOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  return (
-    <nav className="lp-nav" data-scrolled={scrolled || open || undefined} aria-label="Main">
-      <div className="lp-wrap lp-nav-inner">
-        <Link href="/" className="lp-brand" aria-label="VouchFlow home">
-          <VouchFlowMark size={30} />
-          <span>VouchFlow</span>
-        </Link>
-
-        <div className="lp-nav-links">
-          {NAV.map((item) => <a key={item.href} href={item.href}>{pick(item.label, locale)}</a>)}
-        </div>
-
-        <div className="lp-nav-actions">
-          <div className="lp-nav-tools"><LanguageToggle /><ThemeToggle /></div>
-          <Link className="lp-nav-signin" href="/login">{pick(HERO.signIn, locale)}</Link>
-          <Link className="lp-cta lp-cta-primary lp-cta-sm" href="/register">{pick(HERO.getStarted, locale)}</Link>
-          <button type="button" className="lp-menu-btn" aria-expanded={open} aria-controls="lp-menu"
-            aria-label={open ? "Close menu" : "Open menu"} onClick={() => setOpen((v) => !v)}>
-            <Icon name={open ? "ph-x" : "ph-list"} size={22} />
-          </button>
-        </div>
-      </div>
-
-      <div id="lp-menu" className="lp-menu" hidden={!open}>
-        {NAV.map((item) => (
-          <a key={item.href} href={item.href} onClick={() => setOpen(false)}>{pick(item.label, locale)}</a>
-        ))}
-        <div className="lp-menu-foot">
-          <LanguageToggle />
-          <ThemeToggle />
-          <Link className="lp-cta lp-cta-outline lp-cta-sm" href="/login">{pick(HERO.signIn, locale)}</Link>
-        </div>
-      </div>
-    </nav>
-  );
+/** Figures marked data-count run up from zero when their section comes into view. */
+function countUp(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>("[data-count]").forEach((el) => {
+    const target = Number(el.dataset.count);
+    if (!Number.isFinite(target)) return;
+    const began = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - began) / 1100);
+      el.textContent = String(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    el.textContent = "0";
+    requestAnimationFrame(tick);
+  });
 }
 
-function SiteFooter() {
-  const { locale } = useApp();
-  const l = (entry: L) => pick(entry, locale);
-  return (
-    <footer className="lp-footer">
-      <div className="lp-wrap lp-footer-grid">
-        <div>
-          <Link href="/" className="lp-brand lp-brand-ink"><VouchFlowMark size={28} /><span>VouchFlow</span></Link>
-          <p>{l(FOOTER.tagline)}</p>
-        </div>
-        <div>
-          <h3>{l(FOOTER.product)}</h3>
-          {NAV.map((item) => <a key={item.href} href={item.href}>{l(item.label)}</a>)}
-        </div>
-        <div>
-          <h3>{l(FOOTER.account)}</h3>
-          <Link href="/login">{l(HERO.signIn)}</Link>
-          <Link href="/register">{l(FOOTER.register)}</Link>
-        </div>
-        <div>
-          <h3>{l(FOOTER.contact)}</h3>
-          <a href={mailto(CONTACT.info)}><span className="lp-footer-note">{l(FOOTER.general)}</span>{CONTACT.info}</a>
-          <a href={mailto(CONTACT.support)}><span className="lp-footer-note">{l(FOOTER.support)}</span>{CONTACT.support}</a>
-        </div>
-      </div>
-      <div className="lp-wrap lp-footer-base">
-        <Icon name="ph-shield-check" size={15} /> <strong>VouchFlow</strong> · {l(FOOTER.rights)}
-      </div>
-    </footer>
-  );
-}
-
-/**
- * Fades sections in the first time they scroll into view.
- *
- * Content is visible by default; only once this runs does the page opt in to
- * the hidden starting state, so a slow script, a crawler or reduced motion
- * never leaves anything invisible.
- */
 function useReveal() {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -375,15 +309,30 @@ function useReveal() {
     if (!node || typeof IntersectionObserver === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
+    // Every block of every section arrives as it scrolls into view, not
+    // just the ones marked by hand; pictures slide in from their side.
+    node.querySelectorAll<HTMLElement>(".lp-section .lp-wrap > *, .lp-section .lp-split > *, .lp-pillars, .lp-plans, .st-home-apps")
+      .forEach((el) => { if (!el.dataset.reveal && !el.querySelector("[data-reveal]")) el.dataset.reveal = ""; });
+    node.querySelectorAll<HTMLElement>(".lp-pillars, .lp-plans, .lp-report-list").forEach((el) => { el.dataset.stagger = ""; });
+
+    // Lists marked data-stagger bring their items in one after another.
+    node.querySelectorAll<HTMLElement>("[data-stagger]").forEach((list) => {
+      Array.from(list.children).forEach((child, i) => (child as HTMLElement).style.setProperty("--i", String(i)));
+    });
     const targets = Array.from(node.querySelectorAll<HTMLElement>("[data-reveal]"));
     const below = targets.filter((el) => el.getBoundingClientRect().top > window.innerHeight * 0.92);
-    below.forEach((el) => { el.dataset.reveal = "pending"; });
+    // Anything already in view or scrolled past is shown at once, even if an
+    // earlier mount had left it waiting.
+    targets.filter((el) => !below.includes(el)).forEach((el) => { if (el.dataset.reveal === "pending") el.dataset.reveal = "shown"; });
+    below.forEach((el) => { if (el.dataset.reveal !== "shown") el.dataset.reveal = "pending"; });
 
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
-          (entry.target as HTMLElement).dataset.reveal = "shown";
-          observer.unobserve(entry.target);
+          const el = entry.target as HTMLElement;
+          el.dataset.reveal = "shown";
+          countUp(el);
+          observer.unobserve(el);
         }
       }
     }, { rootMargin: "0px 0px -8% 0px" });

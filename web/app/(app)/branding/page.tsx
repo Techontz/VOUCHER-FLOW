@@ -30,7 +30,7 @@ const LOGO_MAX_BYTES = 2 * 1024 * 1024;
  * Everything on this page is per-tenant: the logo, the letterhead details, the
  * banking particulars a bank voucher is drawn on, and the colour that carries
  * onto the printed document. Nothing about any one company is baked into the
- * platform — the demo tenant simply filled this in.
+ * platform, the demo tenant simply filled this in.
  */
 export default function BrandingPage() {
   const { t, locale, company, user, refresh, toast, reportError } = useApp();
@@ -97,7 +97,7 @@ export default function BrandingPage() {
         return;
       }
       if (file.size > LOGO_MAX_BYTES) {
-        toast(t("logo"), "That image is over 2 MB — use a smaller one.", "warn");
+        toast(t("logo"), "That image is over 2 MB, use a smaller one.", "warn");
         return;
       }
       setFiles((f) => ({ ...f, [slot]: file }));
@@ -151,7 +151,7 @@ export default function BrandingPage() {
     status_key: "draft", status_label: t("drafts"), status_label_en: "Draft",
     status_label_sw: "Rasimu", status_tag: "tag-neutral",
     payee: "Specimen Supplier Limited",
-    purpose: "Specimen voucher — this is how your document will print",
+    purpose: "Specimen voucher, this is how your document will print",
     description: "Every field on this page appears on the printed voucher exactly as shown here.",
     amount: 1250000, currency: company?.currency ?? "TZS",
     amount_text: `${company?.currency ?? "TZS"} 1,250,000`,
@@ -177,7 +177,7 @@ export default function BrandingPage() {
   const previewCompany = company ? { ...company, ...form } : null;
 
   // The sample voucher in every design, in the letterhead as currently typed
-  // (saved or not) — the preview column and the template chooser share it.
+  // (saved or not), the preview column and the template chooser share it.
   const templatePreviews = useTemplatePreviews("/voucher-templates/preview", {
     name: (form.legal_name || form.name).trim() || null,
     address: form.address.trim() || null,

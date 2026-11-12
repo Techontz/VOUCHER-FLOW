@@ -21,7 +21,7 @@ function load(): MockDataset {
         return db;
       }
     } catch {
-      /* corrupt or unavailable storage — fall through to a fresh seed */
+      /* corrupt or unavailable storage, fall through to a fresh seed */
     }
   }
 
@@ -35,7 +35,7 @@ function persist() {
   try {
     window.localStorage.setItem(KEY, JSON.stringify(db));
   } catch {
-    /* private browsing — the demo simply will not survive a reload */
+    /* private browsing, the demo simply will not survive a reload */
   }
 }
 

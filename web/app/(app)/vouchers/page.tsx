@@ -184,7 +184,7 @@ export default function VouchersPage() {
   );
 }
 
-/** A labelled filter control — the bare selects read as unlabelled otherwise. */
+/** A labelled filter control, the bare selects read as unlabelled otherwise. */
 function FilterField({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="app-filter">

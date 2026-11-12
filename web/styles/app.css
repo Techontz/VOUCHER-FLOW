@@ -1,20 +1,24 @@
 /* ============================================================================
-   VouchFlow — the signed-in application.
+   VouchFlow, the signed-in application.
 
    Everything in this file applies only inside the application shell
    (.vf-shell). The public site, sign-in and registration never render that
    shell, so nothing here can reach them.
 
-   Design language (2026-09-27)
-     The visual system follows the AGIZA admin dashboard: Outfit type, a
-     gray-50 ground, white cards with a gray-200 border and a small shadow,
-     10px corners, a gray-900 sidebar whose current entry is a solid primary
-     fill, a white 72px top bar, 30px bold page titles, stat cards with a
-     tinted icon circle, pill filters, and tables with an uppercase gray-50
-     header row. Values are taken from agiza_admin/src/components/ui/*.
+   Design language (2026-10, liquid glass)
+     Inter type; a soft wallpaper (ash + faint aurora in dark, white → sky
+     mesh in light); a floating glass sidebar inset 12px from the viewport
+     with a raised glass pill for the current entry and the signed-in person
+     pinned at its foot; a floating glass pill top-right holding search, the
+     create action, the theme switch and alerts; large tight page titles,
+     small glass stat pills, and glass cards (22px corners) with a title, a
+     muted subtitle and a right-aligned accent link. Primary buttons are
+     accent pills with a faint top gloss; secondary buttons are glass pills.
+     Surfaces resolve to the --glass-* tokens in styles/vouchflow.css, and
+     their component treatment lives in styles/glass.css.
 
    1. Semantic tokens
-      One vocabulary — background, surface, border, text, primary, status —
+      One vocabulary, background, surface, border, text, primary, status,
       defined once for light (:root) and once for dark ([data-theme="dark"]).
       Components ask for meaning, never for a hex value.
 
@@ -22,7 +26,7 @@
       Several hundred inline styles still name the older tokens
       (--vf-elev-1, --color-neutral-600 …). Inside the app those names are
       re-pointed at the semantic tokens, so one theme switch really does move
-      every screen — including the ones nobody has hand-edited.
+      every screen, including the ones nobody has hand-edited.
 
    3. Components, shell, then page patterns.
    ========================================================================== */
@@ -32,22 +36,22 @@
 :root:has(.vf-shell) {
   color-scheme: light;
 
-  --background: #f9fafb;          /* gray-50 */
-  --foreground: #111827;
+  --background: var(--wallpaper-base);
+  --foreground: #0f172a;
 
-  --surface: #ffffff;
-  --surface-secondary: #f9fafb;   /* gray-50 */
-  --surface-tertiary: #f3f4f6;    /* gray-100 */
-  --surface-sunken: #f3f4f6;
+  --surface: var(--glass-fill);
+  --surface-secondary: rgba(15, 35, 80, .035);
+  --surface-tertiary: rgba(15, 35, 80, .06);
+  --surface-sunken: rgba(15, 35, 80, .05);
 
-  --border: #e5e7eb;              /* gray-200 */
-  --border-subtle: #e5e7eb;
-  --border-strong: #d1d5db;       /* gray-300 */
+  --border: rgba(15, 35, 80, .09);
+  --border-subtle: rgba(15, 35, 80, .065);
+  --border-strong: rgba(15, 35, 80, .16);
 
-  --text-primary: #111827;        /* gray-900 */
-  --text-secondary: #4b5563;      /* gray-600 */
-  --text-muted: #6b7280;          /* gray-500 */
-  --text-faint: #9ca3af;          /* gray-400 */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #526075;         /* 5.8:1 on frosted white */
+  --text-faint: #7d889b;
 
   --primary: #2563eb;             /* blue-600 */
   --primary-hover: #1d4ed8;       /* blue-700 */
@@ -65,30 +69,30 @@
   --info:    #1e40af;  --info-soft:    #dbeafe;  --info-strong:    #2563eb;
   --neutral: #1f2937;  --neutral-soft: #f3f4f6;  --neutral-strong: #9ca3af;
 
-  --input-background: #ffffff;
-  --input-border: #d1d5db;
-  --input-border-hover: #9ca3af;
-  --input-disabled: #f9fafb;
-  --placeholder: #9ca3af;
+  --input-background: rgba(255, 255, 255, .72);
+  --input-border: rgba(15, 35, 80, .15);
+  --input-border-hover: rgba(15, 35, 80, .28);
+  --input-disabled: rgba(15, 35, 80, .04);
+  --placeholder: #78839a;
   --ring: #3b82f6;                /* blue-500 */
 
-  /* The sidebar is dark in both themes. */
-  --sidebar-background: #111827;  /* gray-900 */
-  --sidebar-foreground: #d1d5db;  /* gray-300 */
-  --sidebar-muted: #9ca3af;       /* gray-400 */
-  --sidebar-label: #6b7280;
-  --sidebar-hover: #1f2937;       /* gray-800 */
-  --sidebar-active: var(--primary);
-  --sidebar-active-foreground: #ffffff;
-  --sidebar-border: #1f2937;
-  --sidebar-card: rgba(31, 41, 55, .6);
+  /* The sidebar is glass in both themes and follows the theme's ink. */
+  --sidebar-background: var(--glass-fill);
+  --sidebar-foreground: #334155;
+  --sidebar-muted: #526075;
+  --sidebar-label: #66728a;
+  --sidebar-hover: rgba(15, 35, 80, .05);
+  --sidebar-active: var(--glass-fill-raised);
+  --sidebar-active-foreground: #0f172a;
+  --sidebar-border: var(--glass-border);
+  --sidebar-card: rgba(255, 255, 255, .5);
 
-  --topbar-background: #ffffff;
-  --table-header: #f9fafb;
-  --table-row-hover: #f9fafb;
+  --topbar-background: var(--glass-fill-strong);
+  --table-header: rgba(15, 35, 80, .03);
+  --table-row-hover: rgba(15, 35, 80, .035);
   --table-row-selected: #eff6ff;
 
-  --overlay: rgba(0, 0, 0, .5);
+  --overlay: rgba(15, 23, 42, .32);
   --paper: #ffffff;
   --paper-ink: #0b1220;
 
@@ -98,12 +102,12 @@
   --radius-xs: 4px;
   --radius-s: 6px;
   --radius-m: 8px;
-  --radius-l: 10px;
-  --radius-xl: 14px;
+  --radius-l: 12px;
+  --radius-xl: 18px;
 
-  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, .1), 0 1px 2px -1px rgba(0, 0, 0, .1);
-  --elevation-popover: 0 10px 15px -3px rgba(0, 0, 0, .1), 0 4px 6px -4px rgba(0, 0, 0, .1);
-  --elevation-modal: 0 20px 25px -5px rgba(0, 0, 0, .1), 0 8px 10px -6px rgba(0, 0, 0, .1);
+  --shadow-card: var(--glass-shadow);
+  --elevation-popover: var(--glass-shadow-float);
+  --elevation-modal: var(--glass-shadow-float);
 
   --app-transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
@@ -113,23 +117,23 @@
 :root[data-theme="dark"]:has(.vf-shell) {
   color-scheme: dark;
 
-  /* The same gray scale, inverted: gray-950 ground, gray-900 cards. */
-  --background: #0b0f17;
-  --foreground: #f3f4f6;
+  /* Smoked glass on ash: white-alpha fills, hairlines and ink. */
+  --background: var(--wallpaper-base);
+  --foreground: #f4f5f7;
 
-  --surface: #111827;
-  --surface-secondary: #161e2c;
-  --surface-tertiary: #1f2937;
-  --surface-sunken: #0b0f17;
+  --surface: var(--glass-fill);
+  --surface-secondary: rgba(255, 255, 255, .035);
+  --surface-tertiary: rgba(255, 255, 255, .07);
+  --surface-sunken: rgba(0, 0, 0, .22);
 
-  --border: #1f2937;
-  --border-subtle: #1f2937;
-  --border-strong: #374151;
+  --border: rgba(255, 255, 255, .08);
+  --border-subtle: rgba(255, 255, 255, .06);
+  --border-strong: rgba(255, 255, 255, .14);
 
-  --text-primary: #f3f4f6;
-  --text-secondary: #d1d5db;
-  --text-muted: #9ca3af;
-  --text-faint: #6b7280;
+  --text-primary: #f4f5f7;
+  --text-secondary: #d3d7de;
+  --text-muted: #a2a9b6;          /* 6.4:1 on glass over ash */
+  --text-faint: #737a88;
 
   --primary: #2563eb;
   --primary-hover: #3b82f6;
@@ -146,31 +150,33 @@
   --info:    #93c5fd;  --info-soft:    rgba(37, 99, 235, .18);  --info-strong:    #3b82f6;
   --neutral: #d1d5db;  --neutral-soft: rgba(255, 255, 255, .07); --neutral-strong: #6b7280;
 
-  --input-background: #0f1623;
-  --input-border: #374151;
-  --input-border-hover: #4b5563;
-  --input-disabled: #161e2c;
-  --placeholder: #6b7280;
+  --input-background: rgba(255, 255, 255, .04);
+  --input-border: rgba(255, 255, 255, .12);
+  --input-border-hover: rgba(255, 255, 255, .22);
+  --input-disabled: rgba(255, 255, 255, .025);
+  --placeholder: #7d8492;
   --ring: #3b82f6;
 
-  --sidebar-background: #030712;  /* gray-950 */
-  --sidebar-foreground: #d1d5db;
-  --sidebar-muted: #9ca3af;
-  --sidebar-label: #6b7280;
-  --sidebar-hover: #111827;
-  --sidebar-border: #111827;
-  --sidebar-card: rgba(17, 24, 39, .9);
+  --sidebar-background: var(--glass-fill);
+  --sidebar-foreground: #d3d7de;
+  --sidebar-muted: #a2a9b6;
+  --sidebar-label: #7d8492;
+  --sidebar-hover: rgba(255, 255, 255, .055);
+  --sidebar-active: var(--glass-fill-raised);
+  --sidebar-active-foreground: #ffffff;
+  --sidebar-border: var(--glass-border);
+  --sidebar-card: rgba(255, 255, 255, .04);
 
-  --topbar-background: #111827;
-  --table-header: #161e2c;
-  --table-row-hover: #161e2c;
+  --topbar-background: var(--glass-fill-strong);
+  --table-header: rgba(255, 255, 255, .03);
+  --table-row-hover: rgba(255, 255, 255, .04);
   --table-row-selected: rgba(37, 99, 235, .1);
 
-  --overlay: rgba(0, 0, 0, .65);
+  --overlay: rgba(0, 0, 0, .55);
 
-  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, .4), 0 1px 2px -1px rgba(0, 0, 0, .4);
-  --elevation-popover: 0 10px 15px -3px rgba(0, 0, 0, .5), 0 4px 6px -4px rgba(0, 0, 0, .4);
-  --elevation-modal: 0 20px 25px -5px rgba(0, 0, 0, .6), 0 8px 10px -6px rgba(0, 0, 0, .5);
+  --shadow-card: var(--glass-shadow);
+  --elevation-popover: var(--glass-shadow-float);
+  --elevation-modal: var(--glass-shadow-float);
 }
 
 /* ────────────────────────────────────────────── 1 · company colour themes ── */
@@ -1114,7 +1120,7 @@
 .vf-shell .app-vt-date { white-space: nowrap; color: var(--text-muted); }
 .vf-shell .table tbody tr.is-clickable { cursor: pointer; }
 
-/* voucher detail — a financial document workspace */
+/* voucher detail, a financial document workspace */
 .vf-shell .vf-voucher { max-width: none; }
 .vf-shell .vf-voucher-head {
   margin-bottom: 16px; padding: 0; background: transparent;
@@ -1165,7 +1171,7 @@
 .vf-shell .app-detail-grid > .vf-dl { padding: 4px 24px 8px; align-content: start; }
 .vf-shell .app-detail-grid > .vf-dl + .vf-dl { border-left: 1px solid var(--border-subtle); }
 .vf-shell .app-detail-grid .vf-dl-row { grid-template-columns: minmax(110px, 42%) 1fr; }
-/* Two columns only while the panel itself has room for them — it narrows
+/* Two columns only while the panel itself has room for them, it narrows
    with the sidebar and the decision column, not just with the window. */
 .vf-shell .vf-panel:has(> .app-detail-grid) { container-type: inline-size; }
 @container (max-width: 680px) {
@@ -1597,8 +1603,8 @@
 .app-bulk-statement input { flex: none; width: 16px; height: 16px; margin-top: 2px; accent-color: var(--primary); }
 
 /* ══════════════════════════════════════ AGIZA list pattern (2026-09-27) ══
- * A list page is two cards: one to find things — search, status pills,
- * filters — and one holding the table. Pills are px-4 py-2 rounded-lg
+ * A list page is two cards: one to find things, search, status pills,
+ * filters, and one holding the table. Pills are px-4 py-2 rounded-lg
  * font-medium, gray-100 at rest and a solid primary fill when chosen. */
 .vf-shell .app-filter-card { padding: 24px; margin-bottom: 24px; display: grid; gap: 16px; overflow: visible; }
 .vf-shell .app-filter-card-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -1695,7 +1701,7 @@
 }
 .vf-shell .app-toolbar .seg:is(:not(.seg-sm), [role="tablist"]) > button { height: 36px; padding: 0 14px; font-size: 14px; }
 
-/* Settings menu: AGIZA sub-navigation — primary tint and text when current. */
+/* Settings menu: AGIZA sub-navigation, primary tint and text when current. */
 .vf-shell .app-settings-link { border-radius: var(--radius-l); font-size: 15px; padding: 8px 12px; }
 .vf-shell .app-settings-link[aria-current="page"] { background: var(--primary-soft-strong); color: var(--primary-text) !important; box-shadow: none; }
 .vf-shell .app-settings-link[aria-current="page"] i { color: var(--primary); }
@@ -1917,51 +1923,10 @@
   .vf-shell .app-pay-receiver { grid-template-columns: 1fr; }
 }
 
-/* ══════════════════════════════ App chrome to the approved reference (2026-09-28) ══
- * Navy sidebar and top bar around a light work surface in the light
- * appearance; the dark appearance keeps its own palette. Every rule here is
- * presentation only — the same entries, links and controls as before.
+/* ══════════════════════════════════ sidebar structure (collapse, nesting) ══
+ * The navy sidebar and dark top bar once drawn here are replaced by the glass
+ * chrome in styles/glass.css. What remains is structure.
  */
-:root:not([data-theme="dark"]):has(.vf-shell) {
-  --background: #f3f5f9;
-  --sidebar-background: #0f172a;
-  --sidebar-hover: #1e293b;
-  --sidebar-border: #1e293b;
-  --sidebar-card: rgba(30, 41, 59, .55);
-  --sidebar-foreground: #cbd5e1;
-  --sidebar-muted: #94a3b8;
-  --sidebar-label: #64748b;
-  --topbar-background: #0f172a;
-}
-
-/* The top bar is dark in both appearances, so its contents carry their own colours. */
-.vf-shell .vf-topbar {
-  --tb-fg: #f8fafc; --tb-muted: #94a3b8; --tb-line: #1e293b;
-  --tb-field: #111c33; --tb-field-line: #2a3654; --tb-hover: rgba(255, 255, 255, .07);
-  color: var(--tb-fg); border-bottom-color: var(--tb-line);
-}
-[data-theme="dark"] .vf-shell .vf-topbar { --tb-field: #0b1220; --tb-field-line: #1f2937; --tb-line: #1f2937; }
-.vf-shell .vf-topbar .btn-icon { color: #cbd5e1; background: transparent; border-color: transparent; }
-.vf-shell .vf-topbar .btn-icon:hover { color: #fff; background: var(--tb-hover); }
-.vf-shell .vf-topbar .app-crumbs li { color: var(--tb-muted); }
-.vf-shell .vf-topbar .app-crumbs a { color: var(--tb-muted) !important; }
-.vf-shell .vf-topbar .app-crumbs a:hover { color: var(--tb-fg) !important; }
-.vf-shell .vf-topbar .app-crumbs [aria-current="page"] { color: var(--tb-fg); font-weight: 600; }
-.vf-shell .vf-topbar .app-crumbs li + li::before { border-color: var(--tb-muted); }
-.vf-shell .vf-topbar .app-topbar-company { color: var(--tb-fg); }
-.vf-shell .vf-topbar .vf-search .input { height: 42px; border-radius: 12px; background-color: var(--tb-field); border-color: var(--tb-field-line); color: var(--tb-fg); }
-.vf-shell .vf-topbar .vf-search .input::placeholder { color: #7c8aa3; }
-.vf-shell .vf-topbar .vf-search .input:focus { background-color: var(--tb-field); border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); }
-.vf-shell .vf-topbar .vf-search { flex-basis: 320px; }
-.vf-shell .vf-topbar .app-topbar-create { height: 44px; padding: 0 20px; border-radius: 12px; font-weight: 600; }
-.vf-shell .vf-topbar .app-topbar-sep { background: var(--tb-line); }
-.vf-shell .vf-topbar .app-user { color: var(--tb-fg); gap: 12px; }
-.vf-shell .vf-topbar .app-user > i { color: var(--tb-muted); }
-.vf-shell .vf-topbar .app-user:hover, .vf-shell .vf-topbar .app-user[aria-expanded="true"] { background: var(--tb-hover); }
-.vf-shell .vf-topbar .app-user-name { font-weight: 600; }
-.vf-shell .vf-topbar .app-user-role { color: var(--tb-muted); }
-.vf-shell .vf-topbar .vf-bell-dot { box-shadow: 0 0 0 2px var(--topbar-background); }
-
 /* Brand row: the collapse control sits at its right edge. */
 .app-side-collapse {
   flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px;
@@ -1987,12 +1952,8 @@
   :root[data-sidebar="collapsed"] .vf-shell .app-workspace-button > i { opacity: 0; }
 }
 
-/* Taller, calmer rows; the current one gets a bright edge on its solid fill. */
-.app-nav-item { height: 48px; font-size: 15px; }
-.app-nav-item[aria-current="page"] {
-  box-shadow: inset 4px 0 0 #93c5fd, 0 6px 16px -8px color-mix(in srgb, var(--primary) 80%, transparent);
-}
-.app-nav-badge { background: #2563eb; }
+
+
 
 /* An entry with an entry beneath it (Vouchers → Create voucher). */
 .app-nav-parent { display: grid; gap: 4px; }

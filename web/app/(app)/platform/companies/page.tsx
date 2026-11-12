@@ -6,16 +6,13 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDate } from "@/lib/format";
-import { Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, PageHeader, Pagination } from "@/components/ui";
-import { Dropdown, MenuItem, MenuSeparator } from "@/components/app-ui";
-import type { Company, Paginated } from "@/lib/types";
+import { Badge, Dialog, EmptyState, ErrorState, Field, Icon, LoadingBlock, PageHeader, Pagination } from "@/components/ui";
+import { Dropdown, MenuItem, MenuSeparator, SearchInput, Toolbar } from "@/components/app-ui";
+import { COMPANY_STATUS, fill } from "@/lib/platform";
+import { AppPicker, planApps } from "@/components/app-picker";
+import type { Company, Paginated, Plan } from "@/lib/types";
 
-const STATUS_TAG: Record<string, string> = {
-  pending: "tone-warn", active: "tag-accent", trial: "tag-outline", past_due: "tag-accent-2",
-  suspended: "tag-accent-2", cancelled: "tag-neutral",
-};
-
-interface PlanOption { id: number; name: string; price?: number; currency?: string; trial_days?: number }
+type PlanOption = Plan;
 
 const BLANK = {
   name: "", email: "", phone: "", plan_id: "",
@@ -29,7 +26,7 @@ export default function PlatformCompaniesPage() {
   const { t, locale, toast, reportError } = useApp();
   const router = useRouter();
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState({ q: "", status: "" });
+  const [filters, setFilters] = useState({ q: "", status: "", plan_id: "", sort: "" });
   const [result, setResult] = useState<Paginated<Company> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanOption[]>([]);
@@ -38,7 +35,10 @@ export default function PlatformCompaniesPage() {
   const [form, setForm] = useState({ ...BLANK });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  // The apps the new company's subscription includes; null follows the plan.
+  const [createApps, setCreateApps] = useState<string[] | null>(null);
   const [pending, setPending] = useState<Pending>(null);
+  const [approveApps, setApproveApps] = useState<string[]>([]);
   const [confirmName, setConfirmName] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -53,6 +53,18 @@ export default function PlatformCompaniesPage() {
     return () => window.clearTimeout(timer);
   }, [load, filters.q, locale]);
 
+  // A link from the overview may carry ?status=pending or ?sort=newest.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const status = q.get("status") ?? "";
+    const sort = q.get("sort") ?? "";
+    // Read once from the address bar, an external source, after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (status || sort) setFilters((f) => ({ ...f, status, sort }));
+  }, []);
+
+  const filter = (key: keyof typeof filters) => (value: string) => { setPage(1); setFilters((f) => ({ ...f, [key]: value })); };
+
   useEffect(() => {
     api.get<{ data: PlanOption[] }>("/platform/plans").then((r) => setPlans(r.data)).catch(() => setPlans([]));
   }, []);
@@ -60,8 +72,19 @@ export default function PlatformCompaniesPage() {
   const set = (key: keyof typeof BLANK) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  // Without a choice the API starts the first active plan, so the picker shows that one's apps.
+  const createPlan = plans.find((p) => String(p.id) === form.plan_id)
+    ?? [...plans].filter((p) => p.is_active).sort((a, b) => a.sort_order - b.sort_order)[0] ?? null;
+  const createAppList = createApps ?? planApps(createPlan);
+
   function openCreate() {
-    setForm({ ...BLANK }); setFieldErrors({}); setFormError(null); setCreating(true);
+    setForm({ ...BLANK }); setCreateApps(null); setFieldErrors({}); setFormError(null); setCreating(true);
+  }
+
+  /** Approving confirms the apps first: those chosen at registration, else the plan's. */
+  function openApprove(company: Company) {
+    setApproveApps(company.licensed_modules ?? planApps(company.plan));
+    setPending({ kind: "approve", company });
   }
 
   async function createCompany() {
@@ -74,6 +97,7 @@ export default function PlatformCompaniesPage() {
           job_title: form.admin_job_title.trim() || undefined, password: form.admin_password,
         },
         plan_id: form.plan_id ? Number(form.plan_id) : undefined,
+        modules: createAppList,
       });
       setCreating(false);
       toast("Company created", `${res.data?.name ?? form.name} is on a trial. ${form.admin_email} can sign in now.`, "ok");
@@ -96,7 +120,7 @@ export default function PlatformCompaniesPage() {
         await api.delete(`/platform/companies/${company.id}`);
         toast("Company deleted", company.name, "warn");
       } else if (kind === "approve") {
-        await api.post(`/platform/companies/${company.id}/approve`);
+        await api.post(`/platform/companies/${company.id}/approve`, { modules: approveApps });
         toast(t("companyApproved"), company.name, "ok");
       } else {
         await api.post(`/platform/companies/${company.id}/${kind}`);
@@ -114,24 +138,32 @@ export default function PlatformCompaniesPage() {
 
   return (
     <div className="app-page">
-      <PageHeader kicker="Platform" title={t("companies")}
-        sub="Every tenant on the platform. Data stays sealed inside each company."
+      <PageHeader kicker={t("pfPlatform")} title={t("companies")}
+        sub={t("pfCompaniesSub")}
         actions={<button type="button" className="btn btn-primary" onClick={openCreate}><Icon name="ph-plus" size={17} /> New company</button>} />
 
       <section className="vf-panel">
-      <div className="app-toolbar">
-        <div className="app-toolbar-main">
-        <input className="input app-toolbar-search" placeholder={t("search")} value={filters.q}
-          onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, q: e.target.value })); }} aria-label={t("search")} />
-        <select className="input" value={filters.status}
-          onChange={(e) => { setPage(1); setFilters((f) => ({ ...f, status: e.target.value })); }} aria-label={t("status")}>
+      <Toolbar end={result?.meta && <span className="pf-muted pf-nowrap">{fill(t("pfResults"), { n: result.meta.total })}</span>}>
+        <SearchInput value={filters.q} onChange={filter("q")} placeholder={t("pfSearchCompanies")} />
+        <select className="input" value={filters.status} onChange={(e) => filter("status")(e.target.value)} aria-label={t("status")}>
           <option value="">{t("allStatuses")}</option>
-          <option value="pending">{t("pendingApproval")}</option>
-          <option value="active">Active</option><option value="trial">Trial</option>
-          <option value="past_due">Past due</option><option value="suspended">Suspended</option>
+          {["pending", "trial", "active", "past_due", "suspended", "expired", "cancelled"].map((k) => (
+            <option key={k} value={k}>{t(COMPANY_STATUS[k].label)}</option>
+          ))}
         </select>
-        </div>
-      </div>
+        <select className="input" value={filters.plan_id} onChange={(e) => filter("plan_id")(e.target.value)} aria-label={t("plan")}>
+          <option value="">{t("pfAllPlans")}</option>
+          {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select className="input" value={filters.sort} onChange={(e) => filter("sort")(e.target.value)} aria-label={t("pfSort")}>
+          <option value="">{t("pfSortName")}</option>
+          <option value="newest">{t("pfSortNewest")}</option>
+          <option value="oldest">{t("pfSortOldest")}</option>
+          <option value="users">{t("pfSortUsers")}</option>
+          <option value="vouchers">{t("pfSortVouchers")}</option>
+          <option value="renewal">{t("pfSortRenewal")}</option>
+        </select>
+      </Toolbar>
 
       {error && <div className="vf-panel-pad"><ErrorState message={error} onRetry={load} /></div>}
       {!result && !error && <div className="vf-panel-pad"><LoadingBlock rows={6} /></div>}
@@ -142,11 +174,11 @@ export default function PlatformCompaniesPage() {
 
       {rows.length > 0 && (
         <>
-          <div className="table-wrap">
-            <table className="table">
+          <div className="vf-table-wrap">
+            <table className="table vf-table">
               <thead>
                 <tr><th>{t("companyName")}</th><th>{t("plan")}</th><th style={{ textAlign: "right" }}>{t("users")}</th>
-                  <th style={{ textAlign: "right" }}>{t("vouchers")}</th><th>{t("status")}</th><th>Renews</th><th>{t("joined")}</th>
+                  <th style={{ textAlign: "right" }}>{t("vouchers")}</th><th>{t("status")}</th><th>{t("pfRenews")}</th><th>{t("joined")}</th>
                   <th><span className="sr-only">Actions</span></th></tr>
               </thead>
               <tbody>
@@ -156,13 +188,15 @@ export default function PlatformCompaniesPage() {
                       <Link href={`/platform/companies/${company.id}`} style={{ fontWeight: 600 }}>{company.name}</Link>
                       <div className="app-cell-sub">{company.email}</div>
                     </td>
-                    <td>{company.plan?.name ?? "—"}</td>
+                    <td>{company.plan?.name ?? "-"}</td>
                     <td className="num">{company.users_count ?? 0}</td>
                     <td className="num">{company.vouchers_count ?? 0}</td>
                     <td>
-                      <span className={`badge ${STATUS_TAG[company.status] ?? "tag-neutral"}`}>
-                        {company.status === "pending" ? t("pendingApproval") : company.status}
-                      </span>
+                      {(() => {
+                        const key = company.is_expired && ["trial", "active", "past_due"].includes(company.status) ? "expired" : company.status;
+                        const st = COMPANY_STATUS[key];
+                        return <Badge tone={st?.tone ?? "neutral"} dot>{st ? t(st.label) : company.status}</Badge>;
+                      })()}
                     </td>
                     <td className="app-vt-date">
                       {formatDate(company.status === "trial" ? company.trial_ends_at : company.current_period_end, locale)}
@@ -170,7 +204,7 @@ export default function PlatformCompaniesPage() {
                     <td className="app-vt-date">{formatDate(company.created_at, locale)}</td>
                     <td className="app-row-actions">
                       {company.status === "pending" && (
-                        <button type="button" className="btn btn-primary btn-sm" style={{ marginRight: 6 }} onClick={() => setPending({ kind: "approve", company })}>
+                        <button type="button" className="btn btn-primary btn-sm" style={{ marginRight: 6 }} onClick={() => openApprove(company)}>
                           <Icon name="ph-check-circle" size={15} /> {t("approve")}
                         </button>
                       )}
@@ -183,9 +217,11 @@ export default function PlatformCompaniesPage() {
                         )}>
                         {(close) => (
                           <>
-                            <MenuItem icon="ph-arrow-square-out" onSelect={() => { close(); router.push(`/platform/companies/${company.id}`); }}>View details</MenuItem>
+                            <MenuItem icon="ph-arrow-square-out" onSelect={() => { close(); router.push(`/platform/companies/${company.id}`); }}>{t("pfViewDetails")}</MenuItem>
+                            <MenuItem icon="ph-puzzle-piece" onSelect={() => { close(); router.push(`/platform/companies/${company.id}#modules`); }}>{t("pfModules")}</MenuItem>
+                            <MenuItem icon="ph-crown-simple" onSelect={() => { close(); router.push(`/platform/companies/${company.id}#subscription`); }}>{t("pfSubscription")}</MenuItem>
                             {company.status === "pending" ? (
-                              <MenuItem icon="ph-check-circle" onSelect={() => { close(); setPending({ kind: "approve", company }); }}>{t("approveCompany")}</MenuItem>
+                              <MenuItem icon="ph-check-circle" onSelect={() => { close(); openApprove(company); }}>{t("approveCompany")}</MenuItem>
                             ) : company.status === "suspended" ? (
                               <MenuItem icon="ph-check-circle" onSelect={() => { close(); setPending({ kind: "activate", company }); }}>{t("activate")}</MenuItem>
                             ) : (
@@ -231,11 +267,16 @@ export default function PlatformCompaniesPage() {
             </Field>
           </div>
           <Field label={t("plan")} htmlFor="nc-plan" hint="Leave on the default to start on the first active plan." error={err("plan_id")}>
-            <select id="nc-plan" className="input" value={form.plan_id} onChange={set("plan_id")}>
+            <select id="nc-plan" className="input" value={form.plan_id} onChange={(e) => { set("plan_id")(e); setCreateApps(null); }}>
               <option value="">Default plan</option>
               {plans.map((p) => <option key={p.id} value={p.id}>{p.name}{p.trial_days ? ` · ${p.trial_days}-day trial` : ""}</option>)}
             </select>
           </Field>
+
+          <div className="vf-eyebrow" style={{ marginTop: 8 }}>{t("pfAppsTitle")}</div>
+          <p className="field-hint" style={{ margin: 0 }}>{t("pfAppsCreateHint")}</p>
+          <AppPicker operator plan={createPlan} value={createAppList} onChange={setCreateApps} disabled={busy} />
+          {err("modules") && <p className="field-error">{err("modules")}</p>}
 
           <div className="vf-eyebrow" style={{ marginTop: 8 }}>First administrator</div>
           <div className="app-form-row">
@@ -257,7 +298,7 @@ export default function PlatformCompaniesPage() {
         </div>
       </Dialog>
 
-      <Dialog open={pending !== null} busy={busy} onClose={() => setPending(null)}
+      <Dialog open={pending !== null} busy={busy} onClose={() => setPending(null)} wide={pending?.kind === "approve"}
         icon={pending?.kind === "delete" ? "ph-trash" : pending?.kind === "suspend" ? "ph-prohibit" : "ph-check-circle"}
         tone={pending?.kind === "activate" || pending?.kind === "approve" ? "ok" : pending?.kind === "suspend" ? "warn" : "bad"}
         title={pending?.kind === "approve" ? t("approveCompanyQ").replace("{name}", pending.company.name)
@@ -269,7 +310,7 @@ export default function PlatformCompaniesPage() {
             : "Its people can sign in again straight away."}
         summary={pending ? [
           { label: t("companyName"), value: pending.company.name },
-          ...(pending.kind === "approve" ? [{ label: t("plan"), value: pending.company.plan?.name ?? "—" }] : []),
+          ...(pending.kind === "approve" ? [{ label: t("plan"), value: pending.company.plan?.name ?? "-" }] : []),
           { label: t("users"), value: String(pending.company.users_count ?? 0) },
           { label: t("vouchers"), value: String(pending.company.vouchers_count ?? 0) },
         ] : undefined}
@@ -282,6 +323,13 @@ export default function PlatformCompaniesPage() {
             {pending?.kind === "approve" ? t("approve") : pending?.kind === "delete" ? "Delete company" : pending?.kind === "suspend" ? t("suspend") : t("activate")}
           </button>
         </>}>
+        {pending?.kind === "approve" && (
+          <div className="app-stack">
+            <div className="vf-eyebrow">{t("pfAppsTitle")}</div>
+            <p className="field-hint" style={{ margin: 0 }}>{t("pfAppsApproveHint")}</p>
+            <AppPicker operator plan={pending.company.plan} value={approveApps} onChange={setApproveApps} disabled={busy} />
+          </div>
+        )}
         {pending?.kind === "delete" && (
           <Field label={`Type ${pending.company.name} to confirm`} htmlFor="nc-confirm">
             <input id="nc-confirm" className="input" value={confirmName} onChange={(e) => setConfirmName(e.target.value)} autoComplete="off" />

@@ -10,6 +10,7 @@ import { VouchFlowMark } from "@/components/login-brand";
 import { pick, type L } from "@/components/landing/copy";
 import { money } from "@/lib/format";
 import { TemplateGallery, TemplatePreviewDialog, templateName, useTemplateCatalogue, useTemplatePreviews } from "@/components/voucher-templates";
+import { AppPicker, AppStrip, planApps, planMonthlyPrice, usePlanAppsLabel } from "@/components/app-picker";
 import type { Company, Plan, User } from "@/lib/types";
 
 /**
@@ -18,16 +19,16 @@ import type { Company, Plan, User } from "@/lib/types";
  * Five short steps instead of one long form, and nothing is sent until the
  * last one. Then, in order:
  *
- *   1. POST /auth/register  — company, administrator, plan and the chosen
+ *   1. POST /auth/register  - company, administrator, plan and the chosen
  *                             voucher template. This is the only call that
  *                             can fail the registration.
- *   2. PUT  /company        — trading name, TIN, contact details and colours,
+ *   2. PUT  /company        - trading name, TIN, contact details and colours,
  *                             through the same endpoint Settings uses.
- *   3. POST /company/logo   — the logo, through the same validated upload.
+ *   3. POST /company/logo   - the logo, through the same validated upload.
  *
  * Steps 2 and 3 run as the new administrator. If either is refused, the
  * company still exists and the person is told precisely what to finish in
- * Settings — never asked to register a second time.
+ * Settings, never asked to register a second time.
  */
 
 type StepKey = "company" | "contact" | "branding" | "admin" | "review";
@@ -35,14 +36,14 @@ type StepKey = "company" | "contact" | "branding" | "admin" | "review";
 const STEPS: { key: StepKey; label: L; title: L; sub: L }[] = [
   { key: "company", label: ["Company", "Kampuni"], title: ["Tell us about your company", "Tueleze kuhusu kampuni yako"], sub: ["The legal details that appear on every voucher you issue.", "Taarifa rasmi zitakazoonekana kwenye kila vocha mtakayotoa."] },
   { key: "contact", label: ["Contact", "Mawasiliano"], title: ["How can we reach you?", "Tunawezaje kuwasiliana nanyi?"], sub: ["Who to contact about the account, and where the company is based.", "Mtu wa kuwasiliana kuhusu akaunti, na mahali kampuni ilipo."] },
-  { key: "branding", label: ["Branding & template", "Chapa na kiolezo"], title: ["Make it yours", "Ifanye iwe yako"], sub: ["Your logo, your colours and the design of your payment voucher — on screen and on every voucher you print.", "Nembo yenu, rangi zenu na muundo wa vocha yenu ya malipo — kwenye skrini na kwenye kila vocha mtakayochapisha."] },
+  { key: "branding", label: ["Branding & template", "Chapa na kiolezo"], title: ["Make it yours", "Ifanye iwe yako"], sub: ["Your logo, your colours and the design of your payment voucher, on screen and on every voucher you print.", "Nembo yenu, rangi zenu na muundo wa vocha yenu ya malipo, kwenye skrini na kwenye kila vocha mtakayochapisha."] },
   { key: "admin", label: ["Admin", "Msimamizi"], title: ["Create the administrator", "Unda msimamizi"], sub: ["This person sets up departments, people and approval routes.", "Mtu huyu ataweka idara, watu na njia za idhini."] },
   { key: "review", label: ["Review", "Hakiki"], title: ["Review and create", "Hakiki na uunde"], sub: ["Check the details, choose a plan, and create your company.", "Hakiki taarifa, chagua mpango, na uunde kampuni yako."] },
 ];
 
 const C = {
   heroTitle: ["Set up your company on VouchFlow.", "Sajili kampuni yako kwenye VouchFlow."],
-  heroSub: ["Vouchers, approvals and payments in one controlled workflow — ready for your team in a few minutes.", "Vocha, idhini na malipo katika mtiririko mmoja wenye udhibiti — tayari kwa timu yako ndani ya dakika chache."],
+  heroSub: ["Vouchers, approvals and payments in one controlled workflow, ready for your team in a few minutes.", "Vocha, idhini na malipo katika mtiririko mmoja wenye udhibiti, tayari kwa timu yako ndani ya dakika chache."],
   stepOf: ["Step", "Hatua"], of: ["of", "kati ya"],
   companyName: ["Registered company name", "Jina rasmi la kampuni"], companyNamePh: ["e.g. Afiya Beverages Limited", "mf. Afiya Beverages Limited"],
   tradingName: ["Trading name", "Jina la biashara"], tradingHint: ["If different from the registered name.", "Kama ni tofauti na jina rasmi."],
@@ -58,12 +59,15 @@ const C = {
   template: ["Voucher template", "Kiolezo cha vocha"],
   templateTitle: ["Choose your voucher design", "Chagua muundo wa vocha yenu"],
   chooseTemplate: ["Choose a voucher design to continue.", "Chagua muundo wa vocha ili kuendelea."],
-  templateSub: ["Every design carries the same information and follows the same approvals — only the layout changes. Open one to see it full size with your logo and colours.", "Kila muundo una taarifa zilezile na idhini zilezile — mpangilio pekee ndio unabadilika. Fungua mmoja uuone kwa ukubwa kamili ukiwa na nembo na rangi zenu."],
+  templateSub: ["Every design carries the same information and follows the same approvals, only the layout changes. Open one to see it full size with your logo and colours.", "Kila muundo una taarifa zilezile na idhini zilezile, mpangilio pekee ndio unabadilika. Fungua mmoja uuone kwa ukubwa kamili ukiwa na nembo na rangi zenu."],
   templateOnce: ["After registration your administrator can change the template once from Branding.", "Baada ya usajili msimamizi wenu anaweza kubadilisha kiolezo mara moja kupitia Chapa."],
   adminName: ["Full name", "Jina kamili"], adminEmail: ["Work email", "Barua pepe ya kazi"], adminEmailHint: ["You will sign in with this, and we will send a verification code to it.", "Utaingia kwa hii, na tutatuma namba ya uthibitisho kwake."],
   password: ["Password", "Nenosiri"], passwordHint: ["At least 8 characters.", "Angalau herufi 8."], confirm: ["Confirm password", "Thibitisha nenosiri"],
   show: ["Show password", "Onyesha nenosiri"], hide: ["Hide password", "Ficha nenosiri"],
-  plan: ["Plan", "Mpango"], trial: ["day free trial", "siku za majaribio bure"], custom: ["Custom pricing", "Bei maalum"], perMonth: ["/ month", "/ mwezi"],
+  plan: ["Plan", "Mpango"], apps: ["Apps", "Programu"], appsCount: ["{n} apps", "Programu {n}"],
+  appsTitle: ["Your apps", "Programu zako"],
+  appsLater: ["You switch each app on when you set up your business. Apps you leave out can be added later.", "Utawasha kila programu unapoweka biashara yako. Programu unazoacha zinaweza kuongezwa baadaye."],
+  from: ["from", "kuanzia"], trial: ["day free trial", "siku za majaribio bure"], custom: ["Custom pricing", "Bei maalum"], perMonth: ["/ month", "/ mwezi"],
   edit: ["Edit", "Hariri"], notProvided: ["Not provided", "Haijatolewa"], none: ["None", "Hakuna"],
   back: ["Back", "Nyuma"], continue: ["Continue", "Endelea"], create: ["Create company", "Unda kampuni"],
   already: ["Already registered?", "Umeshasajili?"], signIn: ["Sign in", "Ingia"],
@@ -74,7 +78,7 @@ const C = {
   creating: ["Creating your company…", "Tunaunda kampuni yako…"], cancel: ["Cancel", "Ghairi"],
   doneTitle: ["Your company is ready", "Kampuni yako iko tayari"], doneSub: ["One last step: confirm the administrator's email, then set up departments and your approval route.", "Hatua moja ya mwisho: thibitisha barua pepe ya msimamizi, kisha weka idara na njia ya idhini."],
   savedCompany: ["Company and administrator created", "Kampuni na msimamizi vimeundwa"], savedDetails: ["Company details and colours saved", "Taarifa na rangi za kampuni zimehifadhiwa"], savedLogo: ["Logo uploaded", "Nembo imepakiwa"],
-  finishInSettings: ["Not saved — add it later in Settings → Branding", "Haijahifadhiwa — iongeze baadaye kwenye Mipangilio → Chapa"],
+  finishInSettings: ["Not saved, add it later in Settings → Branding", "Haijahifadhiwa, iongeze baadaye kwenye Mipangilio → Chapa"],
   verify: ["Verify email", "Thibitisha barua pepe"],
   doneTitlePending: ["Your company is registered", "Kampuni yako imesajiliwa"],
   doneSubReady: ["Next, set up departments and your approval route.", "Ifuatayo, weka idara na njia ya idhini."],
@@ -95,7 +99,7 @@ const FIELD_STEP: Record<string, number> = {
   business_email: 1, phone: 1, address: 1, contact_person: 1, city: 1, region: 1,
   primary_color: 2, secondary_color: 2, logo: 2, voucher_template: 2,
   name: 3, email: 3, password: 3, password_confirmation: 3,
-  plan_code: 4,
+  plan_code: 4, modules: 4,
 };
 
 /**
@@ -116,6 +120,9 @@ export default function RegisterPage() {
   const [step, setStep] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planCode, setPlanCode] = useState("business");
+  // The apps ticked for each plan; a plan not yet touched has all of its apps.
+  const [appChoice, setAppChoice] = useState<Record<string, string[]>>({});
+  const planAppsLabel = usePlanAppsLabel();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -246,6 +253,7 @@ export default function RegisterPage() {
         password: form.password,
         password_confirmation: form.password_confirmation,
         plan_code: planCode,
+        ...(selectedPlan ? { modules: chosenApps } : {}),
         voucher_template: chosenTemplate ?? catalogue.defaultKey,
       });
     } catch (err) {
@@ -313,10 +321,14 @@ export default function RegisterPage() {
   const current = STEPS[step];
   const onReview = step === STEPS.length - 1;
   const selectedPlan = plans.find((p) => p.code === planCode);
+  const chosenApps = appChoice[planCode] ?? planApps(selectedPlan);
+  const appsSummary = selectedPlan
+    ? `${fillCount(l(C.appsCount), new Set(["vouchflow", ...chosenApps]).size)}${selectedPlan.allows_module_choice ? ` · ${money(planMonthlyPrice(selectedPlan, chosenApps), selectedPlan.currency)} ${l(C.perMonth)}` : ""}`
+    : "";
   const fe = (key: string) => errors[key];
 
   return (
-    <div className="rg">
+    <div className="rg au">
       <aside className="rg-rail">
         <Link href="/" className="rg-brand" aria-label="VouchFlow home"><VouchFlowMark size={32} /><span>VouchFlow</span></Link>
         <div className="rg-rail-body">
@@ -562,14 +574,31 @@ export default function RegisterPage() {
                             <span className="rg-plan-text">
                               <strong>{plan.label}</strong>
                               <span>{plan.blurb}</span>
+                              <span className="rg-plan-apps">
+                                <AppStrip apps={planApps(plan)} max={6} size={22} />
+                                <span>{planAppsLabel(plan)}</span>
+                              </span>
                             </span>
                             <span className="rg-plan-price tnum">
-                              <span>{plan.price > 0 ? <>{money(plan.price, plan.currency)} <small>{l(C.perMonth)}</small></> : l(C.custom)}</span>
+                              <span>{plan.price > 0
+                                ? <>{plan.allows_module_choice && <small>{l(C.from)} </small>}{money(plan.price, plan.currency)} <small>{l(C.perMonth)}</small></>
+                                : l(C.custom)}</span>
                               <small>{plan.trial_days} {l(C.trial)}</small>
                             </span>
                           </label>
                         ))}
                       </fieldset>
+                    )}
+
+                    {selectedPlan && (
+                      <section className="rg-apps" aria-label={l(C.appsTitle)}>
+                        <AppPicker
+                          plan={selectedPlan}
+                          value={chosenApps}
+                          onChange={(apps) => setAppChoice((all) => ({ ...all, [planCode]: apps }))}
+                        />
+                        <p className="field-hint" style={{ marginTop: 10 }}><Icon name="ph-info" size={14} /> {l(C.appsLater)}</p>
+                      </section>
                     )}
                   </>
                 )}
@@ -615,6 +644,7 @@ export default function RegisterPage() {
           { label: l(C.adminEmail), value: form.email },
           { label: l(C.template), value: templateName(catalogue.templates.find((t) => t.key === chosenTemplate), locale) },
           { label: l(C.plan), value: selectedPlan ? `${selectedPlan.label} · ${selectedPlan.trial_days} ${l(C.trial)}` : planCode },
+          ...(selectedPlan ? [{ label: l(C.apps), value: appsSummary }] : []),
         ]}
         actions={
           <>
@@ -683,4 +713,8 @@ function PasswordMeter({ value }: { value: string }) {
       {[1, 2, 3, 4].map((n) => <span key={n} data-on={score >= n || undefined} />)}
     </div>
   );
+}
+
+function fillCount(text: string, n: number) {
+  return text.replace("{n}", String(n));
 }

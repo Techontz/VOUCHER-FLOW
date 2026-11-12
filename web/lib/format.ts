@@ -15,9 +15,9 @@ export function compactMoney(amount: number, currency = "TZS"): string {
 }
 
 export function formatDate(value: string | null | undefined, locale: Locale = "en"): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString(locale === "sw" ? "sw-TZ" : "en-GB", {
     day: "numeric",
     month: "short",
@@ -26,18 +26,18 @@ export function formatDate(value: string | null | undefined, locale: Locale = "e
 }
 
 export function formatDateTime(value: string | null | undefined, locale: Locale = "en"): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
   return `${formatDate(value, locale)} · ${date.toLocaleTimeString(locale === "sw" ? "sw-TZ" : "en-GB", {
     hour: "2-digit",
     minute: "2-digit",
   })}`;
 }
 
-/** "2 hours ago" — used in notification and activity lists. */
+/** "2 hours ago", used in notification and activity lists. */
 export function relativeTime(value: string | null | undefined, locale: Locale = "en"): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
   const seconds = Math.round((Date.now() - date.getTime()) / 1000);
 

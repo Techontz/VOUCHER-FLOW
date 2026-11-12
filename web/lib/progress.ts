@@ -2,8 +2,8 @@
  * Where a voucher is in its approval route, for list rows and dashboard cards.
  *
  * The voucher page renders the backend's own timeline, which carries names,
- * times and signatures. List payloads do not include it — building a timeline
- * for every row would cost a query per voucher — so this derives the route from
+ * times and signatures. List payloads do not include it, building a timeline
+ * for every row would cost a query per voucher, so this derives the route from
  * the company's real workflow instead: which steps exist, which apply to this
  * amount, and where the voucher currently sits.
  *
@@ -23,17 +23,17 @@ export interface ProgressStep {
   state: StepState;
 }
 
-/** WorkflowStep::isRequestStep — the step that raises the voucher. */
+/** WorkflowStep::isRequestStep, the step that raises the voucher. */
 export function isRequestStep(step: WorkflowStep): boolean {
   return step.position === 1 || step.role === "employee";
 }
 
-/** WorkflowStep::isPaymentStep — releasing money, not deciding on it. */
+/** WorkflowStep::isPaymentStep, releasing money, not deciding on it. */
 export function isPaymentStep(step: WorkflowStep): boolean {
   return step.can_pay && !step.can_approve;
 }
 
-/** WorkflowStep::appliesToAmount — amount thresholds, both ends inclusive. */
+/** WorkflowStep::appliesToAmount, amount thresholds, both ends inclusive. */
 export function appliesToAmount(step: WorkflowStep, amount: number): boolean {
   if (step.min_amount !== null && step.min_amount !== undefined && amount < Number(step.min_amount)) return false;
   if (step.max_amount !== null && step.max_amount !== undefined && amount > Number(step.max_amount)) return false;
@@ -109,7 +109,7 @@ export function deriveProgress(
 }
 
 /**
- * WorkflowEngine::resolveWorkflow — which route a new voucher of this type
+ * WorkflowEngine::resolveWorkflow, which route a new voucher of this type
  * will take. Active only; a workflow bound to the type beats a general one,
  * and among general ones the default wins.
  */

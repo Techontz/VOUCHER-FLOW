@@ -63,7 +63,7 @@ export function usePaymentAcknowledgement(voucher: Voucher | null, onFiled: (fre
       toast(t("signedCopyFiled"), t("signedCopyFiledBody").replace("{n}", String(payment.sequence)), "ok");
     } catch (err) {
       // The button is only offered to people likely to be allowed, but the
-      // server has the final word — say plainly who may file it.
+      // server has the final word, say plainly who may file it.
       if (err instanceof ApiError && err.status === 403) toast(t("ackUploadFailed"), t("ackUploadForbidden"), "bad");
       else toast(t("ackUploadFailed"), describeUploadError(err, t), "bad");
     } finally {

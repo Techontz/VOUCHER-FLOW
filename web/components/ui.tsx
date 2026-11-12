@@ -21,7 +21,7 @@ export type Tone = "neutral" | "info" | "warn" | "ok" | "bad";
 /**
  * Phosphor, regular weight by default. Duotone read as decorative against a
  * finance screen; a single stroke weight is calmer and scans faster. `fill` is
- * for the few places that want emphasis — a completed step, a success toast.
+ * for the few places that want emphasis, a completed step, a success toast.
  */
 export function Icon({
   name, size = 18, color, style, weight = "regular",
@@ -32,21 +32,190 @@ export function Icon({
 
 /* ───────────────────────────────────────────────────────── layout ───────── */
 
+/**
+ * The opening of a page: a large, tight title (≈42px on a desktop), a muted
+ * subline and an actions slot on the right that wraps beneath on a phone.
+ * `subtitle` and `sub` are the same thing; `sub` is the older name.
+ *
+ *   <PageHeader title="Suppliers" subtitle="Everyone you pay" actions={<Button…/>} />
+ */
 export function PageHeader({
-  kicker, title, sub, actions, back,
-}: { kicker?: string; title: ReactNode; sub?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
+  kicker, title, sub, subtitle, actions, back,
+}: { kicker?: string; title: ReactNode; sub?: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
+  const line = subtitle ?? sub;
   return (
     <header className="vf-pagehead">
       <div className="vf-pagehead-main">
         {back}
         {kicker && <div className="vf-eyebrow">{kicker}</div>}
         <h1 className="vf-pagehead-title">{title}</h1>
-        {sub && <p className="vf-pagehead-sub">{sub}</p>}
+        {line && <p className="vf-pagehead-sub">{line}</p>}
       </div>
       {actions && <div className="vf-pagehead-actions">{actions}</div>}
     </header>
   );
 }
+
+/* ─────────────────────────────────────────────────── glass primitives ── */
+
+export interface StatPill {
+  label: string;
+  value: ReactNode;
+  /** A short line under the figure: "this month", "3 overdue". */
+  hint?: ReactNode;
+  /** Colours the dot beside the label. Neutral unless the number asks for action. */
+  tone?: Tone;
+  /** Optional Phosphor icon name, drawn in front of the label. */
+  icon?: string;
+  /** Makes the pill a link to the list behind the number. */
+  href?: string;
+  /** A trend, e.g. "+12%", with its direction. */
+  trend?: string | null;
+  up?: boolean | null;
+}
+
+/**
+ * A row of small glass "stat pills": label above, a big tabular figure below.
+ * It wraps to two columns on a phone and never scrolls sideways.
+ *
+ *   <StatPills label="Key figures" items={[{ label: "Open", value: "12", tone: "info" }]} />
+ */
+export function StatPills({ items, label }: { items: StatPill[]; label?: string }) {
+  return (
+    <div className="vf-statpills" role="list" aria-label={label}>
+      {items.map((item, index) => {
+        // A figure card: the tinted icon tile, then the label, the figure and
+        // its context line, and a round arrow when the card leads somewhere.
+        const body = (
+          <>
+            <span className="vf-statpill-tile" aria-hidden="true">
+              <Icon name={item.icon ?? "ph-chart-bar"} size={24} />
+            </span>
+            <span className="vf-statpill-main">
+              <span className="vf-statpill-label">
+                <span className="vf-statpill-text">{item.label}</span>
+              </span>
+              <span className="vf-statpill-value tnum">
+                {typeof item.value === "number" ? <CountUp value={item.value} /> : item.value}
+              </span>
+              {(item.hint || item.trend) && (
+                <span className="vf-statpill-hint">
+                  {item.trend && (
+                    <span className={`vf-trend ${item.up ? "vf-trend-up" : "vf-trend-down"}`}>
+                      <Icon name={item.up ? "ph-arrow-up" : "ph-arrow-down"} size={12} /> {item.trend}
+                    </span>
+                  )}
+                  {item.hint && <span>{item.hint}</span>}
+                </span>
+              )}
+            </span>
+            {item.href && <span className="vf-statpill-go" aria-hidden="true"><Icon name="ph-arrow-right" size={15} /></span>}
+          </>
+        );
+        const cls = `vf-statpill tone-${item.tone ?? "neutral"}`;
+        const long = typeof item.value === "string" && item.value.length > 9 ? "" : undefined;
+        return (
+          <div key={`${item.label}-${index}`} role="listitem" className="vf-statpill-cell">
+            {item.href
+              ? <a className={cls} href={item.href} data-long={long}>{body}</a>
+              : <div className={cls} data-long={long}>{body}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * A whole number that counts up to its value when it first appears, and
+ * eases to a new value when it changes. Screen readers and anyone who asked
+ * for reduced motion get the final figure straight away.
+ */
+export function CountUp({ value, duration = 900 }: { value: number; duration?: number }) {
+  const [shown, setShown] = useState(0);
+  const from = useRef(0);
+
+  useEffect(() => {
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const start = from.current;
+    let frame = 0;
+    const began = performance.now();
+    const tick = (now: number) => {
+      const p = reduce ? 1 : Math.min(1, (now - began) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const next = Math.round(start + (value - start) * eased);
+      setShown(next);
+      from.current = next;
+      if (p < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value, duration]);
+
+  return (
+    <>
+      <span aria-hidden="true">{shown.toLocaleString("en-US")}</span>
+      <span className="sr-only">{value.toLocaleString("en-US")}</span>
+    </>
+  );
+}
+
+/**
+ * A glass card: a header with a title, a muted subtitle and a right-aligned
+ * action (usually an accent link, use className "vf-card-link"), then the
+ * content. `pad={false}` for a table or list that runs edge to edge.
+ *
+ *   <GlassCard title="Recent payments" subtitle="Last 30 days"
+ *     action={<Link className="vf-card-link" href="/payments">View all</Link>}>…</GlassCard>
+ */
+export function GlassCard({
+  title, subtitle, action, children, pad = true, id, className, label,
+}: {
+  title?: ReactNode; subtitle?: ReactNode; action?: ReactNode; children: ReactNode;
+  pad?: boolean; id?: string; className?: string; label?: string;
+}) {
+  return (
+    <section className={`vf-panel vf-glasscard${className ? ` ${className}` : ""}`} id={id} aria-label={label}>
+      {(title || action) && (
+        <div className="vf-panel-head">
+          <div className="vf-panel-head-main">
+            {title && <h2>{title}</h2>}
+            {subtitle && <div className="vf-panel-sub">{subtitle}</div>}
+          </div>
+          {action && <div className="vf-panel-actions">{action}</div>}
+        </div>
+      )}
+      <div className={pad ? "vf-panel-pad" : undefined}>{children}</div>
+    </section>
+  );
+}
+
+/**
+ * A status badge in one of the five tones. `dot` adds a leading status dot.
+ * For tables, lists and card headers; colour is meaning, so pick the tone
+ * from the state, never for decoration.
+ *
+ *   <Badge tone="ok">Paid</Badge>  <Badge tone="warn" dot>Overdue</Badge>
+ */
+export function Badge({ tone = "neutral", dot, children }: { tone?: Tone; dot?: boolean; children: ReactNode }) {
+  return <span className={`badge tone-${tone}`} data-dot={dot ? "" : undefined}>{children}</span>;
+}
+
+/*
+ * Tables. No component, markup and classes, so a screen keeps control of
+ * its columns:
+ *
+ *   <div className="vf-table-wrap" data-scroll>   // data-scroll: sticky header inside a 560px box
+ *     <table className="table vf-table">
+ *       <thead><tr><th>Supplier</th><th className="num">Balance</th></tr></thead>
+ *       <tbody><tr className="is-clickable">…<td className="num">…</td></tr></tbody>
+ *     </table>
+ *   </div>
+ *
+ * Glass card frame, frosted sticky header, no zebra, a soft hover row, and
+ * right-aligned tabular figures in .num cells. Inside a GlassCard with
+ * pad={false} the wrap drops its own frame.
+ */
 
 export function SectionTitle({ children, actions, count }: { children: ReactNode; actions?: ReactNode; count?: number | null }) {
   return (
@@ -144,7 +313,7 @@ export function Note({ children, tone }: { children: ReactNode; tone?: "warn" })
   );
 }
 
-/** A large selectable option card — voucher format, plan, payment method. */
+/** A large selectable option card, voucher format, plan, payment method. */
 export function Choice({
   selected, onSelect, icon, label, sub,
 }: { selected: boolean; onSelect: () => void; icon: string; label: string; sub?: string }) {
@@ -205,19 +374,35 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
-/** Placeholder rows shaped like the content they stand in for. */
-export function LoadingBlock({ rows = 4 }: { rows?: number }) {
+/**
+ * The loader: a ring whose two halves sweep round in the accent colour, and
+ * nothing else, no card and no backdrop. Full screen between pages and while
+ * the app starts; `inline` for a section or a table that is still loading.
+ * The label is read by screen readers only.
+ */
+export function Loader({ label = "Loading", inline = false }: { label?: string; inline?: boolean }) {
   return (
-    <div className="vf-loading" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading</span>
-      <div className="skeleton" style={{ height: 26, width: "38%" }} />
-      {Array.from({ length: Math.max(1, rows - 1) }).map((_, i) => (
-        <div key={i} className="skeleton" style={{ height: 58 }} />
-      ))}
+    <div className={inline ? "vf-loader-inline" : "vf-loader-overlay"} aria-busy="true">
+      <span className="vf-loader" role="status">{label}</span>
     </div>
   );
 }
 
+/** A section that is still loading: the loader, sized to sit where the content will. */
+export function LoadingBlock({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="vf-loading" style={{ minHeight: Math.min(320, 60 + rows * 40) }}>
+      <Loader inline />
+    </div>
+  );
+}
+
+/**
+ * Nothing here yet: a soft glass icon well, a title, an optional line and an
+ * optional action. `tone` colours the well for an all-clear (ok) or a failure (bad).
+ *
+ *   <EmptyState icon="ph-truck" title="No suppliers yet" body="Add the first one." action={<Button…/>} />
+ */
 export function EmptyState({
   icon = "ph-tray", title, body, action, tone,
 }: { icon?: string; title: string; body?: string; action?: ReactNode; tone?: "ok" | "bad" }) {
@@ -270,7 +455,7 @@ export interface SummaryRow {
  *
  * Give it an `icon` and a `tone` and it opens with a mark that says what kind
  * of act this is; give it a `summary` and it restates exactly what is being
- * acted on — voucher, amount, method — so nobody approves the wrong thing.
+ * acted on, voucher, amount, method, so nobody approves the wrong thing.
  */
 export function Dialog({
   open, title, onClose, children, actions, wide, sub, icon, tone = "info", summary, busy,
@@ -294,7 +479,7 @@ export function Dialog({
 
   // Callers often pass a fresh `onClose` on every render (`() => setDialog(null)`).
   // Read it and `busy` through a ref so the effect below runs only when the
-  // dialog opens — otherwise each keystroke re-ran it and sent focus back to
+  // dialog opens, otherwise each keystroke re-ran it and sent focus back to
   // the first field.
   const latest = useRef({ onClose, busy });
   useEffect(() => { latest.current = { onClose, busy }; });
@@ -305,7 +490,7 @@ export function Dialog({
       if (event.key === "Escape" && !latest.current.busy) latest.current.onClose();
     };
     document.addEventListener("keydown", onKey);
-    // Focus the first real control, not the close button — keyboard users land
+    // Focus the first real control, not the close button, keyboard users land
     // where the decision is.
     const timer = window.setTimeout(() => {
       const root = ref.current;
@@ -391,17 +576,84 @@ export function Toasts() {
 
 /* ─────────────────────────────────────────────────────── controls ───────── */
 
-export function LanguageToggle() {
+const LANGUAGES = [
+  { code: "en", name: "English", short: "EN" },
+  { code: "sw", name: "Kiswahili", short: "SW" },
+] as const;
+
+/**
+ * The language picker: a button naming the current language, opening a small
+ * menu with the other. The menu is fixed to the window, so it is never cut
+ * off when the picker sits inside another menu or a scrolling panel.
+ */
+export function LanguageToggle({ full = false }: { full?: boolean }) {
   const { locale, setLocale } = useApp();
+  const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState<{ top: number; left: number; up: boolean } | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const current = LANGUAGES.find((l) => l.code === locale) ?? LANGUAGES[0];
+
+  const toggle = () => {
+    const rect = button.current?.getBoundingClientRect();
+    if (!open && rect) {
+      const up = rect.bottom + 110 > window.innerHeight;
+      setPlace({ top: up ? rect.top - 6 : rect.bottom + 6, left: Math.max(8, Math.min(rect.right - 168, window.innerWidth - 176)), up });
+    }
+    setOpen((v) => !v);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e.type === "keydown" && (e as KeyboardEvent).key !== "Escape") return;
+      if (e.type === "pointerdown" && (menu.current?.contains(e.target as Node) || button.current?.contains(e.target as Node))) return;
+      setOpen(false);
+      if (e.type === "keydown") button.current?.focus();
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", close);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    menu.current?.querySelector<HTMLButtonElement>("[aria-checked='true']")?.focus();
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open]);
 
   return (
-    <div className="seg seg-sm" role="group" aria-label="Language">
-      {(["en", "sw"] as const).map((code) => (
-        <button key={code} type="button" onClick={() => setLocale(code)} aria-selected={locale === code}>
-          {code.toUpperCase()}
-        </button>
-      ))}
-    </div>
+    <>
+      <button ref={button} type="button" className="vf-lang" onClick={toggle}
+        aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={`Language: ${current.name}`}>
+        <Icon name="ph-globe-simple" size={16} />
+        <span>{full ? current.name : current.short}</span>
+        <Icon name="ph-caret-down" size={12} />
+      </button>
+      {open && place && (
+        <div ref={menu} id={id} role="menu" className="vf-lang-menu"
+          style={{ top: place.top, left: place.left, transform: place.up ? "translateY(-100%)" : undefined }}>
+          {LANGUAGES.map((l) => (
+            <button key={l.code} type="button" role="menuitemradio" aria-checked={locale === l.code} className="vf-lang-option"
+              onClick={() => { setLocale(l.code); setOpen(false); button.current?.focus(); }}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                e.preventDefault();
+                const items = Array.from(menu.current?.querySelectorAll<HTMLButtonElement>(".vf-lang-option") ?? []);
+                const at = items.indexOf(e.currentTarget);
+                items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+              }}>
+              <span className="vf-lang-code">{l.short}</span>
+              <span className="vf-lang-name">{l.name}</span>
+              {locale === l.code && <Icon name="ph-check" size={15} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

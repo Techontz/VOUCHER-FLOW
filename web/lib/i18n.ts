@@ -3,13 +3,17 @@
  * English is the default; the choice persists per user.
  */
 
+import { ERP_MESSAGES } from "./i18n-erp";
+import { PLATFORM_MESSAGES } from "./i18n-platform";
+import { MODULE_MESSAGES } from "./modules";
+
 export type Locale = "en" | "sw";
 
 type Entry = readonly [string, string];
 
 const D = {
 
-  // — chrome —
+  // chrome
   product: ['Product', 'Bidhaa'],
   features: ['Features', 'Vipengele'],
   solutions: ['Solutions', 'Suluhisho'],
@@ -41,12 +45,12 @@ const D = {
   no: ["No", "Hapana"],
   retry: ["Try again", "Jaribu tena"],
 
-  // — landing —
+  // landing
   heroKicker: ['Built for East African business', 'Imeundwa kwa biashara za Afrika Mashariki'],
   heroH1: ['Turn Paper Vouchers Into Digital Workflows.', 'Badilisha Vocha za Karatasi Kuwa Mtiririko wa Kidijitali.'],
   heroSub: [
-    "Create, review, approve, sign and track business vouchers from anywhere — with every signature, comment and timestamp on the record.",
-    "Tengeneza, pitia, idhinisha, saini na fuatilia vocha za biashara kutoka mahali popote — kila sahihi, maoni na muda vimo kwenye kumbukumbu.",
+    "Create, review, approve, sign and track business vouchers from anywhere, with every signature, comment and timestamp on the record.",
+    "Tengeneza, pitia, idhinisha, saini na fuatilia vocha za biashara kutoka mahali popote, kila sahihi, maoni na muda vimo kwenye kumbukumbu.",
   ],
   heroNote: ['14-day trial · No card required · TZS, USD, KES, EUR', 'Jaribio la siku 14 · Hakuna kadi inayohitajika · TZS, USD, KES, EUR'],
   startFree: ['Start Free', 'Anza bila malipo'],
@@ -54,7 +58,7 @@ const D = {
   howItWorks: ['How it works', 'Inavyofanya kazi'],
   trustedBy: ['Trusted by finance teams at', 'Inatumiwa na timu za fedha katika'],
   featuresH2: ['Everything a voucher needs, from request to receipt', 'Kila kitu vocha inahitaji, kutoka ombi hadi risiti'],
-  featuresSub: ['One workflow, one audit trail, one PDF — for every company on the platform.', 'Mtiririko mmoja, kumbukumbu moja ya ukaguzi, PDF moja — kwa kila kampuni kwenye jukwaa.'],
+  featuresSub: ['One workflow, one audit trail, one PDF, for every company on the platform.', 'Mtiririko mmoja, kumbukumbu moja ya ukaguzi, PDF moja, kwa kila kampuni kwenye jukwaa.'],
   securityH2: ['Every company sealed in its own envelope', 'Kila kampuni imefungwa katika bahasha yake'],
   securitySub: [
     "Tenant isolation is enforced at the data layer, not the interface. No query can cross a company boundary, and every read or write lands in the audit log with user, device and timestamp.",
@@ -69,7 +73,7 @@ const D = {
   reviewSign: ['Review & sign', 'Pitia na saini'],
   openQueue: ['Open queue', 'Fungua orodha'],
 
-  // — auth —
+  // auth
   emailOrPhone: ['Email or phone', 'Barua pepe au simu'],
   password: ['Password', 'Nenosiri'],
   confirmPassword: ['Confirm password', 'Thibitisha nenosiri'],
@@ -97,7 +101,7 @@ const D = {
   skipSetup: ['Skip setup', 'Ruka usanidi'],
   finishSetup: ["Finish & open dashboard", "Maliza na fungua dashibodi"],
 
-  // — navigation —
+  // navigation
   home: ['Home', 'Nyumbani'],
   dashboard: ['Dashboard', 'Dashibodi'],
   myVouchers: ['My vouchers', 'Vocha zangu'],
@@ -125,7 +129,7 @@ const D = {
   users: ['Users', 'Watumiaji'],
   auditLogs: ['Audit logs', 'Kumbukumbu za ukaguzi'],
 
-  // — dashboard —
+  // dashboard
   goodMorning: ['Good morning', 'Habari za asubuhi'],
   createAVoucher: ['Create a voucher', 'Tengeneza vocha'],
   trackMine: ['Track my vouchers', 'Fuatilia vocha zangu'],
@@ -140,7 +144,7 @@ const D = {
   viewReports: ['View reports', 'Ona ripoti'],
   nothingAwaiting: ["Nothing awaiting you", "Hakuna kinachokusubiri"],
 
-  // — voucher fields —
+  // voucher fields
   voucherType: ['Voucher type', 'Aina ya vocha'],
   date: ['Date', 'Tarehe'],
   requester: ['Requester', 'Mwombaji'],
@@ -172,7 +176,7 @@ const D = {
   submitApproval: ['Submit voucher', 'Wasilisha vocha'],
   totalPayable: ['Total payable', 'Jumla inayolipwa'],
 
-  // — workflow actions —
+  // workflow actions
   review: ['Review', 'Pitia'],
   sign: ['Sign', 'Saini'],
   signVoucher: ['Sign voucher', 'Saini vocha'],
@@ -200,12 +204,12 @@ const D = {
   completed: ['Completed', 'Imekamilika'],
 
   signNoApprove: [
-    "Your role is to sign only — the approval decision sits with the next approval step.",
-    "Jukumu lako ni kusaini tu — uamuzi wa kuidhinisha uko kwenye hatua inayofuata ya idhini.",
+    "Your role is to sign only, the approval decision sits with the next approval step.",
+    "Jukumu lako ni kusaini tu, uamuzi wa kuidhinisha uko kwenye hatua inayofuata ya idhini.",
   ],
   signOnlyNote: [
-    "Your role is to sign only — the approval decision sits with the next approval step.",
-    "Jukumu lako ni kusaini tu — uamuzi wa kuidhinisha uko kwenye hatua inayofuata ya idhini.",
+    "Your role is to sign only, the approval decision sits with the next approval step.",
+    "Jukumu lako ni kusaini tu, uamuzi wa kuidhinisha uko kwenye hatua inayofuata ya idhini.",
   ],
   signStatement: [
     "I confirm that I have reviewed this voucher and that my signature may be applied to the voucher record.",
@@ -227,7 +231,7 @@ const D = {
   signWithFinger: ['Sign with your finger', 'Saini kwa kidole chako'],
   signature: ['Signature', 'Sahihi'],
 
-  // — workflow builder —
+  // workflow builder
   approvalWorkflow: ['Approval workflow', 'Mtiririko wa idhini'],
   currentRoute: ['Current route', 'Njia ya sasa'],
   presets: ['Presets', 'Mipangilio tayari'],
@@ -238,13 +242,13 @@ const D = {
   whoActs: ['Who acts at this step', 'Anayetenda katika hatua hii'],
   role: ['Role', 'Wajibu'],
   wfIntro: [
-    "Build this company's own route. Each step names who acts and exactly what they may do — sign, approve, reject, request changes, print. Every company on the platform can differ.",
-    "Tengeneza njia ya kampuni hii. Kila hatua inaonyesha anayetenda na anachoruhusiwa — kusaini, kuidhinisha, kukataa, kuomba mabadiliko, kuchapisha. Kila kampuni inaweza kuwa tofauti.",
+    "Build this company's own route. Each step names who acts and exactly what they may do, sign, approve, reject, request changes, print. Every company on the platform can differ.",
+    "Tengeneza njia ya kampuni hii. Kila hatua inaonyesha anayetenda na anachoruhusiwa, kusaini, kuidhinisha, kukataa, kuomba mabadiliko, kuchapisha. Kila kampuni inaweza kuwa tofauti.",
   ],
   saveWorkflow: ['Save workflow', 'Hifadhi mtiririko'],
   amountThresholds: ['Amount thresholds', 'Viwango vya kiasi'],
 
-  // — workflow configuration: approvers, levels, departments —
+  // workflow configuration: approvers, levels, departments
   wfcLevel: ["Level", "Ngazi"],
   wfcRequest: ["Request", "Ombi"],
   wfcRequester: ["The employee who raises the voucher", "Mfanyakazi anayeandaa vocha"],
@@ -325,7 +329,7 @@ const D = {
   wfcDeptPersonInactive: ["Inactive: choose an active person", "Akaunti imezimwa: chagua mtu mwingine"],
   wfcDeptIntro: ["Each department names the head who signs its vouchers and, where your workflow has a manager level, the manager who approves them.", "Kila idara inataja mkuu anayesaini vocha zake na, pale mtiririko wako una ngazi ya meneja, meneja anayeziidhinisha."],
 
-  // — lists / tables —
+  // lists / tables
   showing: ['Showing', 'Inaonyesha'],
   page: ['Page', 'Ukurasa'],
   allStatuses: ['All statuses', 'Hali zote'],
@@ -353,7 +357,7 @@ const D = {
   from: ["From", "Kuanzia"],
   to: ["To", "Hadi"],
 
-  // — people / departments —
+  // people / departments
   employeeId: ['Employee ID', 'Namba ya mfanyakazi'],
   jobTitle: ["Job title", "Cheo"],
   joined: ['Joined', 'Alijiunga'],
@@ -370,7 +374,7 @@ const D = {
   invited: ['Invited', 'Ameitwa'],
   suspended: ['Suspended', 'Imesitishwa'],
 
-  // — billing —
+  // billing
   currentPlan: ['Current plan', 'Mpango wa sasa'],
   usageThisPeriod: ['Usage this period', 'Matumizi kipindi hiki'],
   invoices: ['Invoices', 'Ankara'],
@@ -397,7 +401,7 @@ const D = {
     "Huisha usajili wako ili kuendelea kutengeneza na kuidhinisha vocha. Data yako inabaki ilipo.",
   ],
 
-  // — branding / settings —
+  // branding / settings
   logo: ['Logo', 'Nembo'],
   primaryColour: ['Primary colour', 'Rangi kuu'],
   voucherFooterText: ['Voucher footer text', 'Maandishi ya chini ya vocha'],
@@ -417,14 +421,14 @@ const D = {
   revoke: ['Revoke', 'Ondoa ruhusa'],
   thisDevice: ["This device", "Kifaa hiki"],
 
-  // — notifications —
+  // notifications
   markAllRead: ['Mark all read', 'Weka zote kama zilizosomwa'],
   today: ['Today', 'Leo'],
   yesterday: ['Yesterday', 'Jana'],
   earlier: ['Earlier', 'Awali'],
   noNotifications: ["You are all caught up", "Umeshughulikia yote"],
 
-  // — misc —
+  // misc
   onRecord: ['On the record', 'Kwenye kumbukumbu'],
   verificationCode: ['Verification code', 'Namba ya uthibitisho'],
   generatedDoc: ['Generated document', 'Nyaraka iliyotengenezwa'],
@@ -435,7 +439,7 @@ const D = {
   ],
   somethingWrong: ["Something went wrong", "Kuna tatizo limetokea"],
 
-  // — VouchFlow v2: cashier, payments, bank/cash vouchers, report scopes —
+  // VouchFlow v2: cashier, payments, bank/cash vouchers, report scopes,
   productSub: ['Digital Voucher & Approval Management', 'Usimamizi wa Vocha na Idhini kwa Njia ya Kidijitali'],
   english: ['English', 'Kiingereza'],
   swahili: ['Kiswahili', 'Kiswahili'],
@@ -485,7 +489,7 @@ const D = {
   twoFactor: ['Two-factor authentication', 'Uthibitishaji wa hatua mbili'],
   profileSecurity: ['Profile & security', 'Wasifu na usalama'],
   componentLibrary: ['Component library & states', 'Maktaba ya vipengele na hali'],
-  voucherPdfA4: ['Voucher PDF — A4 portrait', 'Vocha PDF — A4 wima'],
+  voucherPdfA4: ['Voucher PDF: A4 portrait', 'Vocha PDF: A4 wima'],
   backToVoucher: ['Back to voucher', 'Rudi kwenye vocha'],
   thisQuarter: ['This quarter', 'Robo hii'],
   thisMonth: ['This month', 'Mwezi huu'],
@@ -493,7 +497,7 @@ const D = {
   activity: ['Activity', 'Shughuli'],
   colour: ['Colour', 'Rangi'],
   typeScale: ['Type scale', 'Mizani ya maandishi'],
-  buttonsStates: ['Buttons — all states', 'Vitufe — hali zote'],
+  buttonsStates: ['Buttons, all states', 'Vitufe, hali zote'],
   statusSystem: ['Status system', 'Mfumo wa hali'],
   formControls: ['Form controls', 'Vidhibiti vya fomu'],
   loadingStates: ['Loading states', 'Hali za kupakia'],
@@ -533,9 +537,9 @@ const D = {
   trialLabel: ['Trial', 'Jaribio'],
   pastDue: ['Past due', 'Imepitwa'],
   createdSubmitted: ['Created and submitted', 'Imetengenezwa na kutumwa'],
-  draftNotSubmitted: ['Draft — not submitted', 'Rasimu — haijatumwa'],
-  signedNotSubmitted: ['Signed — not yet forwarded', 'Imesainiwa — bado haijapelekwa mbele'],
-  signedReadySubmit: ['Signed — ready to submit', 'Imesainiwa — tayari kutumwa'],
+  draftNotSubmitted: ['Draft, not submitted', 'Rasimu, haijatumwa'],
+  signedNotSubmitted: ['Signed, not yet forwarded', 'Imesainiwa, bado haijapelekwa mbele'],
+  signedReadySubmit: ['Signed, ready to submit', 'Imesainiwa, tayari kutumwa'],
   reviewedSigned: ['Signed and forwarded', 'Imesainiwa na kupelekwa mbele'],
   awaitingSignature: ['Awaiting signature', 'Inasubiri sahihi'],
   awaitingApprovalAct: ['Awaiting approval', 'Inasubiri idhini'],
@@ -544,7 +548,7 @@ const D = {
   notStarted: ['Not started', 'Haijaanza'],
   passed: ['Completed', 'Imekamilika'],
   voucherCompleted: ['Voucher completed', 'Vocha imekamilika'],
-  closedRejected: ['Closed — rejected', 'Imefungwa — imekataliwa'],
+  closedRejected: ['Closed, rejected', 'Imefungwa, imekataliwa'],
   notCompleted: ['Not completed', 'Haijakamilika'],
   pendingWord: ['Pending', 'Inasubiri'],
   system: ['System', 'Mfumo'],
@@ -552,7 +556,7 @@ const D = {
   sigCaptured: ['Signature captured. This step signs only; it makes no approval decision.', 'Sahihi imepokelewa. Hatua hii inasaini tu; haitoi uamuzi wa idhini.'],
   sigForwarded: ['Signature applied and forwarded to the next step.', 'Sahihi imewekwa na vocha imetumwa hatua inayofuata.'],
   clearedPayment: ['Cleared for payment.', 'Imeidhinishwa kwa malipo.'],
-  rejectNote: ['Use the branch float for this — resubmit against cost centre 42.', 'Tumia fedha ya tawi kwa hili — tuma tena kwa kituo cha gharama 42.'],
+  rejectNote: ['Use the branch float for this, resubmit against cost centre 42.', 'Tumia fedha ya tawi kwa hili, tuma tena kwa kituo cha gharama 42.'],
   completedNote: ['Approval ID VF-9K42-1188 · PDF generated with both marks.', 'Namba ya idhini VF-9K42-1188 · PDF imetengenezwa na alama zote mbili.'],
   printPdfShare: ['Print · Download PDF · Share', 'Chapisha · Pakua PDF · Sambaza'],
   companySubs: ['Company subscriptions', 'Usajili wa kampuni'],
@@ -569,7 +573,7 @@ const D = {
   trial: ['Trial', 'Jaribio'],
   company: ['Company', 'Kampuni'],
   period: ['Period', 'Kipindi'],
-  addLevelNote: ['Changes apply live to the prototype — switch to the HOD or Manager persona to see the action buttons follow these permissions.', 'Mabadiliko yanatumika papo hapo — badilisha kwenda Mkuu wa idara au Meneja ili kuona vitufe vinavyofuata ruhusa hizi.'],
+  addLevelNote: ['Changes apply live to the prototype, switch to the HOD or Manager persona to see the action buttons follow these permissions.', 'Mabadiliko yanatumika papo hapo, badilisha kwenda Mkuu wa idara au Meneja ili kuona vitufe vinavyofuata ruhusa hizi.'],
   recordPayment: ['Record payment', 'Rekodi malipo'],
   reason: ['Reason', 'Sababu'],
   signedByYou: ['Signed by you at 09:14', 'Umesaini saa 09:14'],
@@ -595,7 +599,7 @@ const D = {
   financeEmail: ['Finance email', 'Barua pepe ya fedha'],
   companySetupStep: ['Company setup · step', 'Usanidi wa kampuni · hatua'],
   paymentHistoryH: ['Recent payments', 'Malipo ya hivi karibuni'],
-  isolationNote: ['This workflow applies to this company only. Every company on the platform keeps its own steps, roles, users, branding and data — one database, complete isolation.', 'Mtiririko huu unahusu kampuni hii pekee. Kila kampuni ina hatua, wajibu, watumiaji, chapa na data zake — hifadhidata moja, utengano kamili.'],
+  isolationNote: ['This workflow applies to this company only. Every company on the platform keeps its own steps, roles, users, branding and data, one database, complete isolation.', 'Mtiririko huu unahusu kampuni hii pekee. Kila kampuni ina hatua, wajibu, watumiaji, chapa na data zake, hifadhidata moja, utengano kamili.'],
   approveNextNote: ['Approving releases this voucher to the cashier for payment.', 'Kuidhinisha kunapeleka vocha hii kwa mhasibu kwa malipo.'],
   paymentQueue: ['Payment queue', 'Foleni ya malipo'],
   awaitingPayment: ['Awaiting payment', 'Inasubiri malipo'],
@@ -611,7 +615,7 @@ const D = {
   paidOn: ['Paid on', 'Ililipwa tarehe'],
   paidBy: ['Paid by', 'Ililipwa na'],
 
-  // — voucher history, list filters and reports —
+  // voucher history, list filters and reports
   changesRequestedTab: ['Changes requested', 'Mabadiliko yameombwa'],
   myVouchersSub: ['Every voucher you have raised, with its current stage and outcome.', 'Kila vocha uliyowasilisha, pamoja na hatua ilipo na matokeo yake.'],
   lastUpdated: ['Last updated', 'Ilisasishwa'],
@@ -643,7 +647,7 @@ const D = {
   generatedOn: ['Generated', 'Imetolewa'],
   reportDateHintMoney: ['Dates: paid vouchers by payment date, vouchers awaiting payment by voucher date.', 'Tarehe: vocha zilizolipwa kwa tarehe ya malipo, zinazosubiri malipo kwa tarehe ya vocha.'],
   reportDateHintVoucher: ['Dates filter on the voucher date.', 'Tarehe zinachuja kwa tarehe ya vocha.'],
-  reportApprovedOnlyHint: ['Approved vouchers only — awaiting payment and paid.', 'Vocha zilizoidhinishwa tu — zinazosubiri malipo na zilizolipwa.'],
+  reportApprovedOnlyHint: ['Approved vouchers only, awaiting payment and paid.', 'Vocha zilizoidhinishwa tu, zinazosubiri malipo na zilizolipwa.'],
   searchDepartments: ['Search departments', 'Tafuta idara'],
   receivedBy: ['Received by', 'Imepokelewa na'],
   cashierSig: ['Cashier', 'Mhasibu wa fedha'],
@@ -680,12 +684,12 @@ const D = {
   paymentVoucherStamp: ['Payment Voucher', 'Vocha ya Malipo'],
   libraryIntro: ['Poppins across web, mobile and the printed voucher, on a deep navy ground. A blue-to-cyan gradient carries every primary action; green confirms, amber waits, rose rejects. Radii step 6 / 10 / 14 / 18px, and elevation comes from soft shadows rather than heavy borders.', 'Poppins kwenye tovuti, simu na vocha iliyochapishwa, juu ya rangi ya bluu nzito. Rangi ya bluu hadi samawati inaongoza vitendo vyote vikuu; kijani kinathibitisha, manjano kinasubiri, waridi kinakataa.'],
   dsKicker: ['VouchFlow design system', 'Mfumo wa muundo wa VouchFlow'],
-  howSub: ['The default route for a new company — every step, role and permission is yours to reconfigure.', 'Njia ya kawaida kwa kampuni mpya — kila hatua, wajibu na ruhusa unaweza kubadilisha.'],
+  howSub: ['The default route for a new company, every step, role and permission is yours to reconfigure.', 'Njia ya kawaida kwa kampuni mpya, kila hatua, wajibu na ruhusa unaweza kubadilisha.'],
   pricingSub: ['Pay monthly or annually. Every plan includes the full approval workflow.', 'Lipa kwa mwezi au mwaka. Kila mpango unajumuisha mtiririko kamili wa idhini.'],
   brandingNote: ['Header rule, logo placement and accent colour follow this company\u2019s brand on every generated PDF.', 'Mstari wa kichwa, nembo na rangi hufuata chapa ya kampuni hii kwenye kila PDF inayotengenezwa.'],
   previewNote: ['This is exactly how your vouchers print, in your chosen voucher design.', 'Hivi ndivyo vocha zenu zinavyochapishwa, kwa muundo mliouchagua.'],
   ctaSub: ['Set up your company in minutes. Your first voucher can be signed today.', 'Sanidi kampuni yako kwa dakika. Vocha yako ya kwanza inaweza kusainiwa leo.'],
-  // — v3: the printed document, the action queue and company identity —
+  // v3: the printed document, the action queue and company identity
   paymentParticulars: ['Payment particulars', 'Taarifa za malipo'],
   accountName: ['Account name', 'Jina la akaunti'],
   accountNo: ['Account no.', 'Namba ya akaunti'],
@@ -698,7 +702,7 @@ const D = {
   actionQueue: ['Awaiting you', 'Zinakusubiri'],
   nothingOnYou: ['Nothing needs your attention', 'Hakuna kinachohitaji uangalizi wako'],
   historyInReports: ['Everything you have already dealt with lives in Reports.', 'Kila ulichoshughulikia kinapatikana kwenye Ripoti.'],
-  clearedNote: ['Acting on a voucher moves it to whoever is next — it will leave this list.', 'Kushughulikia vocha kunaipeleka kwa anayefuata — itaondoka kwenye orodha hii.'],
+  clearedNote: ['Acting on a voucher moves it to whoever is next, it will leave this list.', 'Kushughulikia vocha kunaipeleka kwa anayefuata, itaondoka kwenye orodha hii.'],
   reportsYouMayRun: ['Reports you may run', 'Ripoti unazoweza kuendesha'],
   stalled: ['Stalled', 'Zimekwama'],
   stalledNote: ['These have not moved in three days or more.', 'Hizi hazijasogea kwa siku tatu au zaidi.'],
@@ -726,13 +730,13 @@ const D = {
   bulkApprove: ["Bulk approval", "Idhini ya pamoja"],
   bulkCount: ["Vouchers", "Vocha"],
   awaitingYouLabel: ["Awaiting you", "Zinakusubiri"],
-  bulkApproveIntro: ["Review each voucher, then approve it on its own page — or tick several and approve them together.", "Pitia kila vocha, kisha iidhinishe kwenye ukurasa wake — au chagua kadhaa uziidhinishe kwa pamoja."],
+  bulkApproveIntro: ["Review each voucher, then approve it on its own page, or tick several and approve them together.", "Pitia kila vocha, kisha iidhinishe kwenye ukurasa wake, au chagua kadhaa uziidhinishe kwa pamoja."],
   selectAllForApproval: ["Select all ready for approval", "Chagua zote zilizo tayari kuidhinishwa"],
   select: ["Select", "Chagua"],
   selected: ["selected", "zimechaguliwa"],
   clearSelection: ["Clear selection", "Ondoa uchaguzi"],
   approveSelected: ["Approve selected", "Idhinisha zilizochaguliwa"],
-  bulkApproveSub: ["Each voucher is approved exactly as it would be on its own page — with your signature, timeline entry and notifications. Any that are no longer waiting for you are skipped.", "Kila vocha inaidhinishwa kama ingeidhinishwa kwenye ukurasa wake — kwa sahihi yako, kumbukumbu na taarifa. Zisizokusubiri tena zitarukwa."],
+  bulkApproveSub: ["Each voucher is approved exactly as it would be on its own page, with your signature, timeline entry and notifications. Any that are no longer waiting for you are skipped.", "Kila vocha inaidhinishwa kama ingeidhinishwa kwenye ukurasa wake, kwa sahihi yako, kumbukumbu na taarifa. Zisizokusubiri tena zitarukwa."],
   bulkComment: ["Comment for all (optional)", "Maoni kwa zote (si lazima)"],
   bulkReviewedStatement: ["I have reviewed each of these vouchers and approve them.", "Nimepitia kila moja ya vocha hizi na ninaziidhinisha."],
   addReceipt: ["Add receipt", "Ongeza risiti"],
@@ -796,14 +800,14 @@ const D = {
   approvalRoute: ["Approval route", "Njia ya idhini"],
   cashDue: ["Cash due", "Taslimu inayodaiwa"],
 
-  // — sign-in screen —
+  // sign-in screen
   loginEyebrow: ["Corporate financial workflow", "Mtiririko wa fedha wa kampuni"],
   loginLine1: ["Create vouchers.", "Andaa vocha."],
   loginLine2: ["Get them approved.", "Pata idhini."],
   loginLine3: ["Pay with confidence.", "Lipa kwa uhakika."],
   loginBody: [
-    "VouchFlow gives organisations one secure platform to create, review, sign, approve and pay financial vouchers — with complete visibility from request to payment.",
-    "VouchFlow inaipa kampuni jukwaa moja salama la kuandaa, kukagua, kusaini, kuidhinisha na kulipa vocha za fedha — ukiona kila hatua kuanzia ombi hadi malipo.",
+    "VouchFlow gives organisations one secure platform to create, review, sign, approve and pay financial vouchers, with complete visibility from request to payment.",
+    "VouchFlow inaipa kampuni jukwaa moja salama la kuandaa, kukagua, kusaini, kuidhinisha na kulipa vocha za fedha, ukiona kila hatua kuanzia ombi hadi malipo.",
   ],
   loginFeat1: ["Secure", "Salama"],
   loginFeat1Sub: ["Controlled voucher approvals", "Idhini za vocha zenye udhibiti"],
@@ -828,16 +832,27 @@ const D = {
   ],
   loginWelcome: ["Welcome back", "Karibu tena"],
   loginSub: ["Sign in to your VouchFlow account to continue.", "Ingia kwenye akaunti yako ya VouchFlow ili kuendelea."],
+  authHeadline: ["Approvals that move as fast as your business.", "Idhini zinazokwenda kwa kasi ya biashara yako."],
+  authLede: ["Raise, sign, approve and pay, with every step on the record.", "Andaa, saini, idhinisha na lipa, kila hatua ikiwa kwenye kumbukumbu."],
+  authSignInTitle: ["Sign in", "Ingia"],
+  authSignInSub: ["Welcome back. Enter your details to continue.", "Karibu tena. Weka taarifa zako ili kuendelea."],
+  authOr: ["or", "au"],
+  authDemo: ["Try a demo account", "Jaribu akaunti ya majaribio"],
+  authDemoNote: ["Every demo account uses the same password. Choosing one fills it in.", "Akaunti zote za majaribio zinatumia nenosiri moja. Ukichagua moja litajazwa."],
+  authSecure: ["Each company's data is isolated, and every action is recorded.", "Data ya kila kampuni imetengwa, na kila kitendo kinarekodiwa."],
+  authPreviewApproved: ["Approved", "Imeidhinishwa"],
+  authPreviewNotice: ["approved your voucher", "ameidhinisha vocha yako"],
+  authPreviewStock: ["Stock value", "Thamani ya hisa"],
   emailAddress: ["Email address", "Barua pepe"],
   emailPh: ["you@company.com", "wewe@kampuni.com"],
   passwordPh: ["Enter your password", "Weka nenosiri lako"],
   showPassword: ["Show password", "Onyesha nenosiri"],
   hidePassword: ["Hide password", "Ficha nenosiri"],
   signingIn: ["Signing in…", "Inaingia…"],
-  signedInOpening: ["Signed in — opening your dashboard", "Umeingia — tunafungua dashibodi"],
+  signedInOpening: ["Signed in, opening your dashboard", "Umeingia, tunafungua dashibodi"],
   newToVouchflow: ["New to VouchFlow?", "Mgeni kwenye VouchFlow?"],
   staffAccountsNote: ["Staff accounts are created by your company administrator.", "Akaunti za wafanyakazi huundwa na msimamizi wa kampuni yako."],
-  docsNotAttached: ["Draft saved — documents not attached", "Rasimu imehifadhiwa — nyaraka hazijaambatishwa"],
+  docsNotAttached: ["Draft saved, documents not attached", "Rasimu imehifadhiwa, nyaraka hazijaambatishwa"],
   docsNotAttachedBody: ["Add them again from the voucher.", "Ziongeze tena kwenye vocha."],
   filesNotAdded: ["Some files were not added", "Baadhi ya faili hazijaongezwa"],
   fileWrongType: ["only PDF, JPG, PNG, WEBP or HEIC files can be attached", "faili za PDF, JPG, PNG, WEBP au HEIC pekee"],
@@ -846,9 +861,9 @@ const D = {
   navWorkspace: ["Workspace", "Kazi"],
   navAdministration: ["Administration", "Utawala"],
   navPlatform: ["Platform", "Jukwaa"],
-  loginFooter: ["Vouchers, signatures and payments — on the record.", "Vocha, saini na malipo — yote kwenye kumbukumbu."],
+  loginFooter: ["Vouchers, signatures and payments, on the record.", "Vocha, saini na malipo, yote kwenye kumbukumbu."],
 
-  // — two-step sign-in —
+  // two-step sign-in
   twoStepTitle: ["Verify it’s you", "Thibitisha kuwa ni wewe"],
   twoStepSub: ["For your security, enter the six-digit code we send you to finish signing in.", "Kwa usalama wako, weka namba ya tarakimu sita tutakayokutumia ili kukamilisha kuingia."],
   twoStepChoose: ["Where should we send your code?", "Tukutumie namba wapi?"],
@@ -878,18 +893,18 @@ const D = {
   twoStepErrCooldown: ["Please wait a moment before requesting another code.", "Tafadhali subiri kidogo kabla ya kuomba namba nyingine."],
   twoStepErrDelivery: ["We could not send the code. Try again or use a different method.", "Hatukuweza kutuma namba. Jaribu tena au tumia njia nyingine."],
 
-  // — partial payments & cash acknowledgements —
+  // partial payments & cash acknowledgements
   amountToPayNow: ["Amount to pay now", "Kiasi cha kulipa sasa"],
   balanceAfterPayment: ["Balance after this payment: {amount}", "Salio baada ya malipo haya: {amount}"],
   settlesVoucher: ["This settles the voucher.", "Malipo haya yanamaliza vocha."],
   amountMustBePositive: ["Enter an amount greater than zero.", "Weka kiasi kikubwa kuliko sifuri."],
   amountOverBalance: ["The amount is more than the balance outstanding ({amount}).", "Kiasi kinazidi salio linalodaiwa ({amount})."],
   receiverIdNo: ["Receiver ID / employee no.", "Kitambulisho / namba ya mfanyakazi wa mpokeaji"],
-  receiverIdHint: ["Optional — printed on the acknowledgement", "Si lazima — huchapishwa kwenye hati ya kukiri"],
-  receivedByHint: ["The person taking the cash — they sign the acknowledgement", "Mtu anayepokea fedha — atasaini hati ya kukiri"],
+  receiverIdHint: ["Optional, printed on the acknowledgement", "Si lazima, huchapishwa kwenye hati ya kukiri"],
+  receivedByHint: ["The person taking the cash, they sign the acknowledgement", "Mtu anayepokea fedha, atasaini hati ya kukiri"],
   payRemainingBalance: ["Pay remaining balance", "Lipa salio lililobaki"],
   partPaymentRecorded: ["Part payment recorded", "Malipo ya sehemu yamerekodiwa"],
-  partPaymentBody: ["{amount} paid. {balance} is still outstanding — the voucher stays in the payment queue.", "{amount} zimelipwa. {balance} bado zinadaiwa — vocha inabaki kwenye foleni ya malipo."],
+  partPaymentBody: ["{amount} paid. {balance} is still outstanding, the voucher stays in the payment queue.", "{amount} zimelipwa. {balance} bado zinadaiwa, vocha inabaki kwenye foleni ya malipo."],
   printAckForReceiver: ["Print the acknowledgement for the receiver to sign, then upload the signed copy here.", "Chapisha hati ya kukiri ili mpokeaji asaini, kisha pakia nakala iliyosainiwa hapa."],
   printAckForFile: ["Print a payment acknowledgement for the file if you need one.", "Chapisha hati ya kukiri malipo kwa kumbukumbu ukihitaji."],
   printAcknowledgement: ["Print acknowledgement", "Chapisha hati ya kukiri"],
@@ -906,7 +921,7 @@ const D = {
   profilePhoto: ["Photo", "Picha"],
   choosePhoto: ["Choose a photo", "Chagua picha"],
   photoHint: ["Tap the picture to take or choose one. Large photos are resized automatically.", "Gusa picha kupiga au kuchagua moja. Picha kubwa hupunguzwa ukubwa kiotomatiki."],
-  photoPending: ["New photo selected — save to apply it.", "Picha mpya imechaguliwa — hifadhi ili itumike."],
+  photoPending: ["New photo selected, save to apply it.", "Picha mpya imechaguliwa, hifadhi ili itumike."],
   photoUndo: ["Undo", "Tendua"],
   profileUpdated: ["Profile updated", "Wasifu umesasishwa"],
   profileUpdateFailed: ["Could not update your profile", "Imeshindwa kusasisha wasifu wako"],
@@ -919,10 +934,10 @@ const D = {
   balanceAfter: ["Balance after", "Salio baada"],
   noPaymentsYet: ["No money has been released against this voucher yet.", "Bado hakuna fedha zilizotolewa kwa vocha hii."],
   signedAckLabel: ["Signed acknowledgement · payment {n}", "Hati ya kukiri iliyosainiwa · malipo {n}"],
-  stagePartlyPaid: ["Partly paid — {amount} outstanding", "Imelipwa sehemu — {amount} bado"],
+  stagePartlyPaid: ["Partly paid, {amount} outstanding", "Imelipwa sehemu, {amount} bado"],
   partPayNote: ["A part payment: the voucher stays in the payment queue until the balance is paid.", "Malipo ya sehemu: vocha inabaki kwenye foleni ya malipo hadi salio lilipwe."],
 
-  // — awaiting platform approval —
+  // awaiting platform approval
   pendingKicker: ["Awaiting approval", "Inasubiri idhini"],
   pendingLine: ["Your company is being reviewed. We'll activate it once your subscription is confirmed.", "Kampuni yako inakaguliwa. Tutaiwasha mara usajili wako utakapothibitishwa."],
   pendingNoPlan: ["No plan chosen yet", "Bado hujachagua mpango"],
@@ -941,6 +956,12 @@ const D = {
   approveCompanySub: ["Its people can start using VouchFlow straight away.", "Watu wake wataweza kuanza kutumia VouchFlow mara moja."],
   companyApproved: ["Company approved", "Kampuni imeidhinishwa"],
   approveCompanyFailed: ["Could not approve the company", "Imeshindikana kuidhinisha kampuni"],
+
+  // ERP modules (lib/i18n-erp.ts),
+  ...ERP_MESSAGES,
+  // Platform administration (lib/i18n-platform.ts).
+  ...PLATFORM_MESSAGES,
+  ...MODULE_MESSAGES,
 } as const satisfies Record<string, Entry>;
 
 export type MessageKey = keyof typeof D;
@@ -956,7 +977,7 @@ export const dictionary = D;
 export const CONTENT = {
   steps: [
     ['1', ['Raise a bank or cash voucher', 'Anzisha vocha ya benki au taslimu'], ['The employee picks the format, attaches receipts and submits.', 'Mfanyakazi anachagua muundo, anaambatisha risiti na anatuma.']],
-    ['2', ['HOD signs', 'Mkuu wa idara anasaini'], ['The head of department reviews and signs — signing only, never approval.', 'Mkuu wa idara anapitia na kusaini — kusaini tu, si kuidhinisha.']],
+    ['2', ['HOD signs', 'Mkuu wa idara anasaini'], ['The head of department reviews and signs, signing only, never approval.', 'Mkuu wa idara anapitia na kusaini, kusaini tu, si kuidhinisha.']],
     ['3', ['CEO approves', 'Mkurugenzi anaidhinisha'], ['The chief executive approves or rejects. That decision is final.', 'Mkurugenzi anaidhinisha au kukataa. Uamuzi huo ni wa mwisho.']],
     ['4', ['Cashier pays', 'Mhasibu analipa'], ['Finance releases the funds, records the reference and closes the voucher.', 'Fedha zinatolewa, kumbukumbu inaandikwa na vocha inafungwa.']]
   ],
@@ -965,7 +986,7 @@ export const CONTENT = {
     ['ph-list-checks', ['Configurable workflows', 'Mitiririko inayobadilika'], ['Build your own steps and decide per step who may sign, approve, reject or print.', 'Tengeneza hatua zako na amua kwa kila hatua nani anasaini, anaidhinisha, anakataa au anachapisha.']],
     ['ph-signature', ['Digital signatures', 'Sahihi za kidijitali'], ['Draw, upload or reuse a saved signature, bound to an approval ID.', 'Chora, pakia au tumia sahihi iliyohifadhiwa, iliyofungwa kwa namba ya idhini.']],
     ['ph-file-pdf', ['PDF generation', 'Utengenezaji wa PDF'], ['Print-ready A4 vouchers carrying your logo and footer text.', 'Vocha za A4 tayari kuchapishwa zenye nembo na maandishi yako ya chini.']],
-    ['ph-scroll', ['Audit trails', 'Kumbukumbu za ukaguzi'], ['Who did what, when, from which device — immutable and exportable.', 'Nani alifanya nini, lini, kwa kifaa gani — hazibadiliki na zinaweza kuhamishwa.']],
+    ['ph-scroll', ['Audit trails', 'Kumbukumbu za ukaguzi'], ['Who did what, when, from which device, immutable and exportable.', 'Nani alifanya nini, lini, kwa kifaa gani, hazibadiliki na zinaweza kuhamishwa.']],
     ['ph-chart-line', ['Reports', 'Ripoti'], ['By department, employee, category, period, status or amount.', 'Kwa idara, mfanyakazi, kundi, kipindi, hali au kiasi.']],
     ['ph-palette', ['Company branding', 'Chapa ya kampuni'], ['Your logo and colours on the interface and on every voucher.', 'Nembo na rangi zako kwenye kiolesura na kila vocha.']],
     ['ph-users-three', ['Role management', 'Usimamizi wa wajibu'], ['Employee, HOD, manager, finance and administrator scopes.', 'Mipaka ya mfanyakazi, mkuu wa idara, meneja, fedha na msimamizi.']],
@@ -1012,7 +1033,7 @@ export const CONTENT = {
     ['ph-check-square-offset', ['Nothing awaiting you', 'Hakuna kinachokusubiri'], ['Every voucher assigned to you has been signed or decided. New ones appear here immediately.', 'Kila vocha iliyokupewa imesainiwa au imeamuliwa. Mpya zinaonekana hapa mara moja.'], ['View register', 'Ona daftari'], 'var(--color-accent-600)'],
     ['ph-wifi-slash', ['No connection', 'Hakuna mtandao'], ['Your draft is saved on this device and will submit when you are back online.', 'Rasimu yako imehifadhiwa kwenye kifaa hiki na itatumwa ukirudi mtandaoni.'], ['Retry', 'Jaribu tena'], 'var(--color-neutral-700)'],
     ['ph-lock-key', ['Not authorised', 'Hauna ruhusa'], ['This voucher belongs to another department. Ask your administrator to widen your scope.', 'Vocha hii ni ya idara nyingine. Muombe msimamizi wako kupanua ufikiaji wako.'], ['Back to dashboard', 'Rudi dashibodi'], 'var(--color-accent-2-700)'],
-    ['ph-x-circle', ['Payment failed', 'Malipo yameshindikana'], ['The mobile money prompt timed out. No money left your account — try again or use a card.', 'Ujumbe wa fedha za simu ulikwisha muda. Hakuna fedha zilizotoka — jaribu tena au tumia kadi.'], ['Try again', 'Jaribu tena'], 'var(--color-accent-2-700)'],
+    ['ph-x-circle', ['Payment failed', 'Malipo yameshindikana'], ['The mobile money prompt timed out. No money left your account, try again or use a card.', 'Ujumbe wa fedha za simu ulikwisha muda. Hakuna fedha zilizotoka, jaribu tena au tumia kadi.'], ['Try again', 'Jaribu tena'], 'var(--color-accent-2-700)'],
     ['ph-seal-check', ['Voucher completed', 'Vocha imekamilika'], ['Signature and approval captured. Approval ID VF-9K42-1188 · the PDF is ready to print.', 'Sahihi na idhini zimepokelewa. Namba ya idhini VF-9K42-1188 · PDF ipo tayari kuchapishwa.'], ['Download PDF', 'Pakua PDF'], 'var(--color-accent-600)']
   ],
   settingsSections: [

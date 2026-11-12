@@ -20,7 +20,7 @@ import type { TimelineRow, Voucher } from "@/lib/types";
  *
  * Deliberately few. In progress is blue whoever holds it; a finished voucher is
  * green; something that needs the requester back is amber; a refusal is red.
- * The label carries the detail — "Awaiting HOD signature" — the colour only
+ * The label carries the detail, "Awaiting HOD signature", the colour only
  * carries the category.
  */
 export function statusTone(key: string | null | undefined): Tone {
@@ -50,7 +50,7 @@ export function StatusBadge({ voucher, large }: { voucher: Pick<Voucher, "status
   );
 }
 
-/** Bank or cash — the two corporate voucher formats. */
+/** Bank or cash, the two corporate voucher formats. */
 export function KindChip({ kind }: { kind: "bank" | "cash"; size?: number }) {
   const { t } = useApp();
   const cash = kind === "cash";
@@ -71,7 +71,7 @@ const MARK: Record<ProgressStep["state"], string> = {
   pending: "",
 };
 
-/** The approval route on one line: ✓ Prepared — ✓ HOD — ● MD — ○ Finance. */
+/** The approval route on one line: ✓ Prepared: ✓ HOD: ● MD: ○ Finance. */
 export function ProgressSteps({ steps }: { steps: ProgressStep[] }) {
   if (!steps.length) return null;
   return (
@@ -94,7 +94,7 @@ export function ProgressSteps({ steps }: { steps: ProgressStep[] }) {
 
 /**
  * The full approval ladder for one voucher, from the backend's own timeline:
- * who prepared it, who signed, who approved, who paid — and when.
+ * who prepared it, who signed, who approved, who paid, and when.
  */
 export function ApprovalTrack({ rows, youActHere }: { rows: TimelineRow[]; youActHere?: boolean }) {
   const { t, locale } = useApp();
@@ -114,7 +114,7 @@ export function ApprovalTrack({ rows, youActHere }: { rows: TimelineRow[]; youAc
             </span>
             <div style={{ minWidth: 0 }}>
               <div className="vf-track-name">{name}</div>
-              {row.person && row.person !== "—" && row.person !== "VouchFlow" && (
+              {row.person && row.person !== "-" && row.person !== "VouchFlow" && (
                 <div className="vf-track-who">
                   {row.person}{row.person_title ? ` · ${row.person_title}` : ""}
                 </div>
@@ -145,7 +145,7 @@ export function ApprovalTrack({ rows, youActHere }: { rows: TimelineRow[]; youAc
  * What this person can do with the voucher, as one call to action.
  *
  * Every path leads to the voucher, never straight to a decision. Approving,
- * signing and paying all happen on the voucher, behind a confirmation — a
+ * signing and paying all happen on the voucher, behind a confirmation, a
  * one-click Approve on a list is exactly how the wrong voucher gets approved.
  */
 export function primaryAction(voucher: Voucher): { label: MessageKey; icon: string; strong: boolean } | null {
@@ -206,7 +206,7 @@ export function voucherStage(
 }
 
 /**
- * The voucher's amount, and — while it is part-paid — what is still owed
+ * The voucher's amount, and, while it is part-paid, what is still owed
  * underneath it, so a queue never reads as if the full sum were outstanding.
  */
 export function VoucherAmount({ voucher, owing = false }: {
@@ -348,7 +348,7 @@ export function VoucherTable({ vouchers, bare = false }: { vouchers: Voucher[]; 
               <td className="num app-vt-amount"><VoucherAmount voucher={voucher} /></td>
               <td><StatusBadge voucher={voucher} /></td>
               <td className="app-vt-payee" style={{ minWidth: 150 }}>{voucherStage(voucher, t, locale)}</td>
-              <td className="app-vt-date">{voucher.submitted_at ? formatDate(voucher.submitted_at, locale) : "—"}</td>
+              <td className="app-vt-date">{voucher.submitted_at ? formatDate(voucher.submitted_at, locale) : "-"}</td>
               <td className="app-vt-date">{formatDate(voucher.updated_at, locale)}</td>
             </tr>
           ))}
@@ -384,7 +384,7 @@ export function rowsToCsv(headings: string[], rows: (string | number | null)[][]
 }
 
 /**
- * Downloads a report — exactly the rows the given filters select — as PDF,
+ * Downloads a report, exactly the rows the given filters select, as PDF,
  * Excel or CSV. The server builds the file through the same visibility rules
  * as the screen, so an export can never hold more than the caller may see.
  */
@@ -435,7 +435,7 @@ export function ExportMenu({ kind, params, label }: { kind: string; params: Expo
   const { run, busy } = useReportExport();
 
   return (
-    // Floating: placed in the viewport and kept on screen — the button often
+    // Floating: placed in the viewport and kept on screen, the button often
     // sits at the left of the page, where an end-aligned menu ran off it.
     <Dropdown
       floating

@@ -157,10 +157,10 @@ export interface MockVoucher {
   received_by: string | null;
   /**
    * Money released so far. Optional because a demo saved in localStorage
-   * before part payments existed has no such field — read it as 0.
+   * before part payments existed has no such field, read it as 0.
    */
   amount_paid?: number;
-  /** Each release of money, in order — see VoucherPayment on the API. */
+  /** Each release of money, in order, see VoucherPayment on the API. */
   payments?: MockPayment[];
   created_at: string;
   attachments: {
@@ -174,7 +174,7 @@ export interface MockVoucher {
   comments: { id: number; user_id: number; body: string; created_at: string }[];
 }
 
-/** One release of money against a voucher — the mirror of VoucherPayment. */
+/** One release of money against a voucher, the mirror of VoucherPayment. */
 export interface MockPayment {
   id: number;
   sequence: number;
@@ -343,8 +343,8 @@ export const WORKFLOW_PRESETS: Record<string, { name: string; description: strin
 
 export function buildSeed(): MockDataset {
   /* The first tenant is a real-world-shaped beverage manufacturer, so the demo
-     shows the platform carrying a company's own identity — logo, letterhead,
-     banking details — onto its documents. None of it is special-cased: every
+     shows the platform carrying a company's own identity, logo, letterhead,
+     banking details, onto its documents. None of it is special-cased: every
      field here is one a company fills in under Branding. */
   const companies: MockCompany[] = [
     {
@@ -532,7 +532,7 @@ export function buildSeed(): MockDataset {
     // ── awaiting the Procurement head ──
     V({
       number: "PV-2026-001248", kind: "bank", typeId: 101, dept: 2, requester: 3,
-      payee: "Kibo Preforms Limited", purpose: "PET preforms — Afiya 500 ml line",
+      payee: "Kibo Preforms Limited", purpose: "PET preforms: Afiya 500 ml line",
       desc: "420,000 × 24.5 g preforms for the Afiya still-water line, against framework contract WC/PR/2026/04.",
       amount: 18400000, method: "Bank Transfer", category: "Raw materials", ref: "INV-KP-88213",
       bank: { name: "NMB Bank", accountName: "Kibo Preforms Limited", accountNumber: "40910022317", branch: "Ubungo Branch" },
@@ -545,7 +545,7 @@ export function buildSeed(): MockDataset {
     // ── signed by the Transport head, still to be sent onward ──
     V({
       number: "PV-2026-001247", kind: "bank", typeId: 101, dept: 4, requester: 7,
-      payee: "Coastal Transporters Limited", purpose: "Distribution haulage — Mwanza and Mbeya routes",
+      payee: "Coastal Transporters Limited", purpose: "Distribution haulage: Mwanza and Mbeya routes",
       desc: "Outbound haulage of 38 pallets of finished goods to the Mwanza and Mbeya depots, week 36.",
       amount: 6750000, method: "Bank Transfer", category: "Distribution", ref: "INV-CT-4471",
       bank: { name: "CRDB Bank", accountName: "Coastal Transporters Ltd", accountNumber: "0152447199031", branch: "Nyerere Road Branch" },
@@ -561,7 +561,7 @@ export function buildSeed(): MockDataset {
     // ── awaiting the HR head ──
     V({
       number: "PC-2026-000324", kind: "cash", typeId: 102, dept: 5, requester: 14,
-      payee: "Bahati Catering Services", purpose: "Staff canteen supplies — September",
+      payee: "Bahati Catering Services", purpose: "Staff canteen supplies: September",
       desc: "Monthly canteen provisions for the Kibada plant, 240 staff meals per week.",
       amount: 940000, method: "Cash", category: "Staff welfare", ref: "RCP-1180",
       float: "Kibada plant petty cash float",
@@ -572,7 +572,7 @@ export function buildSeed(): MockDataset {
     // ── awaiting the Managing Director ──
     V({
       number: "PV-2026-001245", kind: "bank", typeId: 101, dept: 3, requester: 3,
-      payee: "BOC Tanzania Limited", purpose: "Food-grade CO₂ — Supa Cola line",
+      payee: "BOC Tanzania Limited", purpose: "Food-grade CO₂: Supa Cola line",
       desc: "Twelve tonnes of beverage-grade carbon dioxide for the Supa Cola carbonation plant.",
       amount: 9200000, method: "Bank Transfer", category: "Raw materials", ref: "INV-BOC-2214",
       bank: { name: "Stanbic Bank", accountName: "BOC Tanzania Limited", accountNumber: "9120044178", branch: "Mikocheni Branch" },
@@ -587,7 +587,7 @@ export function buildSeed(): MockDataset {
     }),
     V({
       number: "PV-2026-001244", kind: "bank", typeId: 101, dept: 1, requester: 3,
-      payee: "TANESCO", purpose: "Kibada plant electricity — August",
+      payee: "TANESCO", purpose: "Kibada plant electricity: August",
       desc: "Industrial supply for the Kibada bottling plant, meter 41-882-0173, August 2026.",
       amount: 14850000, method: "Bank Transfer", category: "Utilities", ref: "BILL-4188-08",
       bank: { name: "CRDB Bank", accountName: "Tanzania Electric Supply Co Ltd", accountNumber: "0150310099200", branch: "Azikiwe Branch" },
@@ -602,7 +602,7 @@ export function buildSeed(): MockDataset {
     }),
     V({
       number: "PC-2026-000322", kind: "cash", typeId: 102, dept: 7, requester: 8,
-      payee: "Afri-Chem Supplies", purpose: "Laboratory reagents — water testing",
+      payee: "Afri-Chem Supplies", purpose: "Laboratory reagents, water testing",
       desc: "Microbiological media and reagents for routine potable-water testing.",
       amount: 1320000, method: "Cash", category: "Quality control", ref: "QT-7741",
       float: "Laboratory petty cash float",
@@ -618,7 +618,7 @@ export function buildSeed(): MockDataset {
     // ── approved, waiting on the cashier ──
     V({
       number: "PV-2026-001240", kind: "bank", typeId: 101, dept: 2, requester: 3,
-      payee: "Tanpack Labels Limited", purpose: "Shrink labels — Afiya and Jembe",
+      payee: "Tanpack Labels Limited", purpose: "Shrink labels: Afiya and Jembe",
       desc: "Roll-fed shrink sleeves for the Afiya 500 ml and Jembe Energy 300 ml lines.",
       amount: 7600000, method: "Bank Transfer", category: "Packaging", ref: "INV-TP-6620",
       bank: { name: "NMB Bank", accountName: "Tanpack Labels Limited", accountNumber: "40120087755", branch: "Chang'ombe Branch" },
@@ -634,7 +634,7 @@ export function buildSeed(): MockDataset {
     }),
     V({
       number: "PC-2026-000318", kind: "cash", typeId: 102, dept: 4, requester: 7,
-      payee: "Msasani Motor Spares", purpose: "Tyres and spares — delivery truck T 4471 DTX",
+      payee: "Msasani Motor Spares", purpose: "Tyres and spares, delivery truck T 4471 DTX",
       desc: "Four drive tyres and a service kit for the Mbeya route truck.",
       amount: 2150000, method: "Cash", category: "Fleet maintenance", ref: "RCP-3312",
       float: "Transport petty cash float",
@@ -649,7 +649,7 @@ export function buildSeed(): MockDataset {
     }),
     V({
       number: "PV-2026-001239", kind: "bank", typeId: 101, dept: 5, requester: 14,
-      payee: "National Social Security Fund", purpose: "Statutory contributions — August 2026",
+      payee: "National Social Security Fund", purpose: "Statutory contributions: August 2026",
       desc: "Employer and employee NSSF contributions for 214 staff, August payroll.",
       amount: 5480000, method: "Bank Transfer", category: "Statutory", ref: "NSSF-08-2026",
       bank: { name: "CRDB Bank", accountName: "National Social Security Fund", accountNumber: "0150200011003", branch: "Tower Branch" },
@@ -666,7 +666,7 @@ export function buildSeed(): MockDataset {
     // ── closed ──
     V({
       number: "PV-2026-001236", kind: "bank", typeId: 101, dept: 3, requester: 3,
-      payee: "Kilimanjaro Sugar Distributors", purpose: "Refined sugar — 20 tonnes",
+      payee: "Kilimanjaro Sugar Distributors", purpose: "Refined sugar: 20 tonnes",
       desc: "Refined white sugar for the Supa Cola and Afiya juice lines, September production run.",
       amount: 22300000, method: "Bank Transfer", category: "Raw materials", ref: "INV-KS-1180",
       bank: { name: "NBC Bank", accountName: "Kilimanjaro Sugar Distributors", accountNumber: "011103004471", branch: "Moshi Branch", cheque: "CHQ-004471" },
@@ -683,7 +683,7 @@ export function buildSeed(): MockDataset {
     }),
     V({
       number: "AD-2026-000042", kind: "cash", typeId: 104, dept: 4, requester: 7,
-      payee: "Baraka Ndosi", purpose: "Travel advance — Mbeya depot stock audit",
+      payee: "Baraka Ndosi", purpose: "Travel advance: Mbeya depot stock audit",
       desc: "Three nights, per diem and fuel for the quarterly Mbeya depot stock count.",
       amount: 860000, method: "Mobile Money", category: "Travel", ref: "ADV-0042",
       float: "Transport petty cash float",
@@ -693,14 +693,14 @@ export function buildSeed(): MockDataset {
         { action: "submitted", actor: 7, step: 1, daysAgo: 14, hour: 8 },
         { action: "signed", actor: 12, step: 2, signed: true, daysAgo: 13, hour: 9 },
         { action: "forwarded", actor: 12, step: 2, daysAgo: 13, hour: 10 },
-        { action: "rejected", actor: 5, step: 3, daysAgo: 13, hour: 14, comment: "The Mbeya depot holds its own float — draw the advance there and resubmit against CC-TRN." },
+        { action: "rejected", actor: 5, step: 3, daysAgo: 13, hour: 14, comment: "The Mbeya depot holds its own float, draw the advance there and resubmit against CC-TRN." },
       ],
     }),
 
     // ── back with the requester ──
     V({
       number: "EX-2026-000011", kind: "bank", typeId: 103, dept: 2, requester: 3,
-      payee: "Sumaria Industries Limited", purpose: "Closures and caps — August arrears",
+      payee: "Sumaria Industries Limited", purpose: "Closures and caps: August arrears",
       desc: "Outstanding balance on 1.2 million 28 mm closures delivered in August.",
       amount: 3150000, method: "Bank Transfer", category: "Packaging", ref: "INV-SI-5590",
       bank: { name: "Exim Bank", accountName: "Sumaria Industries Ltd", accountNumber: "0100200455", branch: "Nyerere Road Branch" },
@@ -713,7 +713,7 @@ export function buildSeed(): MockDataset {
     }),
     V({
       number: "PV-2026-001249", kind: "bank", typeId: 101, dept: 2, requester: 3,
-      payee: "Coastal Packaging Limited", purpose: "Shrink film — October order",
+      payee: "Coastal Packaging Limited", purpose: "Shrink film: October order",
       desc: "Draft pending the supplier's confirmed quotation.",
       amount: 4100000, method: "Bank Transfer", category: "Packaging", ref: "",
       daysAgo: 0, status: "draft", step: null,
@@ -792,7 +792,7 @@ export function buildSeed(): MockDataset {
     { id: 1, user_id: 3, body: "Supplier holds this price until the 30th; the October run needs the preforms on site by the 24th.", created_at: iso(2, 9, 20) },
   ];
   vouchers[3].comments = [
-    { id: 2, user_id: 9, body: "Checked against the October production plan — the volume matches the Supa Cola schedule.", created_at: iso(4, 11, 5) },
+    { id: 2, user_id: 9, body: "Checked against the October production plan, the volume matches the Supa Cola schedule.", created_at: iso(4, 11, 5) },
   ];
 
   users.forEach((u) => {

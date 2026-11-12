@@ -119,7 +119,7 @@ function advance(voucher: MockVoucher, fromPosition: number) {
       type: "voucher.awaiting", icon: next.can_pay ? "ph-wallet" : next.can_approve ? "ph-seal-check" : "ph-signature",
       title: `${voucher.number} needs your ${verb}`,
       title_sw: `${voucher.number} inahitaji ${next.can_pay ? "malipo" : next.can_approve ? "idhini" : "sahihi"} yako`,
-      body: `${db.users.find((u) => u.id === voucher.requester_id)?.name ?? ""} · ${money(voucher.amount, voucher.currency)} — ${voucher.purpose}`,
+      body: `${db.users.find((u) => u.id === voucher.requester_id)?.name ?? ""} · ${money(voucher.amount, voucher.currency)}, ${voucher.purpose}`,
       voucherId: voucher.id, companyId: voucher.company_id,
     });
     return;
@@ -148,8 +148,8 @@ function logAction(voucher: MockVoucher, user: MockUser, action: string, step: M
 /**
  * Mirrors backend/app/Services/TwoFactorLogin.php: a password opens a
  * short-lived challenge, a code is sent to one of the user's channels, and only
- * the right code turns the challenge into a token. The code is fixed here —
- * nothing is delivered offline — and is never returned in a response.
+ * the right code turns the challenge into a token. The code is fixed here
+ * nothing is delivered offline, and is never returned in a response.
  */
 type LoginChannel = "email" | "sms";
 
@@ -284,7 +284,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
         email: ["These credentials do not match our records."],
       });
     }
-    // Password accepted — a one-time code is still required before a token.
+    // Password accepted, a one-time code is still required before a token.
     return openLoginChallenge(user);
   }
 
@@ -542,7 +542,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
     }
 
     /**
-     * The paper trail for one payment — VoucherPaymentController.
+     * The paper trail for one payment: VoucherPaymentController.
      *
      * The printable acknowledgement is a PDF rendered by the server, and the
      * fixture holds no PDF engine, so GET says so plainly instead of pretending.
@@ -639,7 +639,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
               type: "voucher.awaiting", icon: first.can_approve ? "ph-seal-check" : "ph-signature",
               title: `${voucher.number} needs your ${first.can_approve ? "approval" : "signature"}`,
               title_sw: `${voucher.number} inahitaji ${first.can_approve ? "idhini" : "sahihi"} yako`,
-              body: `${user.name} · ${money(voucher.amount, voucher.currency)} — ${voucher.purpose}`,
+              body: `${user.name} · ${money(voucher.amount, voucher.currency)}, ${voucher.purpose}`,
               voucherId: id, companyId: voucher.company_id,
             });
           }
@@ -660,7 +660,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
             type: "voucher.signed", icon: "ph-signature",
             title: `${voucher.number} signed by ${user.name}`,
             title_sw: `${voucher.number} imesainiwa na ${user.name}`,
-            body: `${step?.name ?? "This step"} complete — the voucher continues along the approval route.`,
+            body: `${step?.name ?? "This step"} complete, the voucher continues along the approval route.`,
             voucherId: id, companyId: voucher.company_id,
           });
           recordAudit("voucher.signed", `Signed voucher ${voucher.number}`, user, { type: "Voucher", id });
@@ -676,7 +676,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
         }
 
         case "approve": {
-          if (!actions.approve) throw new MockError(422, "This step may not approve — it signs only.");
+          if (!actions.approve) throw new MockError(422, "This step may not approve, it signs only.");
           if (step?.can_sign && !voucher.step_signed_at) {
             const signature = body.signature ?? user.signature;
             if (signature) {
@@ -690,7 +690,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
             type: "voucher.approved", icon: "ph-seal-check",
             title: `${voucher.number} approved`,
             title_sw: `${voucher.number} imeidhinishwa`,
-            body: "Cleared for payment — the cashier will release the funds.",
+            body: "Cleared for payment, the cashier will release the funds.",
             voucherId: id, companyId: voucher.company_id,
           });
           recordAudit("voucher.approved", `Approved voucher ${voucher.number}`, user, { type: "Voucher", id }, "In review → Approved");
@@ -730,7 +730,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
         }
 
         /**
-         * Releases money — all of the balance, or part of it. Mirrors
+         * Releases money, all of the balance, or part of it. Mirrors
          * VoucherController@pay and WorkflowEngine::pay: each release is its
          * own payment record, and the voucher stays approved (still in the
          * queue, shown as partially paid) until the balance reaches zero.
@@ -770,7 +770,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
 
           logAction(voucher, user, settled ? "paid" : "part_paid", step, settled
             ? (note ?? "Funds released and reference recorded against the voucher.")
-            : `Part payment ${money(amount, voucher.currency)} — balance ${money(remaining, voucher.currency)} outstanding.${note ? ` ${note}` : ""}`);
+            : `Part payment ${money(amount, voucher.currency)}, balance ${money(remaining, voucher.currency)} outstanding.${note ? ` ${note}` : ""}`);
           mutateVoucher((v) => {
             v.payments = [...existing, {
               id: paymentId, sequence: existing.length + 1, amount, balance_after: remaining,
@@ -846,7 +846,7 @@ export function handle(method: string, path: string, body: Body = {}, query: Que
          *
          * Mirrors VoucherAttachmentController@store: the same editability
          * gate, the same limits as config/vouchflow.php, and the same resource
-         * shape — so a screen that works against the fixture works against
+         * shape, so a screen that works against the fixture works against
          * Laravel without a second code path.
          *
          * No bytes are kept. The fixture records a file's name, type and size,
@@ -1857,7 +1857,7 @@ const DASH_ACTION_LABELS: Record<string, string> = {
 
 type DashView = "employee" | "hod" | "approver" | "cashier" | "admin";
 
-/** The attention banner — mirrors DashboardController::banner(). */
+/** The attention banner, mirrors DashboardController::banner(). */
 function dashBanner(view: DashView, count: number) {
   const pending: Record<DashView, [string, string, string]> = {
     employee: ["Complete your drafts and respond to any requested changes to keep them moving.", "dash.cta.continue", "Continue drafts and returns"],
@@ -1894,7 +1894,7 @@ function dashBanner(view: DashView, count: number) {
 }
 
 /**
- * The dashboard payload — the same shape as DashboardController: a banner,
+ * The dashboard payload, the same shape as DashboardController: a banner,
  * figures by stable key, the action queue and recent activity, each computed
  * from the vouchers this user may see.
  */
@@ -2033,7 +2033,7 @@ function dashboard(user: MockUser) {
         ? { key: "dash.sub.vsLastMonth", text: `${fmt(sum(lastMonth))} last month`, params: { amount: fmt(sum(lastMonth)) } }
         : { key: "dash.sub.noPriorMonth", text: "No vouchers last month" }),
       stat("dash.stat.avgApprovalTime", "Average approval time",
-        avgHours === null ? "—" : avgHours < 24 ? `${avgHours.toFixed(1)} hours` : `${(avgHours / 24).toFixed(1)} days`,
+        avgHours === null ? "-" : avgHours < 24 ? `${avgHours.toFixed(1)} hours` : `${(avgHours / 24).toFixed(1)} days`,
         { key: "dash.sub.submissionToApproval", text: "From submission to approval" }),
     ], activity(visible, "dash.activity.company", "Recent activity"), {
       overview: { active_users: activeUsers, departments: departments.length },
@@ -2296,8 +2296,8 @@ function report(kind: string, user: MockUser, query: Query) {
   if (moneyReport) rows = rows.filter((v) => v.status === "approved" || v.status === "paid");
   if (kind === "cash") rows = rows.filter((v) => v.kind === "cash");
 
-  const name = (id: number | null) => db.users.find((u) => u.id === id)?.name ?? "—";
-  const dept = (id: number | null) => db.departments.find((d) => d.id === id)?.name ?? "—";
+  const name = (id: number | null) => db.users.find((u) => u.id === id)?.name ?? "-";
+  const dept = (id: number | null) => db.departments.find((d) => d.id === id)?.name ?? "-";
   const currency = db.companies.find((c) => c.id === user.company_id)?.currency ?? "TZS";
 
   let headings: string[] = [];
@@ -2314,7 +2314,7 @@ function report(kind: string, user: MockUser, query: Query) {
         groups.set(key, [...(groups.get(key) ?? []), v]);
       });
       data = [...groups.entries()].map(([cat, list]) => [
-        cat, [...new Set(list.map((v) => v.cost_centre).filter(Boolean))].join(", ") || "—",
+        cat, [...new Set(list.map((v) => v.cost_centre).filter(Boolean))].join(", ") || "-",
         list.length, list.reduce((s, v) => s + v.amount, 0),
       ]).sort((a, b) => (b[3] as number) - (a[3] as number));
       break;
@@ -2353,8 +2353,8 @@ function report(kind: string, user: MockUser, query: Query) {
         const days = decision && v.submitted_at
           ? Math.round(((new Date(decision.acted_at).getTime() - new Date(v.submitted_at).getTime()) / 86_400_000) * 100) / 100
           : null;
-        return [v.number, name(v.requester_id), v.submitted_at?.slice(0, 10) ?? "—",
-          decision?.acted_at.slice(0, 10) ?? "Pending", decision?.actor_name ?? "—",
+        return [v.number, name(v.requester_id), v.submitted_at?.slice(0, 10) ?? "-",
+          decision?.acted_at.slice(0, 10) ?? "Pending", decision?.actor_name ?? "-",
           presentStatus(db, v).label, days];
       });
       break;
@@ -2364,9 +2364,9 @@ function report(kind: string, user: MockUser, query: Query) {
       headings = ["Number", "Format", "Approved", "Days waiting", "Department", "Payee", "Method", "Amount"];
       data = rows.filter((v) => v.status === "approved").map((v) => [
         v.number, v.kind === "cash" ? "Cash" : "Bank",
-        v.approved_at?.slice(0, 10) ?? "—",
+        v.approved_at?.slice(0, 10) ?? "-",
         v.approved_at ? Math.floor((Date.now() - new Date(v.approved_at).getTime()) / 86_400_000) : 0,
-        dept(v.department_id), v.payee, v.payment_method ?? "—", v.amount,
+        dept(v.department_id), v.payee, v.payment_method ?? "-", v.amount,
       ]);
       break;
     }
@@ -2375,8 +2375,8 @@ function report(kind: string, user: MockUser, query: Query) {
       headings = ["Number", "Date", "Payee", "Bank", "Account", "Branch", "Cheque / transfer", "Status", "Amount"];
       data = rows.filter((v) => v.kind === "bank").map((v) => [
         v.number, v.voucher_date, v.payee,
-        v.payee_bank ?? "—", v.payee_account_number ?? "—", v.payee_bank_branch ?? "—",
-        v.cheque_number ?? v.payment_reference ?? "—",
+        v.payee_bank ?? "-", v.payee_account_number ?? "-", v.payee_bank_branch ?? "-",
+        v.cheque_number ?? v.payment_reference ?? "-",
         presentStatus(db, v).label, v.amount,
       ]);
       break;
@@ -2385,8 +2385,8 @@ function report(kind: string, user: MockUser, query: Query) {
       title = "Cash report";
       headings = ["Number", "Voucher date", "Paid on", "Payee", "Department", "Requester", "Amount", "Currency", "Cash float", "Received by", "Paid by", "Status"];
       data = rows.map((v) => [
-        v.number, v.voucher_date, v.paid_at?.slice(0, 10) ?? "—", v.payee, dept(v.department_id), name(v.requester_id),
-        v.amount, v.currency, v.cash_float ?? "—", v.received_by ?? "—", v.paid_by ?? "—",
+        v.number, v.voucher_date, v.paid_at?.slice(0, 10) ?? "-", v.payee, dept(v.department_id), name(v.requester_id),
+        v.amount, v.currency, v.cash_float ?? "-", v.received_by ?? "-", v.paid_by ?? "-",
         v.status === "paid" ? "Paid" : balanceOf(v) < v.amount ? "Partially paid" : "Awaiting payment",
       ]);
       break;
@@ -2415,8 +2415,8 @@ function report(kind: string, user: MockUser, query: Query) {
       title = "Payment report";
       headings = ["Number", "Format", "Paid on", "Payee", "Department", "Amount", "Currency", "Method", "Reference", "Paid by", "Status"];
       data = rows.map((v) => [
-        v.number, v.kind === "cash" ? "Cash" : "Bank", v.paid_at?.slice(0, 10) ?? "—", v.payee, dept(v.department_id),
-        v.amount, v.currency, v.payment_method ?? "—", v.payment_reference ?? "—", v.paid_by ?? "—",
+        v.number, v.kind === "cash" ? "Cash" : "Bank", v.paid_at?.slice(0, 10) ?? "-", v.payee, dept(v.department_id),
+        v.amount, v.currency, v.payment_method ?? "-", v.payment_reference ?? "-", v.paid_by ?? "-",
         v.status === "paid" ? "Paid" : balanceOf(v) < v.amount ? "Partially paid" : "Awaiting payment",
       ]);
       break;
@@ -2425,7 +2425,7 @@ function report(kind: string, user: MockUser, query: Query) {
       headings = ["Number", "Date", "Format", "Type", "Department", "Requester", "Payee", "Purpose", "Amount", "Status"];
       data = rows.map((v) => [
         v.number, v.voucher_date, v.kind === "cash" ? "Cash" : "Bank",
-        db.voucherTypes.find((t) => t.id === v.voucher_type_id)?.name ?? "—",
+        db.voucherTypes.find((t) => t.id === v.voucher_type_id)?.name ?? "-",
         dept(v.department_id), name(v.requester_id), v.payee, v.purpose, v.amount,
         presentStatus(db, v).label,
       ]);

@@ -157,7 +157,7 @@ export function SignaturePad({
       {mode === "saved" && (
         hasSaved && savedSignature
           ? <div className="vf-sigpad-preview"><img src={savedSignature} alt="Your saved signature" /></div>
-          : <div className="vf-sigpad-empty">No saved signature yet — draw one and tick &ldquo;save for next time&rdquo;.</div>
+          : <div className="vf-sigpad-empty">No saved signature yet, draw one and tick &ldquo;save for next time&rdquo;.</div>
       )}
     </div>
   );

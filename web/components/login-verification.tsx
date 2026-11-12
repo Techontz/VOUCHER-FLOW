@@ -30,7 +30,7 @@ const EMPTY = ["", "", "", "", "", ""];
  * The second step of signing in: choose where the code goes (when the account
  * has both an email address and a phone), then enter it.
  *
- * The challenge lives only in this component's state — never in storage — so
+ * The challenge lives only in this component's state, never in storage, so
  * closing or reloading the tab simply means signing in again.
  */
 export function LoginVerification({

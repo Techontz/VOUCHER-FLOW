@@ -8,7 +8,7 @@ import { Dialog, Field, Spinner } from "@/components/ui";
 import type { Invoice, Plan } from "@/lib/types";
 
 /*
- * The two billing steps a company administrator takes — choose a plan
+ * The two billing steps a company administrator takes, choose a plan
  * (POST /billing/subscribe, which raises an invoice) and pay that invoice
  * (POST /billing/invoices/{id}/pay). Shared by Subscription and by the
  * awaiting-approval screen, so both go through exactly the same calls.
@@ -62,7 +62,7 @@ export function PlanDialog({
             <input type="radio" name="plan" checked={selected === plan.id} onChange={() => setSelected(plan.id)} style={{ marginTop: 4 }} />
             <span style={{ flex: 1 }}>
               <span style={{ display: "block", fontWeight: 600 }}>
-                {plan.name} — {plan.price > 0 ? money(plan.price, plan.currency) : "Custom"}
+                {plan.name}, {plan.price > 0 ? money(plan.price, plan.currency) : "Custom"}
                 {plan.price > 0 && <span style={{ fontWeight: 400, color: "var(--color-neutral-600)" }}> {t("perMonthShort")}</span>}
               </span>
               <span style={{ display: "block", fontSize: 13.5, color: "var(--color-neutral-700)" }}>

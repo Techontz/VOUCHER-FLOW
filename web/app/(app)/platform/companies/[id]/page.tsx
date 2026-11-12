@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { money } from "@/lib/format";
+import { formatDate, money } from "@/lib/format";
 import { Dialog, ErrorState, Field, Icon, LoadingBlock, Spinner } from "@/components/ui";
 import type { ColorTheme, Company, Plan } from "@/lib/types";
 import {
@@ -14,16 +14,18 @@ import {
 } from "./sections";
 import { useTemplatePreviews } from "@/components/voucher-templates";
 import { VoucherTemplatePanel } from "@/components/voucher-template-panel";
+import { ModulesTab } from "./modules";
 
 /*
  * One company, as the platform super admin sees it: its profile, branding,
  * people, departments, approval route, vouchers, money, subscription and
- * activity — each tab reading that company's own data through the platform
+ * activity, each tab reading that company's own data through the platform
  * API, inside that company's tenant scope.
  */
 
 const TABS = [
   { key: "overview", label: "Overview", icon: "ph-squares-four" },
+  { key: "modules", label: "Apps", icon: "ph-squares-four" },
   { key: "branding", label: "Branding & voucher design", icon: "ph-palette" },
   { key: "users", label: "Users", icon: "ph-users-three" },
   { key: "departments", label: "Departments", icon: "ph-tree-structure" },
@@ -58,15 +60,17 @@ export default function PlatformCompanyPage() {
   const [brand, setBrand] = useState({ color_theme: "blue" as ColorTheme, primary_color: "", secondary_color: "", accent_color: "", voucher_header_text: "", voucher_footer_text: "" });
   const [brandErrors, setBrandErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [extendDialog, setExtendDialog] = useState(false);
+  const [extendDays, setExtendDays] = useState("30");
+  const [extendUntil, setExtendUntil] = useState("");
   // The sample voucher in every design, in this company's own letterhead.
   const templatePreviews = useTemplatePreviews(`/platform/companies/${params.id}/voucher-template/preview`, {});
 
   const id = params.id;
 
   const load = useCallback(() => {
-    setError(null);
     api.get<Detail>(`/platform/companies/${id}`)
-      .then((d) => { setDetail(d); setPlanId(d.data.plan_id); })
+      .then((d) => { setError(null); setDetail(d); setPlanId(d.data.plan_id); })
       .catch((err) => setError(err.message));
     api.get<{ data: Overview }>(`/platform/companies/${id}/overview`).then((r) => setOverview(r.data)).catch((err) => setError(err.message));
     api.get<{ data: DepartmentRow[] }>(`/platform/companies/${id}/departments`).then((r) => setDepartments(r.data)).catch(() => setDepartments([]));
@@ -107,6 +111,18 @@ export default function PlatformCompanyPage() {
       setPlanDialog(false);
       load();
     } catch (err) { reportError(err, "Could not change the plan"); }
+    finally { setBusy(false); }
+  }
+
+  async function extend() {
+    if (!detail) return;
+    setBusy(true);
+    try {
+      await api.post(`/platform/companies/${detail.data.id}/extend`, extendUntil ? { until: extendUntil } : { days: Number(extendDays) });
+      toast(t("pfExtended"), detail.data.name, "ok");
+      setExtendDialog(false);
+      load();
+    } catch (err) { reportError(err, t("pfActionFailed")); }
     finally { setBusy(false); }
   }
 
@@ -192,7 +208,7 @@ export default function PlatformCompanyPage() {
       <div className="app-tabs app-co-tabs" role="tablist" aria-label="Company views">
         {TABS.map((x) => (
           <button key={x.key} type="button" role="tab" aria-selected={tab === x.key} onClick={() => open(x.key)}>
-            <Icon name={x.icon} size={17} /> {x.label}
+            <Icon name={x.icon} size={17} /> {x.key === "modules" ? t("pfApps") : x.label}
           </button>
         ))}
       </div>
@@ -215,7 +231,13 @@ export default function PlatformCompanyPage() {
         {tab === "workflow" && <WorkflowTab companyId={c.id} />}
         {tab === "vouchers" && <VouchersTab key={filterKey} companyId={c.id} departments={departments ?? []} currency={overview.currency} initial={tabFilter} />}
         {tab === "payments" && <PaymentsTab overview={overview} />}
-        {tab === "subscription" && <SubscriptionTab detail={detail} onChangePlan={() => setPlanDialog(true)} />}
+        {tab === "subscription" && <SubscriptionTab detail={detail} onChangePlan={() => setPlanDialog(true)}
+          onExtend={c.status === "pending" || c.status === "cancelled" ? undefined : () => { setExtendDays("30"); setExtendUntil(""); setExtendDialog(true); }} />}
+        {tab === "modules" && (
+          <ModulesTab key={(detail.licensed_modules ?? []).join()} companyId={c.id} enabled={detail.modules ?? ["vouchflow"]}
+            licensed={detail.licensed_modules ?? c.licensed_modules ?? ["vouchflow"]}
+            plan={plans.find((p) => p.id === c.plan_id) ?? c.plan} usage={detail.usage} onSaved={load} />
+        )}
         {tab === "activity" && <ActivityTab companyId={c.id} />}
       </div>
 
@@ -228,10 +250,33 @@ export default function PlatformCompanyPage() {
         <Field label={t("plan")} htmlFor="pc-plan">
           <select id="pc-plan" className="input" value={planId ?? ""} onChange={(e) => setPlanId(Number(e.target.value))}>
             {plans.map((plan) => (
-              <option key={plan.id} value={plan.id}>{plan.name} — {plan.price > 0 ? money(plan.price, plan.currency) : "Custom"}</option>
+              <option key={plan.id} value={plan.id}>{plan.name}, {plan.price > 0 ? money(plan.price, plan.currency) : "Custom"}</option>
             ))}
           </select>
         </Field>
+      </Dialog>
+
+      <Dialog open={extendDialog} busy={busy} onClose={() => setExtendDialog(false)} icon="ph-calendar-plus"
+        title={t("pfExtendTitle")} sub={t("pfExtendSub")}
+        summary={[
+          { label: t("companyName"), value: c.name },
+          { label: c.status === "trial" ? t("pfTrialEnds") : t("pfEnds"), value: formatDate(c.status === "trial" ? c.trial_ends_at : c.current_period_end, locale) },
+        ]}
+        actions={<>
+          <button className="btn btn-secondary" onClick={() => setExtendDialog(false)} disabled={busy}>{t("cancel")}</button>
+          <button className="btn btn-primary" onClick={() => void extend()} disabled={busy || (!extendUntil && !(Number(extendDays) > 0))}>
+            {busy ? <Spinner /> : t("confirm")}
+          </button>
+        </>}>
+        <div className="pf-form-row">
+          <Field label={t("pfAddDays")} htmlFor="cx-days">
+            <input id="cx-days" className="input tnum" type="number" min={1} max={730} value={extendDays} disabled={!!extendUntil}
+              onChange={(e) => setExtendDays(e.target.value)} />
+          </Field>
+          <Field label={t("pfOrUntil")} htmlFor="cx-until" hint={t("pfOrUntilHint")}>
+            <input id="cx-until" className="input" type="date" value={extendUntil} onChange={(e) => setExtendUntil(e.target.value)} />
+          </Field>
+        </div>
       </Dialog>
 
       <Dialog open={statusDialog !== null} busy={busy} onClose={() => setStatusDialog(null)}
@@ -243,7 +288,7 @@ export default function PlatformCompanyPage() {
           ? "Everyone in the company is signed out immediately and cannot use VouchFlow until you reactivate it. Nothing is deleted."
           : "Its people can sign in again straight away."}
         summary={statusDialog === "approve" ? [
-          { label: t("plan"), value: c.plan ? `${c.plan.name} — ${c.plan.price > 0 ? money(c.plan.price, c.plan.currency) : "Custom"}` : "—" },
+          { label: t("plan"), value: c.plan ? `${c.plan.name}, ${c.plan.price > 0 ? money(c.plan.price, c.plan.currency) : "Custom"}` : "-" },
         ] : undefined}
         actions={<>
           <button className="btn btn-secondary" onClick={() => setStatusDialog(null)} disabled={busy}>{t("cancel")}</button>

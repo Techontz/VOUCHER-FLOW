@@ -1,6 +1,6 @@
 /**
  * Mock mode has to configure approvers the way the API does: create, bind to
- * a voucher type, make default, delete, and show who acts per department —
+ * a voucher type, make default, delete, and show who acts per department
  * refusing the same things, and never crossing into another company.
  *
  * Run with:  node --test tests/

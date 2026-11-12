@@ -1,5 +1,5 @@
 /**
- * Turns internal mock records into the JSON shapes the UI consumes — the
+ * Turns internal mock records into the JSON shapes the UI consumes, the
  * front-end mirror of Laravel's API resources. Keeping these identical is what
  * lets Phase 2 swap the transport without touching a screen.
  */
@@ -290,7 +290,7 @@ export function invoiceResource(i: MockDataset["invoices"][number], db: MockData
     status: i.status,
     status_tag: i.status === "paid" ? "tag-accent" : i.status === "pending" ? "tag-outline" : "tag-accent-2",
     method: i.method,
-    method_label: ({ mobile_money: "Mobile Money", card: "Card", bank_transfer: "Bank transfer", none: "—" } as Record<string, string>)[i.method],
+    method_label: ({ mobile_money: "Mobile Money", card: "Card", bank_transfer: "Bank transfer", none: "-" } as Record<string, string>)[i.method],
     provider_ref: i.provider_ref, failure_reason: i.failure_reason,
     period_start: i.period_start, period_end: i.period_end,
     issued_at: i.issued_at, paid_at: i.paid_at,

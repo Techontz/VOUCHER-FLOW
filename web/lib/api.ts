@@ -4,7 +4,7 @@
  * Holds the token, the active language and the chosen appearance, and turns the
  * API's error shapes into something the forms can render field by field.
  *
- * PHASE 1 — the transport underneath is an in-browser mock (`lib/mock/`), not
+ * PHASE 1, the transport underneath is an in-browser mock (`lib/mock/`), not
  * HTTP. Every screen calls `api.get` / `api.post` / … exactly as it will against
  * Laravel, and the paths, verbs and payload shapes are the same. Setting
  * `NEXT_PUBLIC_API_MODE=live` switches the transport to `fetch` with no change
@@ -29,14 +29,14 @@ const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?
  * a trailing slash is trimmed so `.../api` and `.../api/` behave the same.
  *
  * The checks below run when the module is evaluated, which during `next build`
- * means they run while pages are being prerendered — so a deployment that is
+ * means they run while pages are being prerendered, so a deployment that is
  * misconfigured fails the build instead of shipping a bundle that quietly
  * dials the visitor's own machine. `NEXT_PUBLIC_*` values are inlined at build
  * time, which is exactly why this cannot be a runtime check.
  *
  * NODE_ENV alone is the wrong signal: `npm run build` sets it to production on
  * a laptop too, where pointing at 127.0.0.1 is correct. So a loopback URL is
- * only fatal where it could actually reach users — a real deployment, which
+ * only fatal where it could actually reach users, a real deployment, which
  * Vercel marks with VERCEL_ENV=production.
  */
 function resolveApiUrl(): string {
@@ -52,7 +52,7 @@ function resolveApiUrl(): string {
       "NEXT_PUBLIC_API_URL is not set, but NEXT_PUBLIC_API_MODE=live. A production " +
       "build would fall back to " + DEV_FALLBACK + " and every visitor's browser " +
       "would try to reach its own machine. Set NEXT_PUBLIC_API_URL to the API's " +
-      "base URL including /api — e.g. https://api.example.com/api.",
+      "base URL including /api, e.g. https://api.example.com/api.",
     );
   }
 
@@ -143,7 +143,7 @@ export class ApiError extends Error {
   errors: Record<string, string[]>;
   code?: string;
   /**
-   * The rest of the error body — e.g. `reason`, `retry_after` and
+   * The rest of the error body, e.g. `reason`, `retry_after` and
    * `attempts_remaining` on the two-step sign-in endpoints.
    */
   details: Record<string, unknown>;
@@ -187,7 +187,7 @@ export function setToken(token: string | null) {
     if (token) window.localStorage.setItem(TOKEN_KEY, token);
     else window.localStorage.removeItem(TOKEN_KEY);
   } catch {
-    /* private browsing — the session simply will not persist */
+    /* private browsing, the session simply will not persist */
   }
 }
 
@@ -211,7 +211,7 @@ export function setLocale(locale: Locale) {
 
 /**
  * The appearance chosen on this device. Stored separately from the account so a
- * visitor who has not signed in still gets — and keeps — their choice, and so
+ * visitor who has not signed in still gets, and keeps, their choice, and so
  * the pre-paint script in the root layout can read it synchronously.
  */
 export function getTheme(): Theme {
@@ -229,7 +229,7 @@ export function setTheme(theme: Theme) {
   try {
     window.localStorage.setItem(THEME_KEY, theme);
   } catch {
-    /* private browsing — the choice simply will not outlive the tab */
+    /* private browsing, the choice simply will not outlive the tab */
   }
 }
 
@@ -276,7 +276,7 @@ const settle = () => new Promise((r) => setTimeout(r, 90 + Math.random() * 160))
  *
  * Repeated keys collect into an array. Attachments are appended as `files[]`,
  * so assigning by key kept only the last one and the mock saw a single file
- * however many were chosen — which is not how the multipart request the live
+ * however many were chosen, which is not how the multipart request the live
  * transport sends behaves.
  */
 function formToBody(form: FormData): Record<string, unknown> {

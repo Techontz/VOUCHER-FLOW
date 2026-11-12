@@ -11,12 +11,13 @@ export type L = readonly [string, string];
 export const pick = (entry: L, locale: "en" | "sw") => (locale === "sw" ? entry[1] : entry[0]);
 
 export const NAV: { href: string; label: L }[] = [
-  { href: "#workflow", label: ["Workflow", "Mtiririko"] },
-  { href: "#vouchers", label: ["Vouchers", "Vocha"] },
-  { href: "#controls", label: ["Controls", "Udhibiti"] },
-  { href: "#audit", label: ["Audit", "Ukaguzi"] },
-  { href: "#reports", label: ["Reports", "Ripoti"] },
-  { href: "#pricing", label: ["Pricing", "Bei"] },
+  { href: "/apps", label: ["Apps", "Programu"] },
+  { href: "/#workflow", label: ["Workflow", "Mtiririko"] },
+  { href: "/#vouchers", label: ["Vouchers", "Vocha"] },
+  { href: "/#controls", label: ["Controls", "Udhibiti"] },
+  { href: "/#audit", label: ["Audit", "Ukaguzi"] },
+  { href: "/#reports", label: ["Reports", "Ripoti"] },
+  { href: "/#pricing", label: ["Pricing", "Bei"] },
 ];
 
 export const HERO = {
@@ -24,8 +25,8 @@ export const HERO = {
   line1: ["From request to payment,", "Kutoka ombi hadi malipo,"] as L,
   line2: ["without the paperwork.", "bila makaratasi."] as L,
   sub: [
-    "Create, review, sign, approve and pay company vouchers in one controlled workflow — with complete visibility and an audit trail at every step.",
-    "Andaa, kagua, saini, idhinisha na lipa vocha za kampuni katika mtiririko mmoja wenye udhibiti — ukiona kila hatua, na kumbukumbu kamili ya ukaguzi.",
+    "Create, review, sign, approve and pay company vouchers in one controlled workflow, with complete visibility and an audit trail at every step.",
+    "Andaa, kagua, saini, idhinisha na lipa vocha za kampuni katika mtiririko mmoja wenye udhibiti, ukiona kila hatua, na kumbukumbu kamili ya ukaguzi.",
   ] as L,
   getStarted: ["Get started", "Anza sasa"] as L,
   signIn: ["Sign in", "Ingia"] as L,
@@ -45,7 +46,7 @@ export const MOCK = {
   prepared: ["Prepared", "Imeandaliwa"] as L,
   hodSigned: ["HOD signed", "HOD amesaini"] as L,
   ceoApproval: ["CEO approval", "Idhini ya Mkurugenzi"] as L,
-  financePayment: ["Finance payment", "Malipo — Fedha"] as L,
+  financePayment: ["Finance payment", "Malipo: Fedha"] as L,
   waiting: ["Waiting", "Inasubiri"] as L,
   next: ["Next", "Ifuatayo"] as L,
   approvalRequired: ["Approval required", "Idhini inahitajika"] as L,
@@ -64,8 +65,8 @@ export const STATEMENT = {
       icon: "ph-arrows-down-up",
       title: ["Nothing moves on a handshake", "Hakuna kinachosonga kwa mdomo"],
       body: [
-        "A voucher reaches the next person only when the step before it is complete — signed, approved, or sent back with a reason.",
-        "Vocha humfikia anayefuata pale tu hatua iliyotangulia imekamilika — imesainiwa, imeidhinishwa, au imerudishwa na sababu.",
+        "A voucher reaches the next person only when the step before it is complete, signed, approved, or sent back with a reason.",
+        "Vocha humfikia anayefuata pale tu hatua iliyotangulia imekamilika, imesainiwa, imeidhinishwa, au imerudishwa na sababu.",
       ],
     },
     {
@@ -95,13 +96,13 @@ export const WORKFLOW = {
     "Hatua sita zilizo wazi. Kampuni yako inaamua nani anatenda katika kila moja, na VouchFlow inahakikisha zinafuata mpangilio huo.",
   ] as L,
   stages: [
-    { icon: "ph-note-pencil", title: ["Create", "Andaa"], role: ["Employee", "Mfanyakazi"], body: ["Raises the voucher with the payee, amount and supporting documents.", "Anaandaa vocha na mlipwaji, kiasi na nyaraka za kuthibitisha."] },
-    { icon: "ph-magnifying-glass", title: ["Review", "Kagua"], role: ["Head of department", "Mkuu wa idara"], body: ["Checks the request against what the department actually needs.", "Anakagua ombi dhidi ya mahitaji halisi ya idara."] },
-    { icon: "ph-signature", title: ["Sign", "Saini"], role: ["HOD", "HOD"], body: ["Signs digitally to vouch for the request before it goes up.", "Anasaini kidijitali kuthibitisha ombi kabla halijapanda juu."] },
-    { icon: "ph-seal-check", title: ["Approve", "Idhinisha"], role: ["CEO / Manager", "Mkurugenzi / Meneja"], body: ["Decides: approve, reject, or send back for changes.", "Anaamua: kuidhinisha, kukataa, au kurudisha kwa marekebisho."] },
-    { icon: "ph-hand-coins", title: ["Pay", "Lipa"], role: ["Finance / Cashier", "Fedha / Mhazini"], body: ["Releases the funds and records the payment reference.", "Anatoa fedha na kurekodi kumbukumbu ya malipo."] },
-    { icon: "ph-check-circle", title: ["Complete", "Kamilika"], role: ["On record", "Kwenye kumbukumbu"], body: ["Paid, filed, and printable as a signed A4 voucher.", "Imelipwa, imehifadhiwa, na inachapishwa kama vocha ya A4 iliyosainiwa."] },
-  ] as { icon: string; title: L; role: L; body: L }[],
+    { icon: "ph-note-pencil", title: ["Create", "Andaa"], rest: ["the voucher", "vocha"], status: ["Draft", "Rasimu"], role: ["Employee", "Mfanyakazi"], body: ["Raises the voucher with the payee, amount and supporting documents.", "Anaandaa vocha na mlipwaji, kiasi na nyaraka za kuthibitisha."] },
+    { icon: "ph-magnifying-glass", title: ["Review", "Kagua"], rest: ["the request", "ombi"], status: ["Under review", "Inakaguliwa"], role: ["Head of department", "Mkuu wa idara"], body: ["Checks the request against what the department actually needs.", "Anakagua ombi dhidi ya mahitaji halisi ya idara."] },
+    { icon: "ph-signature", title: ["Sign", "Saini"], rest: ["to vouch for it", "kuithibitisha"], status: ["Signed by HOD", "Imesainiwa"], role: ["HOD", "HOD"], body: ["Signs digitally to vouch for the request before it goes up.", "Anasaini kidijitali kuthibitisha ombi kabla halijapanda juu."] },
+    { icon: "ph-seal-check", title: ["Approve", "Idhinisha"], rest: ["or send it back", "au irudishe"], status: ["Approved", "Imeidhinishwa"], role: ["CEO / Manager", "Mkurugenzi / Meneja"], body: ["Decides: approve, reject, or send back for changes.", "Anaamua: kuidhinisha, kukataa, au kurudisha kwa marekebisho."] },
+    { icon: "ph-hand-coins", title: ["Pay", "Lipa"], rest: ["and record it", "na urekodi"], status: ["Paid", "Imelipwa"], role: ["Finance / Cashier", "Fedha / Mhazini"], body: ["Releases the funds and records the payment reference.", "Anatoa fedha na kurekodi kumbukumbu ya malipo."] },
+    { icon: "ph-check-circle", title: ["Complete", "Kamilika"], rest: ["on the record", "kwenye kumbukumbu"], status: ["Filed", "Imehifadhiwa"], role: ["On record", "Kwenye kumbukumbu"], body: ["Paid, filed, and printable as a signed A4 voucher.", "Imelipwa, imehifadhiwa, na inachapishwa kama vocha ya A4 iliyosainiwa."] },
+  ] as { icon: string; title: L; rest: L; status: L; role: L; body: L }[],
 };
 
 export type VoucherTab = "payment" | "cash" | "bank" | "attachments" | "signatures";
@@ -110,11 +111,11 @@ export const VOUCHERS = {
   eyebrow: ["Voucher management", "Usimamizi wa vocha"] as L,
   title: ["Every kind of voucher, properly documented.", "Kila aina ya vocha, ikiwa na nyaraka kamili."] as L,
   sub: [
-    "Raise the voucher your payment needs, attach the evidence, and sign it — all in one place, in the format your auditors expect.",
-    "Andaa vocha inayohitajika kwa malipo yako, ambatisha ushahidi, na uisaini — yote mahali pamoja, katika muundo wanaoutarajia wakaguzi.",
+    "Raise the voucher your payment needs, attach the evidence, and sign it, all in one place, in the format your auditors expect.",
+    "Andaa vocha inayohitajika kwa malipo yako, ambatisha ushahidi, na uisaini, yote mahali pamoja, katika muundo wanaoutarajia wakaguzi.",
   ] as L,
   tabs: [
-    { key: "payment", icon: "ph-receipt", title: ["Payment vouchers", "Vocha za malipo"], body: ["The standard request to pay a supplier, a contractor or a member of staff — numbered automatically for each company.", "Ombi la kawaida la kumlipa msambazaji, mkandarasi au mfanyakazi — lenye namba inayotolewa kiotomatiki kwa kila kampuni."] },
+    { key: "payment", icon: "ph-receipt", title: ["Payment vouchers", "Vocha za malipo"], body: ["The standard request to pay a supplier, a contractor or a member of staff, numbered automatically for each company.", "Ombi la kawaida la kumlipa msambazaji, mkandarasi au mfanyakazi, lenye namba inayotolewa kiotomatiki kwa kila kampuni."] },
     { key: "cash", icon: "ph-money", title: ["Cash vouchers", "Vocha za taslimu"], body: ["Notes released from a petty cash float, with the float named and the receipt recorded when the cash is handed over.", "Fedha taslimu kutoka akiba ndogo, ikitajwa akiba husika na risiti ikirekodiwa fedha zinapokabidhiwa."] },
     { key: "bank", icon: "ph-bank", title: ["Bank vouchers", "Vocha za benki"], body: ["Transfers and cheques with the payee's bank, account and branch on the voucher, and your company's account it is drawn on.", "Uhamisho na hundi zenye benki, akaunti na tawi la mlipwaji kwenye vocha, pamoja na akaunti ya kampuni inayolipa."] },
     { key: "attachments", icon: "ph-paperclip", title: ["Attachments", "Viambatisho"], body: ["Invoices, quotations and receipts travel with the voucher, stored privately for your company alone.", "Ankara, nukuu na risiti huambatana na vocha, zikihifadhiwa kwa faragha kwa ajili ya kampuni yako pekee."] },
@@ -126,8 +127,8 @@ export const CONTROLS = {
   eyebrow: ["Approval controls", "Udhibiti wa idhini"] as L,
   title: ["Your approval rules, enforced on every voucher.", "Kanuni zako za idhini, zikitekelezwa kwenye kila vocha."] as L,
   sub: [
-    "Build the route once. Decide who signs, who approves and who pays — and when a larger amount needs one more decision.",
-    "Jenga njia mara moja. Amua nani anasaini, nani anaidhinisha na nani analipa — na lini kiasi kikubwa kinahitaji uamuzi mmoja zaidi.",
+    "Build the route once. Decide who signs, who approves and who pays, and when a larger amount needs one more decision.",
+    "Jenga njia mara moja. Amua nani anasaini, nani anaidhinisha na nani analipa, na lini kiasi kikubwa kinahitaji uamuzi mmoja zaidi.",
   ] as L,
   items: [
     { icon: "ph-flow-arrow", title: ["Configurable workflows", "Mitiririko inayobadilika"], body: ["Add, remove and reorder steps without calling a developer.", "Ongeza, ondoa na panga hatua bila kumwita msanidi."] },
@@ -157,8 +158,8 @@ export const COMPANIES = {
   eyebrow: ["Company management", "Usimamizi wa kampuni"] as L,
   title: ["One platform. Every company kept apart.", "Jukwaa moja. Kila kampuni ikiwa peke yake."] as L,
   sub: [
-    "Run each company with its own people, departments, branding and approval routes — and nothing ever crosses between them.",
-    "Endesha kila kampuni na watu wake, idara, chapa na njia zake za idhini — na hakuna kinachovuka kati yao.",
+    "Run each company with its own people, departments, branding and approval routes, and nothing ever crosses between them.",
+    "Endesha kila kampuni na watu wake, idara, chapa na njia zake za idhini, na hakuna kinachovuka kati yao.",
   ] as L,
   items: [
     { icon: "ph-buildings", title: ["Multi-company", "Kampuni nyingi"], body: ["Each company is its own workspace with its own numbering.", "Kila kampuni ina eneo lake na mfuatano wake wa namba."] },
@@ -173,9 +174,27 @@ export const COMPANIES = {
 export const REPORTS = {
   eyebrow: ["Reports", "Ripoti"] as L,
   title: ["Know where the money is going.", "Jua fedha zinakokwenda."] as L,
+  titleLead: ["Know where the", "Jua"] as L,
+  titleAccent: ["money is going.", "fedha zinakokwenda."] as L,
+  stats: [
+    { value: 7, suffix: "+", label: ["Ready-made reports", "Ripoti zilizo tayari"], body: ["Vouchers, payments, approvals, departments, people and the month, filtered to what each role may see.", "Vocha, malipo, idhini, idara, watu na mwezi, zikichujwa kwa kile kila nafasi inaruhusiwa kuona."] },
+    { value: 3, suffix: "", label: ["Export formats", "Miundo ya kuhamisha"], body: ["PDF, Excel and CSV, in the layout your auditors and your bank expect.", "PDF, Excel na CSV, katika mpangilio unaotarajiwa na wakaguzi na benki yako."] },
+  ] as { value: number; suffix: string; label: L; body: L }[],
+  tiles: [
+    { icon: "ph-receipt", title: ["Vouchers", "Vocha"] },
+    { icon: "ph-money", title: ["Payments", "Malipo"] },
+    { icon: "ph-seal-check", title: ["Approvals", "Idhini"] },
+    { icon: "ph-buildings", title: ["Departments", "Idara"] },
+    { icon: "ph-users", title: ["Employees", "Wafanyakazi"] },
+    { icon: "ph-chart-bar", title: ["Expenses", "Matumizi"] },
+    { icon: "ph-calendar-check", title: ["Monthly", "Kila mwezi"] },
+    { icon: "ph-clock-counter-clockwise", title: ["Audit log", "Ukaguzi"] },
+    { icon: "ph-file-xls", title: ["Excel", "Excel"] },
+    { icon: "ph-file-pdf", title: ["PDF & print", "PDF na chapa"] },
+  ] as { icon: string; title: L }[],
   sub: [
-    "See what is waiting, what was approved and what was paid — by department, by period, by status — and take it with you.",
-    "Ona kinachosubiri, kilichoidhinishwa na kilicholipwa — kwa idara, kipindi na hali — na uondoke nacho.",
+    "See what is waiting, what was approved and what was paid, by department, by period, by status, and take it with you.",
+    "Ona kinachosubiri, kilichoidhinishwa na kilicholipwa, kwa idara, kipindi na hali, na uondoke nacho.",
   ] as L,
   items: [
     { icon: "ph-receipt", title: ["Voucher reports", "Ripoti za vocha"] },
@@ -202,5 +221,5 @@ export const FOOTER = {
   contact: ["Contact", "Mawasiliano"] as L,
   general: ["General enquiries", "Maswali ya jumla"] as L,
   support: ["Customer support", "Huduma kwa wateja"] as L,
-  rights: ["Vouchers, signatures and payments — on the record.", "Vocha, saini na malipo — kwenye kumbukumbu."] as L,
+  rights: ["Vouchers, signatures and payments, on the record.", "Vocha, saini na malipo, kwenye kumbukumbu."] as L,
 };

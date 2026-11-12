@@ -1,0 +1,778 @@
+/* ============================================================================
+   VouchFlow, liquid glass.
+
+   The surface layer of the signed-in shell, sign-in, registration and the
+   one-time-code screens. Tokens (--wallpaper, --glass-*) are defined per theme
+   in styles/vouchflow.css; this file decides where they are worn.
+
+   How glass is built here
+     · Fill: --glass-fill (cards, sidebar) or --glass-fill-strong (anything
+       that floats over content that scrolls: menus, dialogs, the mobile top
+       bar, tab bar and action bars, always ≥ .85 opaque).
+     · Edge: a 1px --glass-border hairline plus an inset top --glass-highlight.
+     · Depth: --glass-shadow, or --glass-shadow-float for floating layers.
+     · Blur: --glass-blur, but only on chrome and floating layers. Cards sit
+       straight on the (already soft) wallpaper, so a blur there would add
+       nothing but cost, and backdrop-filter would make every card the
+       containing block of the fixed dialogs rendered inside it.
+     · The floating sidebar and the top-bar pill wear their blur on a ::before
+       layer for the same reason: the rail's fixed tooltips and the search
+       results must not be trapped by their parent.
+
+   Never here: the A4 voucher (.vf-sheet, voucher templates). It is paper.
+   ========================================================================== */
+
+/* ──────────────────────────────────────────────────────── brand glass ── */
+
+/* The brand column of sign-in and registration: deep blue glass with white
+   ink in light, smoked glass in dark. Ink alphas are chosen for 4.5:1. */
+:root {
+  --brand-glass: linear-gradient(160deg, rgba(37, 99, 235, .96) 0%, rgba(29, 78, 216, .95) 55%, rgba(30, 64, 175, .96) 100%);
+  --brand-ink: #ffffff;
+  --brand-ink-2: rgba(255, 255, 255, .9);
+  --brand-ink-3: rgba(255, 255, 255, .78);
+  --brand-line: rgba(255, 255, 255, .22);
+  --brand-card: rgba(255, 255, 255, .1);
+  --brand-accent: #dbeafe;
+  --brand-chip: rgba(255, 255, 255, .14);
+}
+[data-theme="dark"] {
+  --brand-glass: linear-gradient(160deg, rgba(255, 255, 255, .075) 0%, rgba(255, 255, 255, .035) 100%);
+  --brand-ink-2: rgba(255, 255, 255, .76);
+  --brand-ink-3: rgba(255, 255, 255, .58);
+  --brand-line: rgba(255, 255, 255, .09);
+  --brand-card: rgba(255, 255, 255, .04);
+  --brand-accent: #8ab4ff;
+  --brand-chip: rgba(255, 255, 255, .06);
+}
+
+/* ───────────────────────────────────────────────────────── fallbacks ── */
+
+/* No backdrop-filter, or the person asked for less transparency: every glass
+   surface becomes a solid one. Same selectors as the token blocks, later. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root, [data-theme="light"] {
+    --glass-fill: #ffffff; --glass-fill-strong: #ffffff; --glass-fill-raised: #ffffff;
+    --glass-blur: none;
+  }
+  [data-theme="dark"] {
+    --glass-fill: #17191d; --glass-fill-strong: #17191d; --glass-fill-raised: #262930;
+    --glass-blur: none;
+    --brand-glass: #17191d;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root, [data-theme="light"] {
+    --glass-fill: #ffffff; --glass-fill-strong: #ffffff; --glass-fill-raised: #ffffff;
+    --glass-blur: none;
+    --brand-glass: #1d4ed8;
+  }
+  [data-theme="dark"] {
+    --glass-fill: #17191d; --glass-fill-strong: #17191d; --glass-fill-raised: #262930;
+    --glass-blur: none;
+    --brand-glass: #17191d;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── wallpaper ── */
+
+:root:has(.vf-shell) body { background: var(--wallpaper-base); }
+.vf-shell { position: relative; isolation: isolate; background: transparent; }
+/* A fixed layer rather than background-attachment: fixed, which iOS ignores. */
+.vf-shell::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-color: var(--wallpaper-base); background-image: var(--wallpaper);
+}
+
+/* ═══════════════════════════════════════════════════════ shell chrome ══ */
+
+.vf-shell { --sidebar-w: 272px; --rail-w: 76px; --shell-gap: 12px; }
+
+/* ── floating sidebar ── */
+.vf-shell .vf-sidebar {
+  margin: var(--shell-gap) 0 var(--shell-gap) var(--shell-gap);
+  top: var(--shell-gap);
+  height: calc(100vh - 2 * var(--shell-gap)); height: calc(100dvh - 2 * var(--shell-gap));
+  border-radius: var(--glass-radius-lg);
+  background: transparent; color: var(--text-primary);
+  isolation: isolate;
+  box-shadow: var(--glass-shadow);
+}
+.vf-shell .vf-sidebar::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: inherit;
+  background: var(--sidebar-background);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+.app-side-head { height: 72px; padding: 0 12px 0 18px; border-bottom: 0; }
+.app-side-brand { gap: 12px; font-size: 17px; font-weight: 700; letter-spacing: -.02em; color: var(--text-primary) !important; }
+/* The mark on a blue tile, drawn white so it reads on the accent. */
+.app-side-brand .vf-login-mark {
+  width: 40px; height: 40px; border-radius: 13px;
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 8px 18px -8px rgba(37, 99, 235, .7);
+}
+.app-side-brand .vf-login-mark img { width: 64%; height: 64%; filter: brightness(0) invert(1); }
+.app-side-brand-text small { color: var(--sidebar-muted); font-weight: 500; }
+
+.app-side-collapse {
+  border-radius: 999px; border-color: var(--glass-border); background: var(--glass-fill-hover); color: var(--sidebar-muted);
+}
+.app-side-collapse:hover, .app-side-close:hover { background: var(--sidebar-hover); color: var(--text-primary); }
+.app-side-close { border-radius: 999px; }
+
+/* the company card */
+.app-workspace {
+  margin: 2px 14px 6px; padding: 4px; gap: 10px;
+  border: 1px solid var(--glass-border); border-radius: 16px; background: var(--sidebar-card);
+}
+.vf-sidebar > .app-dropdown { margin: 2px 14px 6px; }
+.app-workspace-mark { border-radius: 12px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25); }
+.app-workspace-name { color: var(--text-primary); }
+.app-workspace-sub { color: var(--sidebar-muted); }
+.app-workspace-button:hover { border-color: var(--glass-border-strong); background: var(--sidebar-hover); }
+
+/* the menu: scrolls on its own, however many groups it grows to */
+.app-nav {
+  padding: 6px 14px 12px; gap: 4px;
+  scrollbar-color: var(--border-strong) transparent;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%);
+}
+.app-nav-group { gap: 2px; }
+.app-nav-group + .app-nav-group { margin-top: 6px; }
+.app-nav-label {
+  height: 26px; padding: 10px 12px 0; font-size: 10.5px; letter-spacing: .1em; color: var(--sidebar-label);
+}
+.app-nav-label::after { left: 12px; right: 12px; background: var(--glass-border); }
+.app-nav-item {
+  height: 40px; padding: 0 12px; gap: 12px; border-radius: 14px;
+  font-size: 14px; font-weight: 500; color: var(--sidebar-foreground) !important;
+}
+.app-nav-item i { font-size: 19px !important; }
+.app-nav-item:hover { background: var(--sidebar-hover); color: var(--text-primary) !important; }
+/* The current entry: a raised glass pill with its own top highlight. */
+.app-nav-item[aria-current="page"],
+.app-nav-item[aria-current="page"]:hover {
+  background: var(--sidebar-active); color: var(--sidebar-active-foreground) !important; font-weight: 600;
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-border), 0 8px 18px -12px rgba(0, 0, 0, .55);
+}
+.app-nav-item[aria-current="page"] i { color: var(--primary-text); }
+.app-nav-child { height: 36px; padding-left: 43px; font-size: 13.5px; }
+.app-nav-badge { min-width: 20px; height: 20px; padding: 0 6px; font-size: 11.5px; background: var(--primary); color: #fff; }
+.app-nav-item[aria-current="page"] .app-nav-badge { background: var(--primary); color: #fff; }
+.app-nav-dot { left: 28px; top: 7px; box-shadow: 0 0 0 2px var(--glass-solid); }
+.app-nav-parent { gap: 2px; }
+.app-nav-parent-row .app-nav-item { padding-right: 40px; }
+.app-nav-caret { right: 6px; border-radius: 999px; }
+.app-nav-caret:hover { background: var(--sidebar-hover); color: var(--text-primary); }
+
+/* the signed-in person, pinned to the foot */
+.app-side-foot { flex: none; padding: 8px 14px 14px; border-top: 1px solid var(--glass-border); }
+.vf-sidebar .app-side-foot .app-dropdown { margin: 0; }
+.app-side-user {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; overflow: hidden;
+  padding: 6px; border: 0; border-radius: 16px; background: transparent; cursor: pointer;
+  font-family: var(--font-body); color: var(--text-primary); text-align: left;
+  transition: background-color 150ms ease;
+}
+.app-side-user:hover, .app-side-user[aria-expanded="true"] { background: var(--sidebar-hover); }
+.app-side-user:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.app-side-user .app-avatar { width: 36px; height: 36px; font-size: 14px; box-shadow: 0 0 0 2px var(--glass-border); }
+.app-side-user-text { flex: 1; min-width: 0; display: grid; line-height: 1.3; }
+.app-side-user-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-side-user-role { font-size: 12px; color: var(--sidebar-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-side-user > i { flex: none; color: var(--sidebar-muted); }
+.app-side-user-text, .app-side-user > i { transition: opacity 160ms ease 110ms; }
+
+/* ── collapsed rail ── */
+@media (min-width: 981px) {
+  :root[data-sidebar="collapsed"] .vf-shell :is(.app-side-user-text, .app-side-user > i) {
+    opacity: 0; pointer-events: none; transition: opacity 90ms ease;
+  }
+  :root[data-sidebar="collapsed"] .vf-shell .app-side-foot { padding-left: 14px; padding-right: 14px; }
+  :root[data-sidebar="collapsed"] .vf-shell :is(.app-nav-item, .app-side-user):is(:hover, :focus-visible)::after {
+    content: attr(data-tip); position: fixed; left: calc(var(--rail-w) + var(--shell-gap) + 12px); transform: translateY(-2px);
+    padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; white-space: nowrap;
+    color: var(--text-primary); background: var(--glass-fill-strong);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow-float);
+    pointer-events: none; z-index: 90; animation: app-tip-in 140ms var(--ease-out) 60ms both;
+  }
+  :root[data-sidebar="collapsed"] .vf-shell .app-nav-child { padding-left: 12px; }
+}
+/* The rail is never shown at drawer widths, so its tooltips are not either. */
+[data-theme] .vf-shell .app-nav-item:is(:hover, :focus-visible)::after { background: var(--glass-fill-strong); }
+
+/* ── top bar: breadcrumbs on the wallpaper, tools in a floating pill ── */
+.vf-shell .vf-topbar {
+  position: relative; top: auto; z-index: 30;
+  height: 76px; padding: 12px 24px 0 18px; gap: 12px;
+  background: transparent; border-bottom: 0; color: var(--text-primary);
+}
+.vf-shell .app-shell-toggle { margin-left: 0; border-radius: 999px; }
+.vf-shell .vf-topbar .btn-icon { border-radius: 999px; color: var(--text-secondary); }
+.vf-shell .vf-topbar .btn-icon:hover { color: var(--text-primary); background: var(--surface-tertiary); }
+
+.app-topbar-pill {
+  position: relative; isolation: isolate; flex: none; min-width: 0;
+  display: flex; align-items: center; gap: 4px; padding: 6px;
+  border-radius: 999px; box-shadow: var(--glass-shadow);
+}
+.app-topbar-pill::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border); box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+.app-topbar-actions { gap: 4px; }
+.vf-shell .app-topbar-pill .vf-search { flex: 0 1 300px; width: 300px; max-width: 300px; }
+.vf-shell .app-topbar-pill .vf-search > i { left: 14px; }
+.vf-shell .app-topbar-pill .vf-search .input {
+  height: 40px; border-radius: 999px; padding: 0 52px 0 40px; font-size: 14px;
+  background-color: var(--surface-tertiary); border-color: transparent;
+}
+.vf-shell .app-topbar-pill .vf-search .input:hover:not(:focus) { border-color: var(--glass-border-strong); }
+.vf-shell .app-topbar-pill .vf-search .input:focus { background-color: var(--input-background); border-color: transparent; box-shadow: 0 0 0 2px var(--ring); }
+.app-kbd {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none;
+  height: 22px; padding: 0 7px; display: inline-grid; place-items: center;
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--text-muted);
+  background: var(--glass-fill); border: 1px solid var(--glass-border-strong); border-radius: 7px;
+  transition: opacity 120ms ease;
+}
+.vf-search:focus-within .app-kbd { opacity: 0; }
+
+/* The create action: a round accent button in the pill. */
+.vf-shell .app-topbar-pill .app-topbar-create { width: 40px; height: 40px; padding: 0; margin: 0 2px; }
+.vf-shell .vf-bell-dot { top: 9px; right: 10px; background: #ef4444; box-shadow: 0 0 0 2px var(--glass-solid); }
+
+.app-topbar-user { display: none; }
+
+.vf-shell .vf-content { padding: 8px 24px 64px 20px; }
+
+/* ── tablet & phone: a frosted sticky top bar, the sidebar as a drawer ── */
+@media (max-width: 980px) {
+  .vf-shell .vf-sidebar {
+    position: fixed; inset: 8px auto 8px 8px; margin: 0; height: auto; top: 8px;
+    width: 288px; flex-basis: 288px; border-radius: var(--glass-radius-lg);
+    transform: translateX(calc(-100% - 16px)); box-shadow: var(--glass-shadow-float);
+  }
+  /* Over content, so opaque enough that nothing reads through. */
+  .vf-shell .vf-sidebar::before { background: var(--glass-fill-strong); }
+  .vf-shell .vf-scrim { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+
+  /* The blur sits on a ::before layer: on the bar itself it would make the
+     bar a backdrop root, and the menus that open from it could not blur
+     the page beneath them. */
+  .vf-shell .vf-topbar {
+    position: sticky; top: 0; height: 60px; padding: 0 12px; gap: 6px;
+    isolation: isolate; background: transparent; border-bottom: 0;
+  }
+  .vf-shell .vf-topbar::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: var(--glass-fill-strong);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .app-topbar-where { min-width: 0; }
+  .app-topbar-pill { padding: 0; gap: 2px; box-shadow: none; flex: 0 1 auto; }
+  .app-topbar-pill::before { display: none; }
+  .vf-shell .app-topbar-pill .vf-search { width: auto; flex: 0 1 220px; }
+  .app-kbd { display: none; }
+  .vf-shell .app-topbar-pill .vf-search .input { padding-right: 14px; }
+  .app-topbar-user { display: block; flex: none; }
+  .app-topbar-user .app-user { padding: 2px; margin: 0; border-radius: 999px; }
+  .app-topbar-user .app-avatar { width: 36px; height: 36px; font-size: 14px; }
+  .vf-shell .vf-content { padding: 16px 16px calc(92px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 640px) {
+  .vf-shell .app-topbar-pill .app-topbar-create { width: 36px; height: 36px; }
+  .vf-shell .vf-topbar .btn-icon { width: 38px; height: 38px; }
+}
+
+/* ── mobile tab bar & action bars: frosted, opaque enough to read over content ── */
+@media (max-width: 980px) {
+  .vf-shell .vf-tabbar {
+    background: var(--glass-fill-strong);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border-top: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), 0 -10px 30px -18px rgba(0, 0, 0, .35);
+  }
+  .vf-shell .vf-tabbar a[aria-current="page"] { color: var(--primary-text); }
+  .vf-shell .vf-tabbar a[aria-current="page"] .vf-tab-icon { background: var(--primary-soft-strong); }
+  .vf-shell .vf-tab-badge { box-shadow: 0 0 0 2px var(--glass-solid); }
+}
+.vf-shell .vf-actionbar {
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--glass-border); box-shadow: 0 -10px 30px -18px rgba(0, 0, 0, .35);
+}
+.vf-shell .app-bulk-bar {
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border); border-radius: 999px;
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float);
+  padding: 8px 8px 8px 20px;
+}
+@media (max-width: 640px) { .vf-shell .app-bulk-bar { border-radius: 20px; } }
+
+/* ═══════════════════════════════════════════════════ page & surfaces ══ */
+
+/* ── page header: a large, tight title and a muted subline ── */
+.vf-shell .vf-pagehead { margin-bottom: 24px; gap: 16px 24px; align-items: flex-end; }
+.vf-shell .vf-pagehead-main { gap: 6px; }
+.vf-shell .vf-pagehead-title {
+  font-size: clamp(30px, 1.3vw + 20px, 40px); font-weight: 700; letter-spacing: -.035em; line-height: 1.08;
+}
+.vf-shell .vf-pagehead-hero .vf-pagehead-title { font-size: clamp(32px, 1.6vw + 20px, 44px); }
+.vf-shell .vf-pagehead-sub { font-size: 16px; color: var(--text-muted); }
+.vf-shell .vf-pagehead-actions { gap: 10px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .vf-shell .vf-pagehead { margin-bottom: 18px; align-items: flex-start; }
+  .vf-shell .vf-pagehead-title, .vf-shell .vf-pagehead-hero .vf-pagehead-title { font-size: 28px; }
+  .vf-shell .vf-pagehead-sub { font-size: 15px; }
+}
+
+/* ── glass cards ── */
+.vf-shell .card, .vf-shell .vf-panel {
+  background: var(--glass-fill); border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+}
+.vf-shell .vf-panel-head { padding: 18px 22px; min-height: 0; border-bottom-color: var(--border-subtle); }
+.vf-shell .vf-panel-head h2, .vf-shell .vf-panel-head h3 { font-size: 16.5px; font-weight: 600; letter-spacing: -.015em; }
+.vf-shell .vf-panel-sub { font-size: 13.5px; color: var(--text-muted); }
+.vf-shell .vf-panel-pad { padding: 20px 22px; }
+/* A GlassCard's header reads as a title, not a toolbar: no rule beneath. */
+.vf-shell .vf-glasscard > .vf-panel-head { border-bottom: 0; padding-bottom: 8px; }
+.vf-shell .vf-glasscard > .vf-panel-head { flex-wrap: nowrap; align-items: flex-start; }
+.vf-shell .vf-glasscard > .vf-panel-head > .vf-panel-head-main { flex: 1 1 auto; min-width: 0; }
+.vf-shell .vf-glasscard > .vf-panel-head > .vf-card-link { margin-top: -4px; }
+.vf-shell .vf-glasscard > .vf-panel-head + .vf-panel-pad { padding-top: 8px; }
+.vf-shell .app-panel-foot { background: transparent; border-top-color: var(--border-subtle); padding: 12px 22px; }
+@media (max-width: 640px) {
+  .vf-shell .vf-panel-head { padding: 14px 16px; }
+  .vf-shell .vf-glasscard > .vf-panel-head { padding-bottom: 6px; }
+  .vf-shell .vf-panel-pad { padding: 16px; }
+  .vf-shell .card, .vf-shell .vf-panel { border-radius: 20px; }
+}
+
+/* The right-aligned accent link in a card header ("View all →"). */
+.vf-card-link {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  height: 32px; padding: 0 12px; margin: -4px -8px -4px 0; border-radius: 999px;
+  font-size: 14px; font-weight: 600; color: var(--primary-text, var(--color-accent-600)) !important; text-decoration: none !important;
+  transition: background-color 150ms ease;
+}
+.vf-card-link:hover { background: var(--primary-soft, var(--color-accent-100)); }
+.vf-card-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring, #3b82f6); }
+
+/* ── stat pills: label above, a big tabular figure below ── */
+.vf-statpills { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+/* Even rows on the dashboard: eight or four in fours, six or three in threes. */
+@media (min-width: 1100px) {
+  .app-dash-figures:is([data-count="8"], [data-count="4"]) .vf-statpills { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .app-dash-figures:is([data-count="6"], [data-count="3"]) .vf-statpills { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .app-dash-figures[data-count="5"] .vf-statpills { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+.vf-statpill-cell { display: grid; min-width: 0; }
+.vf-statpill {
+  display: grid; align-content: start; gap: 6px; min-width: 0;
+  padding: 14px 18px 16px; border-radius: 20px;
+  background: var(--glass-fill); border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+  color: var(--text-primary); text-decoration: none;
+  transition: background-color 160ms ease, transform 160ms var(--ease-out), box-shadow 160ms ease;
+}
+a.vf-statpill:hover { background: var(--glass-fill-raised); text-decoration: none; transform: translateY(-1px); }
+a.vf-statpill:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring), var(--glass-shadow); }
+.vf-statpill-label {
+  display: flex; align-items: center; gap: 7px; min-width: 0;
+  font-size: 13px; font-weight: 500; color: var(--text-muted);
+}
+.vf-statpill-label > i { flex: none; color: var(--b-dot); }
+.vf-statpill.tone-neutral .vf-statpill-label > i { color: var(--text-muted); }
+.vf-statpill-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vf-statpill-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--b-dot); }
+.vf-statpill-value {
+  font-size: clamp(24px, 1vw + 16px, 32px); font-weight: 700; letter-spacing: -.03em; line-height: 1.1;
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Money totals run longer than counts: a size down rather than cut off. */
+.vf-statpill[data-long] .vf-statpill-value { font-size: clamp(20px, .8vw + 14px, 26px); }
+.vf-statpill-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
+@media (max-width: 640px) {
+  .vf-statpills { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .vf-statpill { padding: 12px 14px 13px; border-radius: 18px; }
+  .vf-statpill-value { font-size: 22px; }
+  .vf-statpill[data-long] .vf-statpill-value { font-size: 17px; }
+}
+
+/* ── older figure cards, in the same glass ── */
+.vf-shell .vf-kpis { gap: 12px; }
+.vf-shell .vf-kpi, .vf-shell .app-figure {
+  background: var(--glass-fill); border: 1px solid var(--glass-border); border-radius: 20px;
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+}
+.vf-shell .app-figure:last-child { border-right: 1px solid var(--glass-border); }
+.vf-shell a.vf-kpi:hover { background: var(--glass-fill-raised); border-color: var(--glass-border-strong); box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float); }
+.vf-shell .vf-kpi-value, .vf-shell .app-figure-value { font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.vf-shell .app-figures { gap: 12px; }
+@media (max-width: 640px) { .vf-shell .app-figure { border-bottom: 1px solid var(--glass-border); } }
+
+/* ── quieter blocks ── */
+.vf-shell .app-attn { border-radius: 20px; }
+.vf-shell .vf-alert, .vf-shell .vf-note { border-radius: 16px; }
+.vf-shell .vf-choice { border-radius: 16px; background: var(--glass-fill); border-color: var(--glass-border-strong); }
+.vf-shell .vf-choice:hover { background: var(--glass-fill-raised); }
+.vf-shell .skeleton { border-radius: 12px; }
+.vf-shell .vf-document-frame { border-radius: 18px; background: var(--surface-secondary); border-color: var(--glass-border); }
+
+/* ── empty state ── */
+.vf-shell .vf-empty-icon {
+  width: 64px; height: 64px; border-radius: 20px;
+  background: var(--glass-fill); border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+}
+.vf-shell .vf-empty-title { font-size: 17px; font-weight: 600; color: var(--text-primary); }
+
+/* ═════════════════════════════════════════════════════════ controls ══ */
+
+/* ── buttons: accent pills with a faint top gloss; secondary glass pills ── */
+:is(.vf-shell, .vf-login, .rg, .vf-auth) .btn { border-radius: 999px; }
+.vf-shell .btn { padding: 0 18px; }
+.vf-shell .btn-sm { border-radius: 999px; padding: 0 14px; }
+.vf-shell .btn-icon, .vf-shell .btn-sm.btn-icon { padding: 0; }
+:is(.vf-shell, .vf-login, .rg, .vf-auth) .btn-primary {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .16) 0%, rgba(255, 255, 255, 0) 55%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26), 0 8px 20px -10px color-mix(in srgb, var(--btn-bg) 80%, transparent), 0 1px 2px rgba(0, 0, 0, .12);
+}
+:is(.vf-shell, .vf-login, .rg, .vf-auth) .btn-primary:focus-visible { box-shadow: 0 0 0 2px var(--glass-solid), 0 0 0 4px var(--ring, #3b82f6); }
+.vf-shell .btn-secondary, .vf-shell .btn-secondary.btn-icon,
+:is(.vf-login, .rg, .vf-auth) .btn-secondary {
+  --btn-bg: var(--glass-fill); --btn-border: var(--glass-border-strong);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 1px 2px rgba(0, 0, 0, .06);
+}
+.vf-shell .btn-secondary:hover:not(:disabled), :is(.vf-login, .rg, .vf-auth) .btn-secondary:hover:not(:disabled) { --btn-bg: var(--glass-fill-raised); }
+.vf-shell .btn-danger { --btn-bg: var(--glass-fill); }
+.vf-shell .btn:disabled {
+  background: var(--surface-tertiary); background-image: none; border-color: transparent;
+  color: var(--text-faint); box-shadow: none;
+}
+
+/* ── fields ── */
+.vf-shell .input { border-radius: 12px; }
+.vf-shell textarea.input { border-radius: 14px; }
+.vf-shell select.input option { background: var(--glass-solid); color: var(--text-primary); }
+
+/* ── segmented controls: a glass track, the chosen option a raised pill ── */
+.vf-shell .seg { border-radius: 999px; background: var(--surface-tertiary); }
+.vf-shell .seg > button, .vf-shell .seg-opt { border-radius: 999px; }
+:root .vf-shell .seg > button[aria-selected="true"], :root .vf-shell .seg-opt:has(input:checked),
+:root .app-menu .seg > button[aria-selected="true"] {
+  background: var(--glass-fill-raised); color: var(--text-primary);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-border), 0 2px 6px -2px rgba(0, 0, 0, .25);
+}
+/* Filter pills (segmented filters outside menus, and the list-page pills). */
+.vf-shell .seg:is(:not(.seg-sm), [role="tablist"]) { background: transparent; }
+.vf-shell .seg:is(:not(.seg-sm), [role="tablist"]) > button, .vf-shell .seg:is(:not(.seg-sm), [role="tablist"]) .seg-opt,
+.vf-shell .app-pilltabs button {
+  border-radius: 999px; background: var(--glass-fill); border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+.vf-shell .seg:is(:not(.seg-sm), [role="tablist"]) > button:hover, .vf-shell .app-pilltabs button:hover { background: var(--glass-fill-raised); }
+:root .vf-shell .seg:is(:not(.seg-sm), [role="tablist"]) > button[aria-selected="true"],
+:root .vf-shell .seg:is(:not(.seg-sm), [role="tablist"]) .seg-opt:has(input:checked),
+.vf-shell .app-pilltabs button[aria-selected="true"] {
+  background: var(--primary); background-image: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 55%);
+  border-color: transparent; color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26), 0 6px 16px -10px var(--primary);
+}
+
+/* The appearance switch in the person's menu. */
+.app-theme { border-radius: 999px; background: var(--surface-tertiary); }
+.app-theme button { border-radius: 999px; }
+:root .app-theme button[aria-checked="true"] {
+  background: var(--glass-fill-raised); color: var(--text-primary);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-border), 0 2px 6px -2px rgba(0, 0, 0, .25);
+}
+
+/* ═════════════════════════════════════════════ floating layers ══ */
+
+/* ── menus & dropdowns ── */
+.app-menu {
+  padding: 6px; border-radius: 18px;
+  /* Menus carry dense text over whatever is behind them: nearly opaque. */
+  background: color-mix(in srgb, var(--glass-solid) 95%, transparent);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float);
+}
+.app-menu-item { height: 38px; padding: 0 10px; border-radius: 11px; }
+.app-menu-item:hover, .app-menu-item:focus-visible { background: var(--surface-tertiary); }
+.app-menu-sep { margin: 6px 4px; background: var(--glass-border); }
+.app-menu-label { padding: 6px 10px 8px; }
+.app-menu-head { padding: 8px 10px 10px; border-bottom-color: var(--glass-border); }
+.app-menu-row { padding: 6px 6px 6px 10px; }
+
+/* ── top-bar search results ── */
+.vf-shell .vf-search-results {
+  border-radius: 18px; padding: 6px;
+  background: color-mix(in srgb, var(--glass-solid) 95%, transparent);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float);
+}
+.vf-shell .vf-search-result { border-radius: 12px; border-bottom: 0; }
+.vf-shell .vf-search-result:hover { background: var(--surface-tertiary); }
+
+/* ── dialogs ── */
+.vf-shell .dialog-backdrop { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.vf-shell .dialog {
+  border-radius: 26px;
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float);
+}
+.vf-shell .dialog-actions { background: transparent; border-top-color: var(--glass-border); }
+.vf-shell .dialog-icon { border-radius: 16px; }
+.vf-shell .dialog-summary { border-radius: 16px; }
+.vf-shell .dialog-close { border-radius: 999px; }
+@media (max-width: 640px) {
+  .vf-shell .dialog, .vf-shell .dialog-wide { border-radius: 26px 26px 0 0; }
+}
+
+/* ── toasts ── */
+:root .vf-toast, :root:has(.vf-shell) .vf-toast {
+  border-radius: 18px;
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float);
+}
+
+/* ═══════════════════════════════════════════════════════════ tables ══ */
+
+.vf-shell .table-wrap {
+  background: var(--glass-fill); border: 1px solid var(--glass-border); border-radius: var(--glass-radius);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+}
+.vf-shell .vf-panel > .table-wrap, .vf-shell .vf-panel .vf-panel-pad > .table-wrap {
+  background: transparent; border: 0; border-radius: 0; box-shadow: none;
+}
+.vf-shell .table thead th { color: var(--text-muted); font-size: 12px; letter-spacing: .06em; border-bottom-color: var(--border-subtle); }
+:root .vf-shell .table thead th { color: var(--text-muted); }
+.vf-shell .table tbody td { border-bottom-color: var(--border-subtle); }
+
+/* .vf-table, the table for data-heavy (ERP) screens. Glass frame, frosted
+   sticky header (inside a [data-scroll] wrap), no zebra, a soft hover row. */
+.vf-table-wrap {
+  width: 100%; overflow: auto; -webkit-overflow-scrolling: touch;
+  background: var(--glass-fill); border: 1px solid var(--glass-border); border-radius: var(--glass-radius);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+}
+.vf-table-wrap[data-scroll] { max-height: var(--vf-table-max-h, 560px); overscroll-behavior: contain; }
+.vf-panel > .vf-table-wrap, .vf-panel .vf-panel-pad > .vf-table-wrap,
+.vf-glasscard .vf-table-wrap { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.vf-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14.5px; }
+.vf-shell .vf-table thead th, .vf-table thead th {
+  position: sticky; top: 0; z-index: 2;
+  padding: 12px 18px; text-align: left; white-space: nowrap;
+  font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted);
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+}
+.vf-shell .vf-table tbody td, .vf-table tbody td { padding: 13px 18px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+.vf-table tbody tr:last-child td { border-bottom: 0; }
+.vf-table tbody tr { transition: background-color 120ms ease; }
+.vf-shell .vf-table tbody tr:hover, .vf-table tbody tr:hover { background: var(--table-row-hover, var(--glass-fill-hover)); }
+.vf-table tbody tr.is-clickable { cursor: pointer; }
+.vf-table tbody tr[aria-selected="true"] { background: var(--table-row-selected, var(--color-accent-100)); }
+.vf-table :is(td, th).num { text-align: right; font-variant-numeric: tabular-nums; }
+.vf-table tfoot td { padding: 13px 18px; font-weight: 600; border-top: 1px solid var(--glass-border); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .vf-shell .vf-table thead th, .vf-table thead th { padding: 10px 14px; }
+  .vf-shell .vf-table tbody td, .vf-table tbody td { padding: 12px 14px; }
+}
+
+/* ═══════════════════════════════════════════════════════════ badges ══ */
+
+.vf-shell .badge, .vf-shell .tag {
+  font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b-dot) 24%, transparent);
+}
+.vf-shell .badge[data-dot]::before, .badge[data-dot]::before { display: block; }
+
+/* ═════════════════════════════════════════════ sign-in & registration ══ */
+
+/* Surfaces inside these screens resolve to glass, so their inline styles and
+   shared components (.input, .vf-panel, .vf-choice) follow without edits. */
+:is(.vf-login, .rg, .vf-auth) {
+  --vf-elev-1: var(--glass-fill);
+  --vf-elev-2: rgba(15, 35, 80, .035);
+  --vf-elev-3: rgba(15, 35, 80, .06);
+  --vf-line: var(--glass-border);
+  --vf-line-strong: var(--glass-border-strong);
+  --color-neutral-600: #526075;
+  background-color: var(--wallpaper-base);
+  background-image: var(--wallpaper);
+  background-attachment: fixed;
+}
+[data-theme="dark"] :is(.vf-login, .rg, .vf-auth) {
+  --vf-elev-2: rgba(255, 255, 255, .035);
+  --vf-elev-3: rgba(255, 255, 255, .07);
+  --color-neutral-600: #a2a9b6;
+}
+:is(.vf-login, .rg, .vf-auth) .input { background-color: var(--glass-fill); border-radius: 12px; }
+:is(.vf-login, .rg, .vf-auth) .seg { border-radius: 999px; }
+:is(.vf-login, .rg, .vf-auth) .seg > button { border-radius: 999px; }
+:is(.vf-login, .rg, .vf-auth) .vf-panel { border-radius: 20px; box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow); }
+:is(.vf-login, .rg, .vf-auth) .vf-choice { border-radius: 14px; }
+
+/* ── sign-in: two floating panels, brand and form ── */
+.vf-login {
+  --lg-navy: var(--brand-glass);
+  --lg-navy-2: var(--brand-chip);
+  --lg-ink: var(--brand-ink);
+  --lg-ink-2: var(--brand-ink-2);
+  --lg-ink-3: var(--brand-ink-3);
+  --lg-line: var(--brand-line);
+  --lg-card: var(--brand-card);
+  --lg-accent: var(--brand-accent);
+  --lg-ground: transparent;
+  --lg-panel: var(--glass-fill);
+  column-gap: 16px;
+}
+[data-theme="dark"] .vf-login {
+  --lg-ground: transparent; --lg-panel: var(--glass-fill);
+  background-color: var(--wallpaper-base); background-image: var(--wallpaper); background-attachment: fixed;
+}
+.vf-login .vf-login-brand, .vf-login .vf-login-panel {
+  border: 1px solid var(--glass-border); border-radius: 28px;
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float);
+}
+.vf-login .vf-login-brand { border-color: var(--brand-line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), var(--glass-shadow-float); }
+.vf-login .vf-login-panel::before { display: none; }
+.vf-login .vf-login-wordmark .vf-login-mark { border-radius: 14px; box-shadow: 0 8px 20px -10px rgba(0, 0, 0, .5); }
+.vf-login .vf-login-feature, .vf-login .vf-login-trust { border-radius: 16px; }
+.vf-login .vf-login-feature:hover { background: var(--brand-chip); border-color: var(--brand-line); }
+.vf-login .vf-login-stop[data-state="done"] .vf-login-stop-icon { color: #1d4ed8; background: #ffffff; border-color: #ffffff; }
+[data-theme="dark"] .vf-login .vf-login-stop[data-state="done"] .vf-login-stop-icon { color: #fff; background: var(--color-accent-500); border-color: var(--color-accent-500); }
+.vf-login .vf-login-stop[data-state="done"]::after { background: rgba(255, 255, 255, .6); }
+[data-theme="dark"] .vf-login .vf-login-stop[data-state="done"]::after { background: var(--color-accent-500); }
+.vf-login .vf-login-head h1 { font-size: 30px; font-weight: 700; letter-spacing: -.035em; }
+.vf-login .vf-login-form .field > label, .vf-login .vf-login-label-row label { color: var(--color-neutral-600); }
+.vf-login .vf-login-input { height: 48px; border-radius: 14px; border-color: var(--glass-border-strong); background-color: var(--glass-fill); }
+.vf-login .vf-login-input:focus { border-color: transparent; box-shadow: 0 0 0 2px var(--color-accent-500); }
+.vf-login .vf-login-reveal { border-radius: 999px; }
+.vf-login .vf-login-submit { height: 50px; border-radius: 999px; font-weight: 600; }
+.vf-login .vf-login-tools .seg { background: var(--vf-elev-3); }
+.vf-login .vf-login-tools .btn-icon { border-radius: 999px; }
+
+@media (max-width: 959px) {
+  .vf-login { padding: 12px 12px 16px; row-gap: 12px; }
+  .vf-login .vf-login-brand { border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
+  .vf-login .vf-login-hero, .vf-login .vf-login-detail {
+    background: var(--brand-glass); border: 1px solid var(--brand-line); border-radius: 24px;
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), var(--glass-shadow);
+  }
+  .vf-login .vf-login-hero { padding: 20px 18px 28px; }
+  .vf-login .vf-login-detail { padding: 24px 18px 28px; }
+  .vf-login .vf-login-panel { padding: 0; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: transparent; }
+  .vf-login .vf-login-body {
+    margin: 0 auto; max-width: 520px; padding: 24px 18px 22px;
+    background: var(--glass-fill-strong); border: 1px solid var(--glass-border); border-radius: 24px;
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+  }
+  .vf-login .vf-login-body::before { display: none; }
+  .vf-login .vf-login-tools { top: 26px; right: 24px; }
+  .vf-login .vf-login-tools .seg { background: rgba(255, 255, 255, .14); }
+  .vf-login .vf-login-tools .seg button { color: var(--brand-ink-2); }
+  .vf-login .vf-login-tools .seg button[aria-selected="true"] { color: #0f172a; background: #fff; box-shadow: none; }
+  .vf-login .vf-login-tools .btn-icon { color: var(--brand-ink); }
+}
+
+/* ── company sign-up: a floating brand rail and one glass card ── */
+.rg {
+  --rg-navy: #1d4ed8;
+  --rg-on: var(--brand-ink);
+  --rg-on-2: var(--brand-ink-2);
+  --rg-line: var(--brand-line);
+  --rg-accent: var(--brand-accent);
+}
+[data-theme="dark"] .rg { --rg-navy: #0d0f12; }
+.rg .rg-rail {
+  top: 12px; margin: 12px 0 12px 12px;
+  height: calc(100vh - 24px); height: calc(100dvh - 24px);
+  border-radius: 28px; border: 1px solid var(--brand-line);
+  background: var(--brand-glass); background-image: var(--brand-glass);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), var(--glass-shadow-float);
+}
+.rg .rg-step-text span { color: var(--brand-ink-3); }
+.rg .rg-step[data-state="done"] .rg-step-num { color: #1d4ed8; background: #fff; border-color: #fff; }
+[data-theme="dark"] .rg .rg-step[data-state="done"] .rg-step-num { color: #fff; background: var(--color-accent-500); border-color: var(--color-accent-500); }
+.rg .rg-step[data-state="done"]:not(:last-child)::before { background: rgba(255, 255, 255, .6); }
+[data-theme="dark"] .rg .rg-step[data-state="done"]:not(:last-child)::before { background: var(--color-accent-500); }
+.rg .rg-step[data-state="current"] .rg-step-num { color: #1d4ed8; }
+[data-theme="dark"] .rg .rg-step[data-state="current"] .rg-step-num { color: #0f172a; }
+.rg .rg-card {
+  border: 1px solid var(--glass-border); border-radius: 28px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float);
+}
+.rg .rg-card::before { display: none; }
+.rg .rg-head h1, .rg .rg-done h1 { letter-spacing: -.035em; }
+.rg .rg-input { border-radius: 12px; }
+.rg .rg-plan, .rg .rg-review, .rg .rg-logo, .rg .rg-outcomes li { border-radius: 16px; }
+.rg .rg-plan[data-selected] .rg-plan-dot { box-shadow: inset 0 0 0 4px var(--glass-solid); }
+.rg .rg-plan-dot { background: var(--glass-solid); }
+.rg .rg-plan[data-selected] .rg-plan-dot { background: var(--color-accent-500); }
+@media (max-width: 960px) {
+  .rg .rg-card { border-radius: 22px; }
+  .rg .rg-nav {
+    background: var(--glass-fill-strong);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border-top: 1px solid var(--glass-border); box-shadow: 0 -10px 30px -18px rgba(0, 0, 0, .35);
+  }
+}
+
+/* ── one-time code, verify, onboarding, invitations ── */
+.vf-auth .vf-auth-card {
+  border: 1px solid var(--glass-border); border-radius: 28px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-float);
+}
+.vf-auth .vf-auth-card::before { display: none; }
+.vf-auth .vf-auth-mark {
+  border-radius: 13px; background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 8px 18px -8px rgba(37, 99, 235, .7);
+}
+.vf-auth .vf-auth-title { font-size: 28px; letter-spacing: -.035em; }
+@media (max-width: 640px) { .vf-auth .vf-auth-card { padding: 24px 18px; border-radius: 24px; } }
+
+/* ═══════════════════════════════════════════════ motion & print ══ */
+
+@media (prefers-reduced-motion: reduce) {
+  a.vf-statpill:hover { transform: none; }
+  .vf-shell .vf-sidebar, .app-side-user-text, .app-side-user > i { transition-duration: 0ms !important; }
+}
+
+@media print {
+  .vf-shell::before { display: none; }
+  .vf-shell .card, .vf-shell .vf-panel, .vf-shell .table-wrap, .vf-table-wrap, .vf-statpill, .vf-shell .vf-kpi, .vf-shell .app-figure {
+    background: #fff !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  .vf-table thead th { position: static; background: #fff !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .vf-shell .vf-sidebar, .vf-shell .vf-topbar, .vf-shell .vf-tabbar { display: none !important; }
+}

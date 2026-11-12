@@ -7,7 +7,7 @@ import { LanguageToggle, ThemeToggle } from "@/components/ui";
 /**
  * The frame for sign-in, registration and verification.
  *
- * One focused card, centred, with nothing competing for attention — the only
+ * One focused card, centred, with nothing competing for attention, the only
  * job on these screens is to get someone in, or set a company up. When a page
  * passes an aside (the demo accounts, in development only) it sits beside the
  * card rather than above it.
@@ -16,7 +16,7 @@ export function AuthFrame({
   kicker, title, sub, children, aside, footer,
 }: { kicker: string; title: string; sub?: string; children: ReactNode; aside?: ReactNode; footer?: ReactNode }) {
   return (
-    <div className="vf-auth">
+    <div className="vf-auth au">
       <header className="vf-auth-bar">
         <Link href="/" className="vf-auth-brand" aria-label="VouchFlow home">
           <span className="vf-auth-mark" aria-hidden="true">V</span>
@@ -41,7 +41,7 @@ export function AuthFrame({
 
       <footer className="vf-auth-legal">
         <Icon />
-        Vouchers, signatures and payments — every company isolated, every action on the record.
+        Vouchers, signatures and payments, every company isolated, every action on the record.
       </footer>
     </div>
   );

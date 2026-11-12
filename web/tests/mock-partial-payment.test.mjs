@@ -35,7 +35,7 @@ function payable(kind) {
 
 /** The details each format requires, as the pay dialog sends them. */
 const details = (voucher) => voucher.kind === "cash"
-  ? { payment_method: "Cash — office float", received_by: voucher.payee }
+  ? { payment_method: "Cash, office float", received_by: voucher.payee }
   : { payment_method: "Bank transfer", payment_reference: "CRDB-TRX-1" };
 
 test("a part payment keeps the voucher approved, with a balance", () => {

@@ -5,42 +5,10 @@ import type { MessageKey } from "@/lib/i18n";
 import { Icon } from "@/components/ui";
 
 /**
- * The branded half of the sign-in screen.
- *
- * Its job is the five-second read: this is where a company takes a voucher
- * from creation, through signature and approval, to payment. So beyond the
- * headline it shows the route itself rather than describing it.
- *
- * It renders two blocks — the hero, and the detail beneath it — instead of one.
- * On a wide screen they stack inside one navy column. On a phone the column
- * dissolves (display: contents) and the sign-in form is ordered between them,
- * so nobody has to scroll past a feature list to reach the email field.
- *
- * The route shown is the default one, and is illustrative: the note beneath it
- * says each company configures its own.
- */
-
-const FEATURES: { icon: string; title: MessageKey; sub: MessageKey }[] = [
-  { icon: "ph-shield-check", title: "loginFeat1", sub: "loginFeat1Sub" },
-  { icon: "ph-clock-counter-clockwise", title: "loginFeat2", sub: "loginFeat2Sub" },
-  { icon: "ph-flow-arrow", title: "loginFeat3", sub: "loginFeat3Sub" },
-];
-
-const FLOW: { icon: string; action: MessageKey; role: MessageKey }[] = [
-  { icon: "ph-note-pencil", action: "flowCreate", role: "flowEmployee" },
-  { icon: "ph-signature", action: "flowSign", role: "flowHod" },
-  { icon: "ph-seal-check", action: "flowApprove", role: "flowCeo" },
-  { icon: "ph-hand-coins", action: "flowPay", role: "flowFinance" },
-];
-
-/**
- * The VouchFlow brand mark. It always sits on a white rounded tile: the mark's
- * dark blue would sink into the navy and dark surfaces it is shown on, and the
- * tile keeps the square footprint the layout was built around.
+ * The VouchFlow brand mark on its tile. The size is a default the stylesheet
+ * may override, as an inline width would win over every rule.
  */
 export function VouchFlowMark({ size = 36 }: { size?: number }) {
-  // The size is a default the stylesheet may override, as it could the old SVG's
-  // width and height attributes — an inline width would win over every rule.
   return (
     <span className="vf-login-mark" style={{ "--vf-mark": `${size}px` } as React.CSSProperties} aria-hidden="true">
       {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset; next/image adds nothing here */}
@@ -49,66 +17,72 @@ export function VouchFlowMark({ size = 36 }: { size?: number }) {
   );
 }
 
-export function LoginBrand() {
+const STEPS: { label: MessageKey; state: "done" | "current" | "next" }[] = [
+  { label: "flowCreate", state: "done" },
+  { label: "flowSign", state: "done" },
+  { label: "flowApprove", state: "done" },
+  { label: "flowPay", state: "current" },
+];
+
+const BARS = [38, 52, 44, 70, 58, 84, 66];
+
+/**
+ * The showcase half of sign-in and registration: the product, shown rather
+ * than described. A voucher that has just been approved, the notification
+ * that said so, and a glance at stock, floating as glass over a dark,
+ * softly lit ground. Purely illustrative, so it is hidden from assistive
+ * technology; the headline beside it carries the meaning.
+ */
+export function AuthShowcase({ children }: { children?: React.ReactNode }) {
   const { t } = useApp();
 
   return (
-    <div className="vf-login-brand">
-      <section className="vf-login-hero">
-        <div className="vf-login-wordmark">
-          <VouchFlowMark />
-          <span>VouchFlow</span>
-        </div>
+    <aside className="au-show">
+      <div className="au-show-glow" aria-hidden="true" />
 
-        <p className="vf-login-eyebrow">{t("loginEyebrow")}</p>
+      <div className="au-show-brand">
+        <VouchFlowMark size={32} />
+        <span>VouchFlow</span>
+      </div>
 
-        <h2 className="vf-login-headline">
-          <span>{t("loginLine1")}</span>{" "}
-          <span>{t("loginLine2")}</span>{" "}
-          <span className="vf-login-highlight">{t("loginLine3")}</span>
-        </h2>
+      {children ?? (
+        <div className="au-stage" aria-hidden="true">
+          <div className="au-float au-float-voucher">
+            <div className="au-v-head">
+              <span className="au-v-num">PV-2026-000041</span>
+              <span className="au-v-badge"><Icon name="ph-seal-check" size={13} /> {t("authPreviewApproved")}</span>
+            </div>
+            <div className="au-v-payee">Highland Freight Services</div>
+            <div className="au-v-amount">TZS 3,200,000</div>
+            <ol className="au-v-steps">
+              {STEPS.map((s) => (
+                <li key={s.label} data-state={s.state}>
+                  <span className="au-v-dot">{s.state === "done" && <Icon name="ph-check" size={10} weight="bold" />}</span>
+                  {t(s.label)}
+                </li>
+              ))}
+            </ol>
+          </div>
 
-        <p className="vf-login-lede">{t("loginBody")}</p>
-      </section>
+          <div className="au-float au-float-notice">
+            <span className="au-n-avatar">EM</span>
+            <span className="au-n-text"><strong>Emmanuel Massawe</strong> {t("authPreviewNotice")}</span>
+          </div>
 
-      <section className="vf-login-detail">
-        <ul className="vf-login-features">
-          {FEATURES.map((feature, index) => (
-            <li key={feature.title} className="vf-login-feature">
-              <div className="vf-login-feature-top">
-                <Icon name={feature.icon} size={19} />
-                <span className="vf-login-feature-num">{String(index + 1).padStart(2, "0")}</span>
-              </div>
-              <strong>{t(feature.title)}</strong>
-              <span>{t(feature.sub)}</span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="vf-login-flow">
-          <p className="vf-login-eyebrow">{t("loginFlowTitle")}</p>
-          <ol className="vf-login-route">
-            {FLOW.map((step, index) => (
-              <li key={step.action} className="vf-login-stop" data-state={index < 2 ? "done" : index === 2 ? "current" : "next"}>
-                <span className="vf-login-stop-icon">
-                  <Icon name={step.icon} size={18} />
-                </span>
-                <strong>{t(step.action)}</strong>
-                <span>{t(step.role)}</span>
-              </li>
-            ))}
-          </ol>
-          <p className="vf-login-flow-note">{t("loginFlowNote")}</p>
-        </div>
-
-        <div className="vf-login-trust">
-          <span className="vf-login-trust-icon"><Icon name="ph-lock-key" size={20} /></span>
-          <div>
-            <strong>{t("loginTrustTitle")}</strong>
-            <span>{t("loginTrustBody")}</span>
+          <div className="au-float au-float-stock">
+            <span className="au-s-label">{t("authPreviewStock")}</span>
+            <span className="au-s-value">TZS 29.5M</span>
+            <span className="au-s-bars">
+              {BARS.map((h, i) => <span key={i} style={{ height: `${h}%` }} />)}
+            </span>
           </div>
         </div>
-      </section>
-    </div>
+      )}
+
+      <div className="au-show-copy">
+        <h2>{t("authHeadline")}</h2>
+        <p>{t("authLede")}</p>
+      </div>
+    </aside>
   );
 }

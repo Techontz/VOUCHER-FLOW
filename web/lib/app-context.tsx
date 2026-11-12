@@ -163,7 +163,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       window.localStorage.setItem("vouchflow.accent", colorTheme);
     } catch {
-      /* private browsing — the palette arrives with the company instead */
+      /* private browsing, the palette arrives with the company instead */
     }
   }, [colorTheme]);
 

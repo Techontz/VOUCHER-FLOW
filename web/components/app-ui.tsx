@@ -20,7 +20,7 @@ import { Icon } from "@/components/ui";
 
 /**
  * The explicit appearance control: two labelled choices, not a mystery icon.
- * It drives the same preference as everywhere else — stored on the device
+ * It drives the same preference as everywhere else, stored on the device
  * before first paint, and saved to the profile so it follows the person.
  */
 export function ThemeSwitch({ compact }: { compact?: boolean }) {
@@ -91,7 +91,7 @@ function useFloatingPlacement(active: boolean, anchor: React.RefObject<HTMLEleme
 /**
  * `floating` renders the menu at the top of the page instead of inside its
  * parent, for menus in tables and other scrolling boxes, which would
- * otherwise cut it off — the last rows' actions used to be unreachable.
+ * otherwise cut it off, the last rows' actions used to be unreachable.
  */
 export function Dropdown({
   trigger, children, align = "end", placement = "below", label, floating,
@@ -281,33 +281,31 @@ export function SettingsLayout({ title, sub, children, actions }: { title: strin
     return (hash || "workflow") === item.hash;
   };
 
+  // One menu on screen: the main sidebar. Inside Settings the sections are a
+  // row of tabs under the title, so the page keeps the full width for its
+  // tables and forms instead of sharing it with a second column.
+  const links = COMPANY_SETTINGS.flatMap((group) => group.items);
+
   return (
     <div className="app-settings">
-      <aside className="app-settings-nav" aria-label={t("settings")}>
-        <div className="app-settings-nav-title">{t("settings")}</div>
-        {COMPANY_SETTINGS.map((group) => (
-          <div key={group.group} className="app-settings-group">
-            {group.items.map((item) => (
-              <Link key={`${item.href}#${item.hash ?? ""}`} href={item.hash ? `${item.href}#${item.hash}` : item.href}
-                className="app-settings-link" aria-current={isActive(item) ? "page" : undefined}
-                onClick={() => { if (item.hash) setHash(item.hash); }}>
-                <Icon name={item.icon} size={16} />
-                <span>{t(item.label)}</span>
-              </Link>
-            ))}
-          </div>
+      <header className="vf-pagehead">
+        <div className="vf-pagehead-main">
+          <h1 className="vf-pagehead-title">{title}</h1>
+          {sub && <p className="vf-pagehead-sub">{sub}</p>}
+        </div>
+        {actions && <div className="vf-pagehead-actions">{actions}</div>}
+      </header>
+      <nav className="app-settings-tabs" aria-label={t("settings")}>
+        {links.map((item) => (
+          <Link key={`${item.href}#${item.hash ?? ""}`} href={item.hash ? `${item.href}#${item.hash}` : item.href}
+            className="app-settings-tab" aria-current={isActive(item) ? "page" : undefined}
+            onClick={() => { if (item.hash) setHash(item.hash); }}>
+            <Icon name={item.icon} size={16} />
+            <span>{t(item.label)}</span>
+          </Link>
         ))}
-      </aside>
-      <div className="app-settings-body">
-        <header className="vf-pagehead">
-          <div className="vf-pagehead-main">
-            <h1 className="vf-pagehead-title">{title}</h1>
-            {sub && <p className="vf-pagehead-sub">{sub}</p>}
-          </div>
-          {actions && <div className="vf-pagehead-actions">{actions}</div>}
-        </header>
-        {children}
-      </div>
+      </nav>
+      <div className="app-settings-body">{children}</div>
     </div>
   );
 }

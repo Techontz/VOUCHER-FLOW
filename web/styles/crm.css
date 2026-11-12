@@ -1,0 +1,47 @@
+/* CRM and document management: the pipeline board, the drop zone and the folder grid. */
+
+.crm-empty { padding: 12px 16px; margin: 0; }
+.crm-activity { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; min-width: 0; flex-wrap: wrap; }
+.crm-activity[data-done] .erp-list-title { text-decoration: line-through; opacity: .7; }
+.crm-activity .erp-list-main { flex: 1 1 200px; }
+
+/* Pipeline board: one column per stage, scrolling sideways inside itself on a phone. */
+.crm-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.crm-column {
+  display: flex; flex-direction: column; gap: 8px; min-height: 240px; padding: 10px;
+  border-radius: 18px; background: var(--glass-fill); border: 1px solid var(--glass-border);
+  transition: box-shadow 140ms ease, background-color 140ms ease;
+}
+.crm-column[data-over] { background: var(--glass-fill-hover); box-shadow: inset 0 0 0 2px var(--color-accent-500); }
+.crm-column-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 4px 6px; }
+.crm-column-head h2 { font-size: 14px; margin: 0; }
+.crm-column-sum { font-size: 12px; color: var(--text-muted); }
+.crm-card {
+  display: grid; gap: 4px; padding: 10px 12px; border-radius: 14px; cursor: grab;
+  background: var(--glass-fill-raised); border: 1px solid var(--glass-border);
+}
+.crm-card[data-dragging] { opacity: .5; }
+.crm-card-title { font-weight: 550; color: inherit; text-decoration: none; }
+.crm-card-title:hover { color: var(--color-accent-500); }
+.crm-card-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--text-muted); }
+.crm-card select { font-size: 12.5px; padding: 4px 8px; min-height: 0; }
+
+/* Files: drop zone, folders as tiles, breadcrumbs. */
+.doc-drop {
+  display: grid; place-items: center; gap: 6px; padding: 18px; margin-bottom: 16px; text-align: center;
+  border-radius: 18px; border: 1.5px dashed var(--glass-border-strong); color: var(--text-muted);
+}
+.doc-drop[data-over] { border-color: var(--color-accent-500); background: var(--glass-fill-hover); color: inherit; }
+.doc-folders { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); margin-bottom: 16px; }
+.doc-folder {
+  display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 14px; min-width: 0;
+  background: var(--glass-fill); border: 1px solid var(--glass-border); color: inherit; text-decoration: none;
+}
+.doc-folder:hover { background: var(--glass-fill-hover); }
+.doc-folder-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 12px; font-size: 14px; }
+.doc-crumbs a { color: var(--text-muted); text-decoration: none; }
+.doc-crumbs a:hover { color: var(--color-accent-500); }
+.doc-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.doc-picks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.doc-picks label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }

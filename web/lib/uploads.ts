@@ -3,7 +3,7 @@
  *
  * A phone camera writes 3–12 MB JPEGs (or HEIC on an iPhone). The API caps an
  * avatar at 2 MB and an attachment at 10 MB, and the web server in front of it
- * may cap a request lower still — a body that is too large never reaches
+ * may cap a request lower still, a body that is too large never reaches
  * Laravel, so the browser sees a dropped connection rather than a message. So
  * images are re-encoded here, in the browser, as JPEG at a sensible size before
  * they leave the device. PDFs, and images already small enough, go untouched.
@@ -104,7 +104,7 @@ export function prepareImages(files: File[], options: ImagePrepOptions = DOCUMEN
 type Translate = (key: "uploadTooLargeServer" | "uploadNoResponse") => string;
 
 /**
- * What to tell someone whose upload failed — the server's own words where
+ * What to tell someone whose upload failed, the server's own words where
  * there are some, so the real cause is visible rather than a generic line.
  */
 export function describeUploadError(err: unknown, t: Translate): string {
@@ -117,7 +117,7 @@ export function describeUploadError(err: unknown, t: Translate): string {
     return text ? `${text} (HTTP ${err.status})` : `HTTP ${err.status}`;
   }
   // fetch rejects without a status when the connection drops or the reply
-  // carries no CORS headers — which is what an over-size body rejected by the
+  // carries no CORS headers, which is what an over-size body rejected by the
   // web server in front of the API looks like from the page.
   const detail = err instanceof Error && err.message ? ` (${err.message})` : "";
   return `${t("uploadNoResponse")}${detail}`;

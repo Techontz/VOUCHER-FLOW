@@ -79,7 +79,7 @@ export default function AuditPage() {
                         </div>
                       </td>
                       <td style={{ minWidth: 220 }}>{row.description}</td>
-                      <td className="app-cell-sub" style={{ fontSize: 13 }}>{row.change_summary ?? "—"}</td>
+                      <td className="app-cell-sub" style={{ fontSize: 13 }}>{row.change_summary ?? "-"}</td>
                       <td className="tnum" style={{ whiteSpace: "nowrap" }}>{formatDateTime(row.created_at, locale)}</td>
                       <td className="app-cell-sub" style={{ maxWidth: 220 }}>
                         {row.ip}{row.user_agent ? ` · ${row.user_agent.slice(0, 40)}` : ""}

@@ -1,0 +1,51 @@
+/* Sales & dispatch: layout only, on the shared tokens. Import after erp.css. */
+
+.sal-totals dd { text-align: right; }
+.sal-foot-totals { display: inline-flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.sal-ok { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; color: var(--st-ok-fg); font-weight: 550; }
+.sal-reasons { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; color: var(--st-bad-fg); font-size: 13.5px; }
+.sal-reasons li { display: flex; gap: 6px; align-items: flex-start; }
+.sal-dialog-lines { display: grid; gap: 4px; }
+.sal-row-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.sal-check-grid { display: grid; gap: 4px 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.sal-subrow td { font-size: 13px; background: var(--glass-fill-hover, transparent); }
+.sal-total-row td { font-weight: 600; border-top: 2px solid var(--glass-border-strong, currentColor); }
+
+.sal-timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sal-timeline li { display: grid; grid-template-columns: 14px 1fr; column-gap: 10px; align-items: baseline; }
+.sal-timeline li > .erp-muted { grid-column: 2; }
+.sal-timeline-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--glass-border-strong, #999); }
+.sal-timeline li[data-done] .sal-timeline-dot { background: var(--color-accent-500); border-color: var(--color-accent-500); }
+.sal-timeline-label { font-weight: 550; }
+
+/* Printable documents: invoice, statement, delivery note, gate pass. */
+.sal-doc-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.sal-doc-actions { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sal-sheet { background: var(--surface, #fff); border: 1px solid var(--glass-border, #ddd); border-radius: 16px; padding: 28px; display: grid; gap: 22px; min-width: 0; }
+.sal-sheet-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+.sal-sheet-seller { font-size: 20px; font-weight: 650; }
+.sal-sheet-title { text-align: right; }
+.sal-sheet-title h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: .02em; text-transform: uppercase; }
+.sal-sheet-label { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 4px; }
+.sal-sheet-parties { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.sal-sheet-lines { width: 100%; }
+.sal-sheet-foot { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(240px, 320px); align-items: start; }
+.sal-sheet-notes { display: grid; gap: 4px; font-size: 13.5px; }
+.sal-aged-strip { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.sal-signatures { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 12px; }
+.sal-signatures > div { display: grid; gap: 4px; }
+.sal-sign-line { display: block; height: 36px; border-bottom: 1px solid currentColor; opacity: .6; }
+.sal-blank { display: inline-block; width: 70px; border-bottom: 1px solid currentColor; opacity: .5; }
+
+@media (max-width: 640px) {
+  .sal-sheet { padding: 16px; }
+  .sal-sheet-title { text-align: left; }
+  .sal-sheet-foot { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media print {
+  .sal-noprint, .vf-pagehead-actions { display: none !important; }
+  .sal-sheet { border: 0; padding: 0; background: #fff; color: #000; }
+  .sal-sheet .erp-muted, .sal-sheet-label { color: #444; }
+  .sal-sheet a { color: inherit; text-decoration: none; }
+}

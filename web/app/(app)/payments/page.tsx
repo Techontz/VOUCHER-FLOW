@@ -33,7 +33,7 @@ function owedTally(rows: Voucher[], kind?: "bank" | "cash"): Tally {
  * Every voucher in the payment queue, paged through at the API's maximum.
  *
  * The list's meta.total_amount sums approved amounts, which overstates what is
- * owed once a voucher has been part-paid — 10,000,000 approved, 9,000,000
+ * owed once a voucher has been part-paid: 10,000,000 approved, 9,000,000
  * released, 1,000,000 outstanding. Until the list carries a balance total, the
  * queue figures are summed from each voucher's own balance. The queue is
  * short-lived work, so this is a page or two, not the whole register.
@@ -62,7 +62,7 @@ function thisMonth(): { from: string; to: string } {
  * The payment queue.
  *
  * Everything here has already cleared the approval workflow. The person with
- * the pay capability releases the funds and records the reference — no
+ * the pay capability releases the funds and records the reference, no
  * approval decision is made on this screen. Paying happens on the voucher,
  * behind a confirmation that restates the amount and method.
  *
@@ -70,7 +70,7 @@ function thisMonth(): { from: string; to: string } {
  * screen. What is awaiting payment is counted by what is still owed, so a
  * part-paid voucher counts for its balance, not its full approved amount.
  */
-/** "1 bank voucher", "13 bank vouchers" — in either language. */
+/** "1 bank voucher", "13 bank vouchers", in either language. */
 function usePlural() {
   const { locale } = useApp();
   return (n: number, kind: "bank" | "cash") => locale === "sw"

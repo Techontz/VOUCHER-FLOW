@@ -1,5 +1,5 @@
 /* Voucher designs on screen: the A4 frame, the gallery and the large preview.
-   Global rather than scoped to .vf-shell — registration uses the gallery too —
+   Global rather than scoped to .vf-shell, registration uses the gallery too,
    and built on the shared tokens so both themes follow automatically. The
    sheets themselves stay paper-white: they are the printed document. */
 
