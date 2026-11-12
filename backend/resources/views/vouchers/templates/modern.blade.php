@@ -2,21 +2,21 @@
   02 · Modern Corporate.
 
   Contemporary and card-based; the amount is the headline. Section order:
-    1. header — logo + company left; document title as a brand pill and the
+    1. header, logo + company left; document title as a brand pill and the
        bank/cash kind right
-    2. HERO row — voucher number (large), date and status on the left; the
+    2. HERO row, voucher number (large), date and status on the left; the
        total set very large in a brand-tinted rounded block with the amount
        in words on the right
-    3. requester information — four rounded cards: requested by · department
+    3. requester information, four rounded cards: requested by · department
        (+ cost centre) · category · date / reference
-    4. particulars — a clean table (payee | particulars | reference | amount)
+    4. particulars, a clean table (payee | particulars | reference | amount)
        with hairlines only and a total line
-    5. payment details as cards — payment method · payee bank account (bank,
-       account name, number, branch — or cash float / received by) ·
+    5. payment details as cards, payment method · payee bank account (bank,
+       account name, number, branch, or cash float / received by) ·
        reference & settlement; then drawn on · supporting documents · remarks
-    6. approvals — cards in a row with a brand top edge; pending ones dashed
+    6. approvals, cards in a row with a brand top edge; pending ones dashed
        and deliberately empty
-    7. footer strip — tinted, footer text + verification on the left, QR right
+    7. footer strip, tinted, footer text + verification on the left, QR right
 --}}
 @extends('vouchers.layout')
 
@@ -24,7 +24,7 @@
     $b = $doc['brand']; $t = $doc['t']; $v = $doc['voucher']; $c = $doc['company']; $p = $doc['payment'];
     $line = '#e2e6ee'; $body = '#26324a';
     $isCash = $v['kind'] === 'cash';
-    $dash = fn ($x) => filled($x) ? $x : '—';
+    $dash = fn ($x) => filled($x) ? $x : '-';
     $sigs = $doc['signatories'];
     $perRow = min(4, max(2, count($sigs)));
     $sigRows = array_chunk($sigs, $perRow);
@@ -193,7 +193,7 @@
                 @forelse ($settle as [$k, $val])
                     <tr><td class="k" style="width: 40%;">{{ $k }}</td><td class="nowrap">{{ $val }}</td></tr>
                 @empty
-                    <tr><td class="k">{{ $t['paymentRef'] }}</td><td>—</td></tr>
+                    <tr><td class="k">{{ $t['paymentRef'] }}</td><td>-</td></tr>
                 @endforelse
             </table>
         </td>
@@ -217,7 +217,7 @@
         <td style="width: 1.5%;"></td>
         <td class="m-card">
             <div class="t-label">{{ $t['remarks'] }}</div>
-            <div style="font-size: 9.5pt; margin-top: 1pt; color: {{ $body }};">{{ $v['remarks'] ?: '—' }}</div>
+            <div style="font-size: 9.5pt; margin-top: 1pt; color: {{ $body }};">{{ $v['remarks'] ?: '-' }}</div>
         </td>
     </tr>
 </table>
@@ -243,7 +243,7 @@
                     </tr></table>
                     <div style="margin-top: 1pt;">@include('vouchers.parts.signature-mark', ['height' => 34])</div>
                     <div class="m-sigline {{ $pend ? 'm-sigline-pending' : '' }}"></div>
-                    <div class="b nowrap" style="font-size: 10pt; color: {{ $s['name'] ? '#0b1220' : '#8a94a6' }};">{{ $s['name'] ?: '—' }}</div>
+                    <div class="b nowrap" style="font-size: 10pt; color: {{ $s['name'] ? '#0b1220' : '#8a94a6' }};">{{ $s['name'] ?: '-' }}</div>
                     <div class="t-meta" style="{{ $pend ? 'font-style: italic;' : '' }}">{{ $s['meta'] }}</div>
                 </td>
             @endforeach

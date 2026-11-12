@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,6 +13,7 @@ class UserResource extends JsonResource
         return [
             'id' => $this->id,
             'company_id' => $this->company_id,
+            'company_name' => $this->whenLoaded('company', fn () => $this->company?->name),
             'name' => $this->name,
             'initials' => $this->initials(),
             'email' => $this->email,
@@ -48,7 +50,8 @@ class UserResource extends JsonResource
             'manager' => 'Manager',
             'finance' => 'Finance',
             'director' => 'Director',
-            default => ucfirst((string) $this->role),
+            // Every other role, built-in or the company's own, named in one place.
+            default => User::roleLabel((string) $this->role),
         };
     }
 }

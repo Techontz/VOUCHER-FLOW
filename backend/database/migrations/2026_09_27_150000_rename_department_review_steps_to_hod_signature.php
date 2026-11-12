@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
  * The preset's signing step was called "Department review", which read as if
  * the head of department decided the voucher. It signs only, so it is now
  * "HOD signature". Only steps still carrying the untouched preset name and no
- * approval power are renamed — anything a company admin renamed is theirs.
+ * approval power are renamed, anything a company admin renamed is theirs.
  */
 return new class extends Migration
 {

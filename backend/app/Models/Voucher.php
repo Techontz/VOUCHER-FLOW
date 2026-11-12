@@ -45,13 +45,15 @@ class Voucher extends Model
             /*
              * Integer columns are cast because they are compared with === in
              * PHP. MySQL returns them as strings under emulated prepared
-             * statements, where "8" === 8 is false — which silently turned an
+             * statements, where "8" === 8 is false, which silently turned an
              * owner into a stranger and a matching id into a mismatch.
              */
             'company_id' => 'integer',
             'voucher_type_id' => 'integer',
             'workflow_id' => 'integer',
             'department_id' => 'integer',
+            'source_id' => 'integer',
+            'ledger_account_id' => 'integer',
             'requester_id' => 'integer',
             'current_step_position' => 'integer',
             'paid_by_id' => 'integer',
@@ -120,7 +122,7 @@ class Voucher extends Model
         return max(0.0, round((float) $this->amount - (float) $this->amount_paid, 2));
     }
 
-    /** Money released against this voucher so far — all of it, once paid. */
+    /** Money released against this voucher so far, all of it, once paid. */
     public function released(): float
     {
         return $this->status === self::STATUS_PAID ? (float) $this->amount : (float) $this->amount_paid;

@@ -7,8 +7,8 @@ use App\Models\User;
 
 /**
  * A tenant's own settings, branding and people are the company administrator's
- * to change. Everyone else in the tenant may read the company they belong to —
- * the letterhead has to render on their vouchers — and nobody may touch another
+ * to change. Everyone else in the tenant may read the company they belong to
+ * the letterhead has to render on their vouchers, and nobody may touch another
  * company at all, which the tenant scope has already made true.
  */
 class CompanyPolicy

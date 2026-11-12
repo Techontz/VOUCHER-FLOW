@@ -24,8 +24,8 @@ use Illuminate\Support\Facades\Schema;
  *
  * WRITTEN TO BE SAFE TO RUN ON A SCHEMA THAT IS PARTLY THERE.
  * Each column is added only if it is absent, and the index only if it is not
- * already defined. A server where some of this was applied by hand — or where
- * this migration was interrupted — can run it without hitting
+ * already defined. A server where some of this was applied by hand, or where
+ * this migration was interrupted, can run it without hitting
  * "Duplicate column name". Nothing here drops or rewrites existing data.
  */
 return new class extends Migration
@@ -90,7 +90,7 @@ return new class extends Migration
 
                     // Only anchor to a column that will be there. If the anchor
                     // is itself missing and not part of this batch, appending is
-                    // correct — position is cosmetic, presence is not.
+                    // correct, position is cosmetic, presence is not.
                     if (Schema::hasColumn('companies', $after) || isset($missing[$after])) {
                         $definition->after($after);
                     }

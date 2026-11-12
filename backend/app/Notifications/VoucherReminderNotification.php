@@ -47,7 +47,7 @@ class VoucherReminderNotification extends Notification
 
         foreach ($this->items as $item) {
             $v = $item['voucher'];
-            $mail->line("**{$v->number}** — {$v->purpose} ({$v->currency} ".number_format((float) $v->amount).'). '.$item['body']." {$base}/vouchers/{$v->id}");
+            $mail->line("**{$v->number}**, {$v->purpose} ({$v->currency} ".number_format((float) $v->amount).'). '.$item['body']." {$base}/vouchers/{$v->id}");
         }
 
         return $mail

@@ -179,7 +179,7 @@ class DashboardController extends Controller
                 'dash.sub.approvedPaidThisMonth', 'Approved and paid this month'),
         ];
 
-        // One figure per department they head — capped, so a head of many
+        // One figure per department they head, capped, so a head of many
         // departments gets a readable row rather than a wall of tiles.
         $perDepartment = $departments->take(3)->map(function (Department $department) {
             $value = (float) Voucher::where('department_id', $department->id)
@@ -231,7 +231,7 @@ class DashboardController extends Controller
     /**
      * Managers, CEOs, directors and finance officers who decide.
      *
-     * Extras: `by_department` — approved and paid value this month, per
+     * Extras: `by_department`, approved and paid value this month, per
      * department, across the vouchers this approver can see.
      */
     private function approver(User $user): array
@@ -268,7 +268,7 @@ class DashboardController extends Controller
     /**
      * Whoever the workflow entrusts with releasing money.
      *
-     * Extras: `payment_totals` — paid this month in total and by bank and cash,
+     * Extras: `payment_totals`, paid this month in total and by bank and cash,
      * each as {count, total, total_text}.
      */
     private function cashier(User $user): array
@@ -291,7 +291,7 @@ class DashboardController extends Controller
             ->get(['vouchers.id', 'vouchers.amount', 'vouchers.kind']);
 
         // Money is released in parts, so "paid this month" is every payment made
-        // this month — part payments included — and what is owed is the balance.
+        // this month, part payments included, and what is owed is the balance.
         $released = VoucherPayment::query()
             ->whereIn('voucher_id', $this->visible($user)->pluck('vouchers.id'))
             ->whereBetween('paid_at', $this->month())
@@ -415,7 +415,7 @@ class DashboardController extends Controller
                 $lastMonth > 0 ? 'dash.sub.vsLastMonth' : 'dash.sub.noPriorMonth',
                 $lastMonth > 0 ? ':amount last month' : 'No vouchers last month',
                 $lastMonth > 0 ? ['amount' => $this->format($lastMonth)] : []),
-            $this->stat('dash.stat.avgApprovalTime', 'Average approval time', $this->averageApproval() ?? '—',
+            $this->stat('dash.stat.avgApprovalTime', 'Average approval time', $this->averageApproval() ?? '-',
                 'dash.sub.submissionToApproval', 'From submission to approval'),
         ], $this->activity(Voucher::query(), 'dash.activity.company', 'Recent activity'),
             [
@@ -591,7 +591,7 @@ class DashboardController extends Controller
 
     /**
      * The attention banner: how many vouchers are waiting on this user, and
-     * where to go — or, when nothing is, a plain statement of why.
+     * where to go, or, when nothing is, a plain statement of why.
      *
      * @return array{count:int,key:string,params:array,title:string,body_key:string,body:string,action:?array}
      */
@@ -799,7 +799,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Approved value per department — approved AND paid, since a voucher does
+     * Approved value per department, approved AND paid, since a voucher does
      * not stop being spend once the money has moved.
      *
      * @param  Builder<Voucher>  $scope  vouchers the caller may see

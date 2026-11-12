@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('cost_centre')->nullable();
 
             // Foreign keys back to users are added once the users table has been
-            // extended — the two tables reference one another.
+            // extended, the two tables reference one another.
             $table->unsignedBigInteger('hod_user_id')->nullable();
             $table->unsignedBigInteger('manager_user_id')->nullable();
 

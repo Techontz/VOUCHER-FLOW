@@ -13,7 +13,7 @@ use Tests\TestSupport;
 /**
  * Reports are where history lives, so they are also where a permission mistake
  * does the most damage. The catalogue is filtered per role AND the endpoint
- * refuses what the catalogue withheld — the UI hiding a card is not a control.
+ * refuses what the catalogue withheld, the UI hiding a card is not a control.
  */
 class ReportPermissionsTest extends TestCase
 {

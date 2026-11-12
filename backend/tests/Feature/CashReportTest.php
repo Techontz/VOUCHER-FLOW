@@ -12,8 +12,8 @@ use Tests\TestCase;
 use Tests\TestSupport;
 
 /**
- * The cash report answers one question — "what cash moved, and what is still
- * owed, in this period?" — and must return exactly the rows the filters name,
+ * The cash report answers one question, "what cash moved, and what is still
+ * owed, in this period?", and must return exactly the rows the filters name,
  * on screen and in every export.
  */
 class CashReportTest extends TestCase

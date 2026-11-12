@@ -7,14 +7,29 @@ use Illuminate\Database\Seeder;
 
 class PlanSeeder extends Seeder
 {
+    /** The basic tier: payment vouchers and the core of a trading business. */
+    public const STARTER_APPS = ['vouchflow', 'inventory', 'sales', 'procurement', 'accounting'];
+
+    /** The middle tier adds making, moving and the people who do it. */
+    public const BUSINESS_APPS = [...self::STARTER_APPS, 'production', 'dispatch', 'fleet', 'hr', 'documents'];
+
+    public const PREMIUM_APPS = [...self::BUSINESS_APPS, 'crm'];
+
+    /**
+     * Plans are tiers by the number of apps: Starter has five, Business ten,
+     * Premium eleven and Enterprise every app (no list, so apps added later
+     * are included too). Each also offers a pick-your-apps plan's machinery
+     * (allows_module_choice), which the platform can switch on from the plans
+     * editor; none of the seeded plans uses it.
+     */
     public function run(): void
     {
         $plans = [
             [
                 'code' => 'starter',
                 'name' => 'Starter',
-                'blurb' => 'Up to 10 users and 100 vouchers a month.',
-                'blurb_sw' => 'Hadi watumiaji 10 na vocha 100 kwa mwezi.',
+                'blurb' => '5 apps: vouchers, inventory, sales, procurement and accounting. Up to 10 users.',
+                'blurb_sw' => 'Programu 5: vocha, stoo, mauzo, ununuzi na uhasibu. Hadi watumiaji 10.',
                 'price' => 79000,
                 'billing_cycle' => 'monthly',
                 'max_users' => 10,
@@ -23,14 +38,15 @@ class PlanSeeder extends Seeder
                 'max_approval_levels' => 2,
                 'storage_mb' => 2048,
                 'trial_days' => 14,
-                'features' => ['10 users', '100 vouchers / month', '2 approval levels', 'PDF vouchers', 'Email support'],
+                'features' => ['5 apps', '10 users', '100 vouchers / month', '2 approval levels', 'PDF vouchers', 'Email support'],
+                'modules' => self::STARTER_APPS,
                 'sort_order' => 1,
             ],
             [
                 'code' => 'business',
                 'name' => 'Business',
-                'blurb' => 'Departments, branding and reporting for growing companies.',
-                'blurb_sw' => 'Idara, chapa na ripoti kwa kampuni zinazokua.',
+                'blurb' => '10 apps, adding production, dispatch, fleet, HR and documents.',
+                'blurb_sw' => 'Programu 10, zikiongeza uzalishaji, usambazaji, magari, rasilimali watu na nyaraka.',
                 'price' => 249000,
                 'billing_cycle' => 'monthly',
                 'max_users' => 50,
@@ -39,14 +55,15 @@ class PlanSeeder extends Seeder
                 'max_approval_levels' => 3,
                 'storage_mb' => 25600,
                 'trial_days' => 14,
-                'features' => ['50 users', 'Unlimited vouchers', '3 approval levels', 'Custom branding', 'Reports & exports', 'Priority support'],
+                'features' => ['10 apps', '50 users', 'Unlimited vouchers', '3 approval levels', 'Custom branding', 'Reports & exports', 'Priority support'],
+                'modules' => self::BUSINESS_APPS,
                 'sort_order' => 2,
             ],
             [
                 'code' => 'premium',
                 'name' => 'Premium',
-                'blurb' => 'Deeper workflows and more room for larger finance teams.',
-                'blurb_sw' => 'Mitiririko mipana na nafasi zaidi kwa timu kubwa za fedha.',
+                'blurb' => '11 apps, adding CRM, with deeper workflows for larger teams.',
+                'blurb_sw' => 'Programu 11, ikiongeza CRM, na mitiririko mipana kwa timu kubwa.',
                 'price' => 590000,
                 'billing_cycle' => 'monthly',
                 'max_users' => 150,
@@ -55,14 +72,15 @@ class PlanSeeder extends Seeder
                 'max_approval_levels' => 6,
                 'storage_mb' => 102400,
                 'trial_days' => 14,
-                'features' => ['150 users', 'Unlimited vouchers', '6 approval levels', 'Custom branding', 'Advanced reports', 'Priority support'],
+                'features' => ['11 apps', '150 users', 'Unlimited vouchers', '6 approval levels', 'Custom branding', 'Advanced reports', 'Priority support'],
+                'modules' => self::PREMIUM_APPS,
                 'sort_order' => 3,
             ],
             [
                 'code' => 'enterprise',
                 'name' => 'Enterprise',
-                'blurb' => 'Multiple companies, custom workflows, integrations.',
-                'blurb_sw' => 'Kampuni nyingi, mitiririko maalum, miunganisho.',
+                'blurb' => 'All apps, multiple companies, custom workflows, integrations.',
+                'blurb_sw' => 'Programu zote, kampuni nyingi, mitiririko maalum, miunganisho.',
                 'price' => 0,
                 'billing_cycle' => 'annual',
                 'max_users' => null,
@@ -71,7 +89,8 @@ class PlanSeeder extends Seeder
                 'max_approval_levels' => null,
                 'storage_mb' => null,
                 'trial_days' => 30,
-                'features' => ['Unlimited users', 'Custom workflows', 'Multi-company', 'API & integrations', 'Dedicated manager'],
+                'features' => ['All apps', 'Unlimited users', 'Custom workflows', 'Multi-company', 'API & integrations', 'Dedicated manager'],
+                'modules' => null,
                 'sort_order' => 4,
             ],
         ];

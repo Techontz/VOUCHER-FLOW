@@ -23,6 +23,8 @@ class VoucherPayment extends Model
         return [
             'company_id' => 'integer',
             'voucher_id' => 'integer',
+            'supplier_payment_id' => 'integer',
+            'journal_entry_id' => 'integer',
             'paid_by_id' => 'integer',
             'sequence' => 'integer',
             'amount' => 'decimal:2',
@@ -49,7 +51,7 @@ class VoucherPayment extends Model
         return $this->hasMany(VoucherAttachment::class)->where('document_type', VoucherAttachment::TYPE_ACKNOWLEDGEMENT);
     }
 
-    /** "PV-2026-000083/2" — the voucher number and which payment this is. */
+    /** "PV-2026-000083/2", the voucher number and which payment this is. */
     public function reference(): string
     {
         return $this->voucher?->number.'/'.$this->sequence;

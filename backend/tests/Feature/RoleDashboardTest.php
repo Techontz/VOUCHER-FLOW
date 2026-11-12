@@ -14,7 +14,7 @@ use Tests\TestSupport;
 
 /**
  * Each role's dashboard: the attention banner, the figures (by stable key) and
- * recent activity — all computed from vouchers the caller may see, and never
+ * recent activity, all computed from vouchers the caller may see, and never
  * from another company's.
  */
 class RoleDashboardTest extends TestCase

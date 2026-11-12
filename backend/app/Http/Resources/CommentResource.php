@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,7 +17,7 @@ class CommentResource extends JsonResource
                 'id' => $this->user->id,
                 'name' => $this->user->name,
                 'initials' => $this->user->initials(),
-                'role_label' => $this->user->role,
+                'role_label' => User::roleLabel((string) $this->user->role),
                 'department' => $this->user->department?->name,
             ] : null),
             'created_at' => $this->created_at?->toIso8601String(),

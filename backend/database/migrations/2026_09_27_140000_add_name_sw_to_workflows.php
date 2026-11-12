@@ -5,8 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * A workflow's name is shown to Swahili-speaking staff too — on the voucher
- * timeline and in the builder — so it carries a Swahili name like its steps do.
+ * A workflow's name is shown to Swahili-speaking staff too, on the voucher
+ * timeline and in the builder, so it carries a Swahili name like its steps do.
  */
 return new class extends Migration
 {

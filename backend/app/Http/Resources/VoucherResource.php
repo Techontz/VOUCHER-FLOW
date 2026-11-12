@@ -81,6 +81,13 @@ class VoucherResource extends JsonResource
             'cost_centre' => $this->cost_centre,
             'voucher_date' => $this->voucher_date?->toDateString(),
             'notes_to_approver' => $this->notes_to_approver,
+            // What this voucher pays in the books, when it was raised from them.
+            'source' => $this->source_type ? [
+                'type' => $this->source_type,
+                'id' => $this->source_id,
+                'label' => $this->source_label,
+            ] : null,
+            'ledger_account_id' => $this->ledger_account_id,
             'verification_code' => $this->verification_code,
 
             'voucher_type_id' => $this->voucher_type_id,

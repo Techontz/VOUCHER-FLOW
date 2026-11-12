@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One change of a company's voucher design — who made it, from where, and
+ * One change of a company's voucher design, who made it, from where, and
  * whether it spent one of the company's own changes. Append-only: rows are
  * written by VoucherTemplateManager and never edited.
  */

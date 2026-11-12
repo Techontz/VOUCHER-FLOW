@@ -1,21 +1,21 @@
 {{--
-  01 · Classic Corporate — the default, and the client's base design.
+  01 · Classic Corporate, the default, and the client's base design.
 
   Mirrors the on-screen voucher (web/components/voucher-sheet.tsx) at readable
   print sizes. Section order:
     1. brand rule
-    2. header — logo left with company name and contact lines; right: title,
+    2. header, logo left with company name and contact lines; right: title,
        bank/cash chip, voucher number
     3. heavy rule
-    4. four-cell metadata strip — date · department + cost centre ·
+    4. four-cell metadata strip, date · department + cost centre ·
        requested by + title · category
-    5. two columns — LEFT (~60%): payee, large ruled particulars table
+    5. two columns: LEFT (~60%): payee, large ruled particulars table
        (particulars | amount) with blank ruled rows, total payable, amount in
        words box; RIGHT (~40%): payment particulars panel (every row), drawn-on
        box, supporting documents box
     6. full-width remarks box
     7. "Authorisation" signature band, one ruled box per signatory
-    8. footer — footer text + verification code left; QR + "Scan to verify" right
+    8. footer, footer text + verification code left; QR + "Scan to verify" right
 --}}
 @extends('vouchers.layout')
 
@@ -130,7 +130,7 @@
                 </tr>
                 <tr>
                     <td>
-                        <div class="b" style="font-size: 11pt; color: #0b1220;">{{ $v['purpose'] ?: '—' }}</div>
+                        <div class="b" style="font-size: 11pt; color: #0b1220;">{{ $v['purpose'] ?: '-' }}</div>
                         @if ($v['description'])<div style="margin-top: 3pt; color: {{ $body }};">{{ $v['description'] }}</div>@endif
                         @if ($v['reference'])<div class="t-meta" style="margin-top: 4pt;">{{ $t['reference'] }}: <span class="b" style="color: #0b1220;">{{ $v['reference'] }}</span></div>@endif
                     </td>
@@ -189,7 +189,7 @@
 <table class="c-box" style="margin-top: 8pt; border-collapse: separate;">
     <tr>
         <td class="t-label" style="width: 70pt; padding-top: 1.5pt;">{{ $t['remarks'] }}</td>
-        <td style="color: {{ $body }};">{{ $v['remarks'] ?: '—' }}</td>
+        <td style="color: {{ $body }};">{{ $v['remarks'] ?: '-' }}</td>
     </tr>
 </table>
 
@@ -207,7 +207,7 @@
                     <div class="t-label nowrap" style="color: {{ $s['state'] === 'rejected' ? '#a3183a' : '#0b1220' }};">{{ $s['caption'] }}</div>
                     <div>@include('vouchers.parts.signature-mark', ['height' => 34])</div>
                     <div class="c-sigline {{ $pend ? 'c-sigline-pending' : '' }}"></div>
-                    <div class="b nowrap" style="font-size: 10pt; color: {{ $s['name'] ? '#0b1220' : '#8a94a6' }};">{{ $s['name'] ?: '—' }}</div>
+                    <div class="b nowrap" style="font-size: 10pt; color: {{ $s['name'] ? '#0b1220' : '#8a94a6' }};">{{ $s['name'] ?: '-' }}</div>
                     <div class="t-meta"><span class="b" style="color: #26324a;">{{ $s['role'] }}</span> · <span style="{{ $pend ? 'font-style: italic;' : '' }}">{{ $s['meta'] }}</span></div>
                 </td>
             @endforeach

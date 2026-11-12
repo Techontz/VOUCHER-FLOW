@@ -8,8 +8,8 @@ namespace App\Support;
  * A template is presentation only: every one renders the same document data
  * (see App\Services\VoucherDocument) through the shared parts in
  * resources/views/vouchers/parts, arranged and styled its own way. Adding a
- * design is two steps — a Blade view at resources/views/vouchers/templates/{key}
- * and an entry here — and nothing about vouchers, workflows or storage changes.
+ * design is two steps, a Blade view at resources/views/vouchers/templates/{key}
+ * and an entry here, and nothing about vouchers, workflows or storage changes.
  */
 final class VoucherTemplates
 {
@@ -48,8 +48,8 @@ final class VoucherTemplates
         'structured' => [
             'name' => ['en' => 'Structured Two-Column', 'sw' => 'Safu Mbili Zilizopangwa'],
             'description' => [
-                'en' => 'Request details on the left, the money on the right — amount, method, bank, account and reference — with a strong approval band below.',
-                'sw' => 'Taarifa za ombi kushoto, fedha kulia — kiasi, njia, benki, akaunti na kumbukumbu — na idhini imara chini.',
+                'en' => 'Request details on the left, the money on the right, amount, method, bank, account and reference, with a strong approval band below.',
+                'sw' => 'Taarifa za ombi kushoto, fedha kulia, kiasi, njia, benki, akaunti na kumbukumbu, na idhini imara chini.',
             ],
         ],
         'detailed' => [

@@ -71,7 +71,7 @@ class VoucherController extends Controller
         ]);
     }
 
-    /** The "awaiting you" queue — only steps this user may actually act on. */
+    /** The "awaiting you" queue, only steps this user may actually act on. */
     public function pending(Request $request)
     {
         $user = $request->user();
@@ -144,6 +144,7 @@ class VoucherController extends Controller
                 'cost_centre' => $data['cost_centre'] ?? null,
                 'voucher_date' => $data['voucher_date'] ?? now()->toDateString(),
                 'notes_to_approver' => $data['notes_to_approver'] ?? null,
+                'ledger_account_id' => $data['ledger_account_id'] ?? null,
                 'status' => Voucher::STATUS_DRAFT,
                 'verification_code' => $this->numbers->verificationCode(),
                 'created_by' => $user->id,
@@ -278,8 +279,8 @@ class VoucherController extends Controller
      * Approves several vouchers in one go, after the approver has reviewed them.
      *
      * Each voucher goes through exactly the same engine call as a single
-     * approval — same permission checks, signature, timeline, notifications and
-     * audit entry — one at a time, so one refusal never blocks the others. A
+     * approval, same permission checks, signature, timeline, notifications and
+     * audit entry, one at a time, so one refusal never blocks the others. A
      * step that must be signed before it approves is signed with the
      * approver's saved signature; without one, that voucher is left for them
      * to open and sign individually. Anything the caller may not approve right
@@ -558,6 +559,12 @@ class VoucherController extends Controller
             'cost_centre' => ['nullable', 'string', 'max:120'],
             'voucher_date' => ['nullable', 'date'],
             'notes_to_approver' => ['nullable', 'string', 'max:2000'],
+            // The account the payment charges, when the company keeps its books
+            // here: one of its own active expense or asset accounts.
+            'ledger_account_id' => ['nullable', 'integer', Rule::exists('accounts', 'id')
+                ->where('company_id', $this->tenant->company()?->id)
+                ->where('is_active', true)
+                ->whereIn('type', ['expense', 'asset'])],
         ]);
     }
 

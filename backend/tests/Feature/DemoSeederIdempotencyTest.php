@@ -97,7 +97,7 @@ class DemoSeederIdempotencyTest extends TestCase
     }
 
     /**
-     * The failure in production was not "a duplicate row appeared" — the unique
+     * The failure in production was not "a duplicate row appeared", the unique
      * key stopped that. It was the insert dying. This asserts the seeder can be
      * re-run after its counters have been left where a first run put them.
      */

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\Erp;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Platform;
 use App\Http\Controllers\Api\ProfileController;
@@ -50,7 +51,7 @@ Route::post('voucher-templates/preview', [VoucherTemplateController::class, 'pre
 
 /*
 |--------------------------------------------------------------------------
-| Authenticated — every route below resolves a tenant first
+| Authenticated, every route below resolves a tenant first
 |--------------------------------------------------------------------------
 */
 
@@ -102,7 +103,7 @@ Route::middleware(['auth:sanctum', 'tenant', 'approved', SubstituteBindings::cla
             Route::post('{voucher}/pay', [VoucherController::class, 'pay']);
         });
 
-        // The printed document — available at every stage, per step permissions.
+        // The printed document, available at every stage, per step permissions.
         Route::get('{voucher}/document', [VoucherDocumentController::class, 'html'])->name('document');
         Route::get('{voucher}/pdf', [VoucherDocumentController::class, 'stream'])->name('pdf');
         Route::get('{voucher}/pdf/download', [VoucherDocumentController::class, 'download'])->name('pdf.download');
@@ -172,17 +173,102 @@ Route::middleware(['auth:sanctum', 'tenant', 'approved', SubstituteBindings::cla
         Route::post('auto-renew', [BillingController::class, 'setAutoRenew']);
     });
 
+    /*
+    |----------------------------------------------------------------------
+    | ERP: Phase 1 core. Every route names its module and its permission;
+    | the tenant scope underneath keeps each company to its own rows.
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('erp')->middleware('subscription')->group(function () {
+        Route::get('templates', [Erp\SetupController::class, 'templates']);
+        Route::get('config', [Erp\SetupController::class, 'show']);
+        Route::get('overview', [Erp\SetupController::class, 'overview']);
+        Route::post('setup', [Erp\SetupController::class, 'apply'])->middleware('permission:erp.configure');
+        Route::put('config', [Erp\SetupController::class, 'update'])->middleware('permission:erp.configure');
+
+        Route::middleware('permission:roles.manage')->group(function () {
+            Route::get('roles', [Erp\RoleController::class, 'index']);
+            Route::post('roles', [Erp\RoleController::class, 'store']);
+            Route::put('roles/{key}', [Erp\RoleController::class, 'update']);
+            Route::delete('roles/{key}', [Erp\RoleController::class, 'destroy']);
+        });
+
+        Route::middleware('module:inventory')->group(function () {
+            Route::middleware('permission:inventory.view')->group(function () {
+                Route::get('units', [Erp\UnitController::class, 'index']);
+                Route::get('categories', [Erp\CategoryController::class, 'index']);
+                Route::get('warehouses', [Erp\WarehouseController::class, 'index']);
+                Route::get('warehouses/{warehouse}', [Erp\WarehouseController::class, 'show']);
+                Route::get('products', [Erp\ProductController::class, 'index']);
+                Route::get('products/{product}', [Erp\ProductController::class, 'show']);
+                Route::get('stock/balances', [Erp\StockController::class, 'balances']);
+                Route::get('stock/movements', [Erp\StockController::class, 'movements']);
+                Route::get('stock/alerts', [Erp\StockController::class, 'alerts']);
+                Route::get('stock/valuation', [Erp\StockController::class, 'valuation']);
+                Route::get('stock-documents', [Erp\StockDocumentController::class, 'index']);
+                Route::get('stock-documents/{stockDocument}', [Erp\StockDocumentController::class, 'show']);
+            });
+
+            Route::middleware('permission:inventory.manage')->group(function () {
+                Route::apiResource('units', Erp\UnitController::class)->only(['store', 'update', 'destroy']);
+                Route::apiResource('categories', Erp\CategoryController::class)->only(['store', 'update', 'destroy'])
+                    ->parameters(['categories' => 'category']);
+                Route::apiResource('warehouses', Erp\WarehouseController::class)->only(['store', 'update', 'destroy']);
+                Route::apiResource('products', Erp\ProductController::class)->only(['store', 'update', 'destroy']);
+            });
+
+            // Which kind of document may be prepared is checked per type in the controller.
+            Route::post('stock-documents', [Erp\StockDocumentController::class, 'store']);
+            Route::put('stock-documents/{stockDocument}', [Erp\StockDocumentController::class, 'update']);
+            Route::post('stock-documents/{stockDocument}/cancel', [Erp\StockDocumentController::class, 'cancel']);
+            Route::post('stock-documents/{stockDocument}/post', [Erp\StockDocumentController::class, 'post'])->middleware('permission:inventory.post');
+            Route::post('stock-documents/{stockDocument}/reverse', [Erp\StockDocumentController::class, 'reverse'])->middleware('permission:inventory.reverse');
+        });
+
+        Route::middleware('module:sales')->group(function () {
+            Route::apiResource('customers', Erp\CustomerController::class)->only(['index', 'show'])->middleware('permission:customers.view');
+            Route::apiResource('customers', Erp\CustomerController::class)->only(['store', 'update', 'destroy'])->middleware('permission:customers.manage');
+        });
+
+        Route::middleware('module:procurement')->group(function () {
+            Route::apiResource('suppliers', Erp\SupplierController::class)->only(['index', 'show'])->middleware('permission:suppliers.view');
+            Route::apiResource('suppliers', Erp\SupplierController::class)->only(['store', 'update', 'destroy'])->middleware('permission:suppliers.manage');
+        });
+
+        Route::middleware('module:accounting')->group(function () {
+            Route::get('accounts', [Erp\AccountController::class, 'index'])->middleware('permission:accounting.view');
+            Route::apiResource('accounts', Erp\AccountController::class)->only(['store', 'update', 'destroy'])->middleware('permission:accounting.manage');
+            Route::get('journals', [Erp\JournalController::class, 'index'])->middleware('permission:accounting.view');
+            Route::get('journals/{journalEntry}', [Erp\JournalController::class, 'show'])->middleware('permission:accounting.view');
+            Route::post('journals', [Erp\JournalController::class, 'store'])->middleware('permission:accounting.post');
+            Route::post('journals/{journalEntry}/reverse', [Erp\JournalController::class, 'reverse'])->middleware('permission:accounting.reverse');
+            Route::get('trial-balance', [Erp\JournalController::class, 'trialBalance'])->middleware('permission:accounting.view');
+        });
+
+        // Every later module brings its own routes file (routes/erp/*.php),
+        // inside this group: authenticated, tenant-scoped, subscription-checked.
+        foreach (glob(__DIR__.'/erp/*.php') ?: [] as $moduleRoutes) {
+            require $moduleRoutes;
+        }
+    });
+
     /* ------------------------------------------------------------ audit log */
     Route::get('audit-logs', [AuditLogController::class, 'index']);
     Route::get('audit-logs/actions', [AuditLogController::class, 'actions']);
 
     /*
     |----------------------------------------------------------------------
-    | Platform administration — super admin only
+    | Platform administration, super admin only
     |----------------------------------------------------------------------
     */
     Route::prefix('platform')->middleware('super_admin')->group(function () {
+        Route::get('analytics', Platform\AnalyticsController::class);
+        Route::get('settings', [Platform\SettingsController::class, 'show']);
+        Route::put('settings', [Platform\SettingsController::class, 'update']);
+
         Route::apiResource('companies', Platform\CompanyController::class);
+        Route::put('companies/{company}/modules', [Platform\CompanyController::class, 'modules']);
+        Route::post('companies/{company}/extend', [Platform\CompanyController::class, 'extend']);
         Route::post('companies/{company}/suspend', [Platform\CompanyController::class, 'suspend']);
         Route::post('companies/{company}/activate', [Platform\CompanyController::class, 'activate']);
         Route::post('companies/{company}/approve', [Platform\CompanyController::class, 'approve']);
@@ -201,15 +287,23 @@ Route::middleware(['auth:sanctum', 'tenant', 'approved', SubstituteBindings::cla
         Route::get('companies/{company}/workflows', [Platform\CompanyInsightController::class, 'workflows']);
         Route::get('companies/{company}/vouchers', [Platform\CompanyInsightController::class, 'vouchers']);
 
+        Route::post('plans/reorder', [Platform\PlanController::class, 'reorder']);
         Route::apiResource('plans', Platform\PlanController::class)->except(['show']);
 
         Route::get('payments', [Platform\PaymentController::class, 'index']);
-        Route::get('subscriptions', [Platform\PaymentController::class, 'subscriptions']);
+        Route::get('subscriptions', [Platform\SubscriptionController::class, 'index']);
+        Route::post('subscriptions/{subscription}/extend', [Platform\SubscriptionController::class, 'extend']);
+        Route::post('subscriptions/{subscription}/cancel', [Platform\SubscriptionController::class, 'cancel']);
+        Route::post('subscriptions/{subscription}/reactivate', [Platform\SubscriptionController::class, 'reactivate']);
+        Route::post('subscriptions/{subscription}/invoice', [Platform\SubscriptionController::class, 'invoice']);
         Route::post('payments/{invoice}/refund', [Platform\PaymentController::class, 'refund']);
         Route::post('payments/{invoice}/mark-paid', [Platform\PaymentController::class, 'markPaid']);
 
         Route::get('users', [Platform\UserController::class, 'index']);
+        Route::get('users/roles', [Platform\UserController::class, 'roles']);
         Route::post('users/bulk-delete', [Platform\UserController::class, 'bulkDestroy']);
+        Route::post('users/bulk-status', [Platform\UserController::class, 'bulkStatus']);
+        Route::post('users/{user}/invite', [Platform\UserController::class, 'invite']);
         Route::put('users/{user}', [Platform\UserController::class, 'update']);
         Route::delete('users/{user}', [Platform\UserController::class, 'destroy']);
     });

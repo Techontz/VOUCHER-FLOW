@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Storage;
  * Demo data across four tenants.
  *
  * The second tenant deliberately runs a four-step route with Finance in the
- * middle, so the configurable-workflow behaviour is visible rather than claimed —
+ * middle, so the configurable-workflow behaviour is visible rather than claimed,
  * and so tenant isolation can be checked against a company with different shape.
  *
  * IDEMPOTENT. Running this a second or third time updates the same demo world
@@ -116,6 +116,9 @@ class DemoSeeder extends Seeder
                 $this->syncNumberCounters($company);
             }
 
+            // Watercom also runs the ERP: products, stores, parties and stock history.
+            $this->call(ErpDemoSeeder::class);
+
             $this->command?->info('Demo tenants ready. Primary company: '.$primary->name);
         });
     }
@@ -149,8 +152,8 @@ class DemoSeeder extends Seeder
      * Finds this demo tenant, or stands it up if it is not there yet.
      *
      * The `fresh` flag tells the caller whether it is looking at a company that
-     * has just been created. Things that must happen exactly once — taking out
-     * a subscription, issuing and charging an invoice — are gated on it, since
+     * has just been created. Things that must happen exactly once, taking out
+     * a subscription, issuing and charging an invoice, are gated on it, since
      * those have no natural unique key to reconcile against.
      *
      * @return array{company:Company,admin:User,fresh:bool}
@@ -228,7 +231,7 @@ class DemoSeeder extends Seeder
 
         return $this->tenant->forCompany($company, function () use ($company, $admin, $plan, $fresh) {
             // Demo branding, set through the same columns the Branding screen
-            // writes to. Nothing about Watercom is special to the platform —
+            // writes to. Nothing about Watercom is special to the platform,
             // this is one tenant's configuration, not the product's identity.
             $company->forceFill([
                 'status' => 'active',
@@ -253,7 +256,7 @@ class DemoSeeder extends Seeder
             ])->save();
 
             // Artwork goes through the same service an upload uses, so seeded
-            // branding and uploaded branding are indistinguishable afterwards —
+            // branding and uploaded branding are indistinguishable afterwards,
             // same directory, same random filename, same columns.
             $this->publishBrandAssets($company);
 
@@ -324,7 +327,7 @@ class DemoSeeder extends Seeder
      * Publishes the demo tenant's real artwork.
      *
      * The files under database/seeders/assets are the ACTUAL supplied Watercom
-     * lockup, byte for byte, plus a square mark cropped out of it — never a
+     * lockup, byte for byte, plus a square mark cropped out of it, never a
      * redrawn approximation. They are stored through CompanyBranding so the
      * demo company's logo lives exactly where an uploaded one would, under a
      * per-tenant prefix with a random filename.
@@ -335,7 +338,7 @@ class DemoSeeder extends Seeder
 
         // Only publish what is not already there. publishFile() writes to a new
         // random filename every time, so re-publishing on each run would orphan
-        // the previous file and change the logo's URL — breaking every cached
+        // the previous file and change the logo's URL, breaking every cached
         // copy of it for no reason.
         $slots = [
             CompanyBranding::SLOT_LOGO => ['logo_path', 'watercom-logo.png'],
@@ -354,7 +357,7 @@ class DemoSeeder extends Seeder
     }
 
     /**
-     * A tenant on a four-step route. Nothing in the engine changes — only its
+     * A tenant on a four-step route. Nothing in the engine changes, only its
      * stored workflow does.
      */
     private function buildSecondTenant(?Plan $plan): Company
@@ -393,7 +396,7 @@ class DemoSeeder extends Seeder
             // The distinguishing detail: Finance sits between HOD and Manager.
             // applyPreset retires the current default and writes a new one, so
             // on a rerun it would leave a trail of disabled workflows behind
-            // it — apply it once, when the tenant is first stood up.
+            // it, apply it once, when the tenant is first stood up.
             if ($fresh) {
                 $this->provisioner->applyPreset($company, 'finance', $admin);
             }
@@ -417,7 +420,7 @@ class DemoSeeder extends Seeder
 
             $type = VoucherType::where('code', 'payment')->first();
 
-            // One voucher that has cleared the HOD and now sits with Finance —
+            // One voucher that has cleared the HOD and now sits with Finance,
             // step three of four, which the default route does not even have.
             $voucher = $this->makeVoucher($company, [
                 'type' => $type,
@@ -472,7 +475,7 @@ class DemoSeeder extends Seeder
 
     /**
      * A full-size logistics company on the default route, with nine months of
-     * history behind it — enough that dashboards, reports and every queue look
+     * history behind it, enough that dashboards, reports and every queue look
      * like a business that has been running the product for a while.
      *
      * Every voucher is driven through the real WorkflowEngine as the resolved
@@ -537,7 +540,7 @@ class DemoSeeder extends Seeder
 
             // name, email, role, job title, employee code, phone, home department
             $rows = [
-                // Heads of department — one each, so every HOD step resolves.
+                // Heads of department, one each, so every HOD step resolves.
                 ['Juma Mwakalinga', 'juma@kilimanjaro.test', 'hod', 'Head of Logistics', 'KL-0012', '+255 754 318 204', 'Logistics'],
                 ['Neema Kisanga', 'neema@kilimanjaro.test', 'hod', 'Head of Finance', 'KL-0007', '+255 713 442 918', 'Finance'],
                 ['Rehema Nyirenda', 'rehema@kilimanjaro.test', 'hod', 'Head of Human Resources', 'KL-0015', '+255 767 205 731', 'Human Resources'],
@@ -774,7 +777,7 @@ class DemoSeeder extends Seeder
         $closed = $shuffle($closed);
         $monthOffsets = $shuffle($monthOffsets);
 
-        // Open work is recent — days old, some long enough to count as stalled.
+        // Open work is recent, days old, some long enough to count as stalled.
         $openAge = [
             'draft' => [0, 8], 'awaiting_hod' => [0, 7], 'signed_hold' => [0, 5],
             'awaiting_ceo' => [1, 10], 'changes' => [4, 60], 'approved' => [2, 60],
@@ -1164,8 +1167,8 @@ class DemoSeeder extends Seeder
     /**
      * Ids of the vouchers this run actually inserted.
      *
-     * The demo script deliberately parks vouchers mid-flight — one awaiting a
-     * signature, one signed but not forwarded, four awaiting approval — and it
+     * The demo script deliberately parks vouchers mid-flight, one awaiting a
+     * signature, one signed but not forwarded, four awaiting approval, and it
      * gets them there by calling the workflow helpers a fixed number of times.
      * Those calls describe a journey from `draft`, so replaying them against a
      * voucher that is already halfway along pushes it FURTHER rather than
@@ -1186,7 +1189,7 @@ class DemoSeeder extends Seeder
      * same number twice for the same voucher, and a rerun asks it for numbers
      * that are already on disk. This derives the number from the voucher's
      * position in the demo script instead, which is a property of the script
-     * and not of the database — the same voucher gets the same number on the
+     * and not of the database, the same voucher gets the same number on the
      * first run and the third.
      */
     private function demoNumber(VoucherType $type): string
@@ -1209,7 +1212,7 @@ class DemoSeeder extends Seeder
      * Creates a demo voucher, or returns the one that is already there.
      *
      * firstOrCreate semantics, not updateOrCreate, and the distinction matters:
-     * the attributes below describe a voucher at the moment it is raised —
+     * the attributes below describe a voucher at the moment it is raised,
      * status draft, no workflow position. The first run then drove these rows
      * through signing, approval and payment. Writing the draft attributes back
      * over an approved-and-paid voucher would reset it to a draft, and the
@@ -1297,7 +1300,7 @@ class DemoSeeder extends Seeder
         $awaitingSignature = $this->makeVoucher($company, [
             'type' => $payment, 'requester' => $frank, 'department' => $departments['Procurement'],
             'kind' => Voucher::KIND_BANK,
-            'payee' => 'Highland Freight Services', 'purpose' => 'Freight to Mwanza — September consignment',
+            'payee' => 'Highland Freight Services', 'purpose' => 'Freight to Mwanza: September consignment',
             'description' => 'Road freight for 22 pallets of Afiya 500ml to the Mwanza depot, per framework contract rate.',
             'amount' => 4850000, 'method' => 'Bank Transfer', 'category' => 'Logistics', 'date' => now()->subDays(2),
             'payee_bank' => 'NMB Bank', 'payee_account_number' => '20110034877', 'payee_bank_branch' => 'Nyerere Road',
@@ -1305,11 +1308,11 @@ class DemoSeeder extends Seeder
         $this->submitAs($awaitingSignature, $frank);
 
         // 2. Signed by the head of department but deliberately not yet submitted
-        //    onward — the state the design is specifically built around.
+        //    onward, the state the design is specifically built around.
         $signedNotSent = $this->makeVoucher($company, [
             'type' => $payment, 'requester' => $frank, 'department' => $departments['Production'],
             'kind' => Voucher::KIND_BANK,
-            'payee' => 'Kibada Preform Suppliers', 'purpose' => 'PET preforms — October production run',
+            'payee' => 'Kibada Preform Suppliers', 'purpose' => 'PET preforms: October production run',
             'description' => 'Two containers of 28mm preforms for the Jembe and Supa Cola lines.',
             'amount' => 21500000, 'method' => 'Bank Transfer', 'category' => 'Raw materials', 'date' => now()->subDays(3),
             'payee_bank' => 'CRDB Bank', 'payee_account_number' => '0150287744100', 'payee_bank_branch' => 'Kariakoo',
@@ -1317,11 +1320,11 @@ class DemoSeeder extends Seeder
         $this->submitAs($signedNotSent, $frank);
         $this->stepThrough($signedNotSent, 'hold', 'Within the Q4 raw materials budget. Rate matches the framework contract.');
 
-        // 3. Signed and forwarded — now awaiting the Managing Director's approval.
+        // 3. Signed and forwarded, now awaiting the Managing Director's approval.
         $awaitingApproval = $this->makeVoucher($company, [
             'type' => $payment, 'requester' => $baraka, 'department' => $departments['Transport & Logistics'],
             'kind' => Voucher::KIND_BANK,
-            'payee' => 'Serengeti Motors Ltd', 'purpose' => 'Fleet servicing — three delivery trucks',
+            'payee' => 'Serengeti Motors Ltd', 'purpose' => 'Fleet servicing, three delivery trucks',
             'description' => 'Scheduled 40,000km service for T-412, T-418 and T-503.',
             'amount' => 7450000, 'method' => 'Bank Transfer', 'category' => 'Fleet', 'date' => now()->subDays(4),
             'payee_bank' => 'NBC Bank', 'payee_account_number' => '011203344556', 'payee_bank_branch' => 'Samora Avenue',
@@ -1329,11 +1332,11 @@ class DemoSeeder extends Seeder
         $this->submitAs($awaitingApproval, $baraka);
         $this->stepThrough($awaitingApproval, 'forward', 'Verified against the fleet maintenance schedule.');
 
-        // 4. A cash claim, also awaiting approval — so both formats are in flight.
+        // 4. A cash claim, also awaiting approval, so both formats are in flight.
         $cashAwaiting = $this->makeVoucher($company, [
             'type' => $petty, 'requester' => $gloria, 'department' => $departments['Quality Assurance'],
             'kind' => Voucher::KIND_CASH,
-            'payee' => 'Gloria Mtei', 'purpose' => 'Laboratory consumables — reagents',
+            'payee' => 'Gloria Mtei', 'purpose' => 'Laboratory consumables, reagents',
             'description' => 'Chlorine test reagents and pH buffer solutions bought from the local supplier.',
             'amount' => 385000, 'method' => 'Cash', 'category' => 'Laboratory', 'date' => now()->subDays(3),
             'cash_float' => 'Kibada plant petty cash',
@@ -1341,11 +1344,11 @@ class DemoSeeder extends Seeder
         $this->submitAs($cashAwaiting, $gloria);
         $this->stepThrough($cashAwaiting, 'forward', 'Receipts attached and checked.');
 
-        // 5. Approved and waiting on the cashier — the payment queue needs rows.
+        // 5. Approved and waiting on the cashier, the payment queue needs rows.
         $awaitingPayment = $this->makeVoucher($company, [
             'type' => $payment, 'requester' => $frank, 'department' => $departments['Procurement'],
             'kind' => Voucher::KIND_BANK,
-            'payee' => 'Coastal Packaging Limited', 'purpose' => 'Shrink film and labels — October',
+            'payee' => 'Coastal Packaging Limited', 'purpose' => 'Shrink film and labels: October',
             'description' => 'Shrink film for the 12-pack line and printed labels for Afiya 1.5L.',
             'amount' => 12400000, 'method' => 'Bank Transfer', 'category' => 'Packaging', 'date' => now()->subDays(6),
             'payee_bank' => 'CRDB Bank', 'payee_account_number' => '0250118877200', 'payee_bank_branch' => 'Mlimani City',
@@ -1360,14 +1363,14 @@ class DemoSeeder extends Seeder
             'amount' => 960000, 'method' => 'Cash', 'category' => 'Staff welfare', 'date' => now()->subDays(5),
             'cash_float' => 'Head office petty cash',
         ]);
-        $this->runToCompletion($cashAwaitingPayment, $doreen, 'approve', 'Approved — pay from the head office float.');
+        $this->runToCompletion($cashAwaitingPayment, $doreen, 'approve', 'Approved, pay from the head office float.');
 
         // 6. Paid in full, both formats, so Reports and the payment report have
         //    settled rows and the cashier's "released this month" is not zero.
         $paidBank = $this->makeVoucher($company, [
             'type' => $payment, 'requester' => $frank, 'department' => $departments['Procurement'],
             'kind' => Voucher::KIND_BANK,
-            'payee' => 'Tanzania Bottle Company', 'purpose' => 'Glass bottles — September delivery',
+            'payee' => 'Tanzania Bottle Company', 'purpose' => 'Glass bottles: September delivery',
             'description' => 'Returnable glass for the Supa Cola 300ml line.',
             'amount' => 18750000, 'method' => 'Bank Transfer', 'category' => 'Raw materials', 'date' => now()->subDays(6),
             'payee_bank' => 'Stanbic Bank', 'payee_account_number' => '9120044556677', 'payee_bank_branch' => 'Kinondoni',
@@ -1378,7 +1381,7 @@ class DemoSeeder extends Seeder
         $paidCash = $this->makeVoucher($company, [
             'type' => $petty, 'requester' => $baraka, 'department' => $departments['Transport & Logistics'],
             'kind' => Voucher::KIND_CASH,
-            'payee' => 'Baraka Ndosi', 'purpose' => 'Fuel and tolls — Morogoro run',
+            'payee' => 'Baraka Ndosi', 'purpose' => 'Fuel and tolls: Morogoro run',
             'description' => 'Diesel top-up and road tolls for the Morogoro delivery.',
             'amount' => 420000, 'method' => 'Cash', 'category' => 'Transport', 'date' => now()->subDays(4),
             'cash_float' => 'Transport office float',
@@ -1390,12 +1393,12 @@ class DemoSeeder extends Seeder
         $rejected = $this->makeVoucher($company, [
             'type' => $advance, 'requester' => $baraka, 'department' => $departments['Transport & Logistics'],
             'kind' => Voucher::KIND_CASH,
-            'payee' => 'Baraka Ndosi', 'purpose' => 'Travel advance — Dodoma depot visit',
+            'payee' => 'Baraka Ndosi', 'purpose' => 'Travel advance: Dodoma depot visit',
             'description' => 'Three nights, per diem and fuel for the Dodoma inspection.',
             'amount' => 980000, 'method' => 'Cash', 'category' => 'Transport', 'date' => now()->subDays(12),
             'cash_float' => 'Transport office float',
         ]);
-        $this->runToCompletion($rejected, $baraka, 'reject', 'Use the depot float for Dodoma travel — resubmit against cost centre CC-TRL.');
+        $this->runToCompletion($rejected, $baraka, 'reject', 'Use the depot float for Dodoma travel, resubmit against cost centre CC-TRL.');
 
         // 8. Returned to the requester for changes at the first approval step.
         $changes = $this->makeVoucher($company, [
@@ -1409,11 +1412,11 @@ class DemoSeeder extends Seeder
         $this->submitAs($changes, $gloria);
         $this->stepThrough($changes, 'changes', 'Attach the TBS invoice and last year’s certificate before this goes up.');
 
-        // 9. A draft — visible to its author and nobody else.
+        // 9. A draft, visible to its author and nobody else.
         $this->makeVoucher($company, [
             'type' => $payment, 'requester' => $frank, 'department' => $departments['Procurement'],
             'kind' => Voucher::KIND_BANK,
-            'payee' => 'Kibada Preform Suppliers', 'purpose' => 'Caps and closures — November order',
+            'payee' => 'Kibada Preform Suppliers', 'purpose' => 'Caps and closures: November order',
             'description' => 'Draft pending the supplier quotation.',
             'amount' => 4100000, 'method' => 'Bank Transfer', 'category' => 'Raw materials', 'date' => now(),
             'payee_bank' => 'CRDB Bank', 'payee_account_number' => '0150287744100', 'payee_bank_branch' => 'Kariakoo',
@@ -1423,7 +1426,7 @@ class DemoSeeder extends Seeder
         $this->makeVoucher($company, [
             'type' => $petty, 'requester' => $frank, 'department' => $departments['Procurement'],
             'kind' => Voucher::KIND_CASH,
-            'payee' => 'Kariakoo Stationers', 'purpose' => 'Office consumables — October',
+            'payee' => 'Kariakoo Stationers', 'purpose' => 'Office consumables: October',
             'description' => 'Paper, toner and general stationery for the month.',
             'amount' => 310000, 'method' => 'Cash', 'category' => 'Office', 'date' => now(),
             'cash_float' => 'Head office petty cash',
@@ -1439,7 +1442,7 @@ class DemoSeeder extends Seeder
         ]);
         VoucherComment::firstOrCreate([
             'voucher_id' => $awaitingApproval->id, 'company_id' => $company->id, 'user_id' => $baraka->id,
-            'body' => 'Service history attached — the trucks are due this month.',
+            'body' => 'Service history attached, the trucks are due this month.',
         ]);
 
         // Some history, so the reports and volume chart are not empty.
@@ -1561,7 +1564,7 @@ class DemoSeeder extends Seeder
             );
 
             // A pass that changes nothing will not change anything next time
-            // either — on a rerun every step is already recorded, and without
+            // either, on a rerun every step is already recorded, and without
             // this the loop would simply spin to its guard.
             if ([$voucher->status, $voucher->current_step_position] === $before) {
                 break;
@@ -1574,7 +1577,7 @@ class DemoSeeder extends Seeder
     private function makeHistory(Company $company, VoucherType $type, User $requester, array $departments): void
     {
         $payees = ['Highland Freight Services', 'Kariakoo Stationers', 'Uhuru Internet Services', 'Coastal Packaging Ltd', 'Serengeti Computer Supplies'];
-        $purposes = ['Monthly courier retainer', 'Warehouse cleaning contract', 'Generator servicing', 'Branch water supply', 'Security guarding — monthly'];
+        $purposes = ['Monthly courier retainer', 'Warehouse cleaning contract', 'Generator servicing', 'Branch water supply', 'Security guarding, monthly'];
         $names = array_keys($departments);
 
         // mt_rand, not random_int: this sequence is seeded in run(), so the

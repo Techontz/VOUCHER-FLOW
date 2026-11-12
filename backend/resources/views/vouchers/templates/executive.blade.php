@@ -1,21 +1,21 @@
 {{--
-  04 · Executive — a letter from the board room.
+  04 · Executive, a letter from the board room.
 
   Serif throughout, everything centred on one axis, generous whitespace and
   colour used only for hairlines. Section order:
-    1. Centred identity — logo above the company name in spaced capitals and
+    1. Centred identity, logo above the company name in spaced capitals and
        a single centred contact line.
     2. Thin double rule in the secondary colour.
     3. Centred, letter-spaced document title and a "voucher no · date · kind"
        line.
-    4. REQUEST SUMMARY — the payee set large, the purpose, the description as a
+    4. REQUEST SUMMARY, the payee set large, the purpose, the description as a
        paragraph, and requested by / department / category in one line.
-    5. FINANCIAL SECTION — the total set large and right-aligned with the
+    5. FINANCIAL SECTION, the total set large and right-aligned with the
        amount in words; beneath it every payment particular in a quiet
        two-column register (bank, account, branch, reference, currency,
        method…), then the account the voucher is drawn on.
     6. Supporting documents and remarks (italic), side by side.
-    7. Signatures — lines side by side with no boxes; the name beneath, the
+    7. Signatures, lines side by side with no boxes; the name beneath, the
        caption · role in spaced small capitals and the meta line.
     8. Centred footer under a double rule: footer text, a small QR with the
        verification code, status and generated time.
@@ -93,7 +93,7 @@
     <tr><td>
         <div class="x-lab">{{ $t['payee'] }}</div>
         <div style="font-size: 18pt; margin-top: 0; line-height: {{ $lh(1.3) }};">{{ $v['payee'] }}</div>
-        <div class="i" style="font-size: 12pt; margin-top: 2pt;">{{ $v['purpose'] ?: '—' }}</div>
+        <div class="i" style="font-size: 12pt; margin-top: 2pt;">{{ $v['purpose'] ?: '-' }}</div>
         @if ($v['description'])
             <p style="font-size: 10pt; line-height: {{ $lh(1.45) }}; margin-top: 4pt;">{{ $v['description'] }}</p>
         @endif
@@ -151,7 +151,7 @@
         <td style="width: 4%;"></td>
         <td>
             <div class="x-lab">{{ $t['remarks'] }}</div>
-            <div class="i" style="font-size: 10pt; margin-top: 2pt; line-height: {{ $lh(1.4) }};">{{ $v['remarks'] ?: '—' }}</div>
+            <div class="i" style="font-size: 10pt; margin-top: 2pt; line-height: {{ $lh(1.4) }};">{{ $v['remarks'] ?: '-' }}</div>
         </td>
     </tr>
 </table>

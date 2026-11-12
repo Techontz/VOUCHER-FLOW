@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Binds the request to exactly one tenant, immediately after authentication.
  *
  * Every tenant-owned model reads this through the global tenant scope, so no
- * controller has to remember to filter by company — and a controller that forgets
+ * controller has to remember to filter by company, and a controller that forgets
  * returns nothing rather than leaking.
  */
 class ResolveTenant
@@ -31,7 +31,7 @@ class ResolveTenant
 
         if ($user->isSuperAdmin()) {
             // A super admin browses the platform unscoped, but may pin the request
-            // to one company to inspect it — and is then held to that boundary.
+            // to one company to inspect it, and is then held to that boundary.
             $companyId = $request->header('X-Company-Id') ?: $request->query('company_id');
 
             if ($companyId && $company = Company::find($companyId)) {

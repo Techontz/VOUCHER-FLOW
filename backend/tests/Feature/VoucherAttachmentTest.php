@@ -15,7 +15,7 @@ use Tests\TestSupport;
  * The endpoint existed and worked, but had no tests: a build running on the
  * in-browser fixture answered `Unknown action "attachments"` and it was not
  * obvious from here whether the gap was the client's or the server's. These
- * pin the server's half of the contract — what it accepts, what it refuses,
+ * pin the server's half of the contract, what it accepts, what it refuses,
  * and that a file cannot cross a company boundary in either direction.
  */
 class VoucherAttachmentTest extends TestCase
@@ -172,7 +172,7 @@ class VoucherAttachmentTest extends TestCase
 
     /**
      * The three formats people actually attach, sent the way a browser sends
-     * them — one multipart request, one files[] part each — must each arrive
+     * them, one multipart request, one files[] part each, must each arrive
      * as their own row and their own stored file, bytes intact.
      */
     public function test_pdf_jpg_and_png_in_one_request_are_each_stored(): void

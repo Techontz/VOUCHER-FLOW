@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Models\VoucherType;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
+use App\Support\Erp\BusinessConfig;
+use App\Support\PlatformSettings;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -30,7 +32,7 @@ class CompanyProvisioner
      *
      * These are starting points, not the shape of the product. Every step's
      * powers are stored flags, so a company admin can rename a step, move it,
-     * point it at a named person, or take a capability away — which is what
+     * point it at a named person, or take a capability away, which is what
      * lets one tenant run HOD → CEO → Cashier and another run
      * Supervisor → Manager → Finance without a line of code changing.
      *
@@ -97,11 +99,14 @@ class CompanyProvisioner
      *                                  is created `pending`, keeps the plan it chose, and starts no trial
      *                                  until the platform approves it. The platform's own create-company
      *                                  screen leaves this false and gets a running trial straight away.
+     * @param  list<string>|null  $modules  The apps the subscription allows; null allows every app.
+     *                                      They are licensed, not switched on: the company's administrator
+     *                                      chooses which to run in Business setup.
      * @return array{company:Company,admin:User}
      */
-    public function provision(array $companyData, array $adminData, ?Plan $plan = null, bool $awaitingApproval = false): array
+    public function provision(array $companyData, array $adminData, ?Plan $plan = null, bool $awaitingApproval = false, ?array $modules = null): array
     {
-        return DB::transaction(function () use ($companyData, $adminData, $plan, $awaitingApproval) {
+        return DB::transaction(function () use ($companyData, $adminData, $plan, $awaitingApproval, $modules) {
             $plan ??= Plan::where('is_active', true)->orderBy('sort_order')->first();
 
             $company = Company::create([
@@ -113,12 +118,13 @@ class CompanyProvisioner
                 'address' => $companyData['address'] ?? null,
                 'website' => $companyData['website'] ?? null,
                 'country' => $companyData['country'] ?? 'TZ',
-                'currency' => $companyData['currency'] ?? 'TZS',
+                'currency' => $companyData['currency'] ?? PlatformSettings::currency(),
                 'locale' => $companyData['locale'] ?? 'en',
                 'status' => $awaitingApproval ? Company::STATUS_PENDING : 'trial',
                 // The plan chosen at sign-up is remembered even while pending,
                 // so the client can show it and the approval can start it.
                 'plan_id' => $plan?->id,
+                'licensed_modules' => BusinessConfig::licenceFor($modules),
                 'voucher_footer_text' => 'This voucher is computer generated and valid without a wet stamp.',
             ]);
 
@@ -155,8 +161,8 @@ class CompanyProvisioner
                 $company->id,
             );
 
-            // refresh() so the caller sees the columns the database filled in —
-            // the theme default among them — rather than nulls.
+            // refresh() so the caller sees the columns the database filled in
+            // the theme default among them, rather than nulls.
             return ['company' => $company->fresh(), 'admin' => $admin->refresh()];
         });
     }
@@ -166,7 +172,7 @@ class CompanyProvisioner
      *
      * firstOrCreate, not updateOrCreate, and deliberately so: `next_number` is
      * a live counter. Re-running this over an existing tenant must never reset
-     * it to 1 — the numbers it would then hand out have already been issued,
+     * it to 1, the numbers it would then hand out have already been issued,
      * and the next insert dies on vouchers_company_id_number_unique. Creating
      * the row is idempotent; its sequence is left exactly where it was.
      */

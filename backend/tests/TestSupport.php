@@ -4,12 +4,17 @@ namespace Tests;
 
 use App\Models\Company;
 use App\Models\Department;
+use App\Models\Erp\Product;
+use App\Models\Erp\Supplier;
+use App\Models\Erp\Unit;
+use App\Models\Erp\Warehouse;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherType;
 use App\Services\AmountFormatter;
 use App\Services\CompanyProvisioner;
+use App\Services\Erp\BusinessSetup;
 use App\Services\VoucherNumberGenerator;
 use App\Services\WorkflowEngine;
 use App\Support\TenantContext;
@@ -79,6 +84,45 @@ trait TestSupport
             $employee->update(['department_id' => $department->id]);
 
             return compact('company', 'admin', 'employee', 'hod', 'ceo', 'cashier', 'manager', 'finance', 'department');
+        });
+    }
+
+    /**
+     * Runs the business setup for a tenant and adds the ERP people and things
+     * most tests need: a storekeeper, a warehouse manager, an accountant, two
+     * warehouses, a supplier and a carton product.
+     *
+     * @return array<string, mixed>
+     */
+    protected function setUpErp(array $tenant, string $type = 'wholesale', array $settings = []): array
+    {
+        $company = $tenant['company'];
+
+        app(BusinessSetup::class)->apply($company, $type, null, $settings, $tenant['admin']);
+
+        return app(TenantContext::class)->forCompany($company->fresh(), function () use ($tenant, $company) {
+            $slug = $company->slug;
+            $make = fn (string $key, string $role) => User::create([
+                'company_id' => $company->id, 'name' => ucfirst($key)." {$slug}",
+                'email' => "{$key}@{$slug}.test", 'password' => 'Password123!', 'role' => $role, 'status' => 'active',
+            ]);
+
+            $carton = Unit::where('code', 'CTN')->first() ?? Unit::create(['company_id' => $company->id, 'code' => 'CTN', 'name' => 'Carton']);
+
+            return [
+                ...$tenant,
+                'company' => $company->fresh(),
+                'storekeeper' => $make('storekeeper', User::ROLE_STOREKEEPER),
+                'warehouse_manager' => $make('warehousemgr', User::ROLE_WAREHOUSE_MANAGER),
+                'accountant' => $make('accountant', User::ROLE_ACCOUNTANT),
+                'main' => Warehouse::where('code', 'MAIN')->firstOrFail(),
+                'depot' => Warehouse::create(['company_id' => $company->id, 'code' => 'DEP', 'name' => 'Depot']),
+                'supplier' => Supplier::create(['company_id' => $company->id, 'code' => 'SUP-1', 'name' => 'Kilimo Supplies']),
+                'product' => Product::create([
+                    'company_id' => $company->id, 'sku' => 'WTR-500', 'name' => 'Water 500ml x24',
+                    'unit_id' => $carton->id, 'cost_price' => 6000, 'sale_price' => 9000, 'reorder_level' => 10,
+                ]),
+            ];
         });
     }
 

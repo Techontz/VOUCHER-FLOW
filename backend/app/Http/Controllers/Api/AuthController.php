@@ -17,6 +17,7 @@ use App\Services\Invitations;
 use App\Services\Notifier;
 use App\Services\TwoFactorLogin;
 use App\Services\VoucherTemplateManager;
+use App\Support\Erp\BusinessTemplates;
 use App\Support\TenantContext;
 use App\Support\VoucherTemplates;
 use Illuminate\Http\Request;
@@ -54,12 +55,23 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'max:180'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'plan_code' => ['nullable', 'string', 'exists:plans,code'],
+            'modules' => ['nullable', 'array'],
+            'modules.*' => ['string', 'distinct', Rule::in(array_keys(BusinessTemplates::modules()))],
             'voucher_template' => ['nullable', Rule::in(VoucherTemplates::keys())],
         ]);
 
         $plan = $data['plan_code'] ?? null
             ? Plan::where('code', $data['plan_code'])->first()
             : Plan::where('is_active', true)->where('is_public', true)->orderBy('sort_order')->first();
+
+        // The apps the customer ticked, from those their plan offers; all of
+        // them when none were sent. They are licensed now and switched on
+        // later, in Business setup.
+        $modules = $data['modules'] ?? $plan?->apps();
+
+        if ($plan && $modules !== null) {
+            $plan->assertOffers($modules);
+        }
 
         ['company' => $company, 'admin' => $admin] = $this->provisioner->provision(
             [
@@ -80,6 +92,7 @@ class AuthController extends Controller
             ],
             $plan,
             awaitingApproval: true,
+            modules: $modules,
         );
 
         $this->voucherTemplates->initial($company, $data['voucher_template'] ?? null, $admin, VoucherTemplateChange::SOURCE_REGISTRATION);

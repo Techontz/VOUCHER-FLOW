@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherTemplateChange;
 use App\Models\VoucherType;
+use App\Services\VoucherDocument;
 use App\Support\VoucherTemplates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -16,7 +17,7 @@ use Tests\TestSupport;
 
 /**
  * Voucher designs: chosen at registration, changeable once by the company,
- * changeable any time by the platform — and never allowed to rewrite a
+ * changeable any time by the platform, and never allowed to rewrite a
  * document that has already been issued.
  */
 class VoucherTemplateTest extends TestCase
@@ -316,7 +317,7 @@ class VoucherTemplateTest extends TestCase
     /** Readability is a rule: no design may set anything below 7.5pt. */
     public function test_no_design_uses_type_smaller_than_seven_and_a_half_points(): void
     {
-        $document = app(\App\Services\VoucherDocument::class);
+        $document = app(VoucherDocument::class);
 
         foreach (VoucherTemplates::keys() as $key) {
             $html = $document->renderSample($key, [], 'en', 'pdf');

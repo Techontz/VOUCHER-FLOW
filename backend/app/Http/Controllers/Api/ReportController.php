@@ -142,7 +142,7 @@ class ReportController extends Controller
         ]);
     }
 
-    /** PDF, Excel or CSV — the three export formats offered on the reports screen. */
+    /** PDF, Excel or CSV, the three export formats offered on the reports screen. */
     public function export(Request $request, string $kind)
     {
         abort_unless(in_array($kind, self::KINDS, true), 404, 'Unknown report.');
@@ -237,8 +237,8 @@ class ReportController extends Controller
             $v->number,
             $v->voucher_date?->format('Y-m-d'),
             $v->voucherType?->name,
-            $v->department?->name ?? '—',
-            $v->requester?->name ?? '—',
+            $v->department?->name ?? '-',
+            $v->requester?->name ?? '-',
             $v->payee,
             $v->purpose,
             (float) $v->amount,
@@ -257,7 +257,7 @@ class ReportController extends Controller
     private function expenses(Request $request): array
     {
         // Spend is everything approved, whether or not the cashier has paid it
-        // yet — a voucher must not drop out of the expense report once paid.
+        // yet, a voucher must not drop out of the expense report once paid.
         $vouchers = $this->scopedVouchers($request)
             ->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])
             ->get();
@@ -265,7 +265,7 @@ class ReportController extends Controller
         $rows = $vouchers->groupBy(fn (Voucher $v) => $v->category ?: 'Uncategorised')
             ->map(fn ($group, $category) => [
                 $category,
-                $group->pluck('cost_centre')->filter()->unique()->implode(', ') ?: '—',
+                $group->pluck('cost_centre')->filter()->unique()->implode(', ') ?: '-',
                 $group->count(),
                 (float) $group->sum('amount'),
             ])
@@ -282,8 +282,8 @@ class ReportController extends Controller
 
     /**
      * What the money actually did. Bank and cash are reported side by side
-     * because they reconcile against different things — a statement and a
-     * float — and a single "paid" column hides which is which.
+     * because they reconcile against different things, a statement and a
+     * float, and a single "paid" column hides which is which.
      */
     private function payments(Request $request, ?string $onlyKind = null): array
     {
@@ -297,31 +297,31 @@ class ReportController extends Controller
         $rows = $onlyKind === Voucher::KIND_CASH ? $vouchers->map(fn (Voucher $v) => [
             $v->number,
             $v->voucher_date?->format('Y-m-d'),
-            $v->payment_date?->format('Y-m-d') ?? '—',
+            $v->payment_date?->format('Y-m-d') ?? '-',
             $v->payee,
-            $v->department?->name ?? '—',
-            $v->requester?->name ?? '—',
+            $v->department?->name ?? '-',
+            $v->requester?->name ?? '-',
             (float) $v->amount,
             $v->currency,
             $v->released(),
             $v->balance(),
-            $v->cash_float ?: '—',
-            $v->received_by ?: '—',
-            $v->paidBy?->name ?? '—',
+            $v->cash_float ?: '-',
+            $v->received_by ?: '-',
+            $v->paidBy?->name ?? '-',
             $v->isPaid() ? 'Paid' : ($v->isPartiallyPaid() ? 'Partially paid' : 'Awaiting payment'),
         ])->all() : $vouchers->map(fn (Voucher $v) => [
             $v->number,
             $v->isBank() ? 'Bank' : 'Cash',
-            $v->payment_date?->format('Y-m-d') ?? '—',
+            $v->payment_date?->format('Y-m-d') ?? '-',
             $v->payee,
-            $v->department?->name ?? '—',
+            $v->department?->name ?? '-',
             (float) $v->amount,
             $v->released(),
             $v->balance(),
             $v->currency,
-            $v->payment_method ?: '—',
-            $v->payment_reference ?: ($v->cheque_number ?: '—'),
-            $v->paidBy?->name ?? '—',
+            $v->payment_method ?: '-',
+            $v->payment_reference ?: ($v->cheque_number ?: '-'),
+            $v->paidBy?->name ?? '-',
             $v->isPaid() ? 'Paid' : ($v->isPartiallyPaid() ? 'Partially paid' : 'Awaiting payment'),
         ])->all();
 
@@ -366,8 +366,8 @@ class ReportController extends Controller
 
             return [
                 $d->name,
-                $d->hod?->name ?? '—',
-                $d->manager?->name ?? '—',
+                $d->hod?->name ?? '-',
+                $d->manager?->name ?? '-',
                 $group->count(),
                 (float) $group->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])->sum('amount'),
                 (float) $group->where('status', Voucher::STATUS_IN_REVIEW)->sum('amount'),
@@ -390,9 +390,9 @@ class ReportController extends Controller
             $first = $group->first();
 
             return [
-                $first->requester?->name ?? '—',
-                $first->requester?->employee_code ?? '—',
-                $first->department?->name ?? '—',
+                $first->requester?->name ?? '-',
+                $first->requester?->employee_code ?? '-',
+                $first->department?->name ?? '-',
                 $group->count(),
                 $group->whereIn('status', [Voucher::STATUS_APPROVED, Voucher::STATUS_PAID])->count(),
                 $group->where('status', Voucher::STATUS_REJECTED)->count(),
@@ -421,10 +421,10 @@ class ReportController extends Controller
 
             return [
                 $v->number,
-                $v->requester?->name ?? '—',
+                $v->requester?->name ?? '-',
                 $v->submitted_at?->format('Y-m-d H:i'),
                 $decision?->acted_at?->format('Y-m-d H:i') ?? 'Pending',
-                $decision?->actor_name ?? '—',
+                $decision?->actor_name ?? '-',
                 $this->status->present($v)['label'],
                 $hours !== null ? round($hours / 24, 2) : null,
                 $decision?->comment ?? '',

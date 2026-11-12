@@ -23,7 +23,7 @@ use Illuminate\Validation\Rule;
  * departments, approval route, vouchers and money.
  *
  * Every query runs inside TenantContext::forCompany($company), so the
- * tenant's own global scopes decide what is visible — exactly what the
+ * tenant's own global scopes decide what is visible, exactly what the
  * company's administrator would see, never another company's rows. Nothing
  * here changes data.
  */
@@ -171,7 +171,7 @@ class CompanyInsightController extends Controller
                 ->orderBy('name')
                 ->paginate((int) $request->query('per_page', 25))
                 ->withQueryString()
-        // Serialised inside the tenant scope, not after it has been restored.
+            // Serialised inside the tenant scope, not after it has been restored.
         )->response($request));
     }
 

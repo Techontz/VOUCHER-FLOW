@@ -3,12 +3,22 @@
 namespace Tests\Feature;
 
 use App\Models\AppNotification;
+use App\Models\AuditLog;
+use App\Models\Company;
+use App\Models\Department;
+use App\Models\Invoice;
+use App\Models\Subscription;
+use App\Models\User;
 use App\Models\Voucher;
+use App\Models\VoucherApproval;
 use App\Models\VoucherAttachment;
+use App\Models\VoucherComment;
 use App\Models\VoucherType;
+use App\Models\Workflow;
+use App\Models\WorkflowStep;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -24,7 +34,7 @@ use Tests\TestSupport;
  *
  * and MySQL returns integer columns as strings under emulated prepared
  * statements. Eloquent casts a model's own primary key to int but not a
- * foreign key, so this was "8" === 8 — false — and the author of a brand-new
+ * foreign key, so this was "8" === 8, false, and the author of a brand-new
  * draft was treated as a stranger to it.
  *
  * The behavioural tests below would pass either way on a connection that hands
@@ -102,7 +112,7 @@ class DraftEditabilityTest extends TestCase
             ->assertCreated();
     }
 
-    /** Editability really does end at submission — the rule still bites. */
+    /** Editability really does end at submission, the rule still bites. */
     public function test_attachments_are_refused_once_the_voucher_is_submitted(): void
     {
         $tenant = $this->makeTenant('Acme Trading');
@@ -124,8 +134,8 @@ class DraftEditabilityTest extends TestCase
     /* ───────────────────────── the actual defect: types ────────────────── */
 
     /**
-     * A model hydrated from string attributes — which is what the driver hands
-     * back in production — must still compare as an integer.
+     * A model hydrated from string attributes, which is what the driver hands
+     * back in production, must still compare as an integer.
      */
     public function test_a_foreign_key_hydrated_as_a_string_is_cast_to_an_integer(): void
     {
@@ -149,19 +159,19 @@ class DraftEditabilityTest extends TestCase
     public function test_every_foreign_key_is_cast_to_an_integer(): void
     {
         $models = [
-            \App\Models\Voucher::class, \App\Models\VoucherAttachment::class,
-            \App\Models\VoucherComment::class, \App\Models\VoucherApproval::class,
-            \App\Models\VoucherType::class, \App\Models\AppNotification::class,
-            \App\Models\User::class, \App\Models\Workflow::class,
-            \App\Models\WorkflowStep::class, \App\Models\Department::class,
-            \App\Models\Company::class, \App\Models\Invoice::class,
-            \App\Models\Subscription::class, \App\Models\AuditLog::class,
+            Voucher::class, VoucherAttachment::class,
+            VoucherComment::class, VoucherApproval::class,
+            VoucherType::class, AppNotification::class,
+            User::class, Workflow::class,
+            WorkflowStep::class, Department::class,
+            Company::class, Invoice::class,
+            Subscription::class, AuditLog::class,
         ];
 
         $missing = [];
 
         foreach ($models as $class) {
-            /** @var \Illuminate\Database\Eloquent\Model $model */
+            /** @var Model $model */
             $model = new $class;
             $casts = $model->getCasts();
 

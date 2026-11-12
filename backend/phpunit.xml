@@ -18,6 +18,8 @@
         </include>
     </source>
     <php>
+        <!-- The PDF tests render whole A4 documents; the default 128M is not enough for the full suite. -->
+        <ini name="memory_limit" value="1G"/>
         <env name="APP_ENV" value="testing"/>
         <!-- Demo tenants are opt-in; a developer's .env must not change what the suite sees. -->
         <env name="SEED_DEMO" value="false" force="true"/>

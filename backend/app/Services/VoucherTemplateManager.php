@@ -141,7 +141,7 @@ class VoucherTemplateManager
 
         $this->audit->log(
             'company.voucher_template_changed',
-            $description.($reason ? " — {$reason}" : ''),
+            $description.($reason ? ", {$reason}" : ''),
             $company,
             $previous ? ['voucher_template' => $previous] : null,
             ['voucher_template' => $new, 'source' => $source],

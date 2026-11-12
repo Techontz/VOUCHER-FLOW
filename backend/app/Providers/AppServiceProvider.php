@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\SmsSender;
+use App\Support\Erp\Permissions;
 use App\Support\TenantContext;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
@@ -18,6 +19,9 @@ class AppServiceProvider extends ServiceProvider
         // One tenant per request. The global tenant scope reads this instance,
         // so it must be a singleton for isolation to hold.
         $this->app->singleton(TenantContext::class);
+
+        // Memoises one request's permission lookups; never shared between requests.
+        $this->app->scoped(Permissions::class);
 
         $this->app->singleton(SmsSender::class, fn () => match (config('services.sms.driver', 'log')) {
             'log' => new LogSmsSender(config('services.sms.log_channel')),

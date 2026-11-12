@@ -17,8 +17,11 @@ use App\Services\CompanyBranding;
 use App\Services\CompanyProvisioner;
 use App\Services\Notifier;
 use App\Services\PaymentGateway;
+use App\Services\Platform\SubscriptionAdmin;
 use App\Services\UsageLimits;
 use App\Services\VoucherTemplateManager;
+use App\Support\Erp\BusinessConfig;
+use App\Support\Erp\BusinessTemplates;
 use App\Support\TenantContext;
 use App\Support\VoucherTemplates;
 use Illuminate\Http\Request;
@@ -36,6 +39,7 @@ class CompanyController extends Controller
         private readonly TenantContext $tenant,
         private readonly VoucherTemplateManager $voucherTemplates,
         private readonly Notifier $notifier,
+        private readonly SubscriptionAdmin $subscriptions,
     ) {}
 
     public function index(Request $request)
@@ -45,10 +49,22 @@ class CompanyController extends Controller
             ->withCount(['users', 'vouchers'])
             ->when($request->query('q'), fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
-            ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
+            ->when($request->query('status'), fn ($q, $v) => $v === 'expired'
+                ? $q->where(fn ($w) => $w
+                    ->where(fn ($t) => $t->where('status', 'trial')->where('trial_ends_at', '<', now()))
+                    ->orWhere(fn ($a) => $a->whereIn('status', ['active', 'past_due'])->where('current_period_end', '<', now())))
+                : $q->where('status', $v))
             ->when($request->query('plan_id'), fn ($q, $v) => $q->where('plan_id', $v))
-            ->orderBy('name')
-            ->paginate((int) $request->query('per_page', 25))
+            ->tap(fn ($q) => match ($request->query('sort')) {
+                'newest' => $q->latest('id'),
+                'oldest' => $q->oldest('id'),
+                'users' => $q->orderByDesc('users_count')->orderBy('name'),
+                'vouchers' => $q->orderByDesc('vouchers_count')->orderBy('name'),
+                'renewal' => $q->orderByRaw('coalesce(current_period_end, trial_ends_at) is null')
+                    ->orderByRaw('coalesce(current_period_end, trial_ends_at)'),
+                default => $q->orderBy('name'),
+            })
+            ->paginate(min(500, max(1, (int) $request->query('per_page', 25))))
             ->withQueryString();
 
         return CompanyResource::collection($companies);
@@ -59,7 +75,7 @@ class CompanyController extends Controller
      * default voucher types, a starting workflow and a trial.
      *
      * Accepts multipart so the logo arrives with the details rather than
-     * requiring a second round trip — a company created without its artwork
+     * requiring a second round trip, a company created without its artwork
      * spends its first minutes issuing unbranded vouchers.
      */
     public function store(Request $request)
@@ -86,6 +102,7 @@ class CompanyController extends Controller
             'logo_mark' => ['nullable', ...Company::logoRules()],
 
             'plan_id' => ['nullable', 'integer', Rule::exists('plans', 'id')],
+            ...self::appRules(),
 
             'admin.name' => ['required', 'string', 'max:180'],
             'admin.email' => ['required', 'email', 'max:180', 'unique:users,email'],
@@ -96,6 +113,7 @@ class CompanyController extends Controller
 
         $company = $data['company'];
         $admin = $data['admin'];
+        $plan = isset($data['plan_id']) ? Plan::find($data['plan_id']) : null;
 
         ['company' => $created] = $this->provisioner->provision(
             [
@@ -115,7 +133,9 @@ class CompanyController extends Controller
                 'phone' => $admin['phone'] ?? null,
                 'job_title' => $admin['job_title'] ?? 'Company Administrator',
             ],
-            isset($data['plan_id']) ? Plan::find($data['plan_id']) : null,
+            $plan,
+            // The operator's choice, else what the plan offers.
+            modules: $data['modules'] ?? $plan?->apps(),
         );
 
         // The remaining profile fields, and the brand, in the tenant's own row.
@@ -217,6 +237,10 @@ class CompanyController extends Controller
 
         // Every read of this tenant's data happens inside its own scope.
         $detail = $this->tenant->forCompany($company, fn () => [
+            'modules' => BusinessConfig::of($company)->modules(),
+            'licensed_modules' => BusinessConfig::of($company)->licensedModules(),
+            'module_catalogue' => collect(BusinessTemplates::modules())
+                ->map(fn (array $m, string $key) => ['key' => $key, ...$m])->values(),
             'usage' => $this->limits->snapshot($company),
             'subscription' => $company->activeSubscription()
                 ? new SubscriptionResource($company->activeSubscription()->load('plan'))
@@ -302,7 +326,14 @@ class CompanyController extends Controller
             'Only a company awaiting approval can be approved.',
         );
 
+        $data = $request->validate(self::appRules());
         $before = $company->only(['status']);
+
+        // The operator may confirm or trim the apps chosen at registration
+        // before the trial starts, since the trial is priced on them.
+        if (array_key_exists('modules', $data) && $data['modules'] !== null) {
+            $this->license($company, $data['modules']);
+        }
 
         $this->tenant->forCompany($company, fn () => $this->payments->approve($company));
 
@@ -342,24 +373,108 @@ class CompanyController extends Controller
         return response()->json(['message' => "Company {$name} deleted."]);
     }
 
+    /**
+     * Sets the apps a company's subscription allows. Payment vouchers are the
+     * product itself and stay whatever is sent.
+     *
+     * What the company has switched on follows: an app no longer licensed is
+     * switched off, and an app just licensed is switched on straight away, so
+     * granting an app needs no second step by the company.
+     */
+    public function modules(Request $request, Company $company)
+    {
+        $data = $request->validate([
+            'modules' => ['present', 'array'],
+            'modules.*' => ['string', 'distinct', Rule::in(array_keys(BusinessTemplates::modules()))],
+        ]);
+
+        $this->license($company, $data['modules']);
+
+        return response()->json([
+            'message' => "{$company->name}'s apps were updated.",
+            'modules' => BusinessConfig::of($company->fresh())->modules(),
+            'licensed_modules' => BusinessConfig::of($company->fresh())->licensedModules(),
+        ]);
+    }
+
+    /** Gives a company more time on its trial or its paid period. */
+    public function extend(Request $request, Company $company)
+    {
+        $current = $company->status === 'trial' ? $company->trial_ends_at : $company->current_period_end;
+        $until = SubscriptionController::until($request, $current);
+
+        $updated = $this->subscriptions->extend($company, $until);
+
+        return (new CompanyResource($updated->load('plan')))->additional([
+            'message' => "{$company->name} now runs until {$until->toFormattedDateString()}.",
+        ]);
+    }
+
     /** Moves a tenant onto another plan without taking payment. */
     public function changePlan(Request $request, Company $company)
     {
         $data = $request->validate([
             'plan_id' => ['required', 'integer', Rule::exists('plans', 'id')],
             'billing_cycle' => ['nullable', Rule::in(['monthly', 'annual'])],
+            ...self::appRules(),
         ]);
 
         $plan = Plan::findOrFail($data['plan_id']);
+        $before = ['plan' => $company->plan?->name];
 
         $subscription = $this->tenant->forCompany(
             $company,
-            fn () => $this->payments->subscribe($company, $plan, $data['billing_cycle'] ?? $plan->billing_cycle),
+            fn () => $this->payments->subscribe($company, $plan, $data['billing_cycle'] ?? $plan->billing_cycle, $data['modules'] ?? null),
         );
+
+        $this->audit->log('platform.company_plan_changed', "Moved {$company->name} to the {$plan->name} plan", $company,
+            $before, ['plan' => $plan->name], $company->id);
 
         return response()->json([
             'message' => "{$company->name} moved to the {$plan->name} plan.",
             'subscription' => new SubscriptionResource($subscription->load('plan')),
         ]);
+    }
+
+    /** @return array<string, list<mixed>> */
+    private static function appRules(): array
+    {
+        return [
+            'modules' => ['nullable', 'array'],
+            'modules.*' => ['string', 'distinct', Rule::in(array_keys(BusinessTemplates::modules()))],
+        ];
+    }
+
+    /**
+     * Licenses exactly these apps (VouchFlow always) and brings the switched
+     * on apps in line: enabled = licensed and (enabled or newly licensed).
+     *
+     * @param  list<string>  $apps
+     */
+    private function license(Company $company, array $apps): void
+    {
+        $config = BusinessConfig::of($company);
+        $before = $config->licensedModules();
+        $enabledBefore = $config->enabledModules();
+
+        $licence = BusinessConfig::licenceFor($apps);
+        $after = $licence ?? array_keys(BusinessTemplates::modules());
+
+        $added = array_values(array_diff($after, $before));
+        $removed = array_values(array_diff($before, $after));
+        $enabled = array_values(array_intersect(array_unique([...$enabledBefore, ...$added]), $after));
+
+        $company->forceFill(['licensed_modules' => $licence, 'modules' => $enabled])->save();
+
+        $this->audit->log(
+            'platform.company_modules_updated',
+            "Updated the apps in {$company->name}'s subscription"
+                .($added ? ', added: '.implode(', ', $added) : '')
+                .($removed ? ', removed: '.implode(', ', $removed) : ''),
+            $company,
+            ['licensed_modules' => $before, 'modules' => $enabledBefore],
+            ['licensed_modules' => $after, 'modules' => $enabled],
+            $company->id,
+        );
     }
 }

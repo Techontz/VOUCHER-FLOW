@@ -1,5 +1,5 @@
 {{--
-  06 · Detailed Business — everything on record, nothing crowded.
+  06 · Detailed Business, everything on record, nothing crowded.
 
   For companies that need a lot of information on the voucher. A letterhead
   with a boxed identity panel on the right (document title bar, voucher no.,
@@ -7,15 +7,15 @@
   full-width header bar in the secondary colour with the number in a
   primary-colour cell:
 
-    1 Request      — requested by, job title, department, cost centre, date,
+    1 Request      - requested by, job title, department, cost centre, date,
                      category, status, bank/cash kind (two pairs per row)
-    2 Expense      — payee, purpose, description, then a particulars table
+    2 Expense      - payee, purpose, description, then a particulars table
                      (# | particulars | reference | amount) with the total and
                      the amount in words, then remarks
-    3 Payment      — every payment particular as a two-pairs-per-row table,
+    3 Payment      - every payment particular as a two-pairs-per-row table,
                      then the account it is drawn on
-    4 Supporting documents — a numbered list
-    5 Authorisation — one table row per signatory: caption · role | name |
+    4 Supporting documents, a numbered list
+    5 Authorisation, one table row per signatory: caption · role | name |
                      date | signature + stamp; pending rows read "Awaiting …"
 
   Footer: footer text and verification code, status and generated time, and
@@ -111,8 +111,8 @@
     <table class="bar"><tr><td class="num">1</td><td>{{ $t['requestDetails'] }}</td></tr></table>
     <table class="grid">
         <tr class="last">
-            <td style="width: 24%;"><div class="t-label">{{ $t['requestedBy'] }}</div><div class="gv b" style="font-size: 10.5pt;">{{ $v['requester'] }}</div><div class="t-meta">{{ $v['requester_title'] ?: '—' }}</div></td>
-            <td style="width: 24%;"><div class="t-label">{{ $t['department'] }}</div><div class="gv b">{{ $v['department'] }}</div><div class="t-meta">{{ $t['costCentre'] }}: {{ $v['cost_centre'] ?: '—' }}</div></td>
+            <td style="width: 24%;"><div class="t-label">{{ $t['requestedBy'] }}</div><div class="gv b" style="font-size: 10.5pt;">{{ $v['requester'] }}</div><div class="t-meta">{{ $v['requester_title'] ?: '-' }}</div></td>
+            <td style="width: 24%;"><div class="t-label">{{ $t['department'] }}</div><div class="gv b">{{ $v['department'] }}</div><div class="t-meta">{{ $t['costCentre'] }}: {{ $v['cost_centre'] ?: '-' }}</div></td>
             <td style="width: 17%;"><div class="t-label">{{ $t['date'] }}</div><div class="gv">{{ $v['date'] }}</div></td>
             <td style="width: 19%;"><div class="t-label">{{ $t['category'] }}</div><div class="gv">{{ $v['category'] }}</div></td>
             <td class="end"><div class="t-label">{{ $t['status'] }}</div><div class="gv b" style="color: {{ $b['ink'] }};">{{ $v['status_label'] }}</div></td>
@@ -126,7 +126,7 @@
     <table class="kv">
         <tr class="last">
             <td class="l t-label">{{ $t['payee'] }}</td><td class="v v2 b" style="font-size: 10.5pt;">{{ $v['payee'] }}</td>
-            <td class="l t-label">{{ $t['remarks'] }}</td><td class="v">{{ $v['remarks'] ?: '—' }}</td>
+            <td class="l t-label">{{ $t['remarks'] }}</td><td class="v">{{ $v['remarks'] ?: '-' }}</td>
         </tr>
     </table>
     <table class="items">
@@ -139,12 +139,12 @@
             <td class="b">1</td>
             <td colspan="2">
                 <div class="b">{{ $v['purpose'] ?: $v['category'] }}</div>
-                <div style="font-size: 9.5pt; margin-top: 1pt;">{{ $v['description'] ?: '—' }}</div>
+                <div style="font-size: 9.5pt; margin-top: 1pt;">{{ $v['description'] ?: '-' }}</div>
             </td>
             <td class="r nowrap">
                 <div class="b" style="font-size: 10.5pt;">{{ $v['amount'] }}</div>
                 <div class="t-meta" style="margin-top: 2pt;">{{ $t['reference'] }}</div>
-                <div class="b" style="font-size: 9.5pt;">{{ $v['reference'] ?: '—' }}</div>
+                <div class="b" style="font-size: 9.5pt;">{{ $v['reference'] ?: '-' }}</div>
             </td>
         </tr>
         <tr class="total">
@@ -217,14 +217,14 @@
                     @if ($s['name'])
                         <span class="b" style="font-size: 10pt;">{{ $s['name'] }}</span>
                     @else
-                        <span class="t-meta">—</span>
+                        <span class="t-meta">-</span>
                     @endif
                 </td>
                 <td style="{{ $edge }} width: 19%;">
                     @if ($s['date'])
                         <span class="nowrap" style="font-size: 9.5pt;">{{ $s['date'] }}</span>
                     @else
-                        <span class="t-meta">—</span>
+                        <span class="t-meta">-</span>
                     @endif
                 </td>
                 <td style="{{ $edge }} padding-top: 2pt; padding-bottom: 2pt;">

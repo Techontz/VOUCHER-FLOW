@@ -4,42 +4,72 @@ namespace App\Http\Controllers\Api\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Models\Company;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\Invitations;
+use App\Support\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 /** Every user on the platform, across all tenants. */
 class UserController extends Controller
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly Invitations $invitations,
+        private readonly TenantContext $tenant,
+    ) {}
 
     public function index(Request $request)
     {
         $users = User::query()
             ->with(['company', 'department'])
-            ->when($request->query('company_id'), fn ($q, $v) => $q->where('company_id', $v))
+            ->when($request->query('company_id'), fn ($q, $v) => $v === 'platform'
+                ? $q->whereNull('company_id')
+                : $q->where('company_id', $v))
             ->when($request->query('role'), fn ($q, $v) => $q->where('role', $v))
             ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->query('q'), fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
-            ->orderBy('name')
+            ->when($request->query('sort') === 'recent', fn ($q) => $q->latest('id'), fn ($q) => $q->orderBy('name'))
             ->paginate((int) $request->query('per_page', 25))
             ->withQueryString();
 
         return UserResource::collection($users);
     }
 
+    /**
+     * Changes an account's status or role.
+     *
+     * Never the caller's own account, never the platform's last active
+     * operator, and never a company's last active administrator. A company
+     * user's role comes from that company's vocabulary (built-in roles plus
+     * its own); a platform operator has no company and keeps their role.
+     */
     public function update(Request $request, User $user)
     {
         $data = $request->validate([
-            'status' => ['sometimes', Rule::in(['active', 'invited', 'suspended'])],
-            'role' => ['sometimes', Rule::in(User::ALL_ROLES)],
+            'status' => ['sometimes', Rule::in(['active', 'suspended'])],
+            'role' => ['sometimes', 'string', 'max:60'],
         ]);
 
+        $actor = $request->user();
+        abort_if($user->id === $actor->id, 422, 'You cannot change your own account here.');
+
+        if (array_key_exists('role', $data) && $data['role'] !== $user->role) {
+            $this->assertRoleChange($user, $data['role']);
+        }
+
+        if (($data['status'] ?? null) === 'suspended' && $user->status !== 'suspended') {
+            $reason = $this->suspendReason($user, [$user->id]);
+            abort_if($reason !== null, 422, $reason ?? '');
+        }
+
         $before = $user->only(['role', 'status']);
-        $user->update($data);
+        $user->forceFill($data)->save();
 
         if (($data['status'] ?? null) === 'suspended') {
             $user->tokens()->delete();
@@ -48,6 +78,149 @@ class UserController extends Controller
         $this->audit->log('platform.user_updated', "Updated {$user->name}", $user, $before, $user->only(['role', 'status']), $user->company_id);
 
         return new UserResource($user->fresh()->load(['company', 'department']));
+    }
+
+    /** Suspends or reactivates several accounts; any that must stay as they are are named with the reason. */
+    public function bulkStatus(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer'],
+            'status' => ['required', Rule::in(['active', 'suspended'])],
+        ]);
+
+        $actor = $request->user();
+        $users = User::with('company')->whereIn('id', $data['ids'])->get();
+        $changing = $users->pluck('id')->all();
+        $done = 0;
+        $skipped = [];
+
+        foreach ($users as $user) {
+            $reason = match (true) {
+                $user->id === $actor->id => 'You cannot change your own account here.',
+                $user->status === $data['status'] => null,
+                $data['status'] === 'suspended' => $this->suspendReason($user, $changing),
+                default => null,
+            };
+
+            if ($reason) {
+                $skipped[] = ['id' => $user->id, 'name' => $user->name, 'reason' => $reason];
+
+                continue;
+            }
+
+            if ($user->status === $data['status']) {
+                continue;
+            }
+
+            $before = $user->only(['status']);
+            $user->forceFill(['status' => $data['status']])->save();
+
+            if ($data['status'] === 'suspended') {
+                $user->tokens()->delete();
+            }
+
+            $this->audit->log('platform.user_updated', "Updated {$user->name}", $user, $before, $user->only(['status']), $user->company_id);
+            $done++;
+        }
+
+        $verb = $data['status'] === 'suspended' ? 'suspended' : 'activated';
+
+        return response()->json([
+            'updated' => $done,
+            'skipped' => $skipped,
+            'message' => $done === 1 ? "1 user {$verb}." : "{$done} users {$verb}.",
+        ]);
+    }
+
+    /**
+     * Sends a fresh link to choose a password: the invitation for someone who
+     * never signed in, a reset for anyone else. The same link either way; the
+     * operator is handed it too, in case the email does not arrive.
+     */
+    public function invite(Request $request, User $user)
+    {
+        abort_if($user->id === $request->user()->id, 422, 'Change your own password from your profile.');
+        abort_if($user->status === 'suspended', 422, 'Activate this person before sending them a link.');
+        abort_if(! $user->company_id || ! $user->company, 422,
+            'Platform operators reset their password from the sign-in page with "Forgot password".');
+
+        if (! $user->last_login_at) {
+            $user->forceFill(['status' => 'invited'])->save();
+        }
+
+        $invitation = $this->invitations->issue($user, $request->user());
+
+        $this->audit->log('platform.user_invited', "Sent {$user->name} a link to set a password", $user, null, null, $user->company_id);
+
+        return response()->json($invitation + [
+            'message' => $invitation['invitation_sent']
+                ? "A link to set a password is on its way to {$user->email}."
+                : 'The email could not be sent. Share the link instead.',
+        ]);
+    }
+
+    /** The roles an account may be given, for the change-role menu. */
+    public function roles(Request $request)
+    {
+        $companyId = $request->integer('company_id') ?: null;
+        $company = $companyId ? Company::find($companyId) : null;
+
+        $roles = $company
+            ? $this->tenant->forCompany($company, fn () => User::assignableRoles())
+            : User::ASSIGNABLE_ROLES;
+
+        return response()->json([
+            'data' => collect($roles)->map(fn (string $r) => ['key' => $r, 'label' => User::roleLabel($r)])->values(),
+        ]);
+    }
+
+    private function assertRoleChange(User $user, string $role): void
+    {
+        if ($user->isSuperAdmin() || ! $user->company_id) {
+            throw new RuntimeException('A platform operator has no company, so their role cannot be changed.');
+        }
+
+        if ($role === User::ROLE_SUPER_ADMIN) {
+            throw new RuntimeException('Platform access cannot be granted to a company account.');
+        }
+
+        $company = $user->company;
+        $allowed = $company
+            ? $this->tenant->forCompany($company, fn () => User::assignableRoles())
+            : User::ASSIGNABLE_ROLES;
+
+        if (! in_array($role, $allowed, true)) {
+            throw new RuntimeException("{$role} is not a role this company uses.");
+        }
+
+        if ($user->isCompanyAdmin() && $this->otherActiveAdmins($user, [$user->id]) === 0) {
+            throw new RuntimeException(($company?->name ?? 'This company').' must keep at least one active administrator.');
+        }
+    }
+
+    /** @param  array<int, int>  $changing */
+    private function suspendReason(User $user, array $changing): ?string
+    {
+        if ($user->isSuperAdmin()) {
+            $others = User::where('role', User::ROLE_SUPER_ADMIN)->where('status', 'active')
+                ->whereNotIn('id', $changing)->count();
+
+            return $others === 0 ? 'The platform must keep at least one active operator.' : null;
+        }
+
+        if ($user->isCompanyAdmin() && $user->company && $this->otherActiveAdmins($user, $changing) === 0) {
+            return "{$user->company->name} must keep at least one active administrator.";
+        }
+
+        return null;
+    }
+
+    /** @param  array<int, int>  $excluding */
+    private function otherActiveAdmins(User $user, array $excluding): int
+    {
+        return User::forTenant($user->company_id)->where('role', User::ROLE_COMPANY_ADMIN)
+            ->where('status', 'active')->whereNotIn('id', $excluding)->count();
     }
 
     public function destroy(Request $request, User $user)

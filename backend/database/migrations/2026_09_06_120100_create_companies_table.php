@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('locale', 5)->default('en');
             $table->string('timezone')->default('Africa/Dar_es_Salaam');
 
-            // Branding — applied to the interface and to every generated voucher.
+            // Branding, applied to the interface and to every generated voucher.
             $table->string('logo_path')->nullable();
             $table->string('primary_color', 9)->default('#0088b0');
             $table->string('accent_color', 9)->default('#d6006c');

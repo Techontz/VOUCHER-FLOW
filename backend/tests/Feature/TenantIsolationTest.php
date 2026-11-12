@@ -101,7 +101,7 @@ class TenantIsolationTest extends TestCase
             fn () => $foreign->forceFill(['status' => Voucher::STATUS_APPROVED, 'approved_at' => now()])->save(),
         );
 
-        // Acme's cashier holds the pay capability — in Acme, and only there.
+        // Acme's cashier holds the pay capability, in Acme, and only there.
         $this->actingAs($acme['cashier'], 'sanctum')
             ->postJson("/api/vouchers/{$foreign->id}/pay", ['payment_reference' => 'TRX-THEFT'])
             ->assertNotFound();
@@ -136,7 +136,7 @@ class TenantIsolationTest extends TestCase
         $acme = $this->makeTenant('Acme Trading');
         $this->makeVoucher($acme);
 
-        // No tenant, no platform flag — the scope must match nothing at all.
+        // No tenant, no platform flag, the scope must match nothing at all.
         app(TenantContext::class)->clear();
 
         $this->assertSame(0, Voucher::count());

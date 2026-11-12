@@ -32,7 +32,7 @@ class Company extends Model
      * settings) and three copies of the field list is three chances to accept a
      * field in one and silently drop it in another.
      *
-     * Logos are excluded deliberately — a file is not a text field and goes
+     * Logos are excluded deliberately, a file is not a text field and goes
      * through its own validated upload path.
      */
     public const PROFILE_RULES = [
@@ -133,7 +133,7 @@ class Company extends Model
      * A public URL for a stored logo, or null.
      *
      * Kept on the model so the API resource, the PDF service and any future
-     * consumer resolve a path the same way — and so a tenant that has never
+     * consumer resolve a path the same way, and so a tenant that has never
      * uploaded anything returns null rather than a broken URL.
      */
     public function logoUrl(): ?string
@@ -161,8 +161,11 @@ class Company extends Model
         // A tenant may have been seeded with a path whose file was never
         // published; a missing file should read as "no logo", not as a 404 on
         // every page that renders the letterhead.
+        // Built from the host that served this request rather than APP_URL, so
+        // a logo still loads when the API runs on another port or domain than
+        // the one configured. Outside a request it falls back to APP_URL.
         return Storage::disk('public')->exists($path)
-            ? Storage::disk('public')->url($path)
+            ? asset('storage/'.ltrim($path, '/'))
             : null;
     }
 
@@ -188,10 +191,14 @@ class Company extends Model
             /*
              * Integer columns are cast because they are compared with === in
              * PHP. MySQL returns them as strings under emulated prepared
-             * statements, where "8" === 8 is false — which silently turned an
+             * statements, where "8" === 8 is false, which silently turned an
              * owner into a stranger and a matching id into a mismatch.
              */
             'plan_id' => 'integer',
+            'modules' => 'array',
+            'licensed_modules' => 'array',
+            'erp_settings' => 'array',
+            'setup_completed_at' => 'datetime',
             'trial_ends_at' => 'datetime',
             'subscribed_at' => 'datetime',
             'current_period_start' => 'datetime',

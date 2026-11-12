@@ -10,8 +10,8 @@ use Illuminate\Support\Str;
 /**
  * Stores and removes a company's artwork.
  *
- * One path for every caller — a tenant editing its own branding, a super admin
- * setting up someone else's, and the demo seeder — because a logo that lands in
+ * One path for every caller, a tenant editing its own branding, a super admin
+ * setting up someone else's, and the demo seeder, because a logo that lands in
  * a different place depending on who uploaded it is a logo that will eventually
  * fail to render for somebody.
  *
@@ -73,7 +73,7 @@ class CompanyBranding
     }
 
     /**
-     * Publishes artwork that is already on disk — the demo seeder's path.
+     * Publishes artwork that is already on disk, the demo seeder's path.
      * Same destination and same columns as an upload, so seeded branding and
      * uploaded branding are indistinguishable afterwards.
      */

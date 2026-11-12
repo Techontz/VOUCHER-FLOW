@@ -3,11 +3,12 @@
 namespace App\Support;
 
 use App\Models\Company;
+use App\Scopes\TenantScope;
 
 /**
  * Holds the tenant the current request is operating inside.
  *
- * Every tenant-owned model applies {@see \App\Scopes\TenantScope}, which reads
+ * Every tenant-owned model applies {@see TenantScope}, which reads
  * this object. The scope fails closed: unless a tenant has been resolved, or the
  * request has been explicitly marked as platform-level (super admin), no rows are
  * returned at all. Isolation therefore does not depend on any controller
@@ -58,7 +59,7 @@ class TenantContext
         return $this->company !== null;
     }
 
-    /** Runs a callback with the tenant scope lifted — for seeding and console work. */
+    /** Runs a callback with the tenant scope lifted, for seeding and console work. */
     public function withoutScope(callable $callback): mixed
     {
         $company = $this->company;

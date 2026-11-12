@@ -4,7 +4,7 @@
   One HTML document serves two renderers. DomPDF ($doc['mode'] === 'pdf') gets
   A4 page margins from @page; the browser ('html') gets the same margins as
   padding on a 210mm sheet, so the on-screen document is the printed one.
-  DomPDF has no flexbox or grid — templates lay out with tables only.
+  DomPDF has no flexbox or grid, templates lay out with tables only.
 
   The paper is always white and ink-on-paper whatever the interface theme:
   this is a financial document. Brand colour comes only from $doc['brand'].

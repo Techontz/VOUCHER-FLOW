@@ -94,7 +94,7 @@ class VoucherDocumentController extends Controller
 
         $voucher = (new Voucher)->forceFill([
             'company_id' => $company->id,
-            'number' => $data['number'] ?? '—',
+            'number' => $data['number'] ?? '-',
             'status' => Voucher::STATUS_DRAFT,
             'kind' => $data['kind'] ?? Voucher::KIND_BANK,
             'payee' => $data['payee'] ?? null,

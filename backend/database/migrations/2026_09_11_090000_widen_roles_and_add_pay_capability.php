@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Schema;
  *    is where a company-specific list can eventually be read from.
  *
  * 2. A workflow step could be told to sign, approve, reject, request changes,
- *    print and download — but not to pay. Releasing money was inferred from the
+ *    print and download, but not to pay. Releasing money was inferred from the
  *    role instead, which is the one capability a company cannot reassign. It
  *    joins the others as a flag.
  */

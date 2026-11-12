@@ -154,7 +154,7 @@ class VoucherTemplateController extends Controller
 
         $this->audit->log(
             'company.voucher_template_change_requested',
-            "Requested a voucher template change from {$current} to {$wanted} — {$data['reason']}",
+            "Requested a voucher template change from {$current} to {$wanted}, {$data['reason']}",
             $company,
             null,
             ['requested_template' => $data['template']],

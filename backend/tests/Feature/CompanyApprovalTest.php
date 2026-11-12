@@ -20,7 +20,7 @@ use Tests\TestSupport;
 
 /**
  * A company that registers itself waits for the platform's approval before it
- * can use the product, and pays — if it wants to — while it waits.
+ * can use the product, and pays, if it wants to, while it waits.
  */
 class CompanyApprovalTest extends TestCase
 {

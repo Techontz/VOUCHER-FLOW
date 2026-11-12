@@ -1,5 +1,5 @@
 {{--
-  10 · Enterprise — the corporate system document.
+  10 · Enterprise, the corporate system document.
 
   Section order:
     1. Full-width header band in the secondary colour: logo on a white tile,
@@ -7,11 +7,11 @@
        number on the right. A primary-colour accent rule closes the band.
     2. Reference strip of five cells: voucher no · date · department (+ cost
        centre) · voucher type · status.
-    3. 01 Request — payee, purpose, description | requested by, category,
+    3. 01 Request, payee, purpose, description | requested by, category,
        reference, remarks; supporting documents run across beneath.
-    4. 02 Finance — amount block (total + words) | payment particulars grid
+    4. 02 Finance, amount block (total + words) | payment particulars grid
        (every particulars row, two to a line) | drawn-on account + method panel.
-    5. 03 Approval workflow — a vertical numbered timeline: circles joined by a
+    5. 03 Approval workflow, a vertical numbered timeline: circles joined by a
        line, each step with caption · role, name, date, stamp and a signature
        thumbnail. Steps still to come are hollow and grey, "Awaiting …".
     6. Three-column footer: company | footer text | QR, verification code,
@@ -105,17 +105,17 @@
             <div class="t-label">{{ $t['payee'] }}</div>
             <div style="font-size: 13pt; font-weight: bold; line-height: 1.3;">{{ $v['payee'] }}</div>
             <div class="t-label" style="margin-top: 5pt;">{{ $t['purpose'] }}</div>
-            <div class="t-value" style="line-height: 1.3;">{{ $v['purpose'] ?: '—' }}</div>
+            <div class="t-value" style="line-height: 1.3;">{{ $v['purpose'] ?: '-' }}</div>
             @if ($v['description'])<div style="margin-top: 1pt; color: #273246;">{{ $v['description'] }}</div>@endif
             <div style="margin-top: 5pt; border-left: 2.5pt solid {{ $b['primary'] }}; padding: 0 0 0 7pt;">
-                <span class="t-label">{{ $t['remarks'] }}</span>&nbsp; {{ $v['remarks'] ?: '—' }}
+                <span class="t-label">{{ $t['remarks'] }}</span>&nbsp; {{ $v['remarks'] ?: '-' }}
             </div>
         </td>
         <td style="width: 41%;">
             <table class="kv">
                 <tr><td class="t-label" style="width: 36%;">{{ $t['requestedBy'] }}</td><td><span class="b">{{ $v['requester'] }}</span>@if ($v['requester_title'])<div class="t-meta">{{ $v['requester_title'] }}</div>@endif</td></tr>
                 <tr><td class="t-label">{{ $t['category'] }}</td><td>{{ $v['category'] }}</td></tr>
-                <tr><td class="t-label">{{ $t['reference'] }}</td><td>{{ $v['reference'] ?: '—' }}</td></tr>
+                <tr><td class="t-label">{{ $t['reference'] }}</td><td>{{ $v['reference'] ?: '-' }}</td></tr>
                 <tr><td class="t-label" style="border-bottom: 0;">{{ $t['attachments'] }}</td><td style="border-bottom: 0;">@include('vouchers.parts.attachments', ['itemStyle' => 'font-size: 9.5pt; line-height: 1.3;'])</td></tr>
             </table>
         </td>
@@ -146,7 +146,7 @@
                     <div class="t-label">{{ $t['drawnOn'] }}</div>
                     <div class="b" style="line-height: 1.3;">{{ $bank['name'] }}</div>
                     @if ($bank['account_name'])<div class="t-meta">{{ $bank['account_name'] }}</div>@endif
-                    <div class="t-meta">{{ $bank['account_number'] ?: '—' }}@if ($bank['branch']) · {{ $bank['branch'] }}@endif</div>
+                    <div class="t-meta">{{ $bank['account_number'] ?: '-' }}@if ($bank['branch']) · {{ $bank['branch'] }}@endif</div>
                 </div>
             </td>
         @endif
@@ -174,7 +174,7 @@
     @endforeach
 </table>
 
-{{-- 03 · Approval workflow — kept whole on one page --}}
+{{-- 03 · Approval workflow, kept whole on one page --}}
 <div style="page-break-inside: avoid;">
 <div class="sec" style="margin-top: 7pt; margin-bottom: 1pt;"><span class="sec-n">03</span><span class="sec-t">{{ $t['approvalTrail'] }}</span></div>
 <table class="tl" style="page-break-inside: avoid;">
@@ -203,7 +203,7 @@
             </td>
             <td style="padding: {{ $top }}pt 8pt 0 6pt; width: 37%; {{ $sep }}">
                 <div class="t-label" style="color: {{ $capColor }};">{{ $s['caption'] }} · {{ $s['role'] }}</div>
-                <div style="font-size: 10.5pt; font-weight: bold; line-height: 1.3; {{ $pending ? 'color: '.$soft.';' : '' }}">{{ $s['name'] ?: '—' }}</div>
+                <div style="font-size: 10.5pt; font-weight: bold; line-height: 1.3; {{ $pending ? 'color: '.$soft.';' : '' }}">{{ $s['name'] ?: '-' }}</div>
             </td>
             <td style="padding: {{ $top }}pt 8pt 0 0; width: 23%; {{ $sep }}">
                 <div class="t-label" style="{{ $pending ? 'color: '.$soft.';' : '' }}">{{ $t['date'] }}</div>
@@ -242,7 +242,7 @@
                     <td style="width: {{ $qrW }}pt; padding-right: 7pt;">@include('vouchers.parts.qr', ['cell' => $qrCell, 'frameStyle' => 'border: .6pt solid '.$rule.';'])</td>
                     <td class="foot" style="vertical-align: middle;">
                         <div class="t-label">{{ $t['scanToVerify'] }}</div>
-                        <div class="b" style="font-size: 10.5pt; color: {{ $b['ink'] }}; letter-spacing: .04em;">{{ $v['verification_code'] ?: '—' }}</div>
+                        <div class="b" style="font-size: 10.5pt; color: {{ $b['ink'] }}; letter-spacing: .04em;">{{ $v['verification_code'] ?: '-' }}</div>
                         <div style="margin-top: 1pt;">{{ $t['status'] }}: <span class="b" style="color: {{ $ink }};">{{ $v['status_label'] }}</span></div>
                         <div class="nowrap">{{ $t['generated'] }} {{ $doc['generated_at'] }}</div>
                     </td>

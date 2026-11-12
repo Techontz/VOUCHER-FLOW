@@ -66,7 +66,7 @@ class WorkflowEngine
      * The approval chain: everything between the request and the money.
      *
      * A pay-only step is deliberately not in here. Advancing into it would park
-     * the voucher in "under review" when the reviewing is finished — what is
+     * the voucher in "under review" when the reviewing is finished, what is
      * actually outstanding at that point is a payment, and the status should say
      * so. Approval completes the chain; `pay()` acts on the approved voucher.
      */
@@ -98,8 +98,8 @@ class WorkflowEngine
      * The people who may act at a step, resolved against this voucher.
      *
      * A named person, a department head or a department manager who is no
-     * longer active resolves to nobody — a suspended account must not keep
-     * approving — and the company admin's override then applies.
+     * longer active resolves to nobody, a suspended account must not keep
+     * approving, and the company admin's override then applies.
      */
     public function assigneesFor(Voucher $voucher, WorkflowStep $step): Collection
     {
@@ -130,7 +130,7 @@ class WorkflowEngine
             }
         }
 
-        // Fall back to everyone in the tenant holding the step's role — except
+        // Fall back to everyone in the tenant holding the step's role, except
         // for department-bound roles: an HOD or manager step belongs to the
         // voucher's own department and never passes to another department's
         // head. With nobody there, the company admin acts as the override.
@@ -163,7 +163,7 @@ class WorkflowEngine
     /* ---------------------------------------------------------------- actions */
 
     /**
-     * What this user may do with this voucher right now — the single source the
+     * What this user may do with this voucher right now, the single source the
      * API, the web UI and the mobile app all read.
      */
     public function availableActions(User $user, Voucher $voucher): array
@@ -197,8 +197,8 @@ class WorkflowEngine
 
         // Once a voucher is out of review it is a record, and anyone entitled to
         // see it may take a copy. Note this is deliberately NOT isTerminal():
-        // an approved voucher is not terminal any more — it is waiting to be
-        // paid — and the cashier about to pay it has to be able to print it.
+        // an approved voucher is not terminal any more, it is waiting to be
+        // paid, and the cashier about to pay it has to be able to print it.
         $settled = in_array($voucher->status, [
             Voucher::STATUS_APPROVED, Voucher::STATUS_PAID,
             Voucher::STATUS_REJECTED, Voucher::STATUS_CANCELLED,
@@ -217,7 +217,7 @@ class WorkflowEngine
             $actions['cancel'] = true;
         }
 
-        // Documents may still arrive once the money is released — a supplier's
+        // Documents may still arrive once the money is released, a supplier's
         // receipt usually comes after payment. So an approved or paid voucher
         // stays open for attachments from its requester, whoever pays (or paid)
         // it and the company admin, even though its details are locked.
@@ -266,7 +266,7 @@ class WorkflowEngine
      *
      * Read from the step's flag rather than from the user's job title: a tenant
      * that calls the role "Treasury" and one that calls it "Cashier" are both
-     * answered by the same question — does their step carry `can_pay`.
+     * answered by the same question, does their step carry `can_pay`.
      */
     public function canPay(User $user, Voucher $voucher): bool
     {
@@ -289,7 +289,7 @@ class WorkflowEngine
      * voucher leaves the cashier's queue for the reports.
      */
     /**
-     * Releases money against an approved voucher — all of it, or part of it.
+     * Releases money against an approved voucher, all of it, or part of it.
      *
      * Each release is its own VoucherPayment with its receiver, reference and
      * the balance left after it, so a voucher approved for 10,000,000 can be
@@ -336,9 +336,13 @@ class WorkflowEngine
                 'paid_at' => now(),
             ]);
 
+            // A voucher raised from the books posts its release to them, in
+            // this same transaction: a payment the ledger refuses is not paid.
+            app(Erp\VoucherLedger::class)->recordPayment($voucher, $payment, $actor);
+
             $note = $settled
                 ? ($details['note'] ?? null)
-                : trim('Part payment '.$money($amount).' — balance '.$money($remaining).' outstanding. '.($details['note'] ?? ''));
+                : trim('Part payment '.$money($amount).', balance '.$money($remaining).' outstanding. '.($details['note'] ?? ''));
             $this->record($voucher, $actor, $settled ? 'paid' : 'part_paid', $note ?: null, $signature, $step);
 
             $voucher->forceFill(array_filter([
@@ -523,7 +527,7 @@ class WorkflowEngine
     public function approve(Voucher $voucher, User $actor, ?string $comment = null, ?string $signatureData = null): Voucher
     {
         $step = $this->requireActionableStep($voucher, $actor, 'approve');
-        $this->guard($step->can_approve, 'This step may not approve — it signs only.');
+        $this->guard($step->can_approve, 'This step may not approve, it signs only.');
 
         return DB::transaction(function () use ($voucher, $actor, $comment, $signatureData, $step) {
             // A step configured to both sign and approve captures its mark here.
@@ -705,8 +709,8 @@ class WorkflowEngine
                 'voucher.awaiting',
                 "{$voucher->number} is awaiting your {$verb}",
                 "{$voucher->number} inasubiri {$verbSw} yako",
-                "{$voucher->requester?->name} submitted {$voucher->currency} ".number_format((float) $voucher->amount)." — {$voucher->purpose}.",
-                "{$voucher->requester?->name} alituma {$voucher->currency} ".number_format((float) $voucher->amount)." — {$voucher->purpose}.",
+                "{$voucher->requester?->name} submitted {$voucher->currency} ".number_format((float) $voucher->amount).", {$voucher->purpose}.",
+                "{$voucher->requester?->name} alituma {$voucher->currency} ".number_format((float) $voucher->amount).", {$voucher->purpose}.",
                 $voucher,
                 $step->can_approve ? 'ph-seal-check' : 'ph-signature',
             );

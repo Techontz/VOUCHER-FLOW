@@ -12,7 +12,7 @@ use Tests\TestSupport;
 
 /**
  * A voucher belongs to its requester's department and only ever reaches that
- * department's HOD — one department never sends a voucher to another.
+ * department's HOD, one department never sends a voucher to another.
  */
 class DepartmentBoundaryTest extends TestCase
 {

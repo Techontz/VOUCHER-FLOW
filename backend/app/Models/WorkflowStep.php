@@ -32,7 +32,7 @@ class WorkflowStep extends Model
             /*
              * Integer columns are cast because they are compared with === in
              * PHP. MySQL returns them as strings under emulated prepared
-             * statements, where "8" === 8 is false — which silently turned an
+             * statements, where "8" === 8 is false, which silently turned an
              * owner into a stranger and a matching id into a mismatch.
              */
             'workflow_id' => 'integer',
@@ -87,7 +87,7 @@ class WorkflowStep extends Model
      * It sits outside the approval chain: the chain ends when the last step
      * that can actually approve has approved, and the voucher becomes payable.
      * A step that both approves and pays (a one-person company, say) is still
-     * an approval step — it is only the pay-only steps that stand apart.
+     * an approval step, it is only the pay-only steps that stand apart.
      */
     public function isPaymentStep(): bool
     {

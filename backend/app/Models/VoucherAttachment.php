@@ -22,7 +22,7 @@ class VoucherAttachment extends Model
             /*
              * Integer columns are cast because they are compared with === in
              * PHP. MySQL returns them as strings under emulated prepared
-             * statements, where "8" === 8 is false — which silently turned an
+             * statements, where "8" === 8 is false, which silently turned an
              * owner into a stranger and a matching id into a mismatch.
              */
             'voucher_id' => 'integer',

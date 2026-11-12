@@ -29,7 +29,7 @@ class InvoiceResource extends JsonResource
                 'mobile_money' => 'Mobile Money',
                 'card' => 'Card',
                 'bank_transfer' => 'Bank transfer',
-                default => '—',
+                default => '-',
             },
             'provider_ref' => $this->provider_ref,
             'failure_reason' => $this->failure_reason,

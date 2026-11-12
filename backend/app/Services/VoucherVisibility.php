@@ -23,7 +23,7 @@ class VoucherVisibility
             return $query;
         }
 
-        // Employees see exactly their own record — nothing else, at any status.
+        // Employees see exactly their own record, nothing else, at any status.
         if (! $user->isApprover()) {
             return $query->where('vouchers.requester_id', $user->id);
         }
@@ -32,7 +32,7 @@ class VoucherVisibility
             // Their own requests.
             $q->where('vouchers.requester_id', $user->id);
 
-            // Departments they head or manage — but never other people's drafts.
+            // Departments they head or manage, but never other people's drafts.
             $scoped = $user->headedDepartments()->pluck('id')
                 ->merge($user->managedDepartments()->pluck('id'))
                 ->unique()
@@ -53,7 +53,7 @@ class VoucherVisibility
             });
 
             // Roles that are not department-bound act for the whole company, so a
-            // bare role match is enough for them — and only for them. A role match
+            // bare role match is enough for them, and only for them. A role match
             // alone must never widen an HOD or manager beyond their departments,
             // since an unassigned "hod" step exists on every voucher.
             if ($user->actsCompanyWide()) {

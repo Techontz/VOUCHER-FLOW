@@ -1,5 +1,5 @@
 {{--
-  05 · Structured Two-Column — request on the left, money on the right.
+  05 · Structured Two-Column, request on the left, money on the right.
 
   Section order:
     1. Full-width header: logo, company name and lines on the left; the
@@ -7,11 +7,11 @@
        closed by a heavy rule in the secondary colour.
     2. The two-column body, split by a vertical divider, each column opened by
        its own heading:
-         LEFT  "Request" — requested by (+ title), department (+ cost centre),
+         LEFT  "Request", requested by (+ title), department (+ cost centre),
                category, payee, purpose, then the particulars table
                (particulars | amount): the description and reference as the
                line item, closed by the total.
-         RIGHT "Payment" — the amount prominent in a tinted block with the
+         RIGHT "Payment", the amount prominent in a tinted block with the
                amount in words, then every payment particular as label/value
                rows (method, voucher type, currency, bank, account name,
                account no., branch, reference, and settlement rows when
@@ -124,7 +124,7 @@
                     <td>
                         <div class="t-label">{{ $t['department'] }}</div>
                         <div class="v">{{ $v['department'] }}</div>
-                        <div class="t-meta">{{ $t['costCentre'] }}: {{ $v['cost_centre'] ?: '—' }}</div>
+                        <div class="t-meta">{{ $t['costCentre'] }}: {{ $v['cost_centre'] ?: '-' }}</div>
                     </td>
                 </tr>
                 <tr>
@@ -140,7 +140,7 @@
                 <tr>
                     <td colspan="2">
                         <div class="t-label">{{ $t['purpose'] }}</div>
-                        <div class="v">{{ $v['purpose'] ?: '—' }}</div>
+                        <div class="v">{{ $v['purpose'] ?: '-' }}</div>
                     </td>
                 </tr>
             </table>
@@ -153,8 +153,8 @@
                 <tr>
                     <td>
                         <div class="t-label" style="font-size: 7.5pt;">{{ $t['description'] }}</div>
-                        <div style="font-size: 10pt; line-height: 1.4;">{{ $v['description'] ?: ($v['purpose'] ?: '—') }}</div>
-                        <div class="t-meta" style="margin-top: 2pt;">{{ $t['reference'] }}: <span class="b" style="color: #0b1220;">{{ $v['reference'] ?: '—' }}</span></div>
+                        <div style="font-size: 10pt; line-height: 1.4;">{{ $v['description'] ?: ($v['purpose'] ?: '-') }}</div>
+                        <div class="t-meta" style="margin-top: 2pt;">{{ $t['reference'] }}: <span class="b" style="color: #0b1220;">{{ $v['reference'] ?: '-' }}</span></div>
                     </td>
                     <td class="r b nowrap" style="font-size: 10.5pt;">{{ $v['amount'] }}</td>
                 </tr>
@@ -222,7 +222,7 @@
 <table class="remarks">
     <tr><td>
         <div class="t-label">{{ $t['remarks'] }}</div>
-        <div style="font-size: 10pt; line-height: 1.4; margin-top: 1pt;">{{ $v['remarks'] ?: '—' }}</div>
+        <div style="font-size: 10pt; line-height: 1.4; margin-top: 1pt;">{{ $v['remarks'] ?: '-' }}</div>
     </td></tr>
 </table>
 
@@ -241,7 +241,7 @@
                             @include('vouchers.parts.signature-mark', ['s' => $s, 'height' => 38])
                         @endif
                         <div class="sigline {{ $s['state'] === 'pending' ? 'pending' : '' }}"></div>
-                        <div class="b" style="font-size: 10.5pt; line-height: 1.3;">{{ $s['name'] ?: '—' }}</div>
+                        <div class="b" style="font-size: 10.5pt; line-height: 1.3;">{{ $s['name'] ?: '-' }}</div>
                         <div class="t-meta" style="line-height: 1.3;"><span class="b" style="color: #0b1220;">{{ $s['role'] }}</span> · <span{!! $s['state'] === 'pending' ? ' class="i"' : '' !!}>{{ $s['meta'] }}</span></div>
                     </td>
                     @if (! $loop->last)<td style="width: 5pt; border: 0;"></td>@endif

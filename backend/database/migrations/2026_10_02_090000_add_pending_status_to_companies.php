@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Adds `pending` — "awaiting platform approval" — to the company lifecycle.
+ * Adds `pending`, "awaiting platform approval", to the company lifecycle.
  *
  * A company that registers itself now waits for the platform's super admin
  * before it can use the product. Existing companies keep their status; only

@@ -8,7 +8,7 @@ use Throwable;
 
 /**
  * Sends one plain email with the live mail settings and prints exactly what
- * happened — the quickest way to see why sign-in or reset codes do not
+ * happened, the quickest way to see why sign-in or reset codes do not
  * arrive. Prints the settings in use (never the password).
  */
 class MailTest extends Command
@@ -24,13 +24,13 @@ class MailTest extends Command
 
         $this->table(['Setting', 'Value'], [
             ['MAIL_MAILER', $mailer],
-            ['MAIL_HOST', $settings['host'] ?? '—'],
-            ['MAIL_PORT', $settings['port'] ?? '—'],
-            ['MAIL_SCHEME / encryption', $settings['scheme'] ?? $settings['encryption'] ?? '—'],
-            ['MAIL_USERNAME', $settings['username'] ?? '—'],
+            ['MAIL_HOST', $settings['host'] ?? '-'],
+            ['MAIL_PORT', $settings['port'] ?? '-'],
+            ['MAIL_SCHEME / encryption', $settings['scheme'] ?? $settings['encryption'] ?? '-'],
+            ['MAIL_USERNAME', $settings['username'] ?? '-'],
             ['MAIL_PASSWORD', empty($settings['password']) ? '(empty)' : '(set)'],
             ['MAIL_FROM_ADDRESS', config('mail.from.address')],
-            ['Reply-to', config('mail.reply_to.address') ?? '—'],
+            ['Reply-to', config('mail.reply_to.address') ?? '-'],
         ]);
 
         if (in_array($mailer, ['log', 'array'], true)) {

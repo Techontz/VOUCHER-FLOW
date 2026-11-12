@@ -1,24 +1,24 @@
 {{--
-  09 · Modern Split — a coloured side panel and a white working column.
+  09 · Modern Split, a coloured side panel and a white working column.
 
   The page is one table row of two cells. The LEFT PANEL (~31%) is filled with
   the secondary colour from top to bottom and carries the identity and the
   voucher's facts, in this order: logo on a white tile, company name and
   contact lines, document title + kind, voucher number (large), date, status,
-  department (+ cost centre), requested by (+ title), category, reference —
+  department (+ cost centre), requested by (+ title), category, reference,
   and, pinned to the foot of the panel, the verification QR on a white tile
   with its code.
 
   The MAIN COLUMN (white) reads top to bottom:
     1. Payee + purpose heading
     2. Particulars table (purpose, description, reference | amount) with total
-    3. Amount block on the brand tint — total payable + amount in words
-    4. Payment details — every particulars row in two ruled columns, then the
+    3. Amount block on the brand tint, total payable + amount in words
+    4. Payment details, every particulars row in two ruled columns, then the
        account the voucher is drawn on
     5. Supporting documents | remarks
-    6. Approvals — a grid of blocks (2 per row, 3 when there are 5–6);
+    6. Approvals, a grid of blocks (2 per row, 3 when there are 5–6);
        pending blocks are dashed with "Awaiting …"
-    7. Footer line — footer text, status, generated time
+    7. Footer line, footer text, status, generated time
 --}}
 @extends('vouchers.layout')
 
@@ -115,7 +115,7 @@
             </div>
             <div class="p-item">
                 <div class="p-label">{{ $t['reference'] }}</div>
-                <div class="p-val">{{ $v['reference'] ?: '—' }}</div>
+                <div class="p-val">{{ $v['reference'] ?: '-' }}</div>
             </div>
             </td></tr>
             {{-- Foot of the panel: the verification QR --}}
@@ -123,7 +123,7 @@
                 @php $qrW = $doc['qr'] ? $doc['qr']['size'] * 2.2 + 8.8 + 6 : 0; @endphp
                 <table style="width: {{ $qrW }}pt;"><tr><td style="width: {{ $qrW }}pt; background: #fff; border-radius: 3pt; padding: 3pt;">@include('vouchers.parts.qr', ['cell' => 2.2])</td></tr></table>
                 <div class="p-label" style="margin-top: 6pt;">{{ $t['scanToVerify'] }}</div>
-                <div style="font-size: 10.5pt; font-weight: bold; letter-spacing: .04em;">{{ $v['verification_code'] ?: '—' }}</div>
+                <div style="font-size: 10.5pt; font-weight: bold; letter-spacing: .04em;">{{ $v['verification_code'] ?: '-' }}</div>
             </td></tr>
           </table>
         </td>
@@ -133,7 +133,7 @@
             {{-- 1 · Payee + purpose --}}
             <div class="t-label" style="line-height: 1.2;">{{ $t['payee'] }}</div>
             <div style="font-size: 16pt; font-weight: bold; line-height: 1.2; color: {{ $ink }};">{{ $v['payee'] }}</div>
-            <div style="font-size: 11pt; color: {{ $b['ink'] }}; font-weight: bold; margin-top: 3pt; line-height: 1.3;">{{ $v['purpose'] ?: '—' }}</div>
+            <div style="font-size: 11pt; color: {{ $b['ink'] }}; font-weight: bold; margin-top: 3pt; line-height: 1.3;">{{ $v['purpose'] ?: '-' }}</div>
 
             {{-- 2 · Particulars, closed by 3 · the amount block (total + words on the brand tint) --}}
             <table class="items" style="margin-top: 10pt; border: .6pt solid {{ $rule }};">
@@ -143,9 +143,9 @@
                 </tr>
                 <tr>
                     <td>
-                        <div class="b">{{ $v['purpose'] ?: '—' }}</div>
+                        <div class="b">{{ $v['purpose'] ?: '-' }}</div>
                         @if ($v['description'])<div style="margin-top: 1pt; color: #273246;">{{ $v['description'] }}</div>@endif
-                        <div class="t-meta" style="margin-top: 2pt;">{{ $t['reference'] }}: {{ $v['reference'] ?: '—' }}</div>
+                        <div class="t-meta" style="margin-top: 2pt;">{{ $t['reference'] }}: {{ $v['reference'] ?: '-' }}</div>
                     </td>
                     <td class="r" style="font-size: 10.5pt; font-weight: bold;">{{ $v['amount'] }}</td>
                 </tr>
@@ -192,12 +192,12 @@
                     </td>
                     <td style="width: 50%; padding-left: 9pt;">
                         <div class="t-label h-min">{{ $t['remarks'] }}</div>
-                        <div style="padding-top: 3pt;">{{ $v['remarks'] ?: '—' }}</div>
+                        <div style="padding-top: 3pt;">{{ $v['remarks'] ?: '-' }}</div>
                     </td>
                 </tr>
             </table>
 
-            {{-- 6 · Approvals — never split across pages --}}
+            {{-- 6 · Approvals, never split across pages --}}
             <div style="page-break-inside: avoid;">
                 <div class="h-sec" style="margin-top: 8pt; margin-bottom: 5pt;">{{ $t['approvals'] }}</div>
                 <table style="page-break-inside: avoid;">
@@ -214,7 +214,7 @@
                                                 <td style="height: 19pt; vertical-align: bottom; padding-bottom: 1pt;">@if ($s['signature'])<img src="{{ $s['signature'] }}" alt="" style="max-height: 18pt; max-width: 90pt;">@endif</td>
                                                 <td class="r" style="vertical-align: bottom; padding-bottom: 3pt;">@if ($s['stamp'])@include('vouchers.parts.stamp', ['kind' => $s['stamp']])@endif</td>
                                             </tr></table>
-                                            <div style="font-size: 10pt; font-weight: bold; line-height: 1.3; margin-top: 3pt; {{ $pending ? 'color: '.$soft.';' : '' }}">{{ $s['name'] ?: '—' }}</div>
+                                            <div style="font-size: 10pt; font-weight: bold; line-height: 1.3; margin-top: 3pt; {{ $pending ? 'color: '.$soft.';' : '' }}">{{ $s['name'] ?: '-' }}</div>
                                             <div class="t-meta {{ $pending ? 'i' : '' }}" style="{{ $pending ? '' : 'color: '.$ink.';' }}">{{ $s['meta'] }}</div>
                                         </div>
                                     @endif

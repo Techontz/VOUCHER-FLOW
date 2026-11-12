@@ -29,7 +29,7 @@ class BillingController extends Controller
     public function plans()
     {
         return PlanResource::collection(
-            Plan::where('is_active', true)->where('is_public', true)->orderBy('sort_order')->get()
+            Plan::where('is_active', true)->where('is_public', true)->orderBy('sort_order')->orderBy('id')->get()
         );
     }
 

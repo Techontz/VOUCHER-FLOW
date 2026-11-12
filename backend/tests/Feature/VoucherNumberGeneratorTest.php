@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Company;
+use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherType;
 use App\Services\VoucherNumberGenerator;
@@ -35,7 +36,7 @@ class VoucherNumberGeneratorTest extends TestCase
     }
 
     /**
-     * Issues a number the way a request does — inside a resolved tenant.
+     * Issues a number the way a request does, inside a resolved tenant.
      *
      * Without the tenant context these tests would fail on the global scope
      * instead of on the number, which would make them pass or fail for reasons
@@ -109,7 +110,7 @@ class VoucherNumberGeneratorTest extends TestCase
         $year = now()->format('Y');
 
         foreach (range(1, 5) as $n) {
-            $this->existing($tenant, $type, sprintf("PV-%s-%06d", $year, $n));
+            $this->existing($tenant, $type, sprintf('PV-%s-%06d', $year, $n));
         }
 
         // Exactly the state production was in.
@@ -198,7 +199,7 @@ class VoucherNumberGeneratorTest extends TestCase
         $year = now()->format('Y');
 
         foreach (range(1, 4) as $n) {
-            $this->existing($mine, $this->typeFor($mine), sprintf("PV-%s-%06d", $year, $n));
+            $this->existing($mine, $this->typeFor($mine), sprintf('PV-%s-%06d', $year, $n));
         }
 
         // A busy neighbour must not push this tenant's series along.
@@ -225,7 +226,7 @@ class VoucherNumberGeneratorTest extends TestCase
     /**
      * Generation takes a pessimistic row lock, which is what makes concurrent
      * submissions safe. Asserted by holding the lock on one connection and
-     * showing a second cannot take it — NOWAIT fails rather than blocking, so
+     * showing a second cannot take it: NOWAIT fails rather than blocking, so
      * the test cannot hang.
      */
     public function test_generation_locks_the_counter_row(): void
@@ -270,7 +271,7 @@ class VoucherNumberGeneratorTest extends TestCase
 
         $company = Company::where('slug', 'watercom')->firstOrFail();
 
-        $employee = \App\Models\User::withoutGlobalScopes()
+        $employee = User::withoutGlobalScopes()
             ->where('company_id', $company->id)->where('role', 'employee')->firstOrFail();
 
         $type = VoucherType::withoutGlobalScopes()

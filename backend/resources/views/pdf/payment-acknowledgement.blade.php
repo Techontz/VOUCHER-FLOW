@@ -1,11 +1,11 @@
 {{--
-  Payment acknowledgement — printed by the cashier and signed by whoever takes
+  Payment acknowledgement, printed by the cashier and signed by whoever takes
   the money, then scanned back onto the voucher as a supporting document.
 
   One sheet per payment: a voucher paid in parts has one acknowledgement for
   each part, each stating only what changed hands that time and what is still
   outstanding, so nobody can later be shown to have received more than they
-  did. Tables and fixed widths only — DomPDF has no flexbox or grid.
+  did. Tables and fixed widths only: DomPDF has no flexbox or grid.
 --}}
 @php
     $ink = '#0b1220';
@@ -71,7 +71,7 @@
         <tr>
             <td style="width: 33%;"><div class="label">{{ $sw ? 'Namba ya vocha' : 'Voucher no.' }}</div>{{ $voucher->number }}</td>
             <td style="width: 33%;"><div class="label">{{ $sw ? 'Tarehe ya malipo' : 'Payment date' }}</div>{{ $payment->payment_date?->format('j M Y') ?? $payment->paid_at->format('j M Y') }}</td>
-            <td style="width: 34%;"><div class="label">{{ $sw ? 'Idara' : 'Department' }}</div>{{ $voucher->department?->name ?? '—' }}</td>
+            <td style="width: 34%;"><div class="label">{{ $sw ? 'Idara' : 'Department' }}</div>{{ $voucher->department?->name ?? '-' }}</td>
         </tr>
         <tr>
             <td colspan="2"><div class="label">{{ $sw ? 'Madhumuni' : 'Purpose' }}</div>{{ $voucher->purpose }}</td>
@@ -85,8 +85,8 @@
         </tr>
         <tr>
             <td><div class="label">{{ $sw ? 'Njia ya malipo' : 'Method' }}</div>{{ $payment->payment_method ?? ($cash ? 'Cash' : 'Bank transfer') }}</td>
-            <td><div class="label">{{ $sw ? 'Kumbukumbu' : 'Reference' }}</div>{{ $payment->payment_reference ?? '—' }}</td>
-            <td><div class="label">{{ $sw ? 'Kutoka akiba' : 'Float' }}</div>{{ $voucher->cash_float ?? '—' }}</td>
+            <td><div class="label">{{ $sw ? 'Kumbukumbu' : 'Reference' }}</div>{{ $payment->payment_reference ?? '-' }}</td>
+            <td><div class="label">{{ $sw ? 'Kutoka akiba' : 'Float' }}</div>{{ $voucher->cash_float ?? '-' }}</td>
         </tr>
     </table>
 

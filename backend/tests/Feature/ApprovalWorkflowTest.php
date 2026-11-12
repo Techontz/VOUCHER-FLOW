@@ -182,7 +182,7 @@ class ApprovalWorkflowTest extends TestCase
 
     /**
      * A tenant whose route puts Finance between the HOD and the Manager must
-     * route through all four steps — no code change, only configuration.
+     * route through all four steps, no code change, only configuration.
      */
     public function test_a_four_step_route_is_honoured(): void
     {
@@ -214,7 +214,7 @@ class ApprovalWorkflowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', Voucher::STATUS_APPROVED);
 
-        // This tenant pays from its finance step rather than a cashier — the
+        // This tenant pays from its finance step rather than a cashier, the
         // capability travels with the step, not with the job title.
         $this->actingAs($t['finance'], 'sanctum')
             ->postJson("/api/vouchers/{$voucher->id}/pay", ['payment_reference' => 'NMB-77120'])

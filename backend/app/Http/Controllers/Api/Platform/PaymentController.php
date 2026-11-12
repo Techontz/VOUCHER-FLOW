@@ -4,9 +4,7 @@ namespace App\Http\Controllers\Api\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\InvoiceResource;
-use App\Http\Resources\SubscriptionResource;
 use App\Models\Invoice;
-use App\Models\Subscription;
 use App\Services\PaymentGateway;
 use Illuminate\Http\Request;
 
@@ -36,18 +34,6 @@ class PaymentController extends Controller
                 'outstanding' => (float) Invoice::query()->withoutGlobalScopes()->whereIn('status', ['pending', 'failed'])->sum('total'),
             ],
         ]);
-    }
-
-    public function subscriptions(Request $request)
-    {
-        $subscriptions = Subscription::query()
-            ->withoutGlobalScopes()
-            ->with(['plan', 'company'])
-            ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
-            ->latest('id')
-            ->paginate((int) $request->query('per_page', 25));
-
-        return SubscriptionResource::collection($subscriptions);
     }
 
     public function refund(Request $request, Invoice $invoice)

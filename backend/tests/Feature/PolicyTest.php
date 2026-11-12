@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Voucher;
 use App\Models\Workflow;
 use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -92,7 +91,7 @@ class PolicyTest extends TestCase
 
         $this->assertTrue(Gate::forUser($t['admin'])->allows('update', $workflow));
 
-        // A workflow grants signing, approving and paying — so editing one is
+        // A workflow grants signing, approving and paying, so editing one is
         // the power to grant yourself all three.
         foreach (['employee', 'hod', 'ceo', 'cashier'] as $role) {
             $this->assertFalse(

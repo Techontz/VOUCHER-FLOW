@@ -85,7 +85,7 @@ class VoucherPolicy
         return $this->can($user, $voucher, 'cancel');
     }
 
-    /** Releasing money — the highest-value action in the system. */
+    /** Releasing money, the highest-value action in the system. */
     public function pay(User $user, Voucher $voucher): bool
     {
         return $this->can($user, $voucher, 'pay');
@@ -108,7 +108,7 @@ class VoucherPolicy
 
     /**
      * A workflow action is permitted only if the caller may see the voucher AND
-     * the step they are standing on grants it. Both halves, always — a visible
+     * the step they are standing on grants it. Both halves, always, a visible
      * voucher is not an actionable one.
      */
     private function can(User $user, Voucher $voucher, string $action): bool

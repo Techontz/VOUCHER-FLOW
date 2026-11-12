@@ -54,7 +54,7 @@ class ActionQueueTest extends TestCase
         );
 
         $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/sign", ['signature' => self::SIGNATURE])->assertOk();
-        $this->assertSame(1, $this->queues($t)['hod'], 'Signing alone does not hand it on — submitting does.');
+        $this->assertSame(1, $this->queues($t)['hod'], 'Signing alone does not hand it on, submitting does.');
 
         $this->actingAs($t['hod'], 'sanctum')->postJson("/api/vouchers/{$voucher->id}/submit-signed")->assertOk();
         $this->assertSame(
@@ -66,7 +66,7 @@ class ActionQueueTest extends TestCase
         $this->assertSame(
             ['employee' => 0, 'hod' => 0, 'ceo' => 0, 'cashier' => 1],
             $this->queues($t),
-            'Approval is not completion — the money still has to move.',
+            'Approval is not completion, the money still has to move.',
         );
 
         $this->actingAs($t['cashier'], 'sanctum')

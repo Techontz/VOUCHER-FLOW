@@ -9,7 +9,7 @@ use Barryvdh\DomPDF\PDF as PdfWrapper;
 /**
  * Renders the print-ready A4 voucher in the design the voucher uses.
  *
- * The document itself — its data and its design — comes from VoucherDocument,
+ * The document itself, its data and its design, comes from VoucherDocument,
  * so the PDF, the on-screen document and the printout cannot disagree.
  */
 class VoucherPdfService

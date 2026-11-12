@@ -1,5 +1,5 @@
 {{--
-  08 · Formal Document — the official bordered form, for printing and records.
+  08 · Formal Document, the official bordered form, for printing and records.
 
   Serif throughout, every field in its own labelled bordered cell, the whole
   form held inside one heavy outer rule. The brand colour appears only in the
@@ -12,7 +12,7 @@
     3. Centred double-ruled title box (type_label), flanked by the kind (left)
        and "Original" (right).
     4. Voucher metadata grid: requested by, department, cost centre, category,
-       voucher type, reference, payee — each in a labelled bordered cell.
+       voucher type, reference, payee, each in a labelled bordered cell.
     5. Purpose / description cell.
     6. Amount cell (large) beside the amount-in-words cell.
     7. "Payment particulars" band + grid, two pairs per row. Every particulars
@@ -108,18 +108,18 @@
         <tr>
             <td style="width: 28%;"><div class="f">{{ $t['requestedBy'] }}</div><div class="val b">{{ $v['requester'] }}</div>@if ($v['requester_title'])<div class="sub">{{ $v['requester_title'] }}</div>@endif</td>
             <td style="width: 26%;"><div class="f">{{ $t['department'] }}</div><div class="val">{{ $v['department'] }}</div></td>
-            <td style="width: 20%;"><div class="f">{{ $t['costCentre'] }}</div><div class="val">{{ $v['cost_centre'] ?: '—' }}</div></td>
+            <td style="width: 20%;"><div class="f">{{ $t['costCentre'] }}</div><div class="val">{{ $v['cost_centre'] ?: '-' }}</div></td>
             <td style="width: 26%;"><div class="f">{{ $t['category'] }}</div><div class="val">{{ $v['category'] }}</div></td>
         </tr>
         <tr>
             <td><div class="f">{{ $t['voucherType'] }}</div><div class="val">{{ $p['type'] ?: $v['type_label'] }}</div></td>
-            <td><div class="f">{{ $t['reference'] }}</div><div class="val">{{ $v['reference'] ?: '—' }}</div></td>
+            <td><div class="f">{{ $t['reference'] }}</div><div class="val">{{ $v['reference'] ?: '-' }}</div></td>
             <td colspan="2"><div class="f">{{ $t['payee'] }} / {{ $t['beneficiary'] }}</div><div class="val b" style="font-size: 11pt;">{{ $v['payee'] }}</div></td>
         </tr>
         <tr>
             <td colspan="4">
                 <div class="f">{{ $t['purpose'] }} &amp; {{ $t['description'] }}</div>
-                <div class="val b">{{ $v['purpose'] ?: '—' }}</div>
+                <div class="val b">{{ $v['purpose'] ?: '-' }}</div>
                 @if ($v['description'])<div style="font-size: 9.5pt; line-height: 1.35; margin-top: 2pt;">{{ $v['description'] }}</div>@endif
             </td>
         </tr>
@@ -149,7 +149,7 @@
         @endforeach
         <tr>
             <td colspan="2"><div class="f">{{ $t['attachments'] }}</div>@include('vouchers.parts.attachments', ['itemStyle' => 'font-size: 9.5pt; margin-top: 1.5pt; line-height: 1.3;'])</td>
-            <td colspan="2"><div class="f">{{ $t['remarks'] }}</div><div style="font-size: 9.5pt; line-height: 1.35; margin-top: 1.5pt;">{{ $v['remarks'] ?: '—' }}</div></td>
+            <td colspan="2"><div class="f">{{ $t['remarks'] }}</div><div style="font-size: 9.5pt; line-height: 1.35; margin-top: 1.5pt;">{{ $v['remarks'] ?: '-' }}</div></td>
         </tr>
     </table>
 
@@ -200,13 +200,13 @@
                             <div style="font-size: 10pt; margin-top: 1pt;">{{ $v['payment_method'] }}</div>
                         @endif
                     </td>
-                    <td class="o" style="width: 19%;"><div class="f">{{ $t['paymentRef'] }}</div><div style="font-size: 10pt; margin-top: 2pt;">{{ $p['payment_ref'] ?: '—' }}</div></td>
-                    <td class="o" style="width: 15%;"><div class="f">{{ $t['paidOn'] }}</div><div class="nowrap" style="font-size: 10pt; margin-top: 2pt;">{{ $p['paid_on'] ?: '—' }}</div></td>
+                    <td class="o" style="width: 19%;"><div class="f">{{ $t['paymentRef'] }}</div><div style="font-size: 10pt; margin-top: 2pt;">{{ $p['payment_ref'] ?: '-' }}</div></td>
+                    <td class="o" style="width: 15%;"><div class="f">{{ $t['paidOn'] }}</div><div class="nowrap" style="font-size: 10pt; margin-top: 2pt;">{{ $p['paid_on'] ?: '-' }}</div></td>
                     <td class="o" style="padding-right: 3pt;">
                         <table><tr>
                             <td style="vertical-align: middle; padding: 0;">
                                 <div class="f">{{ $t['verificationCode'] }}</div>
-                                <div class="b nowrap" style="font-size: 10.5pt; margin-top: 2pt; letter-spacing: .02em;">{{ $v['verification_code'] ?: '—' }}</div>
+                                <div class="b nowrap" style="font-size: 10.5pt; margin-top: 2pt; letter-spacing: .02em;">{{ $v['verification_code'] ?: '-' }}</div>
                                 <div class="t-meta" style="margin-top: 2pt;">{{ $t['scanToVerify'] }}</div>
                             </td>
                             <td style="vertical-align: middle; padding: 0; width: {{ $qrW }}pt;">@include('vouchers.parts.qr', ['cell' => 1.8])</td>

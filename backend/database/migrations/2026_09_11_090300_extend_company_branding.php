@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
  * account the money leaves. Both were missing, which meant every tenant's PDF
  * had to fall back to the same anonymous letterhead.
  *
- * The square mark is stored separately from the lockup on purpose — a wordmark
+ * The square mark is stored separately from the lockup on purpose, a wordmark
  * crushed into a 34px avatar is unreadable, which is why brands ship both.
  */
 return new class extends Migration

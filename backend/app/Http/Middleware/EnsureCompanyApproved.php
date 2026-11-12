@@ -11,8 +11,8 @@ use Symfony\Component\HttpFoundation\Response;
  * Holds a self-registered company at the door until the platform approves it.
  *
  * A pending company can manage its own account, finish its company profile,
- * read its notifications and choose and pay for a plan — everything the
- * "awaiting approval" screen needs — but nothing else: no people, no
+ * read its notifications and choose and pay for a plan, everything the
+ * "awaiting approval" screen needs, but nothing else: no people, no
  * vouchers, no workflows. Super admins are never held here.
  */
 class EnsureCompanyApproved

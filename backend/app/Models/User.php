@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Erp\CompanyRole;
+use App\Support\Erp\Permissions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,6 +34,37 @@ class User extends Authenticatable
 
     public const ROLE_CASHIER = 'cashier';
 
+    // ERP roles. Their default permissions live in App\Support\Erp\Permissions;
+    // in a voucher workflow they act as employees unless a step names them.
+    public const ROLE_ACCOUNTANT = 'accountant';
+
+    public const ROLE_PROCUREMENT = 'procurement_officer';
+
+    public const ROLE_HR_MANAGER = 'hr_manager';
+
+    public const ROLE_WAREHOUSE_MANAGER = 'warehouse_manager';
+
+    public const ROLE_STOREKEEPER = 'storekeeper';
+
+    public const ROLE_PRODUCTION_MANAGER = 'production_manager';
+
+    public const ROLE_DISPATCH = 'dispatch_officer';
+
+    public const ROLE_FLEET_MANAGER = 'fleet_manager';
+
+    public const ROLE_DRIVER = 'driver';
+
+    public const ROLE_SALES = 'salesperson';
+
+    public const ROLE_AUDITOR = 'auditor';
+
+    public const ERP_ROLES = [
+        self::ROLE_ACCOUNTANT, self::ROLE_PROCUREMENT, self::ROLE_HR_MANAGER,
+        self::ROLE_WAREHOUSE_MANAGER, self::ROLE_STOREKEEPER, self::ROLE_PRODUCTION_MANAGER,
+        self::ROLE_DISPATCH, self::ROLE_FLEET_MANAGER, self::ROLE_DRIVER,
+        self::ROLE_SALES, self::ROLE_AUDITOR,
+    ];
+
     /** Roles that may act on an approval step. */
     public const APPROVER_ROLES = [
         self::ROLE_HOD, self::ROLE_MANAGER, self::ROLE_CEO,
@@ -50,7 +83,25 @@ class User extends Authenticatable
         self::ROLE_COMPANY_ADMIN, self::ROLE_EMPLOYEE, self::ROLE_HOD,
         self::ROLE_CEO, self::ROLE_MANAGER, self::ROLE_CASHIER,
         self::ROLE_FINANCE, self::ROLE_DIRECTOR,
+        ...self::ERP_ROLES,
     ];
+
+    /**
+     * The built-in roles plus any the caller's company has defined for itself.
+     *
+     * @return list<string>
+     */
+    public static function assignableRoles(): array
+    {
+        $custom = CompanyRole::query()->pluck('key')->all();
+
+        return array_values(array_unique([...self::ASSIGNABLE_ROLES, ...$custom]));
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        return app(Permissions::class)->allows($this, $permission);
+    }
 
     /** Everything above, plus the platform role no tenant may grant. */
     public const ALL_ROLES = [self::ROLE_SUPER_ADMIN, ...self::ASSIGNABLE_ROLES];
@@ -62,8 +113,8 @@ class User extends Authenticatable
      * Roles that act for the whole company rather than for one department.
      *
      * An HOD's authority is bounded by the departments they head, so a bare
-     * role match must never widen them. These roles have no such boundary — a
-     * CEO approves across the company and a cashier pays across it — so for
+     * role match must never widen them. These roles have no such boundary, a
+     * CEO approves across the company and a cashier pays across it, so for
      * them a role-matched step is authority enough.
      */
     public const COMPANY_WIDE_ROLES = [
@@ -87,7 +138,18 @@ class User extends Authenticatable
             self::ROLE_CASHIER => 'Cashier',
             self::ROLE_FINANCE => 'Finance',
             self::ROLE_DIRECTOR => 'Director',
-            default => ucfirst(str_replace('_', ' ', $role)),
+            self::ROLE_ACCOUNTANT => 'Accountant',
+            self::ROLE_PROCUREMENT => 'Procurement Officer',
+            self::ROLE_HR_MANAGER => 'HR Manager',
+            self::ROLE_WAREHOUSE_MANAGER => 'Warehouse Manager',
+            self::ROLE_STOREKEEPER => 'Storekeeper',
+            self::ROLE_PRODUCTION_MANAGER => 'Production Manager',
+            self::ROLE_DISPATCH => 'Dispatch Officer',
+            self::ROLE_FLEET_MANAGER => 'Fleet Manager',
+            self::ROLE_DRIVER => 'Driver',
+            self::ROLE_SALES => 'Salesperson',
+            self::ROLE_AUDITOR => 'Auditor',
+            default => CompanyRole::query()->where('key', $role)->value('name') ?? ucfirst(str_replace('_', ' ', $role)),
         };
     }
 
@@ -107,7 +169,7 @@ class User extends Authenticatable
             /*
              * Integer columns are cast because they are compared with === in
              * PHP. MySQL returns them as strings under emulated prepared
-             * statements, where "8" === 8 is false — which silently turned an
+             * statements, where "8" === 8 is false, which silently turned an
              * owner into a stranger and a matching id into a mismatch.
              */
             'company_id' => 'integer',

@@ -1,23 +1,23 @@
 {{--
-  03 · Finance Professional — a page from the books, money first.
+  03 · Finance Professional, a page from the books, money first.
 
   Section order:
-    1. Compact header — company name and contact lines left, logo right.
-    2. Solid secondary-colour title bar — document title, bank/cash kind,
+    1. Compact header, company name and contact lines left, logo right.
+    2. Solid secondary-colour title bar, document title, bank/cash kind,
        voucher number in tabular figures.
-    3. FINANCIAL SUMMARY box — the most prominent part of the page: total
+    3. FINANCIAL SUMMARY box, the most prominent part of the page: total
        payable set very large with its currency and the amount in words,
        beside a boxed grid of payment method, bank, account name, account no.,
        branch and reference (cash float / received by on a cash voucher).
-    4. Full payment details table — every particulars row (incl. paid on,
+    4. Full payment details table, every particulars row (incl. paid on,
        payment ref., paid so far, balance, cheque) and the drawn-on account.
-    5. Particulars ledger — # | Reference | Description | Currency | Amount,
+    5. Particulars ledger: # | Reference | Description | Currency | Amount,
        closed by a double-underlined total row.
-    6. Request line-fields — payee, date, requested by, department, category.
+    6. Request line-fields, payee, date, requested by, department, category.
     7. Supporting documents and remarks side by side.
-    8. Sign-off table — Role | Name | Signature | Date | Status/stamp;
+    8. Sign-off table: Role | Name | Signature | Date | Status/stamp;
        pending rows read "Awaiting …".
-    9. Footer — footer text, verification code, status, generated time, QR.
+    9. Footer, footer text, verification code, status, generated time, QR.
   Figures are set in DejaVu Sans Mono.
 --}}
 @extends('vouchers.layout')
@@ -27,7 +27,7 @@
     $grid = '#b9c2cf'; $muted = '#4f5a6b'; $head = '#eef1f5';
     $mono = '"DejaVu Sans Mono", monospace';
     $isBank = $v['kind'] === 'bank';
-    $dash = fn ($x) => filled($x) ? $x : '—';
+    $dash = fn ($x) => filled($x) ? $x : '-';
 
     // DomPDF sets every line box 1.28× taller than asked (DejaVu's height ×
     // dompdf's font_height_ratio of 1.1), so the PDF gets line-heights divided
@@ -252,7 +252,7 @@
         <td style="width: 8pt;"></td>
         <td class="f-box">
             <div class="f-lab">{{ $t['remarks'] }}</div>
-            <div style="font-size: 9.5pt; line-height: {{ $lh(1.4) }}; margin-top: 2pt;">{{ $v['remarks'] ?: '—' }}</div>
+            <div style="font-size: 9.5pt; line-height: {{ $lh(1.4) }}; margin-top: 2pt;">{{ $v['remarks'] ?: '-' }}</div>
         </td>
     </tr>
 </table>
@@ -293,7 +293,7 @@
                         <div style="border-bottom: .8pt dotted #6b7689; height: 14pt; margin: 0 6pt;"></div>
                     @endif
                 </td>
-                <td class="nowrap" style="font-size: 9pt;">{{ $s['date'] ?: '—' }}</td>
+                <td class="nowrap" style="font-size: 9pt;">{{ $s['date'] ?: '-' }}</td>
                 <td class="c">
                     @if ($s['stamp'])
                         @include('vouchers.parts.stamp', ['kind' => $s['stamp']])

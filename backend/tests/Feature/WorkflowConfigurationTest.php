@@ -16,7 +16,7 @@ use Tests\TestSupport;
 
 /**
  * An administrator configures who approves, at which level, in which order and
- * for which department — and never reaches another company's people.
+ * for which department, and never reaches another company's people.
  */
 class WorkflowConfigurationTest extends TestCase
 {

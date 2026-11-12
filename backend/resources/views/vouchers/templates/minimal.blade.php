@@ -1,14 +1,14 @@
 {{--
-  07 · Minimal Professional — quiet, but complete.
+  07 · Minimal Professional, quiet, but complete.
 
   No boxes and no fills: hairline rules, large readable type and generous
-  white space carry the hierarchy. One brand accent — the total.
+  white space carry the hierarchy. One brand accent, the total.
 
   Section order:
     1. Identity line: small logo + company name left, title / kind right;
        company address and contact lines beneath.
     2. Voucher number set large and light, date and status on the right.
-    3. The total, very large, with currency and amount in words — beside the
+    3. The total, very large, with currency and amount in words, beside the
        payee, purpose and description.
     4. Two quiet columns of label/value rows on hairlines:
        "Request details" (requested by, department, cost centre, category,
@@ -30,9 +30,9 @@
     $request = [
         [$t['requestedBy'], $v['requester'], $v['requester_title']],
         [$t['department'], $v['department'], null],
-        [$t['costCentre'], $v['cost_centre'] ?: '—', null],
+        [$t['costCentre'], $v['cost_centre'] ?: '-', null],
         [$t['category'], $v['category'], null],
-        [$t['reference'], $v['reference'] ?: '—', null],
+        [$t['reference'], $v['reference'] ?: '-', null],
         [$t['date'], $v['date'], null],
     ];
     $hasBank = $v['kind'] === 'bank' && $c['bank'];
@@ -112,7 +112,7 @@
             <div class="lbl">{{ $t['payee'] }}</div>
             <div class="b" style="font-size: 11.5pt; line-height: 1.3; margin-top: 1pt;">{{ $v['payee'] }}</div>
             <div class="lbl" style="margin-top: 6pt;">{{ $t['purpose'] }}</div>
-            <div class="t-value" style="margin-top: 1pt; line-height: 1.3;">{{ $v['purpose'] ?: '—' }}</div>
+            <div class="t-value" style="margin-top: 1pt; line-height: 1.3;">{{ $v['purpose'] ?: '-' }}</div>
             @if ($v['description'])
                 <div style="font-size: 9.5pt; line-height: 1.3; margin-top: 2pt; color: {{ $light }};">{{ $v['description'] }}</div>
             @endif
@@ -137,7 +137,7 @@
             <div class="cap" style="margin-top: 16pt; margin-bottom: 2pt;">{{ $t['attachments'] }}</div>
             @include('vouchers.parts.attachments', ['itemStyle' => 'font-size: 9.5pt; margin-top: 2pt; line-height: 1.3;'])
             <div class="cap" style="margin-top: 12pt; margin-bottom: 2pt;">{{ $t['remarks'] }}</div>
-            <div style="font-size: 9.5pt; line-height: 1.35;">{{ $v['remarks'] ?: '—' }}</div>
+            <div style="font-size: 9.5pt; line-height: 1.35;">{{ $v['remarks'] ?: '-' }}</div>
         </td>
         <td style="width: 47%;">
             <div class="cap head">{{ $t['paymentDetails'] }}</div>

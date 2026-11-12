@@ -58,7 +58,7 @@ return [
     */
     'two_factor' => filter_var(env('VOUCHFLOW_TWO_FACTOR', true), FILTER_VALIDATE_BOOLEAN),
 
-    // Addresses on these reserved domains (RFC 2606 — demo and test accounts)
+    // Addresses on these reserved domains (RFC 2606, demo and test accounts)
     // can never receive a code, so they sign in with the password alone. A
     // domain matches itself and any subdomain; set the variable to an empty
     // string to require a code from everyone.
@@ -74,7 +74,7 @@ return [
     |
     | Whether a new company's administrator is asked for a one-time code sent
     | to their address before carrying on. `auto` (the default) asks only when
-    | a real mail transport is configured — with MAIL_MAILER=log or array the
+    | a real mail transport is configured, with MAIL_MAILER=log or array the
     | code could never arrive, so asking for it would strand the person.
     | `true` or `false` force it either way.
     |

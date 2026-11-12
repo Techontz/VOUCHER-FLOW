@@ -65,7 +65,7 @@ class AuditLogger
     private function stringify(mixed $value): string
     {
         return match (true) {
-            $value === null => '—',
+            $value === null => '-',
             is_bool($value) => $value ? 'yes' : 'no',
             is_array($value) => json_encode($value),
             default => (string) $value,

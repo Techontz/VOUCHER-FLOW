@@ -34,7 +34,7 @@ class DatabaseSeeder extends Seeder
      *
      * Created once and never overwritten: db:seed is re-run on deploys to pick
      * up new plans, and it must not reset a password the operator has since
-     * changed. Outside local work there is no default password — without
+     * changed. Outside local work there is no default password, without
      * SUPER_ADMIN_PASSWORD the account is skipped, not created guessable.
      */
     private function seedPlatformOperator(): void

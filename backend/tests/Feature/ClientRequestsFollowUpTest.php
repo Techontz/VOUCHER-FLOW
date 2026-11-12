@@ -211,7 +211,7 @@ class ClientRequestsFollowUpTest extends TestCase
         $run();
         $this->assertSame(0, $reminders($t['hod']));
 
-        // A day: the HOD, who must sign, is reminded — in-app and by email.
+        // A day: the HOD, who must sign, is reminded, in-app and by email.
         $this->travel(2)->hours();
         $run();
         $this->assertSame(1, $reminders($t['hod']));

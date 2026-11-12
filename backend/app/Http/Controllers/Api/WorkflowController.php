@@ -23,7 +23,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * The workflow builder. A company defines its own steps, their order, who acts at
- * each and exactly what that step may do — sign, approve, reject, request changes,
+ * each and exactly what that step may do, sign, approve, reject, request changes,
  * print, download. Two tenants can run entirely different routes.
  */
 class WorkflowController extends Controller
@@ -208,7 +208,7 @@ class WorkflowController extends Controller
     /**
      * Who approves for each department: every step of this workflow resolved
      * against every department of the company, exactly as the engine resolves
-     * it for a real voucher — and every place where nobody would be found.
+     * it for a real voucher, and every place where nobody would be found.
      */
     public function routing(Request $request, Workflow $workflow): JsonResponse
     {
@@ -354,7 +354,7 @@ class WorkflowController extends Controller
     }
 
     /**
-     * Field rules first, then the rules about the route as a whole — a route
+     * Field rules first, then the rules about the route as a whole, a route
      * that nobody can approve, or that can never be paid, is refused here
      * rather than discovered by the first voucher that gets stuck on it.
      */
@@ -398,7 +398,7 @@ class WorkflowController extends Controller
 
         /*
          * The validated array is rebuilt key by key, and a new step (one without
-         * an `id`) is only created when its `name` is reached — after every
+         * an `id`) is only created when its `name` is reached, after every
          * existing step's `id`. Left alone, a level inserted mid-route was saved
          * at the end. The keys still carry the submitted order; restore it.
          */
@@ -450,7 +450,7 @@ class WorkflowController extends Controller
 
     /**
      * The route must start with the requester, reach a decision and reach a
-     * payment — for every amount, once amount bands are taken into account.
+     * payment, for every amount, once amount bands are taken into account.
      *
      * @param  list<array<string, mixed>>  $steps
      */

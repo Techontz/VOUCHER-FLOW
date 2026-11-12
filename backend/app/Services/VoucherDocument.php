@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\Storage;
 /**
  * The printed voucher as plain data, and its rendering.
  *
- * Every voucher template reads exactly the array built here — never the
- * models — so ten designs share one definition of what a voucher says. A real
+ * Every voucher template reads exactly the array built here, never the
+ * models, so ten designs share one definition of what a voucher says. A real
  * voucher and the sample shown when choosing a design go through the same
  * shape, which is what makes the preview an honest picture of the document.
  *
@@ -84,22 +84,22 @@ class VoucherDocument
                 'type_label' => $voucher->voucherType?->label($locale) ?? $t['paymentVoucher'],
                 'kind' => $isBank ? 'bank' : 'cash',
                 'kind_label' => $isBank ? $t['bankVoucher'] : $t['cashVoucher'],
-                'date' => $voucher->voucher_date?->format('j M Y') ?? '—',
-                'department' => $voucher->department?->name ?: '—',
+                'date' => $voucher->voucher_date?->format('j M Y') ?? '-',
+                'department' => $voucher->department?->name ?: '-',
                 'cost_centre' => $voucher->cost_centre,
-                'requester' => $voucher->requester?->name ?? '—',
+                'requester' => $voucher->requester?->name ?? '-',
                 'requester_title' => $voucher->requester?->job_title,
-                'category' => $voucher->category ?: '—',
-                'payee' => $voucher->payee ?: '—',
+                'category' => $voucher->category ?: '-',
+                'payee' => $voucher->payee ?: '-',
                 'purpose' => $voucher->purpose,
                 'description' => $voucher->description,
                 'reference' => $voucher->account_ref,
                 'currency' => $voucher->currency,
-                'amount' => (float) $voucher->amount > 0 ? number_format((float) $voucher->amount) : '—',
+                'amount' => (float) $voucher->amount > 0 ? number_format((float) $voucher->amount) : '-',
                 'amount_text' => $this->money->money((float) $voucher->amount, $voucher->currency),
                 'amount_words' => (float) $voucher->amount > 0
                     ? ($voucher->amount_in_words ?: $this->money->money((float) $voucher->amount, $voucher->currency))
-                    : '—',
+                    : '-',
                 'payment_method' => $voucher->payment_method ?: ($isBank ? $t['bank'] : $t['cash']),
                 'remarks' => $voucher->notes_to_approver,
                 'verification_code' => $voucher->verification_code,
@@ -299,7 +299,7 @@ class VoucherDocument
     {
         $blocks = [];
 
-        // The requester always prepares the voucher. Authorship, not assent —
+        // The requester always prepares the voucher. Authorship, not assent
         // so this block carries a name and no mark.
         $blocks[] = [
             'caption' => $t['preparedBy'],
@@ -357,7 +357,7 @@ class VoucherDocument
         }
 
         // Payment closes the document. A voucher that has been approved but not
-        // yet paid still prints this block, empty — the gap IS the information.
+        // yet paid still prints this block, empty, the gap IS the information.
         // Every voucher still alive shows where payment will be recorded; only
         // a rejected or cancelled one has no payment to come.
         if (! in_array($voucher->status, [Voucher::STATUS_REJECTED, Voucher::STATUS_CANCELLED], true)) {
@@ -384,7 +384,7 @@ class VoucherDocument
     /**
      * Everything a payments clerk needs to move the money, by name, so each
      * design can place every field where it wants. Nothing is dropped for
-     * being empty: an unfilled field prints as a blank (—), the way a form does.
+     * being empty: an unfilled field prints as a blank (-), the way a form does.
      *
      * @return array<string, ?string>
      */
@@ -442,7 +442,7 @@ class VoucherDocument
         ], fn ($row) => filled($row[1]));
 
         return array_map(
-            fn ($row) => [$row[0], filled($row[1]) ? (string) $row[1] : '—'],
+            fn ($row) => [$row[0], filled($row[1]) ? (string) $row[1] : '-'],
             array_values(array_merge($always, $optional)),
         );
     }
@@ -506,7 +506,7 @@ class VoucherDocument
         return max(80, min(250, $budget));
     }
 
-    /** Only embedded images render — DomPDF must never fetch a remote URL. */
+    /** Only embedded images render: DomPDF must never fetch a remote URL. */
     private static function inlineImage(?string $data): ?string
     {
         return $data && str_starts_with($data, 'data:image/') ? $data : null;

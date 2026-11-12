@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\Erp\BusinessConfig;
 use App\Support\VoucherTemplates;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -78,6 +79,8 @@ class CompanyResource extends JsonResource
 
             'plan' => new PlanResource($this->whenLoaded('plan')),
             'plan_id' => $this->plan_id,
+            // The apps the subscription allows, every one when none is recorded.
+            'licensed_modules' => BusinessConfig::of($this->resource)->licensedModules(),
             'settings' => $this->settings ?? [],
 
             'users_count' => $this->whenCounted('users'),

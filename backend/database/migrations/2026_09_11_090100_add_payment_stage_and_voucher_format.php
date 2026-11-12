@@ -30,14 +30,14 @@ return new class extends Migration
             $table->string('payment_reference')->nullable()->after('paid_by_id');
             $table->date('payment_date')->nullable()->after('payment_reference');
 
-            // Bank particulars — the payee's account, not the company's.
+            // Bank particulars, the payee's account, not the company's.
             $table->string('payee_bank')->nullable()->after('account_ref');
             $table->string('payee_account_name')->nullable()->after('payee_bank');
             $table->string('payee_account_number', 64)->nullable()->after('payee_account_name');
             $table->string('payee_bank_branch')->nullable()->after('payee_account_number');
             $table->string('cheque_number', 64)->nullable()->after('payee_bank_branch');
 
-            // Cash particulars — which float it came out of, and who took it.
+            // Cash particulars, which float it came out of, and who took it.
             $table->string('cash_float')->nullable()->after('cheque_number');
             $table->string('received_by')->nullable()->after('cash_float');
 

@@ -6,14 +6,16 @@ use App\Models\Company;
 use App\Models\Invoice;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Support\Erp\BusinessConfig;
+use App\Support\PlatformSettings;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
  * Subscription billing and online payment capture.
  *
- * The `demo` driver settles deterministically so the whole billing flow — invoice,
- * charge, receipt, period roll-forward, expiry — is exercisable end to end. Swap
+ * The `demo` driver settles deterministically so the whole billing flow, invoice,
+ * charge, receipt, period roll-forward, expiry, is exercisable end to end. Swap
  * in a real PSP by implementing charge() against its API; nothing else changes.
  */
 class PaymentGateway
@@ -25,11 +27,21 @@ class PaymentGateway
         return (string) config('vouchflow.payments_driver', 'demo');
     }
 
-    /** Starts (or changes to) a plan, issuing the first invoice. */
-    public function subscribe(Company $company, Plan $plan, string $cycle = 'monthly'): Subscription
+    /**
+     * Starts (or changes to) a plan, issuing the first invoice.
+     *
+     * The plan also decides which apps the company may use. Without an
+     * explicit choice, a company staying on its plan keeps the apps it has, a
+     * company moving to a pick-your-apps plan keeps those of its apps the plan
+     * offers, and one moving to a bundle gets the bundle's apps.
+     *
+     * @param  list<string>|null  $modules  the apps chosen, when there was a choice
+     */
+    public function subscribe(Company $company, Plan $plan, string $cycle = 'monthly', ?array $modules = null): Subscription
     {
-        return DB::transaction(function () use ($company, $plan, $cycle) {
-            $amount = $this->amountFor($plan, $cycle);
+        return DB::transaction(function () use ($company, $plan, $cycle, $modules) {
+            $licence = $this->licenceOnSubscribing($company, $plan, $modules);
+            $amount = $plan->priceFor($licence ?? $plan->apps(), $cycle);
             $periodStart = now();
             $periodEnd = $cycle === 'annual' ? now()->addYear() : now()->addMonth();
 
@@ -56,10 +68,11 @@ class PaymentGateway
             // give it a period it has not paid for: the period arrives with
             // the payment (settle), and the status with the approval.
             if ($company->isPending()) {
-                $company->forceFill(['plan_id' => $plan->id])->save();
+                $company->forceFill(['plan_id' => $plan->id, 'licensed_modules' => $licence])->save();
             } else {
                 $company->forceFill([
                     'plan_id' => $plan->id,
+                    'licensed_modules' => $licence,
                     'status' => 'active',
                     'subscribed_at' => $periodStart,
                     'current_period_start' => $periodStart,
@@ -76,14 +89,14 @@ class PaymentGateway
     /** Puts a company on its plan's free trial without taking payment. */
     public function startTrial(Company $company, Plan $plan): Subscription
     {
-        $trialEnds = now()->addDays((int) ($plan->trial_days ?: config('vouchflow.trial_days', 14)));
+        $trialEnds = now()->addDays((int) ($plan->trial_days ?: PlatformSettings::trialDays()));
 
         $subscription = Subscription::create([
             'company_id' => $company->id,
             'plan_id' => $plan->id,
             'status' => 'trialing',
             'billing_cycle' => $plan->billing_cycle,
-            'amount' => $plan->price,
+            'amount' => $plan->priceFor(BusinessConfig::of($company)->licensedModules(), $plan->billing_cycle),
             'currency' => $plan->currency,
             'seats' => $plan->max_users,
             'starts_at' => now(),
@@ -138,7 +151,7 @@ class PaymentGateway
             }
 
             // No plan exists at all; the trial still has to end somewhere.
-            $trialEnds = now()->addDays((int) config('vouchflow.trial_days', 14));
+            $trialEnds = now()->addDays((int) PlatformSettings::trialDays());
 
             $company->forceFill([
                 'status' => 'trial',
@@ -301,10 +314,31 @@ class PaymentGateway
         ];
     }
 
-    private function amountFor(Plan $plan, string $cycle): float
+    /**
+     * The licence a subscription leaves the company with.
+     *
+     * @param  list<string>|null  $modules
+     * @return list<string>|null
+     */
+    private function licenceOnSubscribing(Company $company, Plan $plan, ?array $modules): ?array
     {
-        // Annual billing is charged at ten months, the discount shown on pricing.
-        return $cycle === 'annual' ? (float) $plan->price * 10 : (float) $plan->price;
+        if ($modules !== null) {
+            return BusinessConfig::licenceFor($modules);
+        }
+
+        $current = $company->licensed_modules;
+
+        // Renewing, or paying for the plan chosen at registration, changes
+        // nothing, including a licence from before licensing (every app).
+        if ((int) $company->plan_id === (int) $plan->id) {
+            return is_array($current) ? BusinessConfig::licenceFor($current) : null;
+        }
+
+        if ($plan->allows_module_choice && is_array($current)) {
+            return BusinessConfig::licenceFor(array_values(array_intersect($current, $plan->apps())));
+        }
+
+        return BusinessConfig::licenceFor($plan->apps());
     }
 
     public function invoiceNumber(): string

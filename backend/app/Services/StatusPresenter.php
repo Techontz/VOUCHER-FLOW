@@ -7,7 +7,7 @@ use App\Models\WorkflowStep;
 
 /**
  * Human status text, derived from the voucher's own workflow rather than a fixed
- * list — so a tenant whose second step is "Finance verification" reads
+ * list, so a tenant whose second step is "Finance verification" reads
  * "Awaiting Finance verification", not a hard-coded "Awaiting HOD signature".
  */
 class StatusPresenter
@@ -34,7 +34,7 @@ class StatusPresenter
             // queue, but no longer untouched.
             Voucher::STATUS_APPROVED => $voucher->isPartiallyPaid()
                 ? $this->make('partially_paid', 'Partially paid', 'Imelipwa sehemu', 'tag-accent-2')
-                : $this->make('awaiting_payment', 'Approved — awaiting payment', 'Imeidhinishwa — inasubiri malipo', 'tag-info'),
+                : $this->make('awaiting_payment', 'Approved, awaiting payment', 'Imeidhinishwa, inasubiri malipo', 'tag-info'),
 
             Voucher::STATUS_PAID => $this->make(
                 'paid', 'Paid', 'Imelipwa', 'tag-accent'
@@ -61,7 +61,7 @@ class StatusPresenter
         // differently because the holder has different work to do in each.
         if ($step->can_sign && ! $step->can_approve) {
             return $signed
-                ? $this->make('signed_pending_submit', 'Signed — ready to submit', 'Imesainiwa — tayari kutumwa', 'tag-outline', $step->position)
+                ? $this->make('signed_pending_submit', 'Signed, ready to submit', 'Imesainiwa, tayari kutumwa', 'tag-outline', $step->position)
                 : $this->make('awaiting_signature', "Awaiting {$role} signature", "Inasubiri sahihi ya {$role}", 'tag-outline', $step->position);
         }
 
