@@ -57,8 +57,9 @@ class _PendingApprovalPageState extends State<PendingApprovalPage> {
     final bottom = MediaQuery.paddingOf(context).bottom;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: t.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: t.background,
+      child: VfWallpaper(
+        child: Scaffold(
+        backgroundColor: Colors.transparent,
         body: SafeArea(
           bottom: false,
           child: Obx(() {
@@ -129,6 +130,7 @@ class _PendingApprovalPageState extends State<PendingApprovalPage> {
             );
           }),
         ),
+      ),
       ),
     );
   }

@@ -244,7 +244,7 @@ class _PlatformUsersPageState extends State<PlatformUsersPage> {
                       )
                     else
                       Text(
-                        _companyNames[u.companyId] ?? '—',
+                        _companyNames[u.companyId] ?? '-',
                         style: VfType.small.copyWith(
                           color: t.text,
                           fontWeight: FontWeight.w500,

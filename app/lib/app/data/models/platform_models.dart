@@ -198,7 +198,7 @@ class PlatformInvoice {
       amountText = '${j['amount_text'] ?? ''}',
       status = '${j['status'] ?? ''}',
       statusTag = '${j['status_tag'] ?? 'tag-neutral'}',
-      methodLabel = '${j['method_label'] ?? '—'}',
+      methodLabel = '${j['method_label'] ?? '-'}',
       company = _str(j['company']),
       issuedAt = _date(j['issued_at']),
       paidAt = _date(j['paid_at']);

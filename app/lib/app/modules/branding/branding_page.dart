@@ -40,7 +40,7 @@ class PickedLogo {
 
 final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
 
-/// A company administrator's own identity — the web's Branding page: the
+/// A company administrator's own identity, the web's Branding page: the
 /// voucher design, letterhead details, logo and square mark, the document
 /// colour, footer text, the interface palette and the bank account bank
 /// vouchers are drawn on, with a live specimen in the chosen design. Text
@@ -69,7 +69,7 @@ class BrandingController extends GetxController {
   final fieldErrors = <String, String>{}.obs;
 
   /// The design the company prints in, and the secondary colour the
-  /// letterhead uses — read from GET /company.
+  /// letterhead uses, read from GET /company.
   final currentTemplate = 'classic'.obs;
   String? _secondaryColor;
 
@@ -138,7 +138,7 @@ class BrandingController extends GetxController {
     colorTheme.value = c.colorTheme;
   }
 
-  /// Re-reads the saved company, dropping unsaved edits — called when the
+  /// Re-reads the saved company, dropping unsaved edits, called when the
   /// page opens, as the web re-seeds its form from the company.
   Future<void> seed() async {
     picked.clear();
@@ -396,7 +396,7 @@ class _BrandingPageState extends State<BrandingPage> {
 
   @override
   void dispose() {
-    // Leaving without saving puts the company's own palette back — after
+    // Leaving without saving puts the company's own palette back, after
     // this frame, since the palette rebuilds the whole app.
     Future.microtask(c.revertPreview);
     super.dispose();

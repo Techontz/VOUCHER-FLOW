@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:web/web.dart' as web;
 
 /// Web builds (development screenshots, a browser preview): the document in
-/// an iframe, laid out at A4 width and scaled to the box — the website's own
+/// an iframe, laid out at A4 width and scaled to the box, the website's own
 /// VoucherDocument frame.
 Widget platformDocumentFrame({
   Key? key,

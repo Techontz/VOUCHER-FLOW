@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
+import 'glass.dart';
 
-/// A round, softly filled icon button for app bars (back, close, more).
+/// A round glass icon button for app bars (back, close, more).
 class VfBarButton extends StatelessWidget {
   const VfBarButton({
     super.key,
@@ -30,9 +31,9 @@ class VfBarButton extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Material(
-            color: t.isDark ? t.surface : t.surface,
+            color: t.glassFillStrong,
             shape: CircleBorder(
-              side: BorderSide(color: t.isDark ? t.border : t.border.withValues(alpha: .7)),
+              side: BorderSide(color: t.isDark ? t.glassBorder : t.border),
             ),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
@@ -54,7 +55,7 @@ class VfBarButton extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: t.dangerStrong,
                   shape: BoxShape.circle,
-                  border: Border.all(color: t.surface, width: 1.5),
+                  border: Border.all(color: t.background, width: 1.5),
                 ),
               ),
             ),
@@ -65,7 +66,7 @@ class VfBarButton extends StatelessWidget {
 }
 
 /// A page pushed over the shell (voucher detail, create voucher, a company):
-/// an app bar in the page's own colour with a round back button and a
+/// the glass wallpaper, a clear app bar with a round glass back button and a
 /// centred title.
 class VouchFlowPushedScaffold extends StatelessWidget {
   const VouchFlowPushedScaffold({
@@ -86,10 +87,11 @@ class VouchFlowPushedScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Scaffold(
-      backgroundColor: t.background,
+    return VfWallpaper(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: t.background,
+        backgroundColor: Colors.transparent,
         systemOverlayStyle: t.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         toolbarHeight: VfSize.topBarH,
         leadingWidth: 64,
@@ -112,12 +114,13 @@ class VouchFlowPushedScaffold extends StatelessWidget {
       body: body,
       bottomNavigationBar: bottomBar,
       floatingActionButton: floatingActionButton,
+      ),
     );
   }
 }
 
 /// A shell page's scrollable body: the phone gutter, pull to refresh, and
-/// room at the bottom for the floating tab bar.
+/// room at the bottom above the floating tab bar.
 class VouchFlowPageBody extends StatelessWidget {
   const VouchFlowPageBody({super.key, required this.children, this.onRefresh, this.padding});
 
@@ -132,6 +135,13 @@ class VouchFlowPageBody extends StatelessWidget {
       padding: padding ?? const EdgeInsets.fromLTRB(VfSize.pagePad, 8, VfSize.pagePad, 32),
       children: children,
     );
-    return onRefresh == null ? list : RefreshIndicator(onRefresh: onRefresh!, child: list);
+    if (onRefresh == null) return list;
+    final t = context.vf;
+    return RefreshIndicator(
+      onRefresh: onRefresh!,
+      color: t.primary,
+      backgroundColor: t.isDark ? t.surface2 : t.surface,
+      child: list,
+    );
   }
 }

@@ -97,7 +97,7 @@ const Map<String, String> createEn = {
   'create.draftSaved': 'Draft saved',
   'create.draftSavedBody': '@number is in your drafts.',
   'create.couldNotSave': 'Could not save the voucher',
-  'create.docsNotAttached': 'Draft saved — documents not attached',
+  'create.docsNotAttached': 'Draft saved, documents not attached',
   'create.docsNotAttachedBody': 'Add them again from the voucher.',
   'create.offline': 'Could not reach the server. Check your connection and try again.',
   // preview
@@ -211,7 +211,7 @@ const Map<String, String> createSw = {
   'create.draftSaved': 'Rasimu imehifadhiwa',
   'create.draftSavedBody': '@number iko kwenye rasimu zako.',
   'create.couldNotSave': 'Imeshindikana kuhifadhi vocha',
-  'create.docsNotAttached': 'Rasimu imehifadhiwa — nyaraka hazijaambatishwa',
+  'create.docsNotAttached': 'Rasimu imehifadhiwa, nyaraka hazijaambatishwa',
   'create.docsNotAttachedBody': 'Ziongeze tena kwenye vocha.',
   'create.offline': 'Imeshindikana kufikia seva. Angalia mtandao wako kisha ujaribu tena.',
   'create.livePreview': 'Muhtasari wa papo hapo',

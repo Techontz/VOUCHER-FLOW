@@ -7,7 +7,7 @@ import '../../data/services/template_repository.dart';
 import 'buttons.dart';
 import 'documents.dart';
 
-/// The ten voucher designs as real miniature vouchers — the web's template
+/// The ten voucher designs as real miniature vouchers, the web's template
 /// gallery. On a phone the designs swipe sideways (as on the web under
 /// 560px); on a tablet they sit two or three to a row.
 class VouchFlowTemplateGallery extends StatelessWidget {
@@ -78,7 +78,7 @@ class VouchFlowTemplateGallery extends StatelessWidget {
   }
 }
 
-/// One design at full size, with its neighbours a swipe away — the web's
+/// One design at full size, with its neighbours a swipe away, the web's
 /// template preview dialog. Returns the key the person chose to use, if any.
 Future<String?> showTemplatePreview(
   BuildContext context, {

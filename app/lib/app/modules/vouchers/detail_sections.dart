@@ -22,7 +22,7 @@ String? _join(List<String?> parts) {
 
 /* ─────────────────────────────────────────────────────── the request ── */
 
-/// Who, what, where and how — one info list with icons.
+/// Who, what, where and how, one info list with icons.
 class RequestDetailsPanel extends StatelessWidget {
   const RequestDetailsPanel({super.key, required this.voucher});
 
@@ -153,7 +153,7 @@ class RequestDetailsPanel extends StatelessWidget {
 
 /* ────────────────────────────────────────────────────────── payments ── */
 
-/// What was approved, what has left, what is still owed — and one row per
+/// What was approved, what has left, what is still owed, and one row per
 /// release, each with its receiver's signed acknowledgement.
 class PaymentsPanel extends StatelessWidget {
   const PaymentsPanel({
@@ -586,7 +586,7 @@ class _FileRow extends StatelessWidget {
                           Flexible(
                             child: Text(
                               dt('signedAckLabel', {
-                                'n': '${ackFor?.sequence ?? '—'}',
+                                'n': '${ackFor?.sequence ?? '-'}',
                               }),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

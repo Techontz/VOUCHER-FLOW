@@ -9,7 +9,7 @@ import '../core/theme.dart';
 
 /// Captures a signature by finger or stylus and exports it as PNG bytes.
 ///
-/// Drawn on white so the mark reads on paper as well as on screen — the same
+/// Drawn on white so the mark reads on paper as well as on screen, the same
 /// image is embedded in the generated A4 voucher.
 class SignaturePad extends StatefulWidget {
   const SignaturePad({super.key, required this.controller, this.height = 190});

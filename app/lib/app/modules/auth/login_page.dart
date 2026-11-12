@@ -12,7 +12,7 @@ import 'auth_widgets.dart';
 import 'login_brand.dart';
 
 /// One seeded account per step of the default route, plus the two admin
-/// scopes — the web's DEMO list. Offered only by the offline mock
+/// scopes, the web's DEMO list. Offered only by the offline mock
 /// ([VfConfig.useMock]); a live build never shows accounts or the password.
 class DemoAccount {
   const DemoAccount(this.label, this.person, this.email, this.icon, this.note);
@@ -148,7 +148,7 @@ class LoginController extends GetxController {
   }
 }
 
-/// Sign in — the web's /login on a phone: hero, the form in a card, then the
+/// Sign in, the web's /login on a phone: hero, the form in a card, then the
 /// product detail.
 class LoginPage extends GetView<LoginController> {
   const LoginPage({super.key});
@@ -310,7 +310,7 @@ class _FieldError extends StatelessWidget {
   }
 }
 
-/// The demo sign-in panel — offline mock only, as the web shows it only
+/// The demo sign-in panel, offline mock only, as the web shows it only
 /// outside a live production build.
 class _DemoAccounts extends StatelessWidget {
   const _DemoAccounts({required this.controller});

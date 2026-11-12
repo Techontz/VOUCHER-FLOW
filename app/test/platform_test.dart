@@ -1,5 +1,5 @@
 // The platform super admin screens: companies, one company (every tab),
-// users, plans and payments — pumped at phone widths in both appearances
+// users, plans and payments, pumped at phone widths in both appearances
 // against the API's own response shapes (test/fixtures/platform), so a
 // RenderFlex overflow or a parsing slip fails here rather than on a device.
 
@@ -121,7 +121,7 @@ void main() {
         expect(find.text('Starter'), findsOneWidget);
         await tester.tap(find.byTooltip('Edit Starter'));
         await tester.pumpAndSettle();
-        expect(find.text('Limits — leave blank for unlimited'.toUpperCase()), findsOneWidget);
+        expect(find.text('Limits, leave blank for unlimited'.toUpperCase()), findsOneWidget);
         await host(tester, const PlatformPaymentsPage(), width: width, dark: dark);
         expect(find.text('Collected'), findsOneWidget);
         expect(find.text('Mark paid'), findsOneWidget);

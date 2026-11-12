@@ -1,4 +1,4 @@
-/// Models for the voucher register and the create/edit voucher screens —
+/// Models for the voucher register and the create/edit voucher screens
 /// the parts of the API payloads the shared models do not carry.
 library;
 
@@ -78,10 +78,10 @@ class RouteStep {
   final bool canPay, canApprove;
   final double? minAmount, maxAmount;
 
-  /// WorkflowStep::isRequestStep — the step that raises the voucher.
+  /// WorkflowStep::isRequestStep, the step that raises the voucher.
   bool get isRequest => position == 1 || role == 'employee';
 
-  /// WorkflowStep::appliesToAmount — thresholds, both ends inclusive.
+  /// WorkflowStep::appliesToAmount, thresholds, both ends inclusive.
   bool appliesTo(double amount) {
     if (minAmount != null && amount < minAmount!) return false;
     if (maxAmount != null && amount > maxAmount!) return false;
@@ -107,7 +107,7 @@ class RouteWorkflow {
   final List<RouteStep> steps;
 }
 
-/// WorkflowEngine::resolveWorkflow — which route a new voucher of this type
+/// WorkflowEngine::resolveWorkflow, which route a new voucher of this type
 /// takes: active only; bound to the type beats general; the default wins.
 RouteWorkflow? resolveWorkflow(List<RouteWorkflow> workflows, int? voucherTypeId) {
   final candidates = workflows

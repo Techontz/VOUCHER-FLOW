@@ -23,7 +23,7 @@ class ApiException implements Exception {
   final Map<String, List<String>> errors;
   final String? code;
 
-  /// The whole error body, for the fields a screen reads beyond the message —
+  /// The whole error body, for the fields a screen reads beyond the message
   /// `reason`, `retry_after`, `attempts_remaining`.
   final Map<String, dynamic> data;
 
@@ -58,7 +58,7 @@ class ApiService extends GetxService {
   static const defaultTheme = 'dark';
 
   /// [mock] routes every call to that fixture regardless of the build's
-  /// API mode — for tests.
+  /// API mode, for tests.
   ApiService({MockApi? mock})
     : _mock = mock ?? (VfConfig.useMock ? MockApi() : null);
 
@@ -200,7 +200,7 @@ class ApiService extends GetxService {
     }
   }
 
-  /// Multipart upload — used for attachments, avatars and the company logo.
+  /// Multipart upload, used for attachments, avatars and the company logo.
   Future<dynamic> upload(
     String path,
     List<http.MultipartFile> files, {
@@ -233,7 +233,7 @@ class ApiService extends GetxService {
       if (path.endsWith('/acknowledgement')) {
         throw ApiException(
           501,
-          'The payment acknowledgement is printed from the live server — '
+          'The payment acknowledgement is printed from the live server, '
           'the prototype cannot render PDFs.',
         );
       }
@@ -272,7 +272,7 @@ class ApiService extends GetxService {
         0,
         kReleaseMode
             ? 'Cannot reach the server. Check your connection and try again.'
-            : 'Cannot reach ${VfConfig.apiUrl} — $error',
+            : 'Cannot reach ${VfConfig.apiUrl}, $error',
       );
     }
   }

@@ -100,7 +100,7 @@ class AppIconTile extends StatelessWidget {
 }
 
 /// A rounded card of rows separated by dividers that start after the
-/// leading tile — the iOS / Android grouped list.
+/// leading tile, the iOS / Android grouped list.
 class AppListGroup extends StatelessWidget {
   const AppListGroup({
     super.key,

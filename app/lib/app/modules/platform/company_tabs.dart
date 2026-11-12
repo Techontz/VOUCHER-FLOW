@@ -16,7 +16,7 @@ import 'platform_widgets.dart';
 /*
  * The tabs of the platform's company view (web: platform/companies/[id]/
  * sections.tsx). Every number and row comes from the platform API for this
- * one company — nothing is invented. Tables become cards on a phone.
+ * one company, nothing is invented. Tables become cards on a phone.
  */
 
 typedef OpenTab = void Function(String tab, [Map<String, String>? filter]);
@@ -169,7 +169,7 @@ class OverviewTab extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       child: Text(
-                        s.position > 0 ? '${s.position}' : '—',
+                        s.position > 0 ? '${s.position}' : '-',
                         style: VfType.meta.copyWith(
                           color: t.primaryText,
                           fontWeight: FontWeight.w700,
@@ -1300,9 +1300,9 @@ class _UsersTabState extends State<UsersTab> {
           ),
           PlatformMetaLine(
             label: 'platform.u.department'.tr,
-            value: u.departmentName ?? '—',
+            value: u.departmentName ?? '-',
           ),
-          PlatformMetaLine(label: 'platform.u.phone'.tr, value: u.phone ?? '—'),
+          PlatformMetaLine(label: 'platform.u.phone'.tr, value: u.phone ?? '-'),
           PlatformMetaLine(
             label: 'platform.vouchers'.tr,
             value: '${u.voucherCount}',
@@ -1385,7 +1385,7 @@ class DepartmentsTab extends StatelessWidget {
                                         d.code,
                                         d.costCentre,
                                       ].whereType<String>().join(' · ').isEmpty
-                                      ? '—'
+                                      ? '-'
                                       : [
                                           d.code,
                                           d.costCentre,
@@ -1429,7 +1429,7 @@ class DepartmentsTab extends StatelessWidget {
                       const SizedBox(height: 10),
                       PlatformMetaLine(
                         label: 'platform.d.manager'.tr,
-                        value: d.manager?.name ?? '—',
+                        value: d.manager?.name ?? '-',
                       ),
                       PlatformMetaLine(
                         label: 'platform.d.people'.tr,
@@ -2192,11 +2192,11 @@ class _VouchersTabState extends State<VouchersTab> {
           const SizedBox(height: 4),
           PlatformMetaLine(
             label: 'platform.v.employee'.tr,
-            value: v.requester ?? '—',
+            value: v.requester ?? '-',
           ),
           PlatformMetaLine(
             label: 'platform.v.department'.tr,
-            value: v.department ?? '—',
+            value: v.department ?? '-',
           ),
           if (v.status == 'in_review')
             PlatformMetaLine(
@@ -2204,7 +2204,7 @@ class _VouchersTabState extends State<VouchersTab> {
               value:
                   v.currentStepName ??
                   'platform.v.step'.trParams({
-                    'n': '${v.currentStepPosition ?? '—'}',
+                    'n': '${v.currentStepPosition ?? '-'}',
                   }),
             ),
           PlatformMetaLine(
@@ -2338,19 +2338,19 @@ class PaymentsTab extends StatelessWidget {
           const SizedBox(height: 6),
           PlatformMetaLine(
             label: 'platform.v.department'.tr,
-            value: r.department ?? '—',
+            value: r.department ?? '-',
           ),
           PlatformMetaLine(
             label: 'platform.p.method'.tr,
-            value: r.paymentMethod ?? '—',
+            value: r.paymentMethod ?? '-',
           ),
           PlatformMetaLine(
             label: 'platform.p.reference'.tr,
-            value: r.paymentReference ?? '—',
+            value: r.paymentReference ?? '-',
           ),
           PlatformMetaLine(
             label: 'platform.p.paidBy'.tr,
-            value: r.paidBy ?? '—',
+            value: r.paidBy ?? '-',
           ),
           PlatformMetaLine(
             label: 'platform.pay.date'.tr,

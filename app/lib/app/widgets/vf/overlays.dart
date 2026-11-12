@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
 import 'buttons.dart';
+import 'glass.dart';
 import 'surfaces.dart';
 
 /// One labelled line in a dialog's summary (the web's `Dialog summary`).
@@ -12,7 +13,7 @@ class VfSummaryRow {
 }
 
 /// The web's `Dialog`: a tone-coloured icon plate, title, subtitle, an
-/// optional summary block, optional body, and actions — on a phone it rises
+/// optional summary block, optional body, and actions, on a phone it rises
 /// as a bottom sheet, as the web dialog does under 640px.
 class VouchFlowDialog extends StatelessWidget {
   const VouchFlowDialog({
@@ -70,9 +71,9 @@ class VouchFlowDialog extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
-                    color: t.surface2,
-                    borderRadius: BorderRadius.circular(VfSize.radiusL),
-                    border: Border.all(color: t.border),
+                    color: t.glassFill,
+                    borderRadius: BorderRadius.circular(VfSize.radiusXl),
+                    border: Border.all(color: t.isDark ? t.glassBorder : t.border),
                   ),
                   child: Column(
                     children: [
@@ -111,18 +112,77 @@ class VouchFlowDialog extends StatelessWidget {
   }
 }
 
+/// A sheet's glass frame: blurred, near-opaque glass rounded at the top,
+/// with a grab handle. Use it as the whole content of a modal sheet opened
+/// with [showVfSheet] (or `showModalBottomSheet` with a transparent
+/// background and no drag handle).
+class VfSheetFrame extends StatelessWidget {
+  const VfSheetFrame({super.key, required this.child, this.handle = true});
+
+  final Widget child;
+  final bool handle;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return VfGlass(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(VfSize.radiusSheet)),
+      fill: t.sheetFill,
+      clip: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (handle)
+            Center(
+              child: Container(
+                width: 38,
+                height: 5,
+                margin: const EdgeInsets.only(top: 10, bottom: 16),
+                decoration: BoxDecoration(
+                  color: t.isDark ? Colors.white.withValues(alpha: .22) : t.borderStrong,
+                  borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                ),
+              ),
+            ),
+          Flexible(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+/// Opens a modal sheet on glass: [builder]'s content inside a
+/// [VfSheetFrame], over the appearance's dimmed overlay.
+Future<T?> showVfSheet<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  bool dismissible = true,
+  bool isScrollControlled = true,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: isScrollControlled,
+    isDismissible: dismissible,
+    enableDrag: dismissible,
+    useSafeArea: true,
+    showDragHandle: false,
+    backgroundColor: Colors.transparent,
+    elevation: 0,
+    shape: const RoundedRectangleBorder(),
+    builder: (ctx) => VfSheetFrame(child: builder(ctx)),
+  );
+}
+
 /// Shows a [VouchFlowDialog] as a bottom sheet (the web dialog's phone form).
 Future<T?> showVouchFlowDialog<T>(
   BuildContext context, {
   required VouchFlowDialog dialog,
   bool dismissible = true,
 }) {
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    isDismissible: dismissible,
-    enableDrag: dismissible,
-    useSafeArea: true,
+  return showVfSheet<T>(
+    context,
+    dismissible: dismissible,
     builder: (_) => dialog,
   );
 }
@@ -134,10 +194,8 @@ Future<T?> showVouchFlowBottomSheet<T>(
   required Widget child,
   List<Widget> actions = const [],
 }) {
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
+  return showVfSheet<T>(
+    context,
     builder: (ctx) {
       final t = ctx.vf;
       return Padding(

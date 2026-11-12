@@ -121,3 +121,10 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# phosphor_flutter 2.1.0 (its latest release) extends IconData, which Flutter
+# 3.47 made final. The patched copy in packages/ draws the same icons from the
+# same fonts as plain IconData. Remove once upstream publishes a fix.
+dependency_overrides:
+  phosphor_flutter:
+    path: packages/phosphor_flutter

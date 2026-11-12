@@ -8,7 +8,7 @@ import '../../widgets/common.dart' show Fmt, showToast;
 import '../../widgets/vf/vf.dart';
 import '../admin/admin_widgets.dart' show adminReport, AdminNote, AdminSection;
 
-/// A company's voucher design, and what may be done about it — the web's
+/// A company's voucher design, and what may be done about it, the web's
 /// VoucherTemplatePanel.
 ///
 /// `company` mode is the tenant's own Branding page: the administrator may
@@ -114,7 +114,7 @@ class _VoucherTemplatePanelState extends State<VoucherTemplatePanel> {
 
   String _nameOf(String? key) {
     final t = _state?.templates.where((x) => x.key == key).firstOrNull;
-    return t == null ? '—' : t.name(_locale);
+    return t == null ? '-' : t.name(_locale);
   }
 
   String _numberOf(VoucherTemplate t) => t.number.toString().padLeft(2, '0');
@@ -662,7 +662,7 @@ class _HistoryRow extends StatelessWidget {
             children: [
               Text(
                 row.previousTemplate == null
-                    ? '—'
+                    ? '-'
                     : nameOf(row.previousTemplate),
                 style: VfType.small.copyWith(color: t.text2),
               ),
@@ -677,11 +677,11 @@ class _HistoryRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          line('branding.vt.by'.tr, row.changedByName ?? '—'),
+          line('branding.vt.by'.tr, row.changedByName ?? '-'),
           line(
             'branding.vt.role'.tr,
             role == null
-                ? '—'
+                ? '-'
                 : (_roles.contains(role) ? 'branding.vt.role.$role'.tr : role),
           ),
           line('branding.vt.date'.tr, Fmt.dateTime(row.createdAt?.toLocal())),
@@ -691,7 +691,7 @@ class _HistoryRow extends StatelessWidget {
                 ? 'branding.vt.src.${row.source}'.tr
                 : row.source,
           ),
-          line('branding.vt.reasonCol'.tr, row.reason ?? '—'),
+          line('branding.vt.reasonCol'.tr, row.reason ?? '-'),
         ],
       ),
     );

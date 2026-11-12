@@ -123,7 +123,7 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
       });
       if (submit) {
         final sent = await _vouchers.submit(v.id);
-        showToast('create.submitted'.tr, body: '${sent.number} — ${sent.statusLabel}');
+        showToast('create.submitted'.tr, body: '${sent.number}, ${sent.statusLabel}');
       } else {
         showToast('create.changesSaved'.tr, body: v.number);
       }
@@ -231,7 +231,7 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
                           items: _types.isEmpty && _typeId != null ? [_typeId!] : _types.map((x) => x.id).toList(),
                           value: _typeId,
                           itemLabel: (id) =>
-                              _types.firstWhereOrNull((x) => x.id == id)?.label ?? v.voucherTypeLabel ?? '—',
+                              _types.firstWhereOrNull((x) => x.id == id)?.label ?? v.voucherTypeLabel ?? '-',
                           error: _errors['voucher_type_id'],
                           onChanged: (id) => setState(() => _typeId = id ?? _typeId),
                         ),
@@ -249,9 +249,9 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
                           label: 'create.department'.tr,
                           items: _departments.map((d) => d.id).toList(),
                           value: _departmentId,
-                          placeholder: v.departmentName ?? '—',
+                          placeholder: v.departmentName ?? '-',
                           error: _errors['department_id'],
-                          itemLabel: (id) => _departments.firstWhereOrNull((d) => d.id == id)?.name ?? '—',
+                          itemLabel: (id) => _departments.firstWhereOrNull((d) => d.id == id)?.name ?? '-',
                           onChanged: null,
                         ),
                         VouchFlowDropdown<String>(

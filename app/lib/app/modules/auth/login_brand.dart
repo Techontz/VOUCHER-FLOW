@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/theme.dart';
+import '../../widgets/vf/glass.dart';
 import 'auth_widgets.dart';
 
-/// The sign-in screen's frame, built as an app rather than a web page: a
-/// short brand header on the product's navy and blue, then the form on a
-/// rounded sheet that fills the rest of the screen.
+/// The sign-in screen's frame, built as an app rather than a web page: the
+/// glass wallpaper, a short brand header, then the form on a blurred glass
+/// card.
 ///
 /// Used by both steps of signing in; only [card] changes.
 class LoginFrame extends StatelessWidget {
@@ -18,12 +19,12 @@ class LoginFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
     final media = MediaQuery.of(context);
     final keyboardUp = media.viewInsets.bottom > 0;
 
-    return Scaffold(
-      backgroundColor: t.chrome,
+    return VfWallpaper(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
@@ -43,7 +44,7 @@ class LoginFrame extends StatelessWidget {
                         0,
                       ),
                       child: const Row(
-                        children: [Spacer(), AuthTools(onDark: true)],
+                        children: [Spacer(), AuthTools()],
                       ),
                     ),
                     AnimatedPadding(
@@ -60,34 +61,34 @@ class LoginFrame extends StatelessWidget {
                 ),
               ),
               SliverToBoxAdapter(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: t.surface,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(32),
-                    ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    14,
+                    0,
+                    14,
+                    16 + media.padding.bottom,
                   ),
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
                   child: Align(
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 460),
-                      child: card,
+                      child: VfGlass(
+                        strong: true,
+                        borderRadius: BorderRadius.circular(
+                          VfSize.radiusSheet + 4,
+                        ),
+                        padding: const EdgeInsets.fromLTRB(22, 30, 22, 24),
+                        clip: false,
+                        child: card,
+                      ),
                     ),
                   ),
-                ),
-              ),
-              // The sheet's colour runs on to the foot of the screen.
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: ColoredBox(
-                  color: t.surface,
-                  child: SizedBox(height: media.padding.bottom),
                 ),
               ),
             ],
           ),
         ],
+      ),
       ),
     );
   }
@@ -107,7 +108,7 @@ class _Brand extends StatelessWidget {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: t.palette.primaryLight.withValues(alpha: .55),
+                color: t.primary.withValues(alpha: t.isDark ? .5 : .32),
                 blurRadius: 32,
                 offset: const Offset(0, 10),
               ),
@@ -119,44 +120,46 @@ class _Brand extends StatelessWidget {
         Text(
           'app.name'.tr,
           style: VfType.pageTitle.copyWith(
-            fontSize: 30,
+            fontSize: 32,
             fontWeight: FontWeight.w700,
-            letterSpacing: -.8,
-            color: Colors.white,
+            letterSpacing: -1.1,
+            color: t.text,
           ),
         ),
         const SizedBox(height: 6),
         Text(
           'auth.tagline'.tr,
           textAlign: TextAlign.center,
-          style: VfType.body.copyWith(
-            fontSize: 14.5,
-            color: Colors.white.withValues(alpha: .72),
-          ),
+          style: VfType.body.copyWith(fontSize: 14.5, color: t.muted),
         ),
       ],
     );
   }
 }
 
-/// Navy ground with two soft blooms of the company colour.
+/// One extra bloom of the company colour behind the brand, over the
+/// wallpaper.
 class _Backdrop extends StatelessWidget {
   const _Backdrop();
 
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return CustomPaint(painter: _BackdropPainter(t.chrome, t.palette.primaryLight));
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: _BackdropPainter(t.primary, t.isDark ? .30 : .16),
+      ),
+    );
   }
 }
 
 class _BackdropPainter extends CustomPainter {
-  _BackdropPainter(this.ground, this.accent);
-  final Color ground, accent;
+  _BackdropPainter(this.accent, this.strength);
+  final Color accent;
+  final double strength;
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = ground);
     void bloom(Offset c, double r, double a) {
       canvas.drawCircle(
         c,
@@ -169,11 +172,10 @@ class _BackdropPainter extends CustomPainter {
     }
 
     final w = size.width;
-    bloom(Offset(w * .85, 40), math.max(w * .75, 260), .55);
-    bloom(Offset(w * .05, 280), w * .6, .30);
+    bloom(Offset(w * .5, 150), math.max(w * .6, 220), strength);
   }
 
   @override
   bool shouldRepaint(covariant _BackdropPainter old) =>
-      old.ground != ground || old.accent != accent;
+      old.accent != accent || old.strength != strength;
 }

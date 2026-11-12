@@ -47,7 +47,7 @@ class _PlatformPlansPageState extends State<PlatformPlansPage> {
       dialog: VouchFlowDialog(
         title: plan == null
             ? 'platform.add'.tr
-            : '${'platform.edit'.tr} — ${plan.name}',
+            : '${'platform.edit'.tr}, ${plan.name}',
         child: _PlanForm(plan: plan),
       ),
     );

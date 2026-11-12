@@ -26,11 +26,12 @@ class VouchFlowVoucherCard extends StatelessWidget {
     final partial = v.isPartiallyPaid && v.balanceText != null;
     final meta = [v.number, v.payee].where((s) => s.isNotEmpty && s != 'null').join(' · ');
 
+    // A list row: the cheap translucent fill, never a blur.
     return VouchFlowCard(
       onTap: onTap,
       radius: VfSize.radiusXl,
       borderColor: selected ? t.primary : null,
-      color: selected ? t.primarySoft : null,
+      color: selected ? t.primarySoft : t.glassRowFill,
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
@@ -40,6 +41,9 @@ class VouchFlowVoucherCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: v.isCash ? t.successSoft : t.primarySoft,
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: (v.isCash ? t.successStrong : t.primary).withValues(alpha: .18),
+              ),
             ),
             child: Icon(
               v.isCash ? PhosphorIconsFill.money : PhosphorIconsFill.bank,

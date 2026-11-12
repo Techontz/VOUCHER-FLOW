@@ -25,7 +25,7 @@ const Map<String, String> authEn = {
   'auth.line2': 'Get them approved.',
   'auth.line3': 'Pay with confidence.',
   'auth.body':
-      'VouchFlow gives organisations one secure platform to create, review, sign, approve and pay financial vouchers — with complete visibility from request to payment.',
+      'VouchFlow gives organisations one secure platform to create, review, sign, approve and pay financial vouchers, with complete visibility from request to payment.',
   'auth.feat1': 'Secure',
   'auth.feat1Sub': 'Controlled voucher approvals',
   'auth.feat2': 'Transparent',
@@ -59,11 +59,11 @@ const Map<String, String> authEn = {
   'auth.rememberMe': 'Remember me',
   'auth.signIn': 'Sign in',
   'auth.signingIn': 'Signing in…',
-  'auth.signedInOpening': 'Signed in — opening your dashboard',
+  'auth.signedInOpening': 'Signed in, opening your dashboard',
   'auth.newTo': 'New to VouchFlow?',
   'auth.registerCompany': 'Register your company',
   'auth.staffNote': 'Staff accounts are created by your company administrator.',
-  'auth.footer': 'Vouchers, signatures and payments — on the record.',
+  'auth.footer': 'Vouchers, signatures and payments, on the record.',
   'auth.somethingWrong': 'Something went wrong',
   'auth.language': 'Language',
   'auth.toLight': 'Switch to light mode',
@@ -76,9 +76,9 @@ const Map<String, String> authEn = {
   'auth.demo.employee': 'Employee',
   'auth.demo.employeeNote': 'raises vouchers, sees only their own',
   'auth.demo.hod': 'HOD',
-  'auth.demo.hodNote': 'reviews and signs — never approves',
+  'auth.demo.hodNote': 'reviews and signs, never approves',
   'auth.demo.md': 'Managing Director',
-  'auth.demo.mdNote': 'approves or rejects — the final decision',
+  'auth.demo.mdNote': 'approves or rejects, the final decision',
   'auth.demo.cashier': 'Cashier',
   'auth.demo.cashierNote': 'releases the funds and records the reference',
   'auth.demo.admin': 'Company Admin',
@@ -144,7 +144,7 @@ const Map<String, String> authEn = {
   'auth.v.verified': 'Verified',
   'auth.v.verifiedBody': 'Your account is confirmed.',
   'auth.v.legal':
-      'Vouchers, signatures and payments — every company isolated, every action on the record.',
+      'Vouchers, signatures and payments, every company isolated, every action on the record.',
 
   // ── registration (app/register) ──
   'auth.rg.step.company': 'Company',
@@ -158,7 +158,7 @@ const Map<String, String> authEn = {
   'auth.rg.step.branding': 'Branding & template',
   'auth.rg.step.brandingTitle': 'Make it yours',
   'auth.rg.step.brandingSub':
-      'Your logo, your colours and the design of your payment voucher — on screen and on every voucher you print.',
+      'Your logo, your colours and the design of your payment voucher, on screen and on every voucher you print.',
   'auth.rg.step.admin': 'Admin',
   'auth.rg.step.adminTitle': 'Create the administrator',
   'auth.rg.step.adminSub':
@@ -199,7 +199,7 @@ const Map<String, String> authEn = {
   'auth.rg.templateTitle': 'Choose your voucher design',
   'auth.rg.chooseTemplate': 'Choose a voucher design to continue.',
   'auth.rg.templateSub':
-      'Every design carries the same information and follows the same approvals — only the layout changes. Open one to see it full size with your logo and colours.',
+      'Every design carries the same information and follows the same approvals, only the layout changes. Open one to see it full size with your logo and colours.',
   'auth.rg.templateOnce':
       'After registration your administrator can change the template once from Branding.',
   'auth.rg.previewsLoading': 'Preparing previews…',
@@ -242,7 +242,7 @@ const Map<String, String> authEn = {
   'auth.rg.savedDetails': 'Company details and colours saved',
   'auth.rg.savedLogo': 'Logo uploaded',
   'auth.rg.finishInSettings':
-      'Not saved — add it later in Settings → Branding',
+      'Not saved, add it later in Settings → Branding',
   'auth.rg.verify': 'Verify email',
   'auth.rg.fixErrors': 'Some details need attention',
   'auth.rg.isolated': 'Every company is fully isolated from every other.',
@@ -271,7 +271,7 @@ const Map<String, String> authEn = {
   'auth.ob.add': 'Add',
   'auth.ob.removeDept': 'Remove @name',
   'auth.ob.wfIntro':
-      'Build this company\'s own route. Each step names who acts and exactly what they may do — sign, approve, reject, request changes, print. Every company on the platform can differ.',
+      'Build this company\'s own route. Each step names who acts and exactly what they may do, sign, approve, reject, request changes, print. Every company on the platform can differ.',
   'auth.ob.wfLater':
       'You can change every step, its order and its permissions later under Settings.',
   'auth.ob.fullName': 'Full name',
@@ -288,7 +288,7 @@ const Map<String, String> authEn = {
   'auth.ob.unlimitedUsers': 'Unlimited users',
   'auth.ob.vouchers': '@n vouchers / month',
   'auth.ob.unlimitedVouchers': 'Unlimited vouchers',
-  'auth.ob.trialNote': 'Your trial runs first — you will not be charged today.',
+  'auth.ob.trialNote': 'Your trial runs first, you will not be charged today.',
   'auth.ob.back': 'Back',
   'auth.ob.next': 'Next',
   'auth.ob.skip': 'Skip setup',
@@ -321,7 +321,7 @@ const Map<String, String> authSw = {
   'auth.line2': 'Pata idhini.',
   'auth.line3': 'Lipa kwa uhakika.',
   'auth.body':
-      'VouchFlow inaipa kampuni jukwaa moja salama la kuandaa, kukagua, kusaini, kuidhinisha na kulipa vocha za fedha — ukiona kila hatua kuanzia ombi hadi malipo.',
+      'VouchFlow inaipa kampuni jukwaa moja salama la kuandaa, kukagua, kusaini, kuidhinisha na kulipa vocha za fedha, ukiona kila hatua kuanzia ombi hadi malipo.',
   'auth.feat1': 'Salama',
   'auth.feat1Sub': 'Idhini za vocha zenye udhibiti',
   'auth.feat2': 'Uwazi',
@@ -355,12 +355,12 @@ const Map<String, String> authSw = {
   'auth.rememberMe': 'Nikumbuke',
   'auth.signIn': 'Ingia',
   'auth.signingIn': 'Inaingia…',
-  'auth.signedInOpening': 'Umeingia — tunafungua dashibodi',
+  'auth.signedInOpening': 'Umeingia, tunafungua dashibodi',
   'auth.newTo': 'Mgeni kwenye VouchFlow?',
   'auth.registerCompany': 'Sajili kampuni yako',
   'auth.staffNote':
       'Akaunti za wafanyakazi huundwa na msimamizi wa kampuni yako.',
-  'auth.footer': 'Vocha, saini na malipo — yote kwenye kumbukumbu.',
+  'auth.footer': 'Vocha, saini na malipo, yote kwenye kumbukumbu.',
   'auth.somethingWrong': 'Kuna tatizo limetokea',
   'auth.language': 'Lugha',
   'auth.toLight': 'Badili kwenda mwanga',
@@ -372,9 +372,9 @@ const Map<String, String> authSw = {
   'auth.demo.employee': 'Mfanyakazi',
   'auth.demo.employeeNote': 'anaandaa vocha, anaona zake tu',
   'auth.demo.hod': 'Mkuu wa idara',
-  'auth.demo.hodNote': 'anakagua na kusaini — haidhinishi',
+  'auth.demo.hodNote': 'anakagua na kusaini, haidhinishi',
   'auth.demo.md': 'Mkurugenzi Mtendaji',
-  'auth.demo.mdNote': 'anaidhinisha au kukataa — uamuzi wa mwisho',
+  'auth.demo.mdNote': 'anaidhinisha au kukataa, uamuzi wa mwisho',
   'auth.demo.cashier': 'Mhasibu wa malipo',
   'auth.demo.cashierNote': 'anatoa fedha na kurekodi kumbukumbu',
   'auth.demo.admin': 'Msimamizi wa kampuni',
@@ -440,7 +440,7 @@ const Map<String, String> authSw = {
   'auth.v.verified': 'Imethibitishwa',
   'auth.v.verifiedBody': 'Akaunti yako imethibitishwa.',
   'auth.v.legal':
-      'Vocha, saini na malipo — kila kampuni imetenganishwa, kila kitendo kinarekodiwa.',
+      'Vocha, saini na malipo, kila kampuni imetenganishwa, kila kitendo kinarekodiwa.',
 
   'auth.rg.step.company': 'Kampuni',
   'auth.rg.step.companyTitle': 'Tueleze kuhusu kampuni yako',
@@ -453,7 +453,7 @@ const Map<String, String> authSw = {
   'auth.rg.step.branding': 'Chapa na kiolezo',
   'auth.rg.step.brandingTitle': 'Ifanye iwe yako',
   'auth.rg.step.brandingSub':
-      'Nembo yenu, rangi zenu na muundo wa vocha yenu ya malipo — kwenye skrini na kwenye kila vocha mtakayochapisha.',
+      'Nembo yenu, rangi zenu na muundo wa vocha yenu ya malipo, kwenye skrini na kwenye kila vocha mtakayochapisha.',
   'auth.rg.step.admin': 'Msimamizi',
   'auth.rg.step.adminTitle': 'Unda msimamizi',
   'auth.rg.step.adminSub': 'Mtu huyu ataweka idara, watu na njia za idhini.',
@@ -493,7 +493,7 @@ const Map<String, String> authSw = {
   'auth.rg.templateTitle': 'Chagua muundo wa vocha yenu',
   'auth.rg.chooseTemplate': 'Chagua muundo wa vocha ili kuendelea.',
   'auth.rg.templateSub':
-      'Kila muundo una taarifa zilezile na idhini zilezile — mpangilio pekee ndio unabadilika. Fungua mmoja uuone kwa ukubwa kamili ukiwa na nembo na rangi zenu.',
+      'Kila muundo una taarifa zilezile na idhini zilezile, mpangilio pekee ndio unabadilika. Fungua mmoja uuone kwa ukubwa kamili ukiwa na nembo na rangi zenu.',
   'auth.rg.templateOnce':
       'Baada ya usajili msimamizi wenu anaweza kubadilisha kiolezo mara moja kupitia Chapa.',
   'auth.rg.previewsLoading': 'Tunaandaa mwonekano…',
@@ -536,7 +536,7 @@ const Map<String, String> authSw = {
   'auth.rg.savedDetails': 'Taarifa na rangi za kampuni zimehifadhiwa',
   'auth.rg.savedLogo': 'Nembo imepakiwa',
   'auth.rg.finishInSettings':
-      'Haijahifadhiwa — iongeze baadaye kwenye Mipangilio → Chapa',
+      'Haijahifadhiwa, iongeze baadaye kwenye Mipangilio → Chapa',
   'auth.rg.verify': 'Thibitisha barua pepe',
   'auth.rg.fixErrors': 'Baadhi ya taarifa zinahitaji marekebisho',
   'auth.rg.isolated': 'Kila kampuni imetenganishwa kikamilifu.',
@@ -565,7 +565,7 @@ const Map<String, String> authSw = {
   'auth.ob.add': 'Ongeza',
   'auth.ob.removeDept': 'Ondoa @name',
   'auth.ob.wfIntro':
-      'Tengeneza njia ya kampuni hii. Kila hatua inaonyesha anayetenda na anachoruhusiwa — kusaini, kuidhinisha, kukataa, kuomba mabadiliko, kuchapisha. Kila kampuni inaweza kuwa tofauti.',
+      'Tengeneza njia ya kampuni hii. Kila hatua inaonyesha anayetenda na anachoruhusiwa, kusaini, kuidhinisha, kukataa, kuomba mabadiliko, kuchapisha. Kila kampuni inaweza kuwa tofauti.',
   'auth.ob.wfLater':
       'Unaweza kubadilisha kila hatua, mpangilio wake na ruhusa zake baadaye kwenye Mipangilio.',
   'auth.ob.fullName': 'Jina kamili',
@@ -583,7 +583,7 @@ const Map<String, String> authSw = {
   'auth.ob.vouchers': 'Vocha @n / mwezi',
   'auth.ob.unlimitedVouchers': 'Vocha bila kikomo',
   'auth.ob.trialNote':
-      'Kipindi chako cha majaribio kinaanza kwanza — hutatozwa leo.',
+      'Kipindi chako cha majaribio kinaanza kwanza, hutatozwa leo.',
   'auth.ob.back': 'Nyuma',
   'auth.ob.next': 'Ifuatayo',
   'auth.ob.skip': 'Ruka usanidi',

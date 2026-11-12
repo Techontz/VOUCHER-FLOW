@@ -15,7 +15,7 @@ import '../shell/shell_page.dart';
 /// bar), app list rows, grouped sections, option and detail sheets,
 /// pagination, badges, meters and the web's `reportError`.
 
-/// Which part of /settings is showing — the web keeps it in the address
+/// Which part of /settings is showing, the web keeps it in the address
 /// (#workflow, #types, #company); here it lives beside the shell's route.
 class AdminSettings {
   AdminSettings._();
@@ -188,7 +188,7 @@ class _NavChip extends StatelessWidget {
 
 /// A company-administration page: the settings chips (company
 /// administrators only), a big title with one round action beside it, the
-/// content, and — for a form — a sticky save bar at the bottom.
+/// content, and, for a form, a sticky save bar at the bottom.
 class AdminPageBody extends StatelessWidget {
   const AdminPageBody({
     super.key,
@@ -208,7 +208,7 @@ class AdminPageBody extends StatelessWidget {
   /// False when an app bar above already names the page.
   final bool showTitle;
 
-  /// The page's primary action — an [AdminRoundAction] or a compact pill.
+  /// The page's primary action, an [AdminRoundAction] or a compact pill.
   final Widget? action;
   final List<Widget> children;
   final Future<void> Function()? onRefresh;
@@ -361,7 +361,7 @@ class AdminSaveBar extends StatelessWidget {
 
 /// What a page's sticky save bar needs from the form below it: whether
 /// there is anything to save, whether a save is running, and the save.
-/// Safe to update from a build — the bar hears about it after the frame.
+/// Safe to update from a build, the bar hears about it after the frame.
 class AdminSaveState extends ChangeNotifier {
   bool ready = false, busy = false, dirty = true;
   VoidCallback? onSave;
@@ -395,7 +395,7 @@ class AdminSaveState extends ChangeNotifier {
   }
 }
 
-/// A short section label above a rounded card — the grouped-form look.
+/// A short section label above a rounded card, the grouped-form look.
 class AdminSection extends StatelessWidget {
   const AdminSection({
     super.key,
@@ -459,7 +459,7 @@ class AdminFields extends StatelessWidget {
   );
 }
 
-/// A tinted rounded icon tile — the leading mark of a list row.
+/// A tinted rounded icon tile, the leading mark of a list row.
 class AdminIconTile extends StatelessWidget {
   const AdminIconTile(
     this.icon, {
@@ -1265,7 +1265,7 @@ class AdminLine extends StatelessWidget {
               child:
                   valueWidget ??
                   Text(
-                    value.isEmpty ? '—' : value,
+                    value.isEmpty ? '-' : value,
                     textAlign: TextAlign.right,
                     style: (strong ? VfType.bodyStrong : VfType.small).copyWith(
                       color: t.text,

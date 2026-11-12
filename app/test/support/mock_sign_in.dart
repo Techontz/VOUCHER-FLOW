@@ -1,7 +1,7 @@
 import 'package:vouchflow/app/data/mock/mock_api.dart';
 
-/// Signs [email] in against the mock through both steps — password, then the
-/// fixture's fixed code — and returns the session body ({token, user, company}).
+/// Signs [email] in against the mock through both steps, password, then the
+/// fixture's fixed code, and returns the session body ({token, user, company}).
 Future<Map<String, dynamic>> mockSignIn(MockApi api, String email) async {
   final login =
       await api.handle(

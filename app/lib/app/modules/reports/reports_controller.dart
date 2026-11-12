@@ -9,7 +9,7 @@ import '../../data/models/report_models.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/report_repository.dart';
 
-/// Which filters make sense for each report — the web's FILTERS table. A
+/// Which filters make sense for each report, the web's FILTERS table. A
 /// control that cannot change the result is not offered: the department
 /// report already lists every department, the employee report already groups
 /// by person, and the money reports only ever hold approved vouchers, so they
@@ -195,7 +195,7 @@ class ReportsController {
       if (c.kinds.isNotEmpty && !c.kinds.any((k) => k.key == active.value)) {
         active.value = c.kinds.first.key;
       }
-      // People to filter by — only for a caller who can see anyone but
+      // People to filter by, only for a caller who can see anyone but
       // themselves.
       if (c.scope != null && !c.scope!.isOwn) {
         unawaited(
@@ -343,7 +343,7 @@ class ReportsController {
     }
   }
 
-  /// `vouchflow-vouchers-2026-09-28.pdf` — the web's export file name.
+  /// `vouchflow-vouchers-2026-09-28.pdf`, the web's export file name.
   String fileName(String format) =>
       'vouchflow-${active.value}-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.$format';
 

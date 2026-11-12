@@ -7,9 +7,9 @@ import '../../core/theme.dart';
 /// Corner radius of every filled input and select.
 const vfInputRadius = 16.0;
 
-/// The app's filled-input look: a soft tinted fill, no visible outline in
-/// light (a whisper of one in dark), 16px corners and a primary ring on focus.
-/// Every VouchFlow input and select shares it.
+/// The app's glass input: a translucent frosted fill with a hairline, 16px
+/// corners and a primary ring on focus. Every VouchFlow input and select
+/// shares it.
 InputDecoration vfInputDecoration(
   BuildContext context, {
   String? hintText,
@@ -26,13 +26,13 @@ InputDecoration vfInputDecoration(
     borderRadius: radius,
     borderSide: c == Colors.transparent ? BorderSide.none : BorderSide(color: c, width: w),
   );
-  final rest = t.isDark ? t.border.withValues(alpha: .9) : Colors.transparent;
+  final rest = t.inputBorder;
   return InputDecoration(
     hintText: hintText,
     hintStyle: VfType.body.copyWith(color: t.placeholder),
     counterText: '',
     filled: true,
-    fillColor: disabled ? Color.alphaBlend(t.surface3.withValues(alpha: .55), t.surface) : t.surface3,
+    fillColor: disabled ? t.inputDisabled : t.inputBg,
     isDense: false,
     contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     prefixIcon: prefixIcon,
@@ -41,7 +41,7 @@ InputDecoration vfInputDecoration(
     border: edge(rest),
     enabledBorder: edge(hasError ? t.dangerStrong : rest, hasError ? 1.4 : 1),
     disabledBorder: edge(rest),
-    focusedBorder: edge(hasError ? t.dangerStrong : t.primary, 1.6),
+    focusedBorder: edge(hasError ? t.dangerStrong : t.ring, 1.6),
     errorBorder: edge(t.dangerStrong, 1.4),
     focusedErrorBorder: edge(t.dangerStrong, 1.6),
     errorText: hasError ? '' : null,
@@ -50,7 +50,7 @@ InputDecoration vfInputDecoration(
 }
 
 /// A small label above the control (a red asterisk when required), the
-/// control, then the error — or a short hint only where one is essential.
+/// control, then the error, or a short hint only where one is essential.
 class VouchFlowField extends StatelessWidget {
   const VouchFlowField({
     super.key,
@@ -262,7 +262,7 @@ class VouchFlowDropdown<T> extends StatelessWidget {
           size: onChanged == null ? 16 : 14,
           color: onChanged == null ? t.faint : t.muted,
         ),
-        dropdownColor: t.surface,
+        dropdownColor: t.isDark ? t.surface2 : t.surface,
         borderRadius: BorderRadius.circular(vfInputRadius),
         hint: placeholder == null ? null : Text(placeholder!, style: VfType.body.copyWith(color: t.placeholder)),
         style: VfType.body.copyWith(color: onChanged == null ? t.text2 : t.text),
@@ -341,7 +341,7 @@ class _VouchFlowSearchFieldState extends State<VouchFlowSearchField> {
 }
 
 /// A rounded status filter pill ("All 65", "Drafts" …): solid primary when
-/// chosen, a soft tinted pill otherwise.
+/// chosen, a glass pill otherwise.
 class VouchFlowFilterChip extends StatelessWidget {
   const VouchFlowFilterChip({super.key, required this.label, required this.selected, required this.onTap, this.count});
 
@@ -357,8 +357,12 @@ class VouchFlowFilterChip extends StatelessWidget {
       selected: selected,
       button: true,
       child: Material(
-        color: selected ? t.primary : t.surface,
-        shape: StadiumBorder(side: selected || !t.isDark ? BorderSide.none : BorderSide(color: t.border)),
+        color: selected ? t.primary : t.glassFillStrong,
+        shape: StadiumBorder(
+          side: selected
+              ? BorderSide(color: Colors.white.withValues(alpha: .16))
+              : BorderSide(color: t.isDark ? t.glassBorder : t.border),
+        ),
         elevation: 0,
         shadowColor: Colors.transparent,
         child: InkWell(
@@ -382,7 +386,7 @@ class VouchFlowFilterChip extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
                     decoration: BoxDecoration(
-                      color: selected ? Colors.white.withValues(alpha: .22) : t.surface3,
+                      color: selected ? Colors.white.withValues(alpha: .22) : t.glassFillStrong,
                       borderRadius: BorderRadius.circular(VfSize.radiusPill),
                     ),
                     child: Text(

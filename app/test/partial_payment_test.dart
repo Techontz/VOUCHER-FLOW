@@ -69,7 +69,7 @@ void main() {
     // More than the balance is refused.
     await expectLater(
       act(id, 'pay', {
-        'payment_method': 'Cash — office float',
+        'payment_method': 'Cash, office float',
         'received_by': 'Asha Mushi',
         'amount': 500000,
       }),
@@ -78,7 +78,7 @@ void main() {
 
     // Part now.
     var voucher = await act(id, 'pay', {
-      'payment_method': 'Cash — office float',
+      'payment_method': 'Cash, office float',
       'received_by': 'Asha Mushi',
       'receiver_id_number': 'EMP-0042',
       'amount': 400000,
@@ -128,7 +128,7 @@ void main() {
 
     // The balance, with no amount named: the server pays what is left.
     voucher = await act(id, 'pay', {
-      'payment_method': 'Cash — office float',
+      'payment_method': 'Cash, office float',
       'received_by': 'Asha Mushi',
     });
     expect(voucher['status'], 'paid');
@@ -148,7 +148,7 @@ void main() {
     await signIn('mwajuma@watercom.test');
     final voucher = Voucher.fromJson(
       await act(id, 'pay', {
-        'payment_method': 'Cash — office float',
+        'payment_method': 'Cash, office float',
         'received_by': 'Asha Mushi',
         'amount': 100000,
       }),

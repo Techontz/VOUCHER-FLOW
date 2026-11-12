@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-/// Screen formatting for report cells. Formatting is for the screen only —
+/// Screen formatting for report cells. Formatting is for the screen only
 /// the same rows feed the PDF, Excel and CSV exports, which keep their raw
 /// values (web reports page).
 class ReportFormat {
@@ -36,9 +36,9 @@ class ReportFormat {
   /// A column the web right-aligns as a figure.
   static bool isNumericHeading(String heading) => _numeric.hasMatch(heading);
 
-  /// 24 Sep 2026 (Swahili month names under sw) — the web's formatDate.
+  /// 24 Sep 2026 (Swahili month names under sw), the web's formatDate.
   static String date(DateTime? d, {bool sw = false}) {
-    if (d == null) return '—';
+    if (d == null) return '-';
     if (sw) return '${d.day} ${_swMonths[d.month - 1]} ${d.year}';
     return DateFormat('d MMM yyyy', 'en_US').format(d);
   }
@@ -47,14 +47,14 @@ class ReportFormat {
   static String number(num n) => NumberFormat('#,##0.##', 'en_US').format(n);
 
   static String cell(Object? value, {bool sw = false}) {
-    if (value == null) return '—';
+    if (value == null) return '-';
     if (value is num) return number(value);
     if (isDate(value)) return date(DateTime.tryParse(value as String), sw: sw);
     final text = '$value';
-    return text.isEmpty ? '—' : text;
+    return text.isEmpty ? '-' : text;
   }
 
-  /// The badge tone for a server status or outcome word — the web's
+  /// The badge tone for a server status or outcome word, the web's
   /// statusTone: money released or due is green, part paid or returned is
   /// amber, a refusal red, draft and cancelled neutral, the rest in progress.
   static String statusTag(String text) {
@@ -76,7 +76,7 @@ class ReportFormat {
         s == 'imeidhinishwa') {
       return 'tag-accent';
     }
-    if (has(['draft', 'cancel', 'rasimu', 'imefutwa']) || s == '—') {
+    if (has(['draft', 'cancel', 'rasimu', 'imefutwa']) || s == '-') {
       return 'tag-neutral';
     }
     return 'tag-info';

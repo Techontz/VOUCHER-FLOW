@@ -5,13 +5,14 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
 import '../../data/services/session_service.dart';
+import '../../widgets/vf/glass.dart';
 
 /*
  * The pieces the public screens share, after the web's login-brand.tsx,
  * auth-frame.tsx and the sign-in / sign-up styles in vouchflow.css.
  */
 
-/// The VouchFlow mark — the V with the voucher sheet — on a white rounded
+/// The VouchFlow mark, the V with the voucher sheet, on a white rounded
 /// tile, so it reads on the navy chrome and on light pages alike.
 class VfBrandMark extends StatelessWidget {
   const VfBrandMark({super.key, this.size = 36});
@@ -80,7 +81,7 @@ class AuthTools extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = Get.find<SessionService>();
     final t = context.vf;
-    final segBg = onDark ? Colors.white.withValues(alpha: .10) : t.surface3;
+    final segBg = onDark ? Colors.white.withValues(alpha: .10) : t.glassFillStrong;
     final onColour = onDark ? t.chrome : t.text;
     final offColour = onDark ? t.chromeText : t.muted;
 
@@ -100,7 +101,9 @@ class AuthTools extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: on
-                  ? (onDark ? Colors.white : t.surface)
+                  ? (onDark
+                        ? Colors.white
+                        : (t.isDark ? Colors.white.withValues(alpha: .14) : t.surface))
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(VfSize.radiusM),
               boxShadow: on && !onDark ? t.cardShadow : null,
@@ -128,6 +131,7 @@ class AuthTools extends StatelessWidget {
             decoration: BoxDecoration(
               color: segBg,
               borderRadius: BorderRadius.circular(VfSize.radiusL),
+              border: onDark ? null : Border.all(color: t.isDark ? t.glassBorder : t.border),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -154,8 +158,8 @@ class AuthTools extends StatelessWidget {
   }
 }
 
-/// A white (or dark-surface) card with the 4px accent strip inset along its
-/// top edge — the web's `.vf-login-body`, `.vf-auth-card` and `.rg-card`.
+/// The public screens' card on blurred glass, the web's `.vf-login-body`,
+/// `.vf-auth-card` and `.rg-card`. One per screen, so it can afford a blur.
 class AuthCard extends StatelessWidget {
   const AuthCard({
     super.key,
@@ -168,15 +172,11 @@ class AuthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.vf;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: t.isDark ? t.border : Colors.transparent),
-        boxShadow: t.cardShadow,
-      ),
+    return VfGlass(
+      strong: true,
+      borderRadius: BorderRadius.circular(VfSize.radiusSheet),
       padding: padding,
+      clip: false,
       child: child,
     );
   }
@@ -327,15 +327,15 @@ class AuthInput extends StatelessWidget {
       decoration: InputDecoration(
         hintText: placeholder,
         filled: true,
-        fillColor: enabled ? t.surface3 : t.inputDisabled,
+        fillColor: enabled ? t.inputBg : t.inputDisabled,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: t.isDark ? t.borderStrong.withValues(alpha: .5) : Colors.transparent),
+          borderSide: BorderSide(color: t.inputBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: t.primary, width: 1.6),
+          borderSide: BorderSide(color: t.ring, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -525,8 +525,9 @@ class AuthFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Scaffold(
-      backgroundColor: t.background,
+    return VfWallpaper(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       bottomNavigationBar: bottomBar,
       body: SafeArea(
         bottom: bottomBar == null,
@@ -606,6 +607,7 @@ class AuthFrame extends StatelessWidget {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -619,8 +621,8 @@ class AuthBackButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.vf;
     return Material(
-      color: t.surface,
-      shape: CircleBorder(side: BorderSide(color: t.border)),
+      color: t.glassFillStrong,
+      shape: CircleBorder(side: BorderSide(color: t.isDark ? t.glassBorder : t.border)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,

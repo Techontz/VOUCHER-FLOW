@@ -69,7 +69,7 @@ class VoucherStatusBadge extends StatelessWidget {
   }
 }
 
-/// Bank or cash — the web's `.vf-kind`.
+/// Bank or cash, the web's `.vf-kind`.
 class VoucherKindTag extends StatelessWidget {
   const VoucherKindTag({super.key, required this.isCash});
 
@@ -134,7 +134,7 @@ class CountPill extends StatelessWidget {
 }
 
 /// A section of the voucher page: a short title (count, action) above a
-/// rounded card — the grouped lists of a native settings screen.
+/// rounded card, the grouped lists of a native settings screen.
 class DetailPanel extends StatelessWidget {
   const DetailPanel({
     super.key,
@@ -272,7 +272,7 @@ class MutedLine extends StatelessWidget {
   }
 }
 
-/// A label/value row: label left, value right — one line of an info list.
+/// A label/value row: label left, value right, one line of an info list.
 class DlRow extends StatelessWidget {
   const DlRow({
     super.key,
@@ -473,7 +473,7 @@ const _roleNames = {
   'cashier': ['Cashier', 'Mhasibu'],
 };
 
-/// Where the voucher is now, or how it ended, in one plain phrase — the web's
+/// Where the voucher is now, or how it ended, in one plain phrase, the web's
 /// `voucherStage`.
 String voucherStage(Voucher v) {
   final sw = currentLocale == 'sw';
@@ -520,7 +520,7 @@ String voucherStage(Voucher v) {
   }
 }
 
-/// The one call to action a list row offers — always leading to the voucher.
+/// The one call to action a list row offers, always leading to the voucher.
 ({String label, IconData icon, bool strong})? primaryAction(Voucher v) {
   final a = v.actions;
   if (a.pay) {
@@ -678,7 +678,7 @@ List<ProgressStep> deriveProgress(Voucher v, List<WorkflowInfo>? workflows) {
   return result;
 }
 
-/// ✓ Prepared — ✓ HOD — ● MD — ○ Finance, wrapping on a phone.
+/// ✓ Prepared: ✓ HOD: ● MD: ○ Finance, wrapping on a phone.
 class ProgressStepsLine extends StatelessWidget {
   const ProgressStepsLine({super.key, required this.steps});
 
@@ -778,7 +778,7 @@ class ProgressStepsLine extends StatelessWidget {
 /* ──────────────────────────────────────────────────── approval track ── */
 
 /// The full approval ladder from the backend's own timeline: who prepared,
-/// signed, approved and paid — and when. The web's `ApprovalTrack`, with each
+/// signed, approved and paid, and when. The web's `ApprovalTrack`, with each
 /// step's recorded signature beneath it.
 class ApprovalTrack extends StatelessWidget {
   const ApprovalTrack({super.key, required this.rows, this.youActHere = false});
@@ -825,7 +825,7 @@ class ApprovalTrack extends StatelessWidget {
     }
     final showPerson =
         row.person.isNotEmpty &&
-        row.person != '—' &&
+        row.person != '-' &&
         row.person != 'VouchFlow' &&
         row.person != 'null';
     final signature = decodeSignature(row.signature);

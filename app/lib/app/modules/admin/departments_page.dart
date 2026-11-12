@@ -26,7 +26,7 @@ String wfcRoleName(String role) => switch (role) {
 };
 
 /// Departments: a row per department (people and spend this quarter), and
-/// a sheet with its head (who signs), manager (who approves), vouchers —
+/// a sheet with its head (who signs), manager (who approves), vouchers
 /// with search, add, edit and delete.
 class DepartmentsPage extends StatefulWidget {
   const DepartmentsPage({super.key, this.repository});
@@ -322,7 +322,7 @@ class _Assigned extends StatelessWidget {
   }
 }
 
-/// Add or edit a department — the web's dialog. Only active people are
+/// Add or edit a department, the web's dialog. Only active people are
 /// offered; a head since deactivated stays visible (and flagged) until
 /// someone active replaces them.
 class _DepartmentForm extends StatefulWidget {
@@ -418,7 +418,7 @@ class _DepartmentFormState extends State<_DepartmentForm> {
         final p = widget.people.where((p) => '${p.id}' == v).firstOrNull;
         return p != null
             ? _label(p)
-            : '${saved?.name ?? '—'} (${'admin.wfcInactive'.tr})';
+            : '${saved?.name ?? '-'} (${'admin.wfcInactive'.tr})';
       },
       onChanged: (v) {
         // The inactive holder is shown, not chosen again.

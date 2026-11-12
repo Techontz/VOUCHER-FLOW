@@ -6,7 +6,7 @@ double? _num(dynamic v) =>
 
 int _int(dynamic v) => v is num ? v.toInt() : int.tryParse('${v ?? ''}') ?? 0;
 
-/// A company workflow as `/workflows` returns it — only what a list row needs
+/// A company workflow as `/workflows` returns it, only what a list row needs
 /// to draw a voucher's route (the web's `deriveProgress`).
 class QueueWorkflow {
   QueueWorkflow.fromJson(Map<String, dynamic> json)
@@ -44,13 +44,13 @@ class QueueWorkflowStep {
   final bool canApprove, canPay;
   final double? minAmount, maxAmount;
 
-  /// WorkflowStep::isRequestStep — the step that raises the voucher.
+  /// WorkflowStep::isRequestStep, the step that raises the voucher.
   bool get isRequest => position == 1 || role == 'employee';
 
-  /// WorkflowStep::isPaymentStep — releasing money, not deciding on it.
+  /// WorkflowStep::isPaymentStep, releasing money, not deciding on it.
   bool get isPayment => canPay && !canApprove;
 
-  /// WorkflowStep::appliesToAmount — thresholds, both ends inclusive.
+  /// WorkflowStep::appliesToAmount, thresholds, both ends inclusive.
   bool appliesTo(double amount) =>
       (minAmount == null || amount >= minAmount!) &&
       (maxAmount == null || amount <= maxAmount!);
@@ -71,7 +71,7 @@ class QueueProgressStep {
 }
 
 /// The web's `deriveProgress`: where a voucher is in its approval route,
-/// derived from the company's real workflow — which steps exist, which apply
+/// derived from the company's real workflow, which steps exist, which apply
 /// to this amount, and where the voucher currently sits.
 List<QueueProgressStep> deriveQueueProgress({
   required String status,

@@ -1,5 +1,5 @@
 // The voucher page, its workflow dialogs, bulk approval and the payment queue,
-// pumped at small phone widths against the offline mock to catch overflows —
+// pumped at small phone widths against the offline mock to catch overflows
 // plus the pure rules mirrored from the web.
 
 import 'package:flutter/material.dart';

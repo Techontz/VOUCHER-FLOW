@@ -59,7 +59,7 @@ class FakeReportRepository extends ReportRepository {
       ),
       'departments' => (
         ['Department', 'Head of department', 'Manager', 'Vouchers', 'Approved value', 'Pending value'],
-        <Object?>['Procurement and Supplies Management Unit', 'Joseph Mushi', '—', 18, 91568000, 1200000],
+        <Object?>['Procurement and Supplies Management Unit', 'Joseph Mushi', '-', 18, 91568000, 1200000],
       ),
       _ => (
         ['Number', 'Date', 'Type', 'Department', 'Requester', 'Payee', 'Purpose', 'Amount', 'Currency', 'Status'],
@@ -200,7 +200,7 @@ void main() {
     expect(ReportFormat.cell('2026-09-24', sw: true), '24 Sep 2026');
     expect(ReportFormat.cell('2026-08-02', sw: true), '2 Ago 2026');
     expect(ReportFormat.cell('2026-09-24 10:30'), '2026-09-24 10:30');
-    expect(ReportFormat.cell(null), '—');
+    expect(ReportFormat.cell(null), '-');
     expect(ReportFormat.statusTag('Paid'), 'tag-accent');
     expect(ReportFormat.statusTag('Partially paid'), 'tag-warn');
     expect(ReportFormat.statusTag('Rejected'), 'tag-accent-2');

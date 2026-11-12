@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 /// Where the API lives.
 ///
 /// A release build talks to production unless told otherwise. Debug and
-/// profile builds talk to `php artisan serve` on the development machine —
+/// profile builds talk to `php artisan serve` on the development machine
 /// the Android emulator reaches it through 10.0.2.2. Override either with
 /// --dart-define=API_URL=https://api.example.com/api
 class VfConfig {

@@ -37,7 +37,7 @@ String employeeRoleLabel(String role) => switch (role) {
 };
 
 /// People in the company: search and filter chips, a row per person, and a
-/// sheet per person with their details — invite, edit, suspend/activate
+/// sheet per person with their details, invite, edit, suspend/activate
 /// and delete.
 class EmployeesPage extends StatefulWidget {
   const EmployeesPage({super.key, this.repository});
@@ -236,8 +236,8 @@ class _EmployeesPageState extends State<EmployeesPage> {
             if ((u.jobTitle ?? '').isNotEmpty) u.jobTitle!,
           ].join(' · '),
         ),
-        AdminLine(label: 'admin.department'.tr, value: u.departmentName ?? '—'),
-        AdminLine(label: 'admin.employeeId'.tr, value: u.employeeCode ?? '—'),
+        AdminLine(label: 'admin.department'.tr, value: u.departmentName ?? '-'),
+        AdminLine(label: 'admin.employeeId'.tr, value: u.employeeCode ?? '-'),
         AdminLine(label: 'admin.vouchers'.tr, value: '${u.voucherCount}'),
         AdminLine(label: 'admin.joined'.tr, value: Fmt.date(u.joinedAt)),
         AdminLine(
@@ -370,7 +370,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
   }
 }
 
-/// Invite or edit a person — the web's Employees dialog.
+/// Invite or edit a person, the web's Employees dialog.
 class _EmployeeForm extends StatefulWidget {
   const _EmployeeForm({
     required this.repo,
@@ -528,7 +528,7 @@ class _EmployeeFormState extends State<_EmployeeForm> {
             items: ['', for (final d in widget.departments) '${d.id}'],
             value: _dept,
             itemLabel: (v) => v.isEmpty
-                ? '—'
+                ? '-'
                 : widget.departments.firstWhere((d) => '${d.id}' == v).name,
             error: fe('department_id'),
             onChanged: (v) => setState(() => _dept = v ?? ''),

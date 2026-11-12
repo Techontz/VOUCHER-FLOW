@@ -21,7 +21,7 @@ export 'detail_controller.dart' show VoucherDetailController;
 ///
 ///   hero        number, status, purpose and the amount on a gradient card
 ///   actions     round print / PDF / share / edit / withdraw / delete buttons
-///   progress    who prepared, signed, approved and paid — a timeline
+///   progress    who prepared, signed, approved and paid, a timeline
 ///   sections    details, payments, attachments, comments, document, audit
 ///   bottom bar  this person's decision, always within reach
 ///
@@ -627,7 +627,7 @@ class _RoundAction extends StatelessWidget {
 
 /* ─────────────────────────────────────────────────────── decision bar ── */
 
-/// What this person may decide now — straight from `voucher.actions` — as a
+/// What this person may decide now, straight from `voucher.actions`, as a
 /// sticky bar of full-width buttons at the bottom of the screen.
 class DecisionBar extends StatelessWidget {
   const DecisionBar({
@@ -730,7 +730,7 @@ class DecisionBar extends StatelessWidget {
 
 /* ────────────────────────────────────────────────────── the document ── */
 
-/// The printed voucher, in the company's template — folded away until asked
+/// The printed voucher, in the company's template, folded away until asked
 /// for. The server's own PDF, rasterised; the native sheet stands in while it
 /// loads, offline, or where the step may not print.
 class _DocumentPanel extends StatelessWidget {

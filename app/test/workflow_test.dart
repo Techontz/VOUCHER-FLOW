@@ -85,11 +85,11 @@ void main() {
     expect(
       hodActions['approve'],
       isFalse,
-      reason: 'the HOD step signs only — it never approves',
+      reason: 'the HOD step signs only, it never approves',
     );
 
     voucher = await act(id, 'sign', {'use_saved_signature': true});
-    expect(voucher['status_label'], 'Signed — ready to submit');
+    expect(voucher['status_label'], 'Signed, ready to submit');
     expect((voucher['actions'] as Map)['submit_signed'], isTrue);
 
     voucher = await act(id, 'submit-signed');
@@ -107,7 +107,7 @@ void main() {
 
     voucher = await act(id, 'approve');
     expect(voucher['status'], 'approved');
-    expect(voucher['status_label'], 'Approved — awaiting payment');
+    expect(voucher['status_label'], 'Approved, awaiting payment');
 
     // 4. The cashier releases the funds.
     await signIn('mwajuma@watercom.test');
@@ -123,7 +123,7 @@ void main() {
 
     voucher = await act(id, 'pay', {
       'reference': 'PC-REL-9931',
-      'method': 'Cash — office float',
+      'method': 'Cash, office float',
     });
     expect(voucher['status'], 'paid');
     expect(voucher['status_label'], 'Paid');

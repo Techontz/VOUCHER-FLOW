@@ -18,7 +18,7 @@ import 'report_format.dart';
 import 'report_row_card.dart';
 import 'reports_controller.dart';
 
-/// Reports — the web's /reports: the reports this role may run, the reach
+/// Reports, the web's /reports: the reports this role may run, the reach
 /// ("Company-wide" or its departments), filters, the summary figures, the
 /// rows, and export to PDF, Excel or CSV. The server applies the same
 /// visibility rules to the screen and to every export.
@@ -631,14 +631,14 @@ class _Figures extends StatelessWidget {
       if (money && cash) ...[
         AppStat(
           'reports.paidInCash'.tr,
-          s.cashTotalText ?? s.paidTotalText ?? '—',
+          s.cashTotalText ?? s.paidTotalText ?? '-',
           sub: n(s.cashCount ?? s.paidCount),
           icon: PhosphorIconsFill.money,
           tint: ok,
         ),
         AppStat(
           'reports.outstanding'.tr,
-          s.outstandingTotalText ?? '—',
+          s.outstandingTotalText ?? '-',
           sub: n(s.outstandingCount),
           icon: PhosphorIconsFill.hourglassMedium,
           tint: warn,
@@ -652,21 +652,21 @@ class _Figures extends StatelessWidget {
       ] else if (money) ...[
         AppStat(
           'reports.paidByBank'.tr,
-          s.bankTotalText ?? '—',
+          s.bankTotalText ?? '-',
           sub: n(s.bankCount),
           icon: PhosphorIconsFill.bank,
           tint: info,
         ),
         AppStat(
           'reports.paidInCash'.tr,
-          s.cashTotalText ?? '—',
+          s.cashTotalText ?? '-',
           sub: n(s.cashCount),
           icon: PhosphorIconsFill.money,
           tint: ok,
         ),
         AppStat(
           'reports.outstanding'.tr,
-          s.outstandingTotalText ?? '—',
+          s.outstandingTotalText ?? '-',
           sub: n(s.outstandingCount),
           icon: PhosphorIconsFill.hourglassMedium,
           tint: warn,

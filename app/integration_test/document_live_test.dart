@@ -57,7 +57,7 @@ void main() {
 
       // Open the first voucher in the payment queue.
       await tester.tap(
-        find.textContaining('Approved — awaiting payment').first,
+        find.textContaining('Approved, awaiting payment').first,
       );
       await settle(tester, 3000);
 

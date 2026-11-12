@@ -5,7 +5,7 @@
 // The API's own stable keys (dash.stat.*, dash.banner.*, dash.panel.* …) live
 // in translations.dart; these are the page's own words, plus the inbox.
 const Map<String, String> dashboardEn = {
-  // — page —
+  // page
   'dashboard.loading': 'Loading',
   'dashboard.payNow': 'Pay now',
   'dashboard.changePlan': 'Change plan',
@@ -19,7 +19,7 @@ const Map<String, String> dashboardEn = {
   'dashboard.total': 'Total',
   'dashboard.stalledNote': 'These have not moved in three days or more.',
   'dashboard.clearedNote':
-      'Acting on a voucher moves it to whoever is next — it will leave this list.',
+      'Acting on a voucher moves it to whoever is next, it will leave this list.',
   'dashboard.companiesNeedingAttention': 'Companies needing attention',
   'dashboard.all': 'All',
   'dashboard.recentPayments': 'Recent payments',
@@ -33,7 +33,7 @@ const Map<String, String> dashboardEn = {
   'dashboard.bank': 'Bank',
   'dashboard.cash': 'Cash',
 
-  // — home: hero and quick actions —
+  // home: hero and quick actions
   'dashboard.hero.waiting': 'Waiting for you',
   'dashboard.hero.clear': 'All clear',
   'dashboard.hero.review': 'Review',
@@ -42,7 +42,7 @@ const Map<String, String> dashboardEn = {
   'dashboard.stalled': 'Stalled',
   'dashboard.manage': 'Manage',
 
-  // — the one next step on a queued voucher —
+  // the one next step on a queued voucher
   'dashboard.cta.recordPayment': 'Record payment',
   'dashboard.cta.reviewApprove': 'Review & approve',
   'dashboard.cta.reviewSign': 'Review & sign',
@@ -50,7 +50,7 @@ const Map<String, String> dashboardEn = {
   'dashboard.cta.reviseVoucher': 'Revise voucher',
   'dashboard.cta.continueDraft': 'Continue draft',
 
-  // — relative time ("2 hours ago") —
+  // relative time ("2 hours ago")
   'dashboard.time.now': 'now',
   'dashboard.time.minute': '1 minute ago',
   'dashboard.time.minutes': '@n minutes ago',
@@ -63,7 +63,7 @@ const Map<String, String> dashboardEn = {
   'dashboard.time.lastMonth': 'last month',
   'dashboard.time.months': '@n months ago',
 
-  // — notifications —
+  // notifications
   'dashboard.inbox.title': 'Notifications',
   'dashboard.inbox.unread': '@count unread',
   'dashboard.inbox.empty': 'You are all caught up',
@@ -80,7 +80,7 @@ const Map<String, String> dashboardEn = {
 };
 
 const Map<String, String> dashboardSw = {
-  // — page —
+  // page
   'dashboard.loading': 'Inapakia',
   'dashboard.payNow': 'Lipa sasa',
   'dashboard.changePlan': 'Badilisha mpango',
@@ -94,7 +94,7 @@ const Map<String, String> dashboardSw = {
   'dashboard.total': 'Jumla',
   'dashboard.stalledNote': 'Hizi hazijasogea kwa siku tatu au zaidi.',
   'dashboard.clearedNote':
-      'Kushughulikia vocha kunaipeleka kwa anayefuata — itaondoka kwenye orodha hii.',
+      'Kushughulikia vocha kunaipeleka kwa anayefuata, itaondoka kwenye orodha hii.',
   'dashboard.companiesNeedingAttention': 'Kampuni zinazohitaji umakini',
   'dashboard.all': 'Zote',
   'dashboard.recentPayments': 'Malipo ya hivi karibuni',
@@ -108,7 +108,7 @@ const Map<String, String> dashboardSw = {
   'dashboard.bank': 'Benki',
   'dashboard.cash': 'Taslimu',
 
-  // — home: hero and quick actions —
+  // home: hero and quick actions
   'dashboard.hero.waiting': 'Zinakusubiri',
   'dashboard.hero.clear': 'Hakuna kinachosubiri',
   'dashboard.hero.review': 'Kagua',
@@ -117,7 +117,7 @@ const Map<String, String> dashboardSw = {
   'dashboard.stalled': 'Zimekwama',
   'dashboard.manage': 'Simamia',
 
-  // — the one next step on a queued voucher —
+  // the one next step on a queued voucher
   'dashboard.cta.recordPayment': 'Rekodi malipo',
   'dashboard.cta.reviewApprove': 'Kagua na uidhinishe',
   'dashboard.cta.reviewSign': 'Pitia na saini',
@@ -125,7 +125,7 @@ const Map<String, String> dashboardSw = {
   'dashboard.cta.reviseVoucher': 'Rekebisha vocha',
   'dashboard.cta.continueDraft': 'Endelea na rasimu',
 
-  // — relative time —
+  // relative time
   'dashboard.time.now': 'sasa hivi',
   'dashboard.time.minute': 'dakika 1 iliyopita',
   'dashboard.time.minutes': 'dakika @n zilizopita',
@@ -138,7 +138,7 @@ const Map<String, String> dashboardSw = {
   'dashboard.time.lastMonth': 'mwezi uliopita',
   'dashboard.time.months': 'miezi @n iliyopita',
 
-  // — notifications —
+  // notifications
   'dashboard.inbox.title': 'Taarifa',
   'dashboard.inbox.unread': '@count hazijasomwa',
   'dashboard.inbox.empty': 'Umeshughulikia yote',

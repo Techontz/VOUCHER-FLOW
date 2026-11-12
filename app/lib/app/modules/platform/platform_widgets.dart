@@ -11,11 +11,11 @@ import '../../widgets/vf/vf.dart';
 /*
  * Pieces the platform screens share: the web's status tags and palettes,
  * the toolbar select, pagination, fact lists, person rows and the usage
- * meter — each the phone form of the web component of the same job.
+ * meter, each the phone form of the web component of the same job.
  */
 
 /// The interface palettes a company can choose, as the web's PALETTES paints
-/// them (sections.tsx) — used for the swatches, the preview and the header.
+/// them (sections.tsx), used for the swatches, the preview and the header.
 class PlatformPalette {
   const PlatformPalette(
     this.key,
@@ -115,9 +115,9 @@ String compactMoney(double amount, [String currency = '']) {
   return currency.isEmpty ? Fmt.plain(amount) : Fmt.money(amount, currency);
 }
 
-/// "3 h ago" — the web's relativeTime, in the app's language.
+/// "3 h ago", the web's relativeTime, in the app's language.
 String relativeTime(DateTime? value) {
-  if (value == null) return '—';
+  if (value == null) return '-';
   final d = DateTime.now().difference(value);
   if (d.inMinutes < 1) return 'platform.time.now'.tr;
   if (d.inMinutes < 60) {

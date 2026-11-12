@@ -89,7 +89,7 @@ class VfTranslations extends Translations {
     'queue.stalled': 'Stalled',
     'queue.stalledNote': 'These have not moved in three days or more.',
     'queue.note':
-        'Acting on a voucher moves it to whoever is next — it will leave this list.',
+        'Acting on a voucher moves it to whoever is next, it will leave this list.',
     'queue.empty': 'Nothing needs your attention.',
     'queue.historyInReports':
         'Everything you have already dealt with lives in Reports.',
@@ -219,11 +219,11 @@ class VfTranslations extends Translations {
     'bulk.approveN': 'Approve @count',
     'bulk.confirmTitle': 'Approve @count vouchers?',
     'bulk.confirmBody':
-        'Each voucher is approved exactly as it would be on its own — with your signature, timeline entry and notifications.',
+        'Each voucher is approved exactly as it would be on its own, with your signature, timeline entry and notifications.',
     'bulk.comment': 'Comment for all (optional)',
     'bulk.reviewed': 'I have reviewed each of these vouchers and approve them.',
     'bulk.done': '@count approved',
-    'bulk.skipped': '@count skipped — open them individually.',
+    'bulk.skipped': '@count skipped, open them individually.',
     'voucher.addReceiptCamera': 'Photograph receipt',
     'voucher.addReceiptGallery': 'Add from gallery',
     'voucher.receiptAdded': 'Document added',
@@ -273,7 +273,7 @@ class VfTranslations extends Translations {
     'sign.saved': 'Saved signature',
     'sign.hint': 'Sign with your finger',
     'sign.noApprove':
-        'Your role is to sign only — the approval decision sits with the next approval step.',
+        'Your role is to sign only, the approval decision sits with the next approval step.',
     'sign.saveForNext': 'Save this signature for next time',
     'sign.comment': 'Comment for the record (optional)',
     'sign.rejectReason': 'Reason for rejection',
@@ -284,7 +284,7 @@ class VfTranslations extends Translations {
     'approvals.emptyBody':
         'Every voucher assigned to you has been signed or decided. New ones appear here immediately.',
     'approvals.signOnly':
-        'Your step signs only. Once signed, you submit the voucher onward — the approve or reject decision belongs there, not here.',
+        'Your step signs only. Once signed, you submit the voucher onward, the approve or reject decision belongs there, not here.',
 
     'alerts.title': 'Notifications',
     'alerts.empty': 'You are all caught up',
@@ -369,7 +369,7 @@ class VfTranslations extends Translations {
     'msg.saved': 'Saved',
     'msg.attached': 'Attachment added',
 
-    // — dashboard, by the API's stable keys —
+    // dashboard, by the API's stable keys
     'dash.intro': 'Here\'s your voucher activity at a glance.',
     'dash.introPlatform': 'Here\'s the platform at a glance.',
     'greeting.Good morning': 'Good morning',
@@ -591,7 +591,7 @@ class VfTranslations extends Translations {
     'queue.stalled': 'Zimekwama',
     'queue.stalledNote': 'Hizi hazijasogea kwa siku tatu au zaidi.',
     'queue.note':
-        'Kushughulikia vocha kunaipeleka kwa anayefuata — itaondoka kwenye orodha hii.',
+        'Kushughulikia vocha kunaipeleka kwa anayefuata, itaondoka kwenye orodha hii.',
     'queue.empty': 'Hakuna kinachohitaji uangalizi wako.',
     'queue.historyInReports':
         'Kila ulichoshughulikia kinapatikana kwenye Ripoti.',
@@ -721,11 +721,11 @@ class VfTranslations extends Translations {
     'bulk.approveN': 'Idhinisha @count',
     'bulk.confirmTitle': 'Idhinisha vocha @count?',
     'bulk.confirmBody':
-        'Kila vocha inaidhinishwa kama ingeidhinishwa peke yake — kwa sahihi yako, kumbukumbu na taarifa.',
+        'Kila vocha inaidhinishwa kama ingeidhinishwa peke yake, kwa sahihi yako, kumbukumbu na taarifa.',
     'bulk.comment': 'Maoni kwa zote (si lazima)',
     'bulk.reviewed': 'Nimepitia kila moja ya vocha hizi na ninaziidhinisha.',
     'bulk.done': '@count zimeidhinishwa',
-    'bulk.skipped': '@count zimerukwa — zifungue moja moja.',
+    'bulk.skipped': '@count zimerukwa, zifungue moja moja.',
     'voucher.addReceiptCamera': 'Piga picha ya risiti',
     'voucher.addReceiptGallery': 'Ongeza kutoka kwenye picha',
     'voucher.receiptAdded': 'Nyaraka imeongezwa',
@@ -775,7 +775,7 @@ class VfTranslations extends Translations {
     'sign.saved': 'Sahihi iliyohifadhiwa',
     'sign.hint': 'Saini kwa kidole chako',
     'sign.noApprove':
-        'Jukumu lako ni kusaini tu — uamuzi wa kuidhinisha uko kwenye hatua inayofuata ya idhini.',
+        'Jukumu lako ni kusaini tu, uamuzi wa kuidhinisha uko kwenye hatua inayofuata ya idhini.',
     'sign.saveForNext': 'Hifadhi sahihi hii kwa matumizi yajayo',
     'sign.comment': 'Maoni kwa kumbukumbu (si lazima)',
     'sign.rejectReason': 'Sababu ya kukataa',
@@ -786,7 +786,7 @@ class VfTranslations extends Translations {
     'approvals.emptyBody':
         'Kila vocha iliyokupewa imesainiwa au imeamuliwa. Mpya zinaonekana hapa mara moja.',
     'approvals.signOnly':
-        'Hatua yako inasaini tu. Baada ya kusaini, unatuma vocha mbele — uamuzi wa kuidhinisha au kukataa ni wa hatua hiyo, si hapa.',
+        'Hatua yako inasaini tu. Baada ya kusaini, unatuma vocha mbele, uamuzi wa kuidhinisha au kukataa ni wa hatua hiyo, si hapa.',
 
     'alerts.title': 'Taarifa',
     'alerts.empty': 'Umeshughulikia yote',
@@ -870,7 +870,7 @@ class VfTranslations extends Translations {
     'msg.saved': 'Imehifadhiwa',
     'msg.attached': 'Kiambatisho kimeongezwa',
 
-    // — dashibodi, kwa funguo za API —
+    // dashibodi, kwa funguo za API
     'dash.intro': 'Huu ni muhtasari wa shughuli zako za vocha.',
     'dash.introPlatform': 'Huu ni muhtasari wa jukwaa.',
     'greeting.Good morning': 'Habari za asubuhi',

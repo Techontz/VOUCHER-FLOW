@@ -31,9 +31,10 @@ import '../reports/reports_page.dart';
 import '../vouchers/voucher_list_tab.dart';
 import 'nav.dart';
 
-/// The signed-in workspace, as the website draws it below 980px: a navy top
-/// bar, a drawer holding the sidebar, and a five-slot tab bar. Which entries
-/// appear follows the role exactly as the web's navigation does.
+/// The signed-in workspace, as the website draws it below 980px: a clear top
+/// bar over the glass wallpaper, a glass drawer holding the sidebar, and a
+/// floating glass tab bar. Which entries appear follows the role exactly as
+/// the web's navigation does.
 class ShellController extends GetxController {
   final session = Get.find<SessionService>();
   final repo = Get.find<VoucherRepository>();
@@ -176,15 +177,18 @@ class ShellPage extends GetView<ShellController> {
         return const PendingApprovalPage();
       }
       final href = controller.current.value;
-      return Scaffold(
-        backgroundColor: t.background,
-        appBar: _TopBar(controller: controller),
-        drawer: _Drawer(controller: controller),
-        body: KeyedSubtree(
-          key: ValueKey(href),
-          child: shellPageFor(href, controller),
+      return VfWallpaper(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          drawerScrimColor: t.overlay,
+          appBar: _TopBar(controller: controller),
+          drawer: _Drawer(controller: controller),
+          body: KeyedSubtree(
+            key: ValueKey(href),
+            child: shellPageFor(href, controller),
+          ),
+          bottomNavigationBar: _TabBar(controller: controller),
         ),
-        bottomNavigationBar: _TabBar(controller: controller),
       );
     });
   }
@@ -210,7 +214,7 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
           ? 'nav.platformName'.tr
           : (company?.name ?? 'app.name'.tr);
       return AppBar(
-        backgroundColor: t.background,
+        backgroundColor: Colors.transparent,
         systemOverlayStyle: t.isDark
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark,
@@ -238,6 +242,7 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
                   style: VfType.bodyStrong.copyWith(
                     fontSize: 15.5,
                     color: t.text,
+                    letterSpacing: -.2,
                   ),
                 ),
               ),
@@ -279,9 +284,9 @@ class _UserMenu extends StatelessWidget {
     final profileLabel =
         controller.items.firstWhereOrNull((i) => i.href == '/profile')?.label ??
         'nav.profile';
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
+    showVfSheet<void>(
+      context,
+      isScrollControlled: false,
       builder: (ctx) {
         final t = ctx.vf;
         Widget item(
@@ -338,7 +343,7 @@ class _UserMenu extends StatelessWidget {
                   ],
                 ),
               ),
-              Divider(color: t.border),
+              Divider(color: t.isDark ? t.glassBorder : t.border),
               item(
                 PhosphorIconsRegular.userCircle,
                 profileLabel.tr,
@@ -353,7 +358,7 @@ class _UserMenu extends StatelessWidget {
                   () => controller.go('/notifications'),
                 ),
               ),
-              Divider(color: t.border),
+              Divider(color: t.isDark ? t.glassBorder : t.border),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -426,7 +431,7 @@ class _UserMenu extends StatelessWidget {
                   ],
                 ),
               ),
-              Divider(color: t.border),
+              Divider(color: t.isDark ? t.glassBorder : t.border),
               item(PhosphorIconsRegular.signOut, 'nav.signOut'.tr, () async {
                 await session.signOut();
                 Get.offAllNamed(Routes.login);
@@ -442,9 +447,21 @@ class _UserMenu extends StatelessWidget {
 
 /* ──────────────────────────────────────────────────────────── drawer ── */
 
+/// A drawer section's heading. The switch is exhaustive on purpose: adding
+/// a [VfNavGroup] (an ERP module) fails to compile until it has a heading.
+String _groupLabel(VfNavGroup g) => switch (g) {
+  VfNavGroup.workspace => 'nav.groupWorkspace'.tr,
+  VfNavGroup.admin => 'nav.groupAdministration'.tr,
+  VfNavGroup.platform => 'nav.groupPlatform'.tr,
+};
+
 class _Drawer extends StatelessWidget {
   const _Drawer({required this.controller});
   final ShellController controller;
+
+  static const _radius = BorderRadius.horizontal(
+    right: Radius.circular(VfSize.radiusSheet),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -452,102 +469,113 @@ class _Drawer extends StatelessWidget {
     final session = controller.session;
     final me = session.me;
     final groups = drawerGroups(me.role);
-    final groupLabel = {
-      VfNavGroup.workspace: 'nav.groupWorkspace',
-      VfNavGroup.admin: 'nav.groupAdministration',
-      VfNavGroup.platform: 'nav.groupPlatform',
-    };
+    // With several sections each heading folds its list away, so a long
+    // menu (the ERP modules to come) stays easy to scan.
+    final foldable = groups.length > 1;
 
     return Drawer(
-      backgroundColor: t.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
-      ),
-      child: SafeArea(
-        child: Obx(() {
-          final current = controller.current.value;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Brand: the VouchFlow mark, name and the role, and close.
-              Container(
-                height: 76,
-                padding: const EdgeInsets.fromLTRB(20, 0, 10, 0),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: t.border)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(VfSize.radiusL),
-                        border: Border.all(color: t.border),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(borderRadius: _radius),
+      child: VfGlass(
+        borderRadius: _radius,
+        fill: t.sheetFill,
+        child: SafeArea(
+          right: false,
+          child: Obx(() {
+            final current = controller.current.value;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Brand: the VouchFlow mark, name and the role, and close.
+                Container(
+                  height: 76,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 10, 0),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: t.isDark ? t.glassBorder : t.border,
                       ),
-                      child: Image.asset('assets/brand/mark.png'),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'app.name'.tr,
-                            style: VfType.sectionTitle.copyWith(
-                              color: t.text,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 20,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(VfSize.radiusL),
+                          border: Border.all(color: t.glassBorder),
+                        ),
+                        child: Image.asset('assets/brand/mark.png'),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'app.name'.tr,
+                              style: VfType.sectionTitle.copyWith(
+                                color: t.text,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 20,
+                                letterSpacing: -.5,
+                              ),
                             ),
-                          ),
-                          Text(
-                            me.roleLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: VfType.meta.copyWith(color: t.muted),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'nav.closeMenu'.tr,
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(
-                        PhosphorIconsRegular.x,
-                        color: t.muted,
-                        size: 18,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _WorkspaceCard(controller: controller),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  children: [
-                    for (final entry in groups.entries) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                        child: Text(
-                          groupLabel[entry.key]!.tr.toUpperCase(),
-                          style: VfType.eyebrow.copyWith(
-                            fontSize: 11,
-                            color: t.faint,
-                          ),
+                            Text(
+                              me.roleLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: VfType.meta.copyWith(color: t.muted),
+                            ),
+                          ],
                         ),
                       ),
-                      ..._entries(context, entry.value, current),
+                      VfBarButton(
+                        icon: PhosphorIconsRegular.x,
+                        tooltip: 'nav.closeMenu'.tr,
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          );
-        }),
+                _WorkspaceCard(controller: controller),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                    children: [
+                      for (final entry in groups.entries) ...[
+                        _GroupHeader(
+                          label: _groupLabel(entry.key),
+                          open: !controller.closedGroups.contains(
+                            'group:${entry.key.name}',
+                          ),
+                          onToggle: foldable
+                              ? () {
+                                  final key = 'group:${entry.key.name}';
+                                  controller.closedGroups.contains(key)
+                                      ? controller.closedGroups.remove(key)
+                                      : controller.closedGroups.add(key);
+                                }
+                              : null,
+                        ),
+                        if (!foldable ||
+                            !controller.closedGroups.contains(
+                              'group:${entry.key.name}',
+                            ))
+                          ..._entries(context, entry.value, current),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }),
+        ),
       ),
     );
   }
@@ -580,6 +608,7 @@ class _Drawer extends StatelessWidget {
             _NavRow(
               item: c,
               active: false,
+              nested: true,
               badge: controller.badgeFor(c),
               onTap: () => _open(context, c.href),
             ),
@@ -593,6 +622,52 @@ class _Drawer extends StatelessWidget {
   void _open(BuildContext context, String href) {
     Navigator.of(context).pop();
     controller.go(href);
+  }
+}
+
+/// A drawer section heading; tappable to fold the section when [onToggle]
+/// is given.
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.label, required this.open, this.onToggle});
+
+  final String label;
+  final bool open;
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    final text = Text(
+      label.toUpperCase(),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: VfType.eyebrow.copyWith(fontSize: 11, color: t.muted),
+    );
+    final row = Padding(
+      padding: const EdgeInsets.fromLTRB(14, 18, 10, 8),
+      child: Row(
+        children: [
+          Expanded(child: text),
+          if (onToggle != null)
+            Icon(
+              open ? PhosphorIconsBold.caretUp : PhosphorIconsBold.caretDown,
+              size: 12,
+              color: t.faint,
+            ),
+        ],
+      ),
+    );
+    if (onToggle == null) return Semantics(header: true, child: row);
+    return Semantics(
+      header: true,
+      button: true,
+      expanded: open,
+      child: InkWell(
+        onTap: onToggle,
+        borderRadius: BorderRadius.circular(VfSize.radiusL),
+        child: row,
+      ),
+    );
   }
 }
 
@@ -620,11 +695,11 @@ class _WorkspaceCard extends StatelessWidget {
     final isAdmin = me.role == 'company_admin';
 
     final card = Container(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
-        color: t.surface3,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
-        border: Border.all(color: t.border),
+        color: t.glassFillStrong,
+        borderRadius: BorderRadius.circular(VfSize.radiusXl),
+        border: Border.all(color: t.isDark ? t.glassBorder : t.border),
       ),
       child: Row(
         children: [
@@ -639,7 +714,7 @@ class _WorkspaceCard extends StatelessWidget {
               color: company?.logoMarkUrl != null && !isPlatform
                   ? Colors.white
                   : t.primary,
-              borderRadius: BorderRadius.circular(VfSize.radiusM),
+              borderRadius: BorderRadius.circular(VfSize.radiusL),
             ),
             alignment: Alignment.center,
             child: company?.logoMarkUrl != null && !isPlatform
@@ -756,6 +831,7 @@ class _NavRow extends StatelessWidget {
     this.badge,
     this.caretOpen,
     this.onCaret,
+    this.nested = false,
   });
 
   final VfNavItem item;
@@ -765,23 +841,32 @@ class _NavRow extends StatelessWidget {
   final bool? caretOpen;
   final VoidCallback? onCaret;
 
+  /// Drawn beneath its parent, indented.
+  final bool nested;
+
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
     final fg = active ? t.primaryText : t.text2;
+    final radius = BorderRadius.circular(VfSize.radiusL);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.only(bottom: 2, left: nested ? 22 : 0),
       child: Material(
-        color: active ? t.primarySoftStrong : Colors.transparent,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
+        color: active ? t.tabActive : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: active
+              ? BorderSide(color: t.isDark ? t.glassBorder : t.primaryBorder)
+              : BorderSide.none,
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          hoverColor: t.surface3,
+          hoverColor: t.glassFill,
           child: Container(
-            height: 48,
+            height: 46,
             padding: EdgeInsets.only(
-              left: 16,
+              left: 14,
               right: caretOpen == null ? 12 : 4,
             ),
             child: Row(
@@ -793,7 +878,11 @@ class _NavRow extends StatelessWidget {
                     item.label.tr,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: VfType.label.copyWith(fontSize: 15, color: fg),
+                    style: VfType.label.copyWith(
+                      fontSize: 14.5,
+                      color: active ? t.text : t.text2,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                    ),
                   ),
                 ),
                 if (badge != null)
@@ -803,7 +892,7 @@ class _NavRow extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 7),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: t.dangerStrong,
+                      color: VfBadge.background(t.brightness),
                       borderRadius: BorderRadius.circular(VfSize.radiusPill),
                     ),
                     child: Text(
@@ -839,6 +928,9 @@ class _NavRow extends StatelessWidget {
 
 /* ─────────────────────────────────────────────────────────── tab bar ── */
 
+/// The floating glass tab bar, inset from the screen edges. The current
+/// tab sits on a raised pill; with a create button its "+" is the middle
+/// slot.
 class _TabBar extends StatelessWidget {
   const _TabBar({required this.controller});
   final ShellController controller;
@@ -862,33 +954,33 @@ class _TabBar extends StatelessWidget {
         ),
       );
 
-      return Container(
-        decoration: BoxDecoration(
-          color: t.tabBar,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-          border: t.isDark ? Border(top: BorderSide(color: t.border)) : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: t.isDark ? .35 : .07),
-              blurRadius: 24,
-              offset: const Offset(0, -4),
-            ),
-          ],
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          VfSize.floatingBarInset,
+          4,
+          VfSize.floatingBarInset,
+          bottom > 0 ? bottom : VfSize.floatingBarInset,
         ),
-        padding: EdgeInsets.fromLTRB(8, 8, 8, bottom > 0 ? bottom - 6 : 10),
-        child: SizedBox(
-          height: 58,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (!create)
-                for (final item in tabs) slot(item)
-              else ...[
-                for (final item in tabs.take(half)) slot(item),
-                Expanded(child: Center(child: _CreateButton(controller.openCreate))),
-                for (final item in tabs.skip(half)) slot(item),
+        child: VfGlass(
+          borderRadius: BorderRadius.circular(VfSize.radiusSheet),
+          fill: t.barFill,
+          padding: const EdgeInsets.all(6),
+          child: SizedBox(
+            height: VfSize.floatingBarH - 12,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!create)
+                  for (final item in tabs) slot(item)
+                else ...[
+                  for (final item in tabs.take(half)) slot(item),
+                  Expanded(
+                    child: Center(child: _CreateButton(controller.openCreate)),
+                  ),
+                  for (final item in tabs.skip(half)) slot(item),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       );
@@ -912,58 +1004,81 @@ class _TabSlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final colour = active ? t.primary : t.muted;
-    Widget icon = AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-      width: active ? 52 : 40,
-      height: 30,
-      decoration: BoxDecoration(
-        color: active ? t.primarySoftStrong : Colors.transparent,
-        borderRadius: BorderRadius.circular(VfSize.radiusPill),
-      ),
-      child: Icon(active ? item.activeIcon : item.icon, size: 22, color: colour),
+    final colour = active ? t.primaryText : t.muted;
+    Widget icon = Icon(
+      active ? item.activeIcon : item.icon,
+      size: 21,
+      color: colour,
     );
     if (badge != null) {
       icon = Badge(
         backgroundColor: VfBadge.background(Theme.of(context).brightness),
         textColor: Colors.white,
-        offset: const Offset(-2, -2),
+        offset: const Offset(6, -5),
         label: Text(badge! > 99 ? '99+' : '$badge'),
         child: icon,
       );
     }
+    final radius = BorderRadius.circular(VfSize.radiusXl);
     return Semantics(
       button: true,
       selected: active,
       label: item.label.tr,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            icon,
-            const SizedBox(height: 4),
-            Text(
-              (item.short ?? item.label).tr,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: VfType.meta.copyWith(
-                fontSize: 11,
-                height: 1.1,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                color: colour,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            color: active ? t.tabActive : Colors.transparent,
+            borderRadius: radius,
+            border: Border.all(
+              color: active
+                  ? (t.isDark ? t.glassBorder : t.primaryBorder)
+                  : Colors.transparent,
+            ),
+            boxShadow: active && !t.isDark
+                ? [
+                    BoxShadow(
+                      color: t.primary.withValues(alpha: .14),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: radius,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  icon,
+                  const SizedBox(height: 3),
+                  Text(
+                    (item.short ?? item.label).tr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.meta.copyWith(
+                      fontSize: 10.5,
+                      height: 1.1,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                      color: active ? t.text : t.muted,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// The raised "+" in the middle of the tab bar: create a voucher.
+/// The "+" in the middle of the tab bar: create a voucher.
 class _CreateButton extends StatelessWidget {
   const _CreateButton(this.onTap);
   final VoidCallback onTap;
@@ -974,34 +1089,26 @@ class _CreateButton extends StatelessWidget {
     return Tooltip(
       message: 'nav.newVoucher'.tr,
       child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [t.palette.hoverDark, t.palette.primaryLight],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: t.primary.withValues(alpha: .45),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          shape: const CircleBorder(),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: const Icon(
-              PhosphorIconsBold.plus,
-              color: Colors.white,
-              size: 24,
-            ),
+        width: 50,
+        height: 50,
+        decoration: vfPrimaryGloss(t, shape: BoxShape.circle),
+        child: ClipOval(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              const VfGloss(),
+              Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  onTap: onTap,
+                  child: const Icon(
+                    PhosphorIconsBold.plus,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

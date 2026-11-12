@@ -186,7 +186,7 @@ class NotificationsTab extends GetView<NotificationsController> {
     });
   }
 
-  /// Today, yesterday, earlier — the web's `groupByDay`.
+  /// Today, yesterday, earlier, the web's `groupByDay`.
   static List<(String, List<AppNotificationItem>)> _groupByDay(
     List<AppNotificationItem> items,
   ) {

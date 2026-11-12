@@ -20,10 +20,11 @@ import 'queue_row.dart';
 
 export 'dash_bits.dart' show dashTr;
 
-/// Home: a greeting, one hero figure for what is waiting on you, round
-/// shortcuts, compact figures for your role, and the work itself.
+/// Home: a large greeting with today's date, a row of glass stat pills for
+/// your role, one hero figure for what is waiting on you, round shortcuts,
+/// and the work itself on glass cards.
 ///
-/// What each role sees — and every number on it — is decided by the backend
+/// What each role sees, and every number on it, is decided by the backend
 /// from the vouchers that user may see. This screen decides only how it
 /// reads, translating each figure by its stable key and falling back to the
 /// English text the API sent.
@@ -126,7 +127,7 @@ class DashboardController extends GetxController {
 
 typedef _Look = (IconData, VfTone);
 
-/// Icon and tone per figure, by the figure's stable key — so a figure keeps
+/// Icon and tone per figure, by the figure's stable key, so a figure keeps
 /// its look whichever dashboard it appears on. Only the numbers that ask for
 /// action are coloured.
 const _looks = <String, _Look>{
@@ -400,35 +401,44 @@ class DashboardTab extends GetView<DashboardController> {
         const SizedBox(height: 16),
       ],
 
-      // Greeting: a quiet line, then the name, large.
+      // Greeting: "Good morning, Name", large and tight, over today's date.
       Padding(
         padding: const EdgeInsets.only(left: 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Semantics(
+              header: true,
+              child: Text(
+                firstName.isEmpty ? greeting : '$greeting, $firstName',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: VfType.display.copyWith(
+                  color: t.text,
+                  fontSize: width >= 700 ? 36 : 32,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
             Text(
-              greeting,
+              _today(),
               style: VfType.body.copyWith(
                 color: t.muted,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            if (firstName.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                firstName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: VfType.pageTitle.copyWith(color: t.text, fontSize: 30),
-              ),
-            ],
           ],
         ),
       ),
-      const SizedBox(height: 18),
+      const SizedBox(height: 20),
+
+      if (stats.isNotEmpty) ...[
+        _figures(d, stats, isPlatform, width),
+        const SizedBox(height: 20),
+      ],
 
       _hero(d, view, heroStat),
-      const SizedBox(height: 22),
+      const SizedBox(height: 24),
 
       // What is waiting on this person comes first, each with its action.
       if (!isPlatform && d.queue.isNotEmpty) ...[
@@ -438,8 +448,6 @@ class DashboardTab extends GetView<DashboardController> {
 
       _quickActions(user?.role ?? 'employee', unread),
       gap,
-
-      if (stats.isNotEmpty) ...[_figures(d, stats, isPlatform, width), gap],
 
       if (wide && main.isNotEmpty && aside.isNotEmpty)
         Row(
@@ -455,7 +463,23 @@ class DashboardTab extends GetView<DashboardController> {
     ];
   }
 
-  /// The one figure that matters: what is waiting on this person — or, on
+  /// "Friday · 30 Oct 2026", in the interface language.
+  static String _today() {
+    final now = DateTime.now();
+    final days = dashIsSw ? _weekdaysSw : _weekdaysEn;
+    return '${days[now.weekday - 1]} · ${dashDate(now)}';
+  }
+
+  static const _weekdaysEn = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', //
+    'Friday', 'Saturday', 'Sunday',
+  ];
+  static const _weekdaysSw = [
+    'Jumatatu', 'Jumanne', 'Jumatano', 'Alhamisi', //
+    'Ijumaa', 'Jumamosi', 'Jumapili',
+  ];
+
+  /// The one figure that matters: what is waiting on this person, or, on
   /// the platform, this month's revenue.
   Widget _hero(DashboardData d, String view, DashboardStat? platformStat) {
     if (view == 'platform') {
@@ -463,7 +487,7 @@ class DashboardTab extends GetView<DashboardController> {
       return DashHero(
         icon: PhosphorIconsRegular.currencyCircleDollar,
         label: s == null ? 'nav.platformName'.tr : dashTr(s.key, s.label),
-        figure: (s?.value ?? '—').replaceAll(' ', ' '),
+        figure: (s?.value ?? '-').replaceAll(' ', ' '),
         note: d.headline.isEmpty ? null : d.headline,
         actionLabel: 'nav.companies'.tr,
         onAction: () => controller.go('/platform/companies'),
@@ -576,6 +600,29 @@ class DashboardTab extends GetView<DashboardController> {
     }
 
     const spacing = 12.0;
+    // On a phone the figures are a row of glass pills that scrolls sideways,
+    // bleeding to the screen edge; wider screens lay them out as a grid.
+    if (width < 700) {
+      return Semantics(
+        label: dashTr('dash.keyFigures', 'Key figures'),
+        container: true,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < tiles.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 10),
+                  SizedBox(width: 156, child: tiles[i]),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Semantics(
       label: dashTr('dash.keyFigures', 'Key figures'),
       container: true,
@@ -652,7 +699,7 @@ class _Skeleton extends StatelessWidget {
       child: Container(
         height: h,
         decoration: BoxDecoration(
-          color: t.surface3,
+          color: t.glassFillStrong,
           borderRadius: BorderRadius.circular(r),
         ),
       ),
@@ -664,11 +711,13 @@ class _Skeleton extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              block(.3, 14, VfSize.radiusS),
-              const SizedBox(height: 8),
-              block(.5, 28, VfSize.radiusS),
-              const SizedBox(height: 18),
-              block(1, 150, 24),
+              block(.75, 34, VfSize.radiusM),
+              const SizedBox(height: 10),
+              block(.4, 14, VfSize.radiusS),
+              const SizedBox(height: 22),
+              block(1, 96, VfSize.radiusGlass),
+              const SizedBox(height: 20),
+              block(1, 150, VfSize.radiusGlass),
               const SizedBox(height: 22),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -678,7 +727,7 @@ class _Skeleton extends StatelessWidget {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: t.surface3,
+                        color: t.glassFillStrong,
                         shape: BoxShape.circle,
                       ),
                     ),

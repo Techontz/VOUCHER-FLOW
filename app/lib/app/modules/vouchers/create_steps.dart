@@ -305,9 +305,9 @@ class DetailsStep extends StatelessWidget {
                 label: 'create.department'.tr,
                 items: deptIds,
                 value: c.departmentId.value,
-                placeholder: '—',
+                placeholder: '-',
                 error: c.errorFor('department_id'),
-                itemLabel: (id) => c.departments.firstWhereOrNull((d) => d.id == id)?.name ?? '—',
+                itemLabel: (id) => c.departments.firstWhereOrNull((d) => d.id == id)?.name ?? '-',
                 onChanged: null,
               ),
               VouchFlowTextField(label: 'create.requester'.tr, initialValue: currentUser().name, readOnly: true),
@@ -517,7 +517,7 @@ class DocumentsStep extends StatelessWidget {
             message: c.rejected
                 .map(
                   (r) =>
-                      '${r.name} — ${switch (r.reason) {
+                      '${r.name}, ${switch (r.reason) {
                         'type' => 'create.fileWrongType'.tr,
                         'size' => '${'create.fileTooLarge'.tr} $maxUploadMb MB',
                         _ => 'create.fileTooMany'.tr,
@@ -815,7 +815,7 @@ class _ReviewRow extends StatelessWidget {
               Expanded(
                 flex: 3,
                 child: Text(
-                  (value ?? '').isEmpty ? '—' : value!,
+                  (value ?? '').isEmpty ? '-' : value!,
                   textAlign: TextAlign.right,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,

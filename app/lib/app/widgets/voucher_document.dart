@@ -10,9 +10,9 @@ import 'stamps.dart';
 ///
 /// The same document the web client renders, at the same proportions: the
 /// company's own letterhead, a ruled particulars table with the amount beneath
-/// the description, the payment particulars alongside — which differ by format,
+/// the description, the payment particulars alongside, which differ by format,
 /// because a bank voucher settles into an account and a cash voucher comes out
-/// of a float — and an authorisation band carrying every mark.
+/// of a float, and an authorisation band carrying every mark.
 ///
 /// It is always white with dark ink, because it is a preview of paper.
 class VoucherDocument extends StatelessWidget {
@@ -51,7 +51,7 @@ class VoucherDocument extends StatelessWidget {
     final payRow = find((r) => r.capabilityPay && r.when != null);
 
     /* A4 at 96dpi, fixed. The sheet keeps its real geometry and the caller
-       scales the whole thing, so what is on screen is exactly what prints —
+       scales the whole thing, so what is on screen is exactly what prints,
        and the ruled form can stretch to the page the way a voucher book does. */
     return Container(
       width: width,
@@ -99,7 +99,7 @@ class VoucherDocument extends StatelessWidget {
           const SizedBox(height: 7),
           // A Column hands its non-flex children unbounded height, so a Row
           // that stretches its children needs an intrinsic height to size
-          // against — otherwise it asks for infinity.
+          // against, otherwise it asks for infinity.
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -349,11 +349,11 @@ class _MetaStrip extends StatelessWidget {
           cell('doc.date'.tr, Fmt.date(voucher.voucherDate)),
           cell(
             'doc.department'.tr,
-            voucher.departmentName ?? '—',
+            voucher.departmentName ?? '-',
             voucher.costCentre,
           ),
-          cell('doc.requestedBy'.tr, voucher.requesterName ?? '—'),
-          cell('doc.category'.tr, voucher.category ?? '—'),
+          cell('doc.requestedBy'.tr, voucher.requesterName ?? '-'),
+          cell('doc.category'.tr, voucher.category ?? '-'),
         ],
       ),
     );
@@ -613,30 +613,30 @@ class _PaymentPanel extends StatelessWidget {
                       'doc.method'.tr,
                       voucher.paymentMethod ?? (isCash ? 'Cash' : 'Bank'),
                     ),
-                    row('doc.voucherType'.tr, voucher.voucherTypeLabel ?? '—'),
+                    row('doc.voucherType'.tr, voucher.voucherTypeLabel ?? '-'),
                     row(
                       'doc.reference'.tr,
                       (voucher.accountRef?.isNotEmpty ?? false)
                           ? voucher.accountRef!
-                          : '—',
+                          : '-',
                     ),
                     if (isCash) ...[
                       row(
                         'doc.payFrom'.tr,
                         voucher.cashFloat ?? 'Petty cash float',
                       ),
-                      row('doc.receivedBy'.tr, voucher.receivedBy ?? '—'),
+                      row('doc.receivedBy'.tr, voucher.receivedBy ?? '-'),
                     ] else ...[
-                      row('doc.bank'.tr, voucher.payeeBank ?? '—'),
+                      row('doc.bank'.tr, voucher.payeeBank ?? '-'),
                       row(
                         'doc.accountName'.tr,
                         voucher.payeeAccountName ?? voucher.payee,
                       ),
                       row(
                         'doc.accountNo'.tr,
-                        voucher.payeeAccountNumber ?? '—',
+                        voucher.payeeAccountNumber ?? '-',
                       ),
-                      row('doc.branch'.tr, voucher.payeeBankBranch ?? '—'),
+                      row('doc.branch'.tr, voucher.payeeBankBranch ?? '-'),
                     ],
                     if (voucher.paymentReference != null)
                       row('doc.paymentRef'.tr, voucher.paymentReference!),
@@ -762,7 +762,7 @@ class _Remarks extends StatelessWidget {
             color: VfDoc.paper,
           ),
           child: Text(
-            note?.isNotEmpty == true ? note! : '—',
+            note?.isNotEmpty == true ? note! : '-',
             style: VfDoc.bodyText.copyWith(
               color: note?.isNotEmpty == true
                   ? VfDoc.body

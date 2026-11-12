@@ -1,6 +1,6 @@
 // The public screens at phone width, against the offline mock: sign-in (no
 // demo accounts outside mock mode), registration through all five steps,
-// password reset and onboarding — each must lay out without overflow.
+// password reset and onboarding, each must lay out without overflow.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

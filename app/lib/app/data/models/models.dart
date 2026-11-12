@@ -186,7 +186,7 @@ class VoucherActions {
   pay,
   print,
   download,
-  /// Documents may be added — also after approval and payment, for receipts.
+  /// Documents may be added, also after approval and payment, for receipts.
   attach;
 
   bool get hasWorkflowAction =>
@@ -255,7 +255,7 @@ class Attachment {
 }
 
 /// One release of money against a voucher. A voucher approved for 10m may be
-/// paid 9m now and the 1m balance later — each is its own record.
+/// paid 9m now and the 1m balance later, each is its own record.
 class VoucherPayment {
   VoucherPayment.fromJson(Map<String, dynamic> json)
     : id = _toInt(json['id']),
@@ -309,7 +309,7 @@ class VoucherComment {
   VoucherComment.fromJson(Map<String, dynamic> json)
     : id = _toInt(json['id']),
       body = '${json['body']}',
-      authorName = _nested(json['user'], 'name') ?? '—',
+      authorName = _nested(json['user'], 'name') ?? '-',
       authorInitials = _nested(json['user'], 'initials') ?? '',
       authorDepartment = _nested(json['user'], 'department'),
       authorRole = _nested(json['user'], 'role_label'),
@@ -517,7 +517,7 @@ class DashboardStat {
   final bool? up;
 }
 
-/// "You have 3 vouchers waiting for your attention." — or the all-clear.
+/// "You have 3 vouchers waiting for your attention.", or the all-clear.
 class DashboardBanner {
   DashboardBanner.fromJson(Map<String, dynamic> json)
     : count = _toInt(json['count']),
@@ -543,7 +543,7 @@ class DashboardActivity {
       action = '${json['action'] ?? ''}',
       actionLabel = '${json['action_label'] ?? json['action'] ?? ''}',
       actorId = _as<int>(json['actor_id']),
-      actor = '${json['actor'] ?? '—'}',
+      actor = '${json['actor'] ?? '-'}',
       voucherId = _toInt(json['voucher_id']),
       voucherNumber = '${json['voucher_number'] ?? '#${json['voucher_id']}'}',
       amountText = _as<String>(json['amount_text']),

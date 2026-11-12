@@ -8,7 +8,7 @@ import 'report_format.dart';
 
 /// One report row as an app list row: a tinted tile, the row's first column
 /// as its title with the purpose or payee under it, the headline figure and
-/// status on the right. A tap opens every other column underneath — the
+/// status on the right. A tap opens every other column underneath, the
 /// same information as the web table's row.
 ///
 /// Consecutive rows join into one rounded group: [first] rounds the top,
@@ -95,7 +95,7 @@ class _ReportRowCardState extends State<ReportRowCard> {
 
     final fields = <(String, String)>[
       if (figure >= 0 && headings[figure] != 'Amount')
-        (headings[figure], figureText ?? '—'),
+        (headings[figure], figureText ?? '-'),
       for (var i = 0; i < headings.length && i < row.length; i++)
         if (!used.contains(i)) (headings[i], ReportFormat.cell(row[i], sw: sw)),
       // With no figure to fold it into, the currency is an ordinary field.

@@ -13,16 +13,16 @@ import '../shell/shell_page.dart';
 import 'admin_widgets.dart';
 import 'departments_page.dart' show wfcRoleName;
 
-/// The approval workflow builder — the web's settings/workflow-builder.tsx:
-/// which workflows the company runs, which voucher types each routes, and —
-/// level by level — who acts, in what order, for which amounts and with
+/// The approval workflow builder, the web's settings/workflow-builder.tsx:
+/// which workflows the company runs, which voucher types each routes, and
+/// level by level, who acts, in what order, for which amounts and with
 /// which permissions. Below the route: who that resolves to in every
 /// department, and the same permissions as a matrix.
 
 /// Roles a non-request level may be given; "custom" is "Specific person".
 const _levelRoles = ['hod', 'manager', 'ceo', 'finance', 'director', 'cashier'];
 
-/// Every capability a step stores — and every one is sent back on save.
+/// Every capability a step stores, and every one is sent back on save.
 const _caps = [
   ('can_sign', 'admin.capSign', PhosphorIconsRegular.signature),
   ('can_approve', 'admin.capApprove', PhosphorIconsRegular.sealCheck),
@@ -166,7 +166,7 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
 
   void _move(int index, int direction) {
     final target = index + direction;
-    // The request step stays first — it is the requester's own step.
+    // The request step stays first, it is the requester's own step.
     if (index == 0 || target < 1 || target >= _steps.length) return;
     _patch(() {
       final s = _steps.removeAt(index);
@@ -747,7 +747,7 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
               w.name,
               if (w.isDefault) 'admin.wfcDefault'.tr,
               ?w.typeLabel(_locale),
-            ].join(' — '),
+            ].join(', '),
           ),
       ],
     );
@@ -1071,7 +1071,7 @@ class WorkflowBuilderState extends State<WorkflowBuilder> {
   ) {
     Widget value;
     if (cell == null) {
-      value = Text('—', style: VfType.small.copyWith(color: t.text));
+      value = Text('-', style: VfType.small.copyWith(color: t.text));
     } else if (cell.gap != null) {
       value = Column(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -1512,7 +1512,7 @@ class _StepCardState extends State<_StepCard> {
                   if (assignedMissing)
                     (
                       '${s.assignedUserId}',
-                      '${s.assignedUser?.name ?? '—'} (${'admin.wfcInactive'.tr})',
+                      '${s.assignedUser?.name ?? '-'} (${'admin.wfcInactive'.tr})',
                       false,
                     ),
                   for (final p in widget.people)
@@ -1879,7 +1879,7 @@ class _Select<T> extends StatelessWidget {
   }
 }
 
-/// Name, Swahili name, description and voucher-type binding — shared by
+/// Name, Swahili name, description and voucher-type binding, shared by
 /// "Details" and "New workflow".
 class _WorkflowFieldsValue {
   _WorkflowFieldsValue({

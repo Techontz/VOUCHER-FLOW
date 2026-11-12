@@ -25,7 +25,7 @@ typedef _Tally = ({int count, double amount});
 /// Everything here has already cleared the approval workflow; the person with
 /// the pay capability releases the funds on the voucher itself, behind a
 /// confirmation. Every figure covers the whole set, and what is awaiting
-/// payment is counted by what is still owed — a part-paid voucher counts for
+/// payment is counted by what is still owed, a part-paid voucher counts for
 /// its balance, not its full approved amount.
 class PaymentQueueController extends GetxController {
   final repo = Get.find<VoucherRepository>();
@@ -410,7 +410,7 @@ class _Pagination extends StatelessWidget {
   }
 }
 
-/// Export — PDF, Excel or CSV of the report behind this screen.
+/// Export: PDF, Excel or CSV of the report behind this screen.
 class _ExportMenu extends StatelessWidget {
   const _ExportMenu({required this.controller});
 

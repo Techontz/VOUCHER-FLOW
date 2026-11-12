@@ -7,7 +7,7 @@ import '../../core/theme.dart';
 import '../../widgets/vf/vf.dart';
 
 /// Translates a key the API sent, filling `@name` placeholders from [params].
-/// An unknown key falls back to the English text the API sent — the web's
+/// An unknown key falls back to the English text the API sent, the web's
 /// `translateKey`.
 String dashTr(
   String? key,
@@ -21,9 +21,9 @@ String dashTr(
 
 bool get dashIsSw => Get.locale?.languageCode == 'sw';
 
-/// "2 hours ago", "yesterday", "3 weeks ago" — the web's `relativeTime`.
+/// "2 hours ago", "yesterday", "3 weeks ago", the web's `relativeTime`.
 String dashRelative(DateTime? value) {
-  if (value == null) return '—';
+  if (value == null) return '-';
   final seconds = DateTime.now().difference(value).inSeconds;
   String n(String key, int v) => key.trParams({'n': '$v'});
 
@@ -63,7 +63,7 @@ String dashRelative(DateTime? value) {
 
 /// "24 Sep 2026" (en-GB) or the Swahili month name.
 String dashDate(DateTime? value) {
-  if (value == null) return '—';
+  if (value == null) return '-';
   final months = dashIsSw ? _monthsSw : _monthsEn;
   return '${value.day} ${months[value.month - 1]} ${value.year}';
 }
@@ -79,7 +79,7 @@ const _monthsSw = [
 
 /// "24 Sep 2026 · 14:05".
 String dashDateTime(DateTime? value) => value == null
-    ? '—'
+    ? '-'
     : '${dashDate(value)} · ${DateFormat('HH:mm').format(value)}';
 
 /// "TZS 450,000".
@@ -88,7 +88,7 @@ String dashMoney(double amount, [String currency = 'TZS']) {
   return '$currency ${NumberFormat(pattern, 'en_US').format(amount)}';
 }
 
-/// "TZS 4.9M", "TZS 450K" — the web's `compactMoney`.
+/// "TZS 4.9M", "TZS 450K", the web's `compactMoney`.
 String dashCompactMoney(double amount, [String currency = 'TZS']) {
   if (amount.abs() >= 1000000) {
     return '$currency ${(amount / 1000000).toStringAsFixed(1)}M';
@@ -176,7 +176,9 @@ class DashPanel extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: VfType.sectionTitle.copyWith(
                     color: t.text,
-                    fontSize: 17,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -.4,
                   ),
                 ),
               ),
@@ -203,7 +205,6 @@ class DashPanel extends StatelessWidget {
             child: below,
           ),
         VouchFlowCard(
-          radius: VfSize.radiusXl,
           padding: EdgeInsets.zero,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -430,7 +431,7 @@ class DashBars extends StatelessWidget {
                         child: Stack(
                           children: [
                             Positioned.fill(
-                              child: ColoredBox(color: t.surface3),
+                              child: ColoredBox(color: t.glassFillStrong),
                             ),
                             FractionallySizedBox(
                               widthFactor: rows[i].$4,
@@ -506,7 +507,10 @@ class DashRow extends StatelessWidget {
         if (!last)
           Padding(
             padding: EdgeInsets.only(left: inset),
-            child: Container(height: 1, color: t.border),
+            child: Container(
+              height: 1,
+              color: t.isDark ? t.glassBorder : t.border,
+            ),
           ),
       ],
     );
@@ -610,21 +614,17 @@ class DashQuickAction extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Container(
+                  SizedBox(
                     width: 56,
                     height: 56,
-                    decoration: BoxDecoration(
-                      color: t.isDark ? t.primarySoft : t.surface,
-                      shape: BoxShape.circle,
-                      border: t.isDark
-                          ? Border.all(
-                              color: t.primary.withValues(alpha: .25),
-                            )
-                          : null,
-                      boxShadow: t.isDark ? null : t.cardShadow,
+                    child: VfGlass(
+                      blur: false,
+                      strong: true,
+                      borderRadius: BorderRadius.circular(28),
+                      child: Center(
+                        child: Icon(icon, size: 23, color: t.primaryText),
+                      ),
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(icon, size: 24, color: t.primary),
                   ),
                   if (badge > 0)
                     Positioned(
@@ -675,7 +675,8 @@ class DashQuickAction extends StatelessWidget {
   }
 }
 
-/// A compact figure: tinted icon, big number, one short label.
+/// A glass stat pill: a small tinted icon and the label above, the big
+/// figure below, and at most a few words of note.
 class DashStatTile extends StatelessWidget {
   const DashStatTile({
     super.key,
@@ -699,32 +700,44 @@ class DashStatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    final (fg, bg) = tone.colors(t);
+    final (fg, _) = tone.colors(t);
+    final mark = tone == VfTone.primary ? t.primaryText : fg;
     return Semantics(
       label: [label, value, ?note].join(', '),
       button: onTap != null,
       excludeSemantics: true,
       child: VouchFlowCard(
-        radius: VfSize.radiusXl,
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
         onTap: onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                DashIconTile(
-                  icon: icon,
-                  color: tone == VfTone.primary ? t.primary : fg,
-                  background: bg,
-                  size: 34,
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(icon, size: 15, color: mark),
                 ),
-                const Spacer(),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.meta.copyWith(
+                      color: t.muted,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
                 if (onTap != null)
-                  Icon(PhosphorIconsBold.caretRight, size: 13, color: t.faint),
+                  Icon(PhosphorIconsBold.caretRight, size: 12, color: t.faint),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: FittedBox(
@@ -733,20 +746,14 @@ class DashStatTile extends StatelessWidget {
                 child: Text(
                   value,
                   maxLines: 1,
-                  style: VfType.figureS.copyWith(
+                  style: VfType.figure.copyWith(
                     color: t.text,
-                    fontSize: 22,
+                    fontSize: 28,
+                    letterSpacing: -.9,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: VfType.meta.copyWith(color: t.muted, fontSize: 13),
             ),
             if (note != null) ...[
               const SizedBox(height: 2),
@@ -770,8 +777,8 @@ class DashStatTile extends StatelessWidget {
   }
 }
 
-/// The home's lead card: the one figure that matters for this role, on the
-/// brand gradient, with one compact action.
+/// The home's lead card: the one figure that matters for this role, on
+/// blurred glass lit by a bloom of the company colour, with one action.
 class DashHero extends StatelessWidget {
   const DashHero({
     super.key,
@@ -795,18 +802,13 @@ class DashHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    const white = Colors.white;
-    final soft = white.withValues(alpha: .78);
-    Widget bloom(double size, double alpha) => Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            white.withValues(alpha: alpha),
-            white.withValues(alpha: 0),
-          ],
+    Widget bloom(double size, Color c) => IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: [c, c.withValues(alpha: 0)]),
         ),
       ),
     );
@@ -815,29 +817,27 @@ class DashHero extends StatelessWidget {
       liveRegion: true,
       container: true,
       label: semanticLabel,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [t.palette.hoverDark, t.palette.primaryLight],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: t.palette.primaryLight.withValues(
-                alpha: t.isDark ? .30 : .28,
-              ),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
+      child: VfGlass(
+        strong: true,
+        borderRadius: BorderRadius.circular(VfSize.radiusGlass + 2),
         child: Stack(
           children: [
-            Positioned(top: -70, right: -50, child: bloom(200, .22)),
-            Positioned(bottom: -90, left: -40, child: bloom(180, .12)),
+            Positioned(
+              top: -90,
+              right: -60,
+              child: bloom(
+                240,
+                t.primary.withValues(alpha: t.isDark ? .32 : .20),
+              ),
+            ),
+            Positioned(
+              bottom: -110,
+              left: -50,
+              child: bloom(
+                200,
+                const Color(0xFF7C5CFF).withValues(alpha: t.isDark ? .14 : .08),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
               child: Column(
@@ -849,11 +849,14 @@ class DashHero extends StatelessWidget {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: white.withValues(alpha: .18),
+                          color: t.primarySoftStrong,
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: t.primary.withValues(alpha: .25),
+                          ),
                         ),
                         alignment: Alignment.center,
-                        child: Icon(icon, size: 17, color: white),
+                        child: Icon(icon, size: 17, color: t.primaryText),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -862,14 +865,14 @@ class DashHero extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: VfType.small.copyWith(
-                            color: soft,
+                            color: t.text2,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: FittedBox(
@@ -879,8 +882,9 @@ class DashHero extends StatelessWidget {
                         figure,
                         maxLines: 1,
                         style: VfType.figure.copyWith(
-                          color: white,
-                          fontSize: 40,
+                          color: t.text,
+                          fontSize: 46,
+                          letterSpacing: -1.6,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
@@ -898,7 +902,7 @@ class DashHero extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: VfType.bodyStrong.copyWith(
-                                    color: soft,
+                                    color: t.text2,
                                     fontSize: 14,
                                     fontFeatures: const [
                                       FontFeature.tabularFigures(),
@@ -923,6 +927,7 @@ class DashHero extends StatelessWidget {
   }
 }
 
+/// The hero's action: a glossy primary pill.
 class _HeroButton extends StatelessWidget {
   const _HeroButton({required this.label, required this.onTap});
   final String label;
@@ -931,33 +936,42 @@ class _HeroButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(VfSize.radiusPill),
-      child: InkWell(
-        onTap: onTap,
+    return DecoratedBox(
+      decoration: vfPrimaryGloss(t),
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(VfSize.radiusPill),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 40),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: VfType.small.copyWith(
-                  color: t.palette.primaryLight,
-                  fontWeight: FontWeight.w700,
+        child: Stack(
+          children: [
+            const Positioned.fill(child: VfGloss()),
+            Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: onTap,
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: VfType.small.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        PhosphorIconsBold.arrowRight,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 6),
-              Icon(
-                PhosphorIconsBold.arrowRight,
-                size: 14,
-                color: t.palette.primaryLight,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,4 +1,4 @@
-// The dashboard (every role's variant), the inbox and the profile — parsed
+// The dashboard (every role's variant), the inbox and the profile, parsed
 // from real API payloads (test/fixtures/dashboard, captured from the local
 // backend) and pumped at phone widths to catch overflows.
 

@@ -39,7 +39,7 @@ class ProfileRepository {
     ], fields: fields);
   }
 
-  /// The user as `/auth/me` returns it — for fields the shared user model
+  /// The user as `/auth/me` returns it, for fields the shared user model
   /// does not carry (when the signature was last updated).
   Future<Map<String, dynamic>> me() async {
     final payload = await _api.get('/auth/me') as Map;

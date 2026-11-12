@@ -1,5 +1,5 @@
 /// The reports screen's data: GET /reports (the catalogue and the caller's
-/// reach) and GET /reports/{kind} (one report) — ReportController.
+/// reach) and GET /reports/{kind} (one report): ReportController.
 library;
 
 int _int(dynamic v) => v is num ? v.toInt() : int.tryParse('$v') ?? 0;
@@ -56,8 +56,8 @@ class ReportCatalogue {
 class ReportSummary {
   ReportSummary.fromJson(Map<String, dynamic> j)
     : count = _int(j['count']),
-      totalText = '${j['total_text'] ?? '—'}',
-      approvedTotalText = '${j['approved_total_text'] ?? '—'}',
+      totalText = '${j['total_text'] ?? '-'}',
+      approvedTotalText = '${j['approved_total_text'] ?? '-'}',
       paidTotalText = _str(j['paid_total_text']),
       paidCount = _intOrNull(j['paid_count']),
       bankTotalText = _str(j['bank_total_text']),
@@ -73,7 +73,7 @@ class ReportSummary {
   final int? paidCount, bankCount, cashCount, outstandingCount;
 }
 
-/// One report: its column headings, the rows (raw values — the same ones
+/// One report: its column headings, the rows (raw values, the same ones
 /// the exports carry) and the summary.
 class ReportResult {
   ReportResult.fromJson(Map<String, dynamic> j)

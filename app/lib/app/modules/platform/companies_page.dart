@@ -13,7 +13,7 @@ import '../../widgets/common.dart';
 import '../../widgets/vf/vf.dart';
 import 'platform_widgets.dart';
 
-/// Every tenant on the platform (web: /platform/companies) — search, status
+/// Every tenant on the platform (web: /platform/companies), search, status
 /// filter, a card per company, the row actions (view, suspend / activate,
 /// delete) and the New company dialog.
 class PlatformCompaniesPage extends StatefulWidget {
@@ -317,7 +317,7 @@ class _CompanyRow extends StatelessWidget {
                         tag: companyStatusTag(c.status),
                       ),
                       Text(
-                        c.plan?.name ?? '—',
+                        c.plan?.name ?? '-',
                         style: VfType.small.copyWith(
                           color: t.text2,
                           fontWeight: FontWeight.w500,

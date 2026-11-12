@@ -7,7 +7,7 @@ import 'common.dart';
 ///
 /// These stand in for the rubber stamps a finance office actually uses, so
 /// they are drawn as ink on paper: a ruled frame, tracked capitals, and the
-/// moment the act happened. They are deliberately plain — a stamp that looks
+/// moment the act happened. They are deliberately plain, a stamp that looks
 /// decorative reads as fake.
 enum StampKind { signed, approved, paid, rejected, returned }
 
@@ -170,7 +170,7 @@ class AuthorisationBlock extends StatelessWidget {
                               scale: .74,
                             ),
                           // No mark and no pen stroke means this column records
-                          // authorship rather than assent — "Prepared by" is a
+                          // authorship rather than assent, "Prepared by" is a
                           // name, not a signature. Setting it in an italic face
                           // here made it read as one, and repeated the name the
                           // footer already carries.
@@ -199,7 +199,7 @@ class AuthorisationBlock extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(name ?? '—', style: VfDoc.strong.copyWith(fontSize: 9.5)),
+                Text(name ?? '-', style: VfDoc.strong.copyWith(fontSize: 9.5)),
                 if (title != null && title!.isNotEmpty)
                   Text(title!, style: VfDoc.mutedStyle.copyWith(fontSize: 8.5)),
                 if (date != null)

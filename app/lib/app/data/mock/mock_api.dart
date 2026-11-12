@@ -31,7 +31,7 @@ class MockApi {
   MockUser? _current;
 
   /* The demo tenant. Every field here is one a company fills in under
-     Branding — none of it is special-cased anywhere in the app. */
+     Branding, none of it is special-cased anywhere in the app. */
   // Mutable, so the branding screen's saves show up in the fixture.
   static final Map<String, dynamic> _company = {
     'id': 1,
@@ -288,7 +288,7 @@ class MockApi {
           // The acknowledgement is a PDF rendered by the server.
           throw ApiException(
             501,
-            'The payment acknowledgement is printed from the live server — '
+            'The payment acknowledgement is printed from the live server, '
             'the prototype cannot render PDFs.',
           );
         }
@@ -344,8 +344,8 @@ class MockApi {
   }
 
   /* ── two-step sign-in ──
-     Mock mode only: every code is [mockLoginCode]. The rules — cooldown,
-     send limit, attempt limit, lifetimes — mirror the API's. */
+     Mock mode only: every code is [mockLoginCode]. The rules, cooldown,
+     send limit, attempt limit, lifetimes, mirror the API's. */
 
   /// The one code the fixture accepts.
   static const mockLoginCode = '418205';
@@ -662,7 +662,7 @@ class MockApi {
           title: '${v.number} approved',
           titleSw: '${v.number} imeidhinishwa',
           icon: 'seal',
-          body: 'Cleared for payment — the cashier will release the funds.',
+          body: 'Cleared for payment, the cashier will release the funds.',
           voucherId: v.id,
         );
 
@@ -778,7 +778,7 @@ class MockApi {
           comment: settled
               ? (comment ??
                     'Funds released and reference recorded against the voucher.')
-              : 'Part payment ${_money(amount, v.currency)} — balance '
+              : 'Part payment ${_money(amount, v.currency)}, balance '
                     '${_money(remaining, v.currency)} outstanding.',
         );
         // The voucher's own payment fields describe the latest release.
@@ -1027,7 +1027,7 @@ class MockApi {
     return DateTime.now().difference(DateTime.parse(since)).inDays;
   }
 
-  /// Open vouchers that have not moved in a while — the administrator's queue.
+  /// Open vouchers that have not moved in a while, the administrator's queue.
   List<MockVoucher> _stalled([int thresholdDays = 3]) {
     final rows = _visible()
         .where(
@@ -1177,8 +1177,8 @@ class MockApi {
       case 'approved':
         return (
           key: 'awaiting_payment',
-          label: 'Approved — awaiting payment',
-          labelSw: 'Imeidhinishwa — inasubiri malipo',
+          label: 'Approved, awaiting payment',
+          labelSw: 'Imeidhinishwa, inasubiri malipo',
           tag: 'tag-info',
         );
       case 'paid':
@@ -1201,8 +1201,8 @@ class MockApi {
         if (step.canSign && v.stepSignedAt != null) {
           return (
             key: 'signed',
-            label: 'Signed — ready to submit',
-            labelSw: 'Imesainiwa — tayari kutumwa',
+            label: 'Signed, ready to submit',
+            labelSw: 'Imesainiwa, tayari kutumwa',
             tag: 'tag-outline',
           );
         }
@@ -1379,8 +1379,8 @@ class MockApi {
             'created_at': c.createdAt,
             'user': {
               'id': c.userId,
-              'name': author?.name ?? '—',
-              'initials': _initials(author?.name ?? '—'),
+              'name': author?.name ?? '-',
+              'initials': _initials(author?.name ?? '-'),
               'role_label': _roleLabels[author?.role] ?? '',
             },
           };
@@ -1429,8 +1429,8 @@ class MockApi {
 
       if (step.position == 1) {
         if (v.status == 'draft') {
-          act = 'Draft — not submitted';
-          actSw = 'Rasimu — haijatumwa';
+          act = 'Draft, not submitted';
+          actSw = 'Rasimu, haijatumwa';
         } else {
           act = 'Created & submitted';
           actSw = 'Imetengenezwa na kutumwa';
@@ -1465,8 +1465,8 @@ class MockApi {
         when = signEvent.actedAt;
         comment = 'Signature applied and forwarded to the next step.';
       } else if (signEvent != null && atThis) {
-        act = 'Signed — not yet submitted onward';
-        actSw = 'Imesainiwa — haijatumwa mbele';
+        act = 'Signed, not yet submitted onward';
+        actSw = 'Imesainiwa, haijatumwa mbele';
         when = signEvent.actedAt;
         comment = 'This step signs only; it makes no approval decision.';
       } else if (atThis) {
@@ -1520,10 +1520,10 @@ class MockApi {
       'person_title': '',
       'act': paid
           ? 'Voucher completed'
-          : (rejected ? 'Closed — rejected' : 'Not completed'),
+          : (rejected ? 'Closed, rejected' : 'Not completed'),
       'act_sw': paid
           ? 'Vocha imekamilika'
-          : (rejected ? 'Imefungwa — imekataliwa' : 'Haijakamilika'),
+          : (rejected ? 'Imefungwa, imekataliwa' : 'Haijakamilika'),
       'when': paid ? v.paidAt : (rejected ? v.rejectedAt : null),
       'comment': paid
           ? 'Approval ID ${v.verificationCode} · PDF ready with every captured mark.'
@@ -1550,7 +1550,7 @@ class MockApi {
   };
 
   /* ═════════════════════════════════════════════════════════ dashboard ══ */
-  /// The dashboard payload — the same shape as the API's DashboardController:
+  /// The dashboard payload, the same shape as the API's DashboardController:
   /// a view, an attention banner, figures by stable key, the action queue and
   /// recent activity, each computed from the vouchers this user may see.
   Map<String, dynamic> _dashboard() {
@@ -2221,7 +2221,7 @@ class MockApi {
             '${v.number} inahitaji ${step.canPay ? 'malipo' : (step.canApprove ? 'idhini' : 'sahihi')} yako',
         icon: step.canPay ? 'wallet' : (step.canApprove ? 'seal' : 'signature'),
         body:
-            '${_user(v.requesterId)?.name ?? ''} · ${_money(v.amount)} — ${v.purpose}',
+            '${_user(v.requesterId)?.name ?? ''} · ${_money(v.amount)}, ${v.purpose}',
         voucherId: v.id,
       );
     }
@@ -2489,7 +2489,7 @@ class MockApi {
       dept: 2,
       requester: 3,
       payee: 'Kibo Preforms Limited',
-      purpose: 'PET preforms — Afiya 500 ml line',
+      purpose: 'PET preforms: Afiya 500 ml line',
       description:
           '420,000 × 24.5 g preforms for the Afiya still-water line, against framework contract WC/PR/2026/04.',
       amount: 18400000,
@@ -2518,7 +2518,7 @@ class MockApi {
       dept: 4,
       requester: 7,
       payee: 'Coastal Transporters Limited',
-      purpose: 'Distribution haulage — Mwanza and Mbeya routes',
+      purpose: 'Distribution haulage: Mwanza and Mbeya routes',
       description:
           'Outbound haulage of 38 pallets of finished goods to the Mwanza and Mbeya depots, week 36.',
       amount: 6750000,
@@ -2549,7 +2549,7 @@ class MockApi {
       dept: 5,
       requester: 14,
       payee: 'Bahati Catering Services',
-      purpose: 'Staff canteen supplies — September',
+      purpose: 'Staff canteen supplies: September',
       description:
           'Monthly canteen provisions for the Kibada plant, 240 staff meals per week.',
       amount: 940000,
@@ -2574,7 +2574,7 @@ class MockApi {
       dept: 3,
       requester: 3,
       payee: 'BOC Tanzania Limited',
-      purpose: 'Food-grade CO₂ — Supa Cola line',
+      purpose: 'Food-grade CO₂: Supa Cola line',
       description:
           'Twelve tonnes of beverage-grade carbon dioxide for the Supa Cola carbonation plant.',
       amount: 9200000,
@@ -2611,7 +2611,7 @@ class MockApi {
       dept: 1,
       requester: 3,
       payee: 'TANESCO',
-      purpose: 'Kibada plant electricity — August',
+      purpose: 'Kibada plant electricity: August',
       description:
           'Industrial supply for the Kibada bottling plant, meter 41-882-0173.',
       amount: 14850000,
@@ -2639,7 +2639,7 @@ class MockApi {
       dept: 7,
       requester: 8,
       payee: 'Afri-Chem Supplies',
-      purpose: 'Laboratory reagents — water testing',
+      purpose: 'Laboratory reagents, water testing',
       description:
           'Microbiological media and reagents for routine potable-water testing.',
       amount: 1320000,
@@ -2666,7 +2666,7 @@ class MockApi {
       dept: 2,
       requester: 3,
       payee: 'Tanpack Labels Limited',
-      purpose: 'Shrink labels — Afiya and Jembe',
+      purpose: 'Shrink labels: Afiya and Jembe',
       description:
           'Roll-fed shrink sleeves for the Afiya 500 ml and Jembe Energy 300 ml lines.',
       amount: 7600000,
@@ -2696,7 +2696,7 @@ class MockApi {
       dept: 4,
       requester: 7,
       payee: 'Msasani Motor Spares',
-      purpose: 'Tyres and spares — truck T 4471 DTX',
+      purpose: 'Tyres and spares, truck T 4471 DTX',
       description:
           'Four drive tyres and a service kit for the Mbeya route truck.',
       amount: 2150000,
@@ -2722,7 +2722,7 @@ class MockApi {
       dept: 5,
       requester: 14,
       payee: 'National Social Security Fund',
-      purpose: 'Statutory contributions — August 2026',
+      purpose: 'Statutory contributions: August 2026',
       description: 'Employer and employee NSSF contributions for 214 staff.',
       amount: 5480000,
       method: 'Bank Transfer',
@@ -2752,7 +2752,7 @@ class MockApi {
       dept: 3,
       requester: 3,
       payee: 'Kilimanjaro Sugar Distributors',
-      purpose: 'Refined sugar — 20 tonnes',
+      purpose: 'Refined sugar: 20 tonnes',
       description:
           'Refined white sugar for the Supa Cola and Afiya juice lines.',
       amount: 22300000,
@@ -2784,7 +2784,7 @@ class MockApi {
       dept: 4,
       requester: 7,
       payee: 'Baraka Ndosi',
-      purpose: 'Travel advance — Mbeya depot stock audit',
+      purpose: 'Travel advance: Mbeya depot stock audit',
       description:
           'Three nights, per diem and fuel for the quarterly stock count.',
       amount: 860000,
@@ -2806,7 +2806,7 @@ class MockApi {
           3,
           13,
           14,
-          'The Mbeya depot holds its own float — draw the advance there.',
+          'The Mbeya depot holds its own float, draw the advance there.',
           false,
         ),
       ],
@@ -2820,7 +2820,7 @@ class MockApi {
       dept: 2,
       requester: 3,
       payee: 'Sumaria Industries Limited',
-      purpose: 'Closures and caps — August arrears',
+      purpose: 'Closures and caps: August arrears',
       description:
           'Outstanding balance on 1.2 million 28 mm closures delivered in August.',
       amount: 3150000,
@@ -2855,7 +2855,7 @@ class MockApi {
       dept: 2,
       requester: 3,
       payee: 'Coastal Packaging Limited',
-      purpose: 'Shrink film — October order',
+      purpose: 'Shrink film: October order',
       description: "Draft pending the supplier's confirmed quotation.",
       amount: 4100000,
       method: 'Bank Transfer',
@@ -2878,7 +2878,7 @@ class MockApi {
       'Monthly courier retainer',
       'Warehouse cleaning contract',
       'Generator servicing',
-      'Security guarding — monthly',
+      'Security guarding, monthly',
     ];
     const cast = [(3, 2, 9), (7, 5, 9), (3, 3, 4), (7, 4, 4)];
 
@@ -3023,7 +3023,7 @@ class MockApi {
           voucherId: id,
           stepPosition: stepPos,
           actorId: actorId,
-          actorName: actor?.name ?? '—',
+          actorName: actor?.name ?? '-',
           action: action,
           actedAt: at,
           comment: comment,

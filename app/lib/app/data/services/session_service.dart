@@ -43,7 +43,7 @@ class SessionService extends GetxService {
   Future<SessionService> init() async {
     locale.value = _api.locale;
     // The device's stored appearance applies before anything is fetched, so the
-    // first frame is already correct — dark unless this device chose light.
+    // first frame is already correct, dark unless this device chose light.
     themeMode.value = _modeFrom(_api.theme);
     Get.changeThemeMode(themeMode.value);
     applyAccent(_api.accent, persist: false);
@@ -129,7 +129,7 @@ class SessionService extends GetxService {
   }
 
   /// Starts a session from any response that carries `token`, `user` and
-  /// `company` — registration answers with one, as the web's applySession.
+  /// `company`, registration answers with one, as the web's applySession.
   Future<void> startSessionFrom(Map<String, dynamic> data) => _startSession(data);
 
   Future<void> _startSession(Map<String, dynamic> data) async {
@@ -277,7 +277,7 @@ class LoginChallenge {
   final String challenge;
   final List<VerificationChannel> channels;
 
-  /// Set when the code has already been sent — the only channel on offer.
+  /// Set when the code has already been sent, the only channel on offer.
   final String? sentTo;
   final int? expiresIn, codeExpiresIn, resendIn;
 

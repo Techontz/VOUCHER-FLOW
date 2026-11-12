@@ -126,8 +126,25 @@ class VfAccentPalette {
       all.firstWhere((p) => p.key == key, orElse: () => blue);
 }
 
-/// Every appearance-dependent token, exactly as the web client defines them.
-/// Read it with `context.vf`.
+/// One soft light in the wallpaper: a radial bloom of [color] centred at
+/// [center] (an [Alignment] over the screen) whose radius is [radius] times
+/// the screen's longer side.
+class VfGlow {
+  const VfGlow(this.center, this.radius, this.color);
+
+  final Alignment center;
+  final double radius;
+  final Color color;
+}
+
+/// Every appearance-dependent token. Read it with `context.vf`.
+///
+/// The interface is "liquid glass": a soft wallpaper ([wallpaper] and
+/// [wallpaperGlows]) under translucent surfaces ([glassFill] and friends)
+/// with a hairline [glassBorder] that brightens to [glassHighlight] along
+/// the top edge. The opaque [surface] family is the colour a glass card
+/// reads as over the wallpaper, for anything that must not show through
+/// (menus, dropdowns, cut-out rings round badges).
 class VfTokens {
   const VfTokens._({
     required this.brightness,
@@ -171,6 +188,19 @@ class VfTokens {
     required this.overlay,
     required this.cardShadow,
     required this.palette,
+    required this.wallpaper,
+    required this.wallpaperGlows,
+    required this.glassFill,
+    required this.glassFillStrong,
+    required this.glassRowFill,
+    required this.glassBorder,
+    required this.glassHighlight,
+    required this.glassSheen,
+    required this.glassShadow,
+    required this.barFill,
+    required this.sheetFill,
+    required this.tabActive,
+    required this.blurSigma,
   });
 
   final Brightness brightness;
@@ -203,6 +233,42 @@ class VfTokens {
 
   final VfAccentPalette palette;
 
+  // ── liquid glass ──
+
+  /// The page ground: a gradient, with [wallpaperGlows] painted over it.
+  final LinearGradient wallpaper;
+  final List<VfGlow> wallpaperGlows;
+
+  /// A glass card's fill, and a denser one for raised controls (secondary
+  /// buttons, the hero, chips).
+  final Color glassFill, glassFillStrong;
+
+  /// The cheap fill for list rows: translucent, drawn without blur.
+  final Color glassRowFill;
+
+  /// The hairline round every glass surface, and the brighter top edge.
+  final Color glassBorder, glassHighlight;
+
+  /// A faint light across the top of a glass surface.
+  final Color glassSheen;
+
+  /// The soft long shadow under glass (painted outside the shape only, so it
+  /// never darkens the translucent fill).
+  final List<BoxShadow> glassShadow;
+
+  /// Bars that content can pass under (tab bar, top bars): at least 85%
+  /// opaque so text behind never competes with the bar's own.
+  final Color barFill;
+
+  /// Sheets, dialogs and the drawer: nearly opaque glass.
+  final Color sheetFill;
+
+  /// The raised pill behind the current tab.
+  final Color tabActive;
+
+  /// Backdrop blur for bars, sheets and the few cards that blur.
+  final double blurSigma;
+
   bool get isDark => brightness == Brightness.dark;
 
   // The company's primary family, in this appearance.
@@ -218,20 +284,21 @@ class VfTokens {
 
   static VfTokens light(VfAccentPalette palette) => VfTokens._(
     brightness: Brightness.light,
-    background: const Color(0xFFF2F4F8),
+    // "Glassy" light: white into pale sky blue, frosted white glass.
+    background: const Color(0xFFF5F5F7),
     surface: Colors.white,
-    surface2: const Color(0xFFF9FAFB),
-    surface3: const Color(0xFFF3F4F6),
-    border: const Color(0xFFE5E7EB),
-    borderStrong: const Color(0xFFD1D5DB),
-    text: const Color(0xFF111827),
-    text2: const Color(0xFF4B5563),
-    muted: const Color(0xFF6B7280),
-    faint: const Color(0xFF9CA3AF),
-    inputBg: Colors.white,
-    inputBorder: const Color(0xFFD1D5DB),
-    inputDisabled: const Color(0xFFF9FAFB),
-    placeholder: const Color(0xFF9CA3AF),
+    surface2: const Color(0xFFF6F9FD),
+    surface3: const Color(0xFFECF1F8),
+    border: const Color(0xFFE0E7F0),
+    borderStrong: const Color(0xFFCBD5E2),
+    text: const Color(0xFF0F172A),
+    text2: const Color(0xFF3D4859),
+    muted: const Color(0xFF5B6576),
+    faint: const Color(0xFF8D97A7),
+    inputBg: const Color(0xB3FFFFFF),
+    inputBorder: const Color(0xFFD5DEEA),
+    inputDisabled: const Color(0x80F1F5FA),
+    placeholder: const Color(0xFF8D97A7),
     success: const Color(0xFF166534),
     successSoft: const Color(0xFFDCFCE7),
     successStrong: const Color(0xFF16A34A),
@@ -245,9 +312,9 @@ class VfTokens {
     infoSoft: const Color(0xFFDBEAFE),
     infoStrong: const Color(0xFF2563EB),
     neutral: const Color(0xFF1F2937),
-    neutralSoft: const Color(0xFFF3F4F6),
+    neutralSoft: const Color(0xFFEEF2F7),
     neutralStrong: const Color(0xFF9CA3AF),
-    // Light appearance: navy chrome around a light work surface.
+    // Navy chrome survives for the few full-bleed brand surfaces.
     chrome: const Color(0xFF0F172A),
     chromeLine: const Color(0xFF1E293B),
     chromeHover: const Color(0xFF1E293B),
@@ -255,31 +322,92 @@ class VfTokens {
     chromeText: const Color(0xFFCBD5E1),
     chromeMuted: const Color(0xFF94A3B8),
     chromeLabel: const Color(0xFF64748B),
-    tabBar: Colors.white,
-    overlay: const Color(0x80000000),
-    cardShadow: const [
-      BoxShadow(color: Color(0x0F0F172A), blurRadius: 18, offset: Offset(0, 6)),
-      BoxShadow(color: Color(0x0A0F172A), blurRadius: 3, offset: Offset(0, 1)),
-    ],
+    tabBar: const Color(0xE6FFFFFF),
+    overlay: const Color(0x590F172A),
+    cardShadow: _lightCardShadow,
     palette: palette,
+    wallpaper: const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFFF7F7F9), Color(0xFFF4F4F7), Color(0xFFF2F2F5)],
+      stops: [0, .5, 1],
+    ),
+    // A calm neutral ground with one faint light from above: content cards
+    // are solid white, glass is kept for the bars and sheets over them.
+    wallpaperGlows: [
+      const VfGlow(Alignment(0, -1.25), .7, Color(0x140071E3)),
+    ],
+    glassFill: const Color(0xFFFFFFFF),
+    glassFillStrong: const Color(0xD9FFFFFF),
+    glassRowFill: const Color(0xFFFFFFFF),
+    glassBorder: const Color(0x12000000),
+    glassHighlight: const Color(0xFFFFFFFF),
+    glassSheen: const Color(0x66FFFFFF),
+    glassShadow: _lightShadow,
+    barFill: const Color(0xE6FFFFFF),
+    sheetFill: const Color(0xF2FAFCFF),
+    tabActive: palette.softStrongLight,
+    blurSigma: 24,
   );
+
+  static const _lightShadow = [
+    BoxShadow(
+      color: Color(0x1A2B5DB8),
+      blurRadius: 32,
+      spreadRadius: -6,
+      offset: Offset(0, 14),
+    ),
+    BoxShadow(color: Color(0x0D0F172A), blurRadius: 3, offset: Offset(0, 1)),
+  ];
+
+  /// The shorter shadow for small opaque pieces (segments, chips, tiles)
+  /// that other screens decorate with `cardShadow`.
+  static const _lightCardShadow = [
+    BoxShadow(
+      color: Color(0x142B5DB8),
+      blurRadius: 16,
+      spreadRadius: -4,
+      offset: Offset(0, 6),
+    ),
+    BoxShadow(color: Color(0x0A0F172A), blurRadius: 2, offset: Offset(0, 1)),
+  ];
+
+  static const _darkCardShadow = [
+    BoxShadow(
+      color: Color(0x59000000),
+      blurRadius: 16,
+      spreadRadius: -4,
+      offset: Offset(0, 6),
+    ),
+  ];
+
+  static const _darkShadow = [
+    BoxShadow(
+      color: Color(0x80000000),
+      blurRadius: 44,
+      spreadRadius: -12,
+      offset: Offset(0, 22),
+    ),
+    BoxShadow(color: Color(0x40000000), blurRadius: 3, offset: Offset(0, 1)),
+  ];
 
   static VfTokens dark(VfAccentPalette palette) => VfTokens._(
     brightness: Brightness.dark,
-    background: const Color(0xFF0B0F17),
-    surface: const Color(0xFF111827),
-    surface2: const Color(0xFF161E2C),
-    surface3: const Color(0xFF1F2937),
-    border: const Color(0xFF1F2937),
-    borderStrong: const Color(0xFF374151),
-    text: const Color(0xFFF3F4F6),
-    text2: const Color(0xFFD1D5DB),
-    muted: const Color(0xFF9CA3AF),
-    faint: const Color(0xFF6B7280),
-    inputBg: const Color(0xFF0F1623),
-    inputBorder: const Color(0xFF374151),
-    inputDisabled: const Color(0xFF161E2C),
-    placeholder: const Color(0xFF6B7280),
+    // "Pane" dark: deep charcoal ash with a faint cool aurora.
+    background: const Color(0xFF000000),
+    surface: const Color(0xFF17191E),
+    surface2: const Color(0xFF1C1F25),
+    surface3: const Color(0xFF24272E),
+    border: const Color(0xFF262A31),
+    borderStrong: const Color(0xFF363B44),
+    text: const Color(0xFFF4F5F7),
+    text2: const Color(0xFFC9CDD4),
+    muted: const Color(0xFF9AA0AB),
+    faint: const Color(0xFF737A86),
+    inputBg: const Color(0x0FFFFFFF),
+    inputBorder: const Color(0x1FFFFFFF),
+    inputDisabled: const Color(0x08FFFFFF),
+    placeholder: const Color(0xFF737A86),
     success: const Color(0xFF86EFAC),
     successSoft: const Color(0x2916A34A),
     successStrong: const Color(0xFF22C55E),
@@ -293,25 +421,44 @@ class VfTokens {
     infoSoft: const Color(0x2E2563EB),
     infoStrong: const Color(0xFF3B82F6),
     neutral: const Color(0xFFD1D5DB),
-    neutralSoft: const Color(0x12FFFFFF),
+    neutralSoft: const Color(0x14FFFFFF),
     neutralStrong: const Color(0xFF6B7280),
-    chrome: const Color(0xFF111827),
-    chromeLine: const Color(0xFF1F2937),
-    chromeHover: const Color(0xFF111827),
-    chromeCard: const Color(0xE6111827),
+    chrome: const Color(0xFF111317),
+    chromeLine: const Color(0xFF22252B),
+    chromeHover: const Color(0xFF1A1C21),
+    chromeCard: const Color(0xE617191E),
     chromeText: const Color(0xFFD1D5DB),
-    chromeMuted: const Color(0xFF9CA3AF),
-    chromeLabel: const Color(0xFF6B7280),
-    tabBar: const Color(0xFF111827),
-    overlay: const Color(0xA6000000),
-    cardShadow: const [
-      BoxShadow(color: Color(0x66000000), blurRadius: 3, offset: Offset(0, 1)),
-    ],
+    chromeMuted: const Color(0xFF9AA0AB),
+    chromeLabel: const Color(0xFF737A86),
+    tabBar: const Color(0xE0181A1F),
+    overlay: const Color(0xA6040507),
+    cardShadow: _darkCardShadow,
     palette: palette,
+    wallpaper: const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF0A0A0B), Color(0xFF050505), Color(0xFF000000)],
+      stops: [0, .55, 1],
+    ),
+    // True black with one faint blue light from above.
+    wallpaperGlows: [
+      const VfGlow(Alignment(0, -1.25), .7, Color(0x1F0A84FF)),
+    ],
+    glassFill: const Color(0xFF161618),
+    glassFillStrong: const Color(0xD91C1C1E),
+    glassRowFill: const Color(0xFF161618),
+    glassBorder: const Color(0x14FFFFFF),
+    glassHighlight: const Color(0x3DFFFFFF),
+    glassSheen: const Color(0x0DFFFFFF),
+    glassShadow: _darkShadow,
+    barFill: const Color(0xE0181A1F),
+    sheetFill: const Color(0xF0191B20),
+    tabActive: const Color(0x1FFFFFFF),
+    blurSigma: 24,
   );
 
   /// The drawer is a touch deeper than the top bar in dark, as on the web.
-  Color get drawer => isDark ? const Color(0xFF030712) : chrome;
+  Color get drawer => isDark ? const Color(0xFF0A0B0E) : chrome;
 }
 
 /// The sizes the web client uses, in logical pixels.
@@ -324,12 +471,18 @@ class VfSize {
   static const radiusL = 14.0; // buttons, inputs, cards, panels
   static const radiusXl = 20.0; // selection cards, sheets
   static const radiusCard = 20.0; // the create-voucher cards
+  static const radiusGlass = 22.0; // glass cards and panels
+  static const radiusSheet = 28.0; // sheets, the drawer, the tab bar
   static const radiusPill = 999.0;
 
   static const controlH = 48.0; // buttons, tall for touch
   static const inputH = 52.0;
   static const topBarH = 60.0;
   static const tabBarH = 68.0;
+
+  /// The floating tab bar: its height and its inset from the screen edges.
+  static const floatingBarH = 64.0;
+  static const floatingBarInset = 14.0;
 
   static const pagePad = 18.0; // the phone gutter
   static const gap = 12.0;
@@ -345,22 +498,22 @@ class VfColors {
   const VfColors._();
 
   // dark
-  static const bg = Color(0xFF0B0F17);
-  static const elev1 = Color(0xFF111827);
-  static const elev2 = Color(0xFF161E2C);
-  static const elev3 = Color(0xFF1F2937);
-  static const text = Color(0xFFF3F4F6);
-  static const line = Color(0xFF1F2937);
-  static const lineStrong = Color(0xFF374151);
+  static const bg = Color(0xFF0B0C10);
+  static const elev1 = Color(0xFF17191E);
+  static const elev2 = Color(0xFF1C1F25);
+  static const elev3 = Color(0xFF24272E);
+  static const text = Color(0xFFF4F5F7);
+  static const line = Color(0xFF262A31);
+  static const lineStrong = Color(0xFF363B44);
 
   // light
-  static const lightBg = Color(0xFFF3F5F9);
+  static const lightBg = Color(0xFFEDF3FB);
   static const lightElev1 = Color(0xFFFFFFFF);
-  static const lightElev2 = Color(0xFFF9FAFB);
-  static const lightElev3 = Color(0xFFF3F4F6);
-  static const lightText = Color(0xFF111827);
-  static const lightLine = Color(0xFFE5E7EB);
-  static const lightLineStrong = Color(0xFFD1D5DB);
+  static const lightElev2 = Color(0xFFF6F9FD);
+  static const lightElev3 = Color(0xFFECF1F8);
+  static const lightText = Color(0xFF0F172A);
+  static const lightLine = Color(0xFFE0E7F0);
+  static const lightLineStrong = Color(0xFFCBD5E2);
 
   /// The company's palette. Set by SessionService before the themes are
   /// built; the app rebuilds its themes whenever it changes.
@@ -400,8 +553,9 @@ extension VfPalette on BuildContext {
   bool get isDark => Theme.of(this).brightness == Brightness.dark;
 
   /// Every token for the current appearance and company palette.
-  VfTokens get vf =>
-      isDark ? VfTokens.dark(VfColors.palette) : VfTokens.light(VfColors.palette);
+  VfTokens get vf => isDark
+      ? VfTokens.dark(VfColors.palette)
+      : VfTokens.light(VfColors.palette);
 
   Color get vfBg => vf.background;
   Color get vfElev1 => vf.surface;
@@ -415,23 +569,31 @@ extension VfPalette on BuildContext {
   Color get vfAccentTint => vf.primarySoft;
 }
 
-/// The type scale (Poppins, as on the web).
+/// The type scale. Poppins is the bundled face (Inter is not bundled and no
+/// dependency carries it); large sizes are tracked tight for the glass look.
 class VfType {
   const VfType._();
 
   static const family = 'Poppins';
 
-  static TextStyle _t(double size, FontWeight w, {double h = 1.45, double ls = 0}) =>
-      TextStyle(
-        fontFamily: family,
-        fontSize: size,
-        fontWeight: w,
-        height: h,
-        letterSpacing: ls,
-      );
+  static TextStyle _t(
+    double size,
+    FontWeight w, {
+    double h = 1.45,
+    double ls = 0,
+  }) => TextStyle(
+    fontFamily: family,
+    fontSize: size,
+    fontWeight: w,
+    height: h,
+    letterSpacing: ls,
+  );
 
   /// Page title (web h1 on a phone: 26–30px, bold, tight).
   static final pageTitle = _t(26, FontWeight.w700, h: 1.15, ls: -0.5);
+
+  /// The greeting and large page titles: 32–36 on a phone, very tight.
+  static final display = _t(34, FontWeight.w700, h: 1.1, ls: -1.2);
 
   /// Section / panel title (web 18px, 600).
   static final sectionTitle = _t(18, FontWeight.w600, h: 1.3, ls: -0.2);
@@ -496,6 +658,7 @@ class VfTheme {
     TextStyle s(TextStyle base, Color c) => base.copyWith(color: c);
 
     final radius = BorderRadius.circular(VfSize.radiusL);
+    final glassRadius = BorderRadius.circular(VfSize.radiusGlass);
 
     return ThemeData(
       useMaterial3: true,
@@ -504,8 +667,12 @@ class VfTheme {
       fontFamily: fontFamily,
       scaffoldBackgroundColor: t.background,
       canvasColor: t.background,
-      dividerColor: t.border,
-      dividerTheme: DividerThemeData(color: t.border, thickness: 1, space: 1),
+      dividerColor: t.isDark ? t.glassBorder : t.border,
+      dividerTheme: DividerThemeData(
+        color: t.isDark ? t.glassBorder : t.border,
+        thickness: 1,
+        space: 1,
+      ),
       splashFactory: InkRipple.splashFactory,
       textTheme: TextTheme(
         displaySmall: s(VfType.pageTitle.copyWith(fontSize: 28), t.text),
@@ -533,13 +700,13 @@ class VfTheme {
         iconTheme: IconThemeData(color: t.text),
       ),
       cardTheme: CardThemeData(
-        color: t.surface,
+        color: t.glassFill,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: BorderSide(color: t.border),
+          borderRadius: glassRadius,
+          side: BorderSide(color: t.glassBorder),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -556,9 +723,7 @@ class VfTheme {
           padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: 18),
           ),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: radius),
-          ),
+          shape: const WidgetStatePropertyAll(StadiumBorder()),
           textStyle: WidgetStatePropertyAll(
             VfType.bodyStrong.copyWith(fontSize: 15),
           ),
@@ -568,11 +733,11 @@ class VfTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: t.text,
-          backgroundColor: t.surface,
+          backgroundColor: t.glassFillStrong,
           minimumSize: const Size(0, VfSize.controlH),
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          side: BorderSide(color: t.borderStrong),
-          shape: RoundedRectangleBorder(borderRadius: radius),
+          side: BorderSide(color: t.isDark ? t.glassBorder : t.borderStrong),
+          shape: const StadiumBorder(),
           textStyle: VfType.bodyStrong.copyWith(
             fontSize: 15,
             fontWeight: FontWeight.w500,
@@ -595,7 +760,10 @@ class VfTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: t.inputBg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 13,
+        ),
         border: OutlineInputBorder(
           borderRadius: radius,
           borderSide: BorderSide(color: t.inputBorder),
@@ -629,9 +797,9 @@ class VfTheme {
         suffixIconColor: t.faint,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: t.surface,
+        backgroundColor: t.glassFillStrong,
         selectedColor: t.primarySoftStrong,
-        side: BorderSide(color: t.borderStrong),
+        side: BorderSide(color: t.isDark ? t.glassBorder : t.borderStrong),
         labelStyle: VfType.small.copyWith(color: t.text2),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(VfSize.radiusPill),
@@ -641,7 +809,7 @@ class VfTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: t.tabBar,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: t.primarySoftStrong,
+        indicatorColor: t.tabActive,
         indicatorShape: const StadiumBorder(),
         height: VfSize.tabBarH,
         elevation: 0,
@@ -660,39 +828,75 @@ class VfTheme {
         ),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
+      // Sheets and dialogs nobody wrapped in glass are still near-opaque
+      // glass: legible over anything, and no blur to pay for.
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: t.surface,
+        backgroundColor: t.sheetFill,
         surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: t.surface,
+        modalBackgroundColor: t.sheetFill,
+        modalBarrierColor: t.overlay,
         showDragHandle: true,
         dragHandleColor: t.borderStrong,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(rXl)),
+        elevation: 0,
+        modalElevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(VfSize.radiusSheet),
+          ),
+          side: BorderSide(color: t.glassBorder),
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: t.surface,
+        backgroundColor: t.sheetFill,
         surfaceTintColor: Colors.transparent,
+        barrierColor: t.overlay,
+        elevation: 0,
         titleTextStyle: VfType.sectionTitle.copyWith(color: t.text),
         contentTextStyle: VfType.body.copyWith(color: t.text2),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(VfSize.radiusXl),
-          side: BorderSide(color: t.border),
+          borderRadius: BorderRadius.circular(VfSize.radiusSheet),
+          side: BorderSide(color: t.glassBorder),
         ),
       ),
       drawerTheme: DrawerThemeData(
-        backgroundColor: t.drawer,
+        backgroundColor: t.sheetFill,
         surfaceTintColor: Colors.transparent,
-        width: 300,
-        shape: const RoundedRectangleBorder(),
+        scrimColor: t.overlay,
+        elevation: 0,
+        width: 304,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.horizontal(
+            right: Radius.circular(VfSize.radiusSheet),
+          ),
+        ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: t.surface,
+        color: t.isDark ? t.surface2 : t.surface,
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shadowColor: Colors.transparent,
         textStyle: VfType.small.copyWith(color: t.text, fontSize: 14),
         shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: BorderSide(color: t.border),
+          borderRadius: BorderRadius.circular(VfSize.radiusXl),
+          side: BorderSide(color: t.isDark ? t.glassBorder : t.border),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (st) =>
+                st.contains(WidgetState.selected) ? t.tabActive : t.glassFill,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (st) => st.contains(WidgetState.selected) ? t.primaryText : t.text2,
+          ),
+          side: WidgetStatePropertyAll(
+            BorderSide(color: t.isDark ? t.glassBorder : t.border),
+          ),
+          shape: const WidgetStatePropertyAll(StadiumBorder()),
+          textStyle: WidgetStatePropertyAll(
+            VfType.label.copyWith(fontSize: 13.5, fontWeight: FontWeight.w600),
+          ),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -701,7 +905,10 @@ class VfTheme {
           color: t.isDark ? t.text : Colors.white,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: radius),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(VfSize.radiusXl),
+        ),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: t.primary,
@@ -727,7 +934,7 @@ class VfTheme {
         labelColor: t.primaryText,
         unselectedLabelColor: t.muted,
         indicatorColor: t.primary,
-        dividerColor: t.border,
+        dividerColor: t.isDark ? t.glassBorder : t.border,
         labelStyle: VfType.bodyStrong.copyWith(fontSize: 14.5),
         unselectedLabelStyle: VfType.body.copyWith(fontSize: 14.5),
       ),

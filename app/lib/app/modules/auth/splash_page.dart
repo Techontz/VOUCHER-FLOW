@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../core/dev_hooks.dart';
 import '../../core/theme.dart';
+import '../../widgets/vf/glass.dart';
 import '../../data/services/session_service.dart';
 import '../../routes/routes.dart';
 import 'auth_widgets.dart';
@@ -57,16 +58,17 @@ class _SplashPageState extends State<SplashPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
-    return Scaffold(
-      backgroundColor: t.chrome,
+    return VfWallpaper(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
           gradient: RadialGradient(
             center: const Alignment(0, -.25),
             radius: .9,
             colors: [
-              t.palette.primaryLight.withValues(alpha: .35),
-              t.chrome,
+              t.primary.withValues(alpha: t.isDark ? .26 : .14),
+              t.primary.withValues(alpha: 0),
             ],
           ),
         ),
@@ -79,7 +81,7 @@ class _SplashPageState extends State<SplashPage> {
                 borderRadius: BorderRadius.circular(26),
                 boxShadow: [
                   BoxShadow(
-                    color: t.palette.primaryLight.withValues(alpha: .5),
+                    color: t.primary.withValues(alpha: t.isDark ? .5 : .3),
                     blurRadius: 36,
                     offset: const Offset(0, 12),
                   ),
@@ -93,7 +95,7 @@ class _SplashPageState extends State<SplashPage> {
               style: VfType.pageTitle.copyWith(
                 fontSize: 30,
                 letterSpacing: -.8,
-                color: Colors.white,
+                color: t.text,
               ),
             ),
             const SizedBox(height: 28),
@@ -102,12 +104,13 @@ class _SplashPageState extends State<SplashPage> {
               height: 22,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Colors.white.withValues(alpha: .8),
+                color: t.primary,
               ),
             ),
           ],
         ),
       ),
+      )
     );
   }
 }

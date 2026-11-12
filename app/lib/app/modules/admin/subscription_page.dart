@@ -649,7 +649,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                         [
                           Fmt.date(inv.paidAt ?? inv.issuedAt),
                           if (inv.methodLabel.isNotEmpty &&
-                              inv.methodLabel != '—')
+                              inv.methodLabel != '-')
                             inv.methodLabel,
                         ].join(' · '),
                         maxLines: 1,

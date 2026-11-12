@@ -3,7 +3,7 @@
 // page its navigation offers, a voucher, and Create voucher, then signs out.
 // Any layout error (overflow, a thrown build) fails the run.
 //
-// Local demo data only — the accounts and password come from the command:
+// Local demo data only, the accounts and password come from the command:
 //   flutter test integration_test/live_walk_test.dart -d <device> \
 //     --dart-define=API_URL=http://127.0.0.1:8130/api \
 //     --dart-define=WALK_ACCOUNTS=admin@watercom.test,frank@watercom.test \
@@ -33,7 +33,7 @@ void main() {
 
   final problems = <String>[];
 
-  /// Pumps for [ms] of wall time — a live API answers on its own clock.
+  /// Pumps for [ms] of wall time, a live API answers on its own clock.
   Future<void> wait(WidgetTester tester, int ms) async {
     final end = DateTime.now().add(Duration(milliseconds: ms));
     while (DateTime.now().isBefore(end)) {

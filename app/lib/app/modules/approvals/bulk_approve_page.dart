@@ -21,7 +21,7 @@ import 'queue_row.dart';
 bool bulkEligible(Voucher v) =>
     v.actions.approve || (v.actions.sign && v.currentStepCanApprove);
 
-/// Every voucher waiting on this person's step, laid out for deciding — and,
+/// Every voucher waiting on this person's step, laid out for deciding, and,
 /// for those that may be, approved several at once behind one confirmation.
 class BulkApproveController extends GetxController {
   final repo = Get.find<VoucherRepository>();
@@ -95,7 +95,7 @@ class BulkApproveController extends GetxController {
             : dt('bulkApprovedMany', {'count': '$n'}),
         body: r.skipped.isEmpty
             ? null
-            : '${dt('skipped')} — ${r.skipped.join(' ')}',
+            : '${dt('skipped')}, ${r.skipped.join(' ')}',
         kind: r.skipped.isEmpty ? ToastKind.ok : ToastKind.warn,
       );
       selected.clear();

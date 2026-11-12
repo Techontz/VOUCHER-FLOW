@@ -152,7 +152,7 @@ class VoucherRepository {
   /// Deletes a draft for good.
   Future<void> delete(int id) => _api.delete('/vouchers/$id');
 
-  /// One page of the register, with the list's totals — for the payment queue.
+  /// One page of the register, with the list's totals, for the payment queue.
   Future<VoucherPage> page({
     String? status,
     String? kind,
@@ -229,7 +229,7 @@ class VoucherRepository {
     );
   }
 
-  /// The voucher as the server renders it in the company's design — the same
+  /// The voucher as the server renders it in the company's design, the same
   /// HTML the website shows (logo, stamps and the PAID / REJECTED mark).
   Future<String> documentHtml(int id) async {
     final payload = await _api.get('/vouchers/$id/document');

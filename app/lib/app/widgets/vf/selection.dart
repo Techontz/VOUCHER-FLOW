@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
+import 'glass.dart';
 
 /// One step of a [VouchFlowStepper].
 class VfStep {
@@ -80,7 +81,7 @@ class VouchFlowStepper extends StatelessWidget {
                         curve: Curves.easeOutCubic,
                         height: 6,
                         decoration: BoxDecoration(
-                          color: s <= i ? t.primary : t.surface3,
+                          color: s <= i ? t.primary : t.glassFillStrong,
                           borderRadius: BorderRadius.circular(VfSize.radiusPill),
                         ),
                       ),
@@ -113,8 +114,8 @@ extension VfCardToneColor on VfCardTone {
   (Color fg, Color bg) colors(VfTokens t) {
     final b = this == VfCardTone.slate && t.isDark ? const Color(0xFF94A3B8) : base;
     return t.isDark
-        ? (Color.lerp(b, Colors.white, .30)!, Color.alphaBlend(b.withValues(alpha: .22), t.surface))
-        : (b, Color.alphaBlend(b.withValues(alpha: .12), t.surface));
+        ? (Color.lerp(b, Colors.white, .30)!, b.withValues(alpha: .22))
+        : (b, b.withValues(alpha: .12));
   }
 }
 
@@ -146,41 +147,35 @@ class VouchFlowSelectCard extends StatelessWidget {
     final t = context.vf;
     final (fg, bg) = tone.colors(t);
     final selectBg = t.isDark
-        ? Color.alphaBlend(t.primary.withValues(alpha: .16), t.surface)
-        : Color.alphaBlend(t.primary.withValues(alpha: .07), t.surface);
+        ? Color.alphaBlend(t.primary.withValues(alpha: .16), t.glassFill)
+        : Color.alphaBlend(t.primary.withValues(alpha: .07), t.glassFillStrong);
     final iconSize = large ? 52.0 : 44.0;
-    final radius = BorderRadius.circular(VfSize.radiusXl);
+    final radius = BorderRadius.circular(VfSize.radiusGlass);
 
     return Semantics(
       selected: selected,
       button: true,
       inMutuallyExclusiveGroup: true,
       label: title,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: selected ? selectBg : t.surface,
-          borderRadius: radius,
-          border: Border.all(
-            color: selected ? t.primary : (t.isDark ? t.border : Colors.transparent),
-            width: selected ? 2 : 1,
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: t.primary.withValues(alpha: .22),
-                    blurRadius: 20,
-                    spreadRadius: -8,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : t.cardShadow,
-        ),
+      child: VfGlass(
+        blur: false,
+        borderRadius: radius,
+        fill: selected ? selectBg : t.glassFill,
+        borderColor: selected ? t.primary : null,
+        borderWidth: selected ? 2 : 1,
+        highlight: !selected,
+        shadows: selected
+            ? [
+                BoxShadow(
+                  color: t.primary.withValues(alpha: .28),
+                  blurRadius: 24,
+                  spreadRadius: -8,
+                  offset: const Offset(0, 10),
+                ),
+              ]
+            : null,
         child: Material(
           type: MaterialType.transparency,
-          borderRadius: radius,
-          clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
             child: Padding(
@@ -238,7 +233,10 @@ class VouchFlowSelectCard extends StatelessWidget {
                             height: 24,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: large ? t.borderStrong : t.border, width: 2),
+                              border: Border.all(
+                              color: t.isDark ? Colors.white.withValues(alpha: large ? .28 : .18) : (large ? t.borderStrong : t.border),
+                              width: 2,
+                            ),
                             ),
                           ),
                   ),
@@ -324,8 +322,12 @@ class _VouchFlowTabsState extends State<VouchFlowTabs> {
               if (i > 0) const SizedBox(width: 6),
               Material(
                 key: _key(i),
-                color: i == current ? t.primarySoftStrong : Colors.transparent,
-                shape: const StadiumBorder(),
+                color: i == current ? t.tabActive : Colors.transparent,
+                shape: StadiumBorder(
+                  side: i == current
+                      ? BorderSide(color: t.isDark ? t.glassBorder : t.primaryBorder)
+                      : BorderSide.none,
+                ),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: () => onChanged(i),

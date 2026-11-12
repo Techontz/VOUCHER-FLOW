@@ -74,7 +74,7 @@ class VfDateInput extends StatelessWidget {
 }
 
 /// A labelled group of fields: a short bold label, then the fields with
-/// app spacing — no box around them.
+/// app spacing, no box around them.
 class VfFieldset extends StatelessWidget {
   const VfFieldset({super.key, required this.legend, required this.children});
 

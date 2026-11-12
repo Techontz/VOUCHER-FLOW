@@ -259,7 +259,7 @@ class RecentPaymentsPanel extends StatelessWidget {
                 color: t.primary,
               ),
               title: Text(
-                rows[i].company ?? '—',
+                rows[i].company ?? '-',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: _title(t),
@@ -416,7 +416,7 @@ class SubscriptionPanel extends StatelessWidget {
       title: 'dash.panel.subscription'.tr,
       trailing: DashLink(label: 'dashboard.manage'.tr, onTap: onManage),
       child: DashFacts([
-        ('dash.panel.plan'.tr, s.plan ?? '—', false),
+        ('dash.panel.plan'.tr, s.plan ?? '-', false),
         (
           'dash.panel.status'.tr,
           dashTr('subscription.${s.status}', s.status),

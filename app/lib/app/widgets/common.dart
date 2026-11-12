@@ -15,7 +15,7 @@ import 'vf/vf.dart';
  * (widgets/vf) so every screen reads as the same product as the website.
  */
 
-/// A status pill — the web's `.badge` in the voucher's `tag-*` tone.
+/// A status pill, the web's `.badge` in the voucher's `tag-*` tone.
 class StatusChip extends StatelessWidget {
   const StatusChip({
     super.key,
@@ -33,7 +33,7 @@ class StatusChip extends StatelessWidget {
       VouchFlowStatusBadge(label: label, tag: tag);
 }
 
-/// A statistic card — the web's `.vf-kpi`: label, big figure, an optional
+/// A statistic card, the web's `.vf-kpi`: label, big figure, an optional
 /// trend and a quieter line, with a round tinted icon on the right.
 class StatTile extends StatelessWidget {
   const StatTile({
@@ -186,7 +186,7 @@ class StatTile extends StatelessWidget {
   }
 }
 
-/// Bank or cash — the two corporate voucher formats (the web's `.vf-kind`).
+/// Bank or cash, the two corporate voucher formats (the web's `.vf-kind`).
 class KindChip extends StatelessWidget {
   const KindChip({super.key, required this.kind, this.dense = true});
 
@@ -228,7 +228,7 @@ class KindChip extends StatelessWidget {
   }
 }
 
-/// The surface almost every block sits on — the web's `.vf-panel`.
+/// The surface almost every block sits on, the web's `.vf-panel`.
 class VfPanel extends StatelessWidget {
   const VfPanel({super.key, required this.child, this.padding});
 
@@ -242,7 +242,7 @@ class VfPanel extends StatelessWidget {
   );
 }
 
-/// A large selectable option card — voucher format, payment method.
+/// A large selectable option card, voucher format, payment method.
 class ChoiceCard extends StatelessWidget {
   const ChoiceCard({
     super.key,
@@ -269,7 +269,7 @@ class ChoiceCard extends StatelessWidget {
   );
 }
 
-/// A quiet callout for scope, workflow and payment notes — the web's
+/// A quiet callout for scope, workflow and payment notes, the web's
 /// `.vf-note`. A [tone] colour tints it (a warning, say).
 class VfNote extends StatelessWidget {
   const VfNote(this.text, {super.key, this.tone});
@@ -319,7 +319,7 @@ class SectionHeader extends StatelessWidget {
   );
 }
 
-/// Nothing to show — the web's empty state: a soft round icon plate, a
+/// Nothing to show, the web's empty state: a soft round icon plate, a
 /// title, a line and an optional action.
 class EmptyView extends StatelessWidget {
   const EmptyView({
@@ -444,13 +444,13 @@ class Fmt {
       NumberFormat('#,##0', 'en_US').format(amount);
 
   static String date(DateTime? value) =>
-      value == null ? '—' : DateFormat('d MMM yyyy').format(value);
+      value == null ? '-' : DateFormat('d MMM yyyy').format(value);
 
   static String dateTime(DateTime? value) =>
-      value == null ? '—' : DateFormat('d MMM yyyy · HH:mm').format(value);
+      value == null ? '-' : DateFormat('d MMM yyyy · HH:mm').format(value);
 
   static String relative(DateTime? value) {
-    if (value == null) return '—';
+    if (value == null) return '-';
     final diff = DateTime.now().difference(value);
     if (diff.inMinutes < 1) return 'now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
@@ -461,7 +461,7 @@ class Fmt {
 }
 
 /// Decodes a signature data URL, returning null rather than throwing when the
-/// payload is not base64 — a signature is decoration on a screen, never a
+/// payload is not base64, a signature is decoration on a screen, never a
 /// reason to fail a build.
 Uint8List? decodeSignature(String? dataUrl) {
   if (dataUrl == null || dataUrl.isEmpty) return null;
@@ -477,10 +477,10 @@ Uint8List? decodeSignature(String? dataUrl) {
   }
 }
 
-/// A collapsible secondary section — the web's `.vf-disclosure` panel.
+/// A collapsible secondary section, the web's `.vf-disclosure` panel.
 ///
 /// Attachments, comments, the timeline and the audit trail matter, but they
-/// are not the voucher — giving each a permanent slab pushes the document
+/// are not the voucher, giving each a permanent slab pushes the document
 /// itself off the screen. They live here instead: one line each until asked
 /// for.
 class Disclosure extends StatefulWidget {
@@ -578,7 +578,7 @@ class _DisclosureState extends State<Disclosure> {
 /// The printed document, framed and scaled to whatever width it is given.
 ///
 /// The sheet keeps its A4 geometry and is scaled as a whole, so what is on
-/// screen is exactly what prints — it is never re-laid-out to fit a phone.
+/// screen is exactly what prints, it is never re-laid-out to fit a phone.
 class DocumentFrame extends StatelessWidget {
   const DocumentFrame({super.key, required this.child, this.sheetWidth = 794});
 

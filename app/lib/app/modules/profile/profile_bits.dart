@@ -266,7 +266,7 @@ class ProfileSegmented<T> extends StatelessWidget {
   }
 }
 
-/// One signed-in device, with Revoke — or "This device".
+/// One signed-in device, with Revoke, or "This device".
 class SessionRow extends StatelessWidget {
   const SessionRow({super.key, required this.session, required this.onRevoke});
 

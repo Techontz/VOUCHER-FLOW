@@ -9,7 +9,7 @@ import '../../widgets/vf/vf.dart';
 import '../vouchers/voucher_card.dart' show voucherShortStatus;
 import 'dash_bits.dart';
 
-/// The one next step on a voucher, as a list shows it — never a one-tap
+/// The one next step on a voucher, as a list shows it, never a one-tap
 /// approve: every CTA opens the voucher (the web's `primaryAction`).
 ({String label, IconData icon, bool strong})? queueAction(Voucher v) {
   final a = v.actions;
@@ -59,7 +59,7 @@ import 'dash_bits.dart';
 }
 
 /// A voucher in the home queue, as an app list row: a tile for the next
-/// step, the purpose, its number and payee, the amount and status — and a
+/// step, the purpose, its number and payee, the amount and status, and a
 /// slim bar for where it is in its route. Tapping opens the voucher.
 class QueueRow extends StatelessWidget {
   const QueueRow({
@@ -188,7 +188,7 @@ class QueueRow extends StatelessWidget {
                     QueueProgress(progress),
                   ],
                   // The next step, spelled out: "Review & sign", "Review &
-                  // approve", "Record payment" — it opens the voucher.
+                  // approve", "Record payment", it opens the voucher.
                   if (cta != null) ...[
                     const SizedBox(height: 12),
                     _QueueCta(
@@ -263,7 +263,7 @@ class _QueueCta extends StatelessWidget {
   }
 }
 
-/// Where a voucher is in its route (Prepared — HOD — CEO — Cashier) as a
+/// Where a voucher is in its route (Prepared: HOD: CEO: Cashier) as a
 /// slim segmented bar: done, current, pending or rejected.
 class QueueProgress extends StatelessWidget {
   const QueueProgress(this.steps, {super.key});

@@ -42,7 +42,7 @@ class DashboardRepository {
     }();
   }
 
-  /// Drops cached routes — after a workflow is edited, or on sign-out.
+  /// Drops cached routes, after a workflow is edited, or on sign-out.
   void invalidateWorkflows() => _routes.clear();
 
   Future<NotificationPage<AppNotificationItem>> notifications() async {

@@ -19,13 +19,13 @@ import 'brand_inputs.dart';
 import 'verify_account_page.dart';
 
 /*
- * Setting a company up on VouchFlow — the web's /register.
+ * Setting a company up on VouchFlow, the web's /register.
  *
  * Five short steps, and nothing is sent until the last one. Then, in order:
- *   1. POST /auth/register — company, administrator, plan and the chosen
+ *   1. POST /auth/register, company, administrator, plan and the chosen
  *      voucher template. The only call that can fail the registration.
- *   2. PUT /company        — trading name, TIN, contact details and colours.
- *   3. POST /company/logo  — the logo.
+ *   2. PUT /company        - trading name, TIN, contact details and colours.
+ *   3. POST /company/logo  - the logo.
  * Steps 2 and 3 run as the new administrator; if either is refused the
  * company still exists and the outcome says what to finish in Settings.
  */
@@ -385,7 +385,7 @@ class RegisterController extends GetxController {
   VoucherTemplate? get chosen =>
       templates.firstWhereOrNull((t) => t.key == voucherTemplate.value);
 
-  String templateName(String locale) => chosen?.name(locale) ?? '—';
+  String templateName(String locale) => chosen?.name(locale) ?? '-';
 
   Plan? get selectedPlan =>
       plans.firstWhereOrNull((p) => p.code == planCode.value);
@@ -631,91 +631,96 @@ class _RegisterPageState extends State<RegisterPage> {
           // the outcome opens the app rather than the sign-in screen.
           if (!didPop && done != null) Get.offAllNamed(Routes.shell);
         },
-        child: Scaffold(
-          backgroundColor: t.background,
-          bottomNavigationBar: done != null
-              ? null
-              : _NavBar(
-                  back: step > 0 ? () => _go(step - 1) : null,
-                  primaryLabel: onReview
-                      ? 'auth.rg.create'.tr
-                      : 'auth.rg.continue'.tr,
-                  primaryIcon: onReview ? PhosphorIconsRegular.buildings : null,
-                  primaryTrailing: onReview
-                      ? null
-                      : PhosphorIconsRegular.arrowRight,
-                  onPrimary: onReview ? _confirm : () => _go(step + 1),
-                ),
-          body: SafeArea(
-            bottom: done != null,
-            child: SingleChildScrollView(
-              controller: _scroll,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: done == null && wide ? 1120 : 680,
+        child: VfWallpaper(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            bottomNavigationBar: done != null
+                ? null
+                : _NavBar(
+                    back: step > 0 ? () => _go(step - 1) : null,
+                    primaryLabel: onReview
+                        ? 'auth.rg.create'.tr
+                        : 'auth.rg.continue'.tr,
+                    primaryIcon: onReview
+                        ? PhosphorIconsRegular.buildings
+                        : null,
+                    primaryTrailing: onReview
+                        ? null
+                        : PhosphorIconsRegular.arrowRight,
+                    onPrimary: onReview ? _confirm : () => _go(step + 1),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          if (done == null && Navigator.of(context).canPop())
-                            Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: AuthBackButton(
-                                onTap: c.busy.value
-                                    ? null
-                                    : () => Navigator.of(context).maybePop(),
-                              ),
-                            ),
-                          const Expanded(
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: VfBrandMark(size: 40),
-                            ),
-                          ),
-                          const AuthTools(),
-                        ],
-                      ),
-                      if (done != null) ...[
-                        const SizedBox(height: 14),
-                        _Outcome(outcome: done),
-                      ] else ...[
-                        const SizedBox(height: 14),
-                        _Progress(step: step),
-                        const SizedBox(height: 14),
-                        AuthCard(
-                          padding: const EdgeInsets.fromLTRB(18, 26, 18, 22),
-                          child: _StepBody(
-                            c: c,
-                            onPreview: _preview,
-                            onEdit: _go,
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 4,
+            body: SafeArea(
+              bottom: done != null,
+              child: SingleChildScrollView(
+                controller: _scroll,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: done == null && wide ? 1120 : 680,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
                           children: [
-                            Text(
-                              'auth.rg.already'.tr,
-                              style: VfType.body.copyWith(
-                                fontSize: 14,
-                                color: t.muted,
+                            if (done == null && Navigator.of(context).canPop())
+                              Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: AuthBackButton(
+                                  onTap: c.busy.value
+                                      ? null
+                                      : () => Navigator.of(context).maybePop(),
+                                ),
+                              ),
+                            const Expanded(
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: VfBrandMark(size: 40),
                               ),
                             ),
-                            AuthLink(
-                              'auth.rg.signIn'.tr,
-                              onTap: () => Get.back(),
-                            ),
+                            const AuthTools(),
                           ],
                         ),
+                        if (done != null) ...[
+                          const SizedBox(height: 14),
+                          _Outcome(outcome: done),
+                        ] else ...[
+                          const SizedBox(height: 14),
+                          _Progress(step: step),
+                          const SizedBox(height: 14),
+                          AuthCard(
+                            padding: const EdgeInsets.fromLTRB(18, 26, 18, 22),
+                            child: _StepBody(
+                              c: c,
+                              onPreview: _preview,
+                              onEdit: _go,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4,
+                            children: [
+                              Text(
+                                'auth.rg.already'.tr,
+                                style: VfType.body.copyWith(
+                                  fontSize: 14,
+                                  color: t.muted,
+                                ),
+                              ),
+                              AuthLink(
+                                'auth.rg.signIn'.tr,
+                                onTap: () => Get.back(),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -1644,7 +1649,7 @@ class _ReviewBlock extends StatelessWidget {
 
   final String title;
 
-  /// Label and value — a String, or a widget such as a colour swatch.
+  /// Label and value, a String, or a widget such as a colour swatch.
   final List<(String, Object)> rows;
   final VoidCallback onEdit;
   final String empty;

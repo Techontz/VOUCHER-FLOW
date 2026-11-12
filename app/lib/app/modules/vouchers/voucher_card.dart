@@ -98,7 +98,7 @@ class VoucherKindTag extends StatelessWidget {
 
 const _roleKeys = {'hod', 'ceo', 'manager', 'director', 'finance', 'cashier'};
 
-/// Where the voucher is now, or how it ended, in one plain phrase — the web's
+/// Where the voucher is now, or how it ended, in one plain phrase, the web's
 /// `voucherStage`: "With HOD for signature", "Paid 14 Sep 2026" …
 String voucherStage(
   Voucher v, {

@@ -113,7 +113,7 @@ const _queue = VfNavItem(
   badge: 'payments',
 );
 
-/// Navigation per role — the web's NAV map, entry for entry.
+/// Navigation per role, the web's NAV map, entry for entry.
 const Map<String, List<VfNavItem>> vfNav = {
   'employee': [
     _home,
@@ -281,7 +281,7 @@ const Map<String, List<VfNavItem>> vfNav = {
 List<VfNavItem> navFor(String role) => vfNav[role] ?? vfNav['employee']!;
 
 /// The five tab-bar slots: home first, then the rest in order, without
-/// "Create voucher" (the top bar's + does that) — the web's mobileNavFor.
+/// "Create voucher" (the top bar's + does that), the web's mobileNavFor.
 List<VfNavItem> tabsFor(String role) {
   final items = navFor(role);
   final home = items.first;
@@ -289,10 +289,14 @@ List<VfNavItem> tabsFor(String role) {
   return [home, ...rest].take(5).toList();
 }
 
+/// The drawer's sections, in the order they are drawn. The drawer folds
+/// each section under its heading once there is more than one, so new
+/// groups (ERP modules) can be added here, give each a heading in the
+/// shell's `_groupLabel` and route entries to it in [groupOf].
 enum VfNavGroup { workspace, admin, platform }
 
 /// Which drawer group an entry belongs to; account pages (notifications,
-/// profile) live in the user menu instead — as in the web layout.
+/// profile) live in the user menu instead, as in the web layout.
 VfNavGroup? groupOf(VfNavItem item) {
   if (item.href == '/notifications' || item.href == '/profile') return null;
   if (item.href.startsWith('/platform')) return VfNavGroup.platform;

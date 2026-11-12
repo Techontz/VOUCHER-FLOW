@@ -39,7 +39,7 @@ const _roles = [
 ];
 const _swatches = ['#0088B0', '#D6006C', '#1F6F4A', '#8A4B12'];
 
-/// The web's /onboarding: six short steps after a company is created —
+/// The web's /onboarding: six short steps after a company is created
 /// details, logo and colour, departments, the approval workflow, the team,
 /// and the plan. Each step is saved when Next is pressed; Skip setup goes
 /// straight to the dashboard.

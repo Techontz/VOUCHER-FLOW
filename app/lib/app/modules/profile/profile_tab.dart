@@ -23,14 +23,14 @@ import 'signature_canvas.dart';
 enum SignatureMode { draw, upload, saved }
 
 /// The signed-in user's own page: personal details, signature, password and
-/// sessions, appearance and language — the web's four profile tabs.
+/// sessions, appearance and language, the web's four profile tabs.
 class ProfileController extends GetxController {
   final repo = ProfileRepository.to;
   final session = Get.find<SessionService>();
 
   final tab = 0.obs;
 
-  // — personal details —
+  // personal details
   final name = TextEditingController();
   final phone = TextEditingController();
   final jobTitle = TextEditingController();
@@ -38,7 +38,7 @@ class ProfileController extends GetxController {
   final savingProfile = false.obs;
   final profileErrors = <String, String>{}.obs;
 
-  // — signature —
+  // signature
   final pad = SignatureCanvasController();
   final mode = SignatureMode.draw.obs;
   final signature = RxnString(); // the value Save would store
@@ -47,7 +47,7 @@ class ProfileController extends GetxController {
   final savingSignature = false.obs;
   final signatureError = RxnString();
 
-  // — password & sessions —
+  // password & sessions
   final currentPassword = TextEditingController();
   final newPassword = TextEditingController();
   final confirmPassword = TextEditingController();
@@ -469,7 +469,7 @@ class ProfileTab extends GetView<ProfileController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // — who you are —
+                  // who you are
                   DecoratedBox(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(VfSize.radiusXl),
@@ -521,7 +521,7 @@ class ProfileTab extends GetView<ProfileController> {
                   ),
                   const SizedBox(height: 24),
 
-                  // — account —
+                  // account
                   AppListGroup(
                     header: 'profile.group.account'.tr,
                     indent: 64,
@@ -570,7 +570,7 @@ class ProfileTab extends GetView<ProfileController> {
                   ),
                   const SizedBox(height: 24),
 
-                  // — preferences —
+                  // preferences
                   AppListGroup(
                     header: 'profile.group.preferences'.tr,
                     indent: 64,
@@ -600,7 +600,7 @@ class ProfileTab extends GetView<ProfileController> {
                   ),
                   const SizedBox(height: 24),
 
-                  // — help: urgent help first, then general enquiries —
+                  // help: urgent help first, then general enquiries
                   AppListGroup(
                     header: 'contact.help'.tr,
                     indent: 64,
@@ -623,7 +623,7 @@ class ProfileTab extends GetView<ProfileController> {
                   ),
                   const SizedBox(height: 24),
 
-                  // — sign out —
+                  // sign out
                   AppListGroup(
                     indent: 64,
                     children: [

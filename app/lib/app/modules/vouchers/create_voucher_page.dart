@@ -45,7 +45,7 @@ const voucherCategories = [
   'Other',
 ];
 
-/// Which fields each step owns, in order — the server's refusal of a field
+/// Which fields each step owns, in order, the server's refusal of a field
 /// takes the reader back to its step.
 const _stepFields = [
   ['voucher_type_id', 'kind'],
@@ -225,7 +225,7 @@ class CreateVoucherController extends GetxController {
 
   /* ── steps ──────────────────────────────────────────────────────────── */
 
-  /// What must be true before leaving a step — what the server insists on.
+  /// What must be true before leaving a step, what the server insists on.
   Map<String, String> _problemsAt(int index) {
     final out = <String, String>{};
     if (index == 1) {
@@ -264,7 +264,7 @@ class CreateVoucherController extends GetxController {
   /* ── documents ─────────────────────────────────────────────────────── */
 
   /// Merges newly picked files into those already chosen, refusing what the
-  /// server would refuse — before the voucher exists, not after.
+  /// server would refuse, before the voucher exists, not after.
   void addFiles(List<PickedDocument> picked) {
     if (picked.isEmpty) return;
     final out = <RejectedDocument>[];
@@ -327,9 +327,9 @@ class CreateVoucherController extends GetxController {
 
   /* ── preview ───────────────────────────────────────────────────────── */
 
-  /// The draft as the server renders it — shared by the card and full size.
+  /// The draft as the server renders it, shared by the card and full size.
   Map<String, dynamic> get draft => {
-    'number': selectedType?.nextNumberPreview ?? '—',
+    'number': selectedType?.nextNumberPreview ?? '-',
     'voucher_type_id': typeId.value,
     'department_id': departmentId.value,
     'payee': _orNull(payee),
@@ -417,7 +417,7 @@ class CreateVoucherController extends GetxController {
           final detail = e is ApiException ? (e.errors.values.firstOrNull?.firstOrNull ?? e.message) : null;
           showToast(
             'create.docsNotAttached'.tr,
-            body: '${voucher.number} — ${detail ?? 'create.docsNotAttachedBody'.tr}',
+            body: '${voucher.number}, ${detail ?? 'create.docsNotAttachedBody'.tr}',
             kind: ToastKind.bad,
           );
           Get.offNamed(Routes.voucher, arguments: voucher.id);
@@ -427,7 +427,7 @@ class CreateVoucherController extends GetxController {
 
       if (submit) {
         final sent = await vouchers.submit(voucher.id);
-        showToast('create.submitted'.tr, body: '${sent.number} — ${sent.statusLabel}');
+        showToast('create.submitted'.tr, body: '${sent.number}, ${sent.statusLabel}');
       } else {
         showToast(
           'create.draftSaved'.tr,
@@ -462,7 +462,7 @@ class CreateVoucherController extends GetxController {
 }
 
 /// `/voucher/new`. With an int argument (a voucher id) it opens that voucher's
-/// edit form instead — the web's `/vouchers/{id}/edit`.
+/// edit form instead, the web's `/vouchers/{id}/edit`.
 class CreateVoucherPage extends StatelessWidget {
   const CreateVoucherPage({super.key});
 

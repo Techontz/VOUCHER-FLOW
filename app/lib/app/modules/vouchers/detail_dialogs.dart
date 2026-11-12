@@ -16,7 +16,7 @@ import 'detail_bits.dart';
 import 'detail_controller.dart';
 
 /* Every consequential action goes through a dialog that restates the voucher
-   and amount, so nobody signs, approves or pays the wrong one by accident —
+   and amount, so nobody signs, approves or pays the wrong one by accident,
    the web's dialogs, risen as bottom sheets as they are on a phone. */
 
 Future<T?> _sheet<T>(
@@ -98,7 +98,7 @@ class StatementCheck extends StatelessWidget {
 
 enum SignatureMode { draw, upload, saved }
 
-/// Draw / upload / reuse a saved signature — the web's `SignaturePad`.
+/// Draw / upload / reuse a saved signature, the web's `SignaturePad`.
 class SignatureChoice extends ChangeNotifier {
   SignatureChoice({this.saved})
     : mode = saved != null ? SignatureMode.saved : SignatureMode.draw {
@@ -349,7 +349,7 @@ class _SignDialogState extends State<_SignDialog> {
         title: approve ? dt('approveVoucherQ') : dt('confirmSignature'),
         subtitle: approve
             ? dt('approvingForPayment')
-            : '${dt('signingAs')} ${me?.name ?? ''}${(me?.jobTitle ?? '').isNotEmpty ? ' — ${me!.jobTitle}' : ''}.',
+            : '${dt('signingAs')} ${me?.name ?? ''}${(me?.jobTitle ?? '').isNotEmpty ? ', ${me!.jobTitle}' : ''}.',
         summary: [
           ..._summary(v),
           if (!approve) VfSummaryRow(dt('dateTime'), signedAt),
@@ -603,7 +603,7 @@ class _CommentActionDialogState extends State<_CommentActionDialog> {
   }
 }
 
-/// Delete a draft — behind a confirmation, never a single tap. Returns true
+/// Delete a draft, behind a confirmation, never a single tap. Returns true
 /// once it is gone.
 Future<bool> showDeleteDialog(
   BuildContext context,
@@ -654,7 +654,7 @@ Future<bool> showDeleteDialog(
 
 /* ───────────────────────────────────────────────────────────── pay ── */
 
-/// Record a payment — the whole balance by default, or part of it now and the
+/// Record a payment, the whole balance by default, or part of it now and the
 /// rest later. Then the receipt, and with it the acknowledgement to print.
 Future<void> showPayDialog(
   BuildContext context,
@@ -692,10 +692,10 @@ class _PayDialogState extends State<_PayDialog> {
   late final receivedBy = TextEditingController(text: v.isCash ? v.payee : '');
   final receiverId = TextEditingController();
   final comment = TextEditingController();
-  late String method = v.isCash ? 'Cash — office float' : 'Bank transfer';
+  late String method = v.isCash ? 'Cash, office float' : 'Bank transfer';
 
   List<String> get methods => v.isCash
-      ? const ['Cash — office float', 'Cash — branch float']
+      ? const ['Cash, office float', 'Cash, branch float']
       : const ['Bank transfer', 'Cheque', 'Mobile money'];
 
   bool get isCheque => method.toLowerCase().contains('cheque');
@@ -754,7 +754,7 @@ class _PayDialogState extends State<_PayDialog> {
         summary: [
           ..._summary(v),
           if (partly) ...[
-            VfSummaryRow(dt('paidSoFar'), v.amountPaidText ?? '—'),
+            VfSummaryRow(dt('paidSoFar'), v.amountPaidText ?? '-'),
             VfSummaryRow(
               dt('balanceLabel'),
               v.balanceText ?? Fmt.money(outstanding, v.currency),
@@ -912,7 +912,7 @@ class _ReceiptDialog extends StatelessWidget {
             ),
           VfSummaryRow(
             dt('paidByOn'),
-            p?.paidBy ?? v.paidBy ?? controller.session.user.value?.name ?? '—',
+            p?.paidBy ?? v.paidBy ?? controller.session.user.value?.name ?? '-',
           ),
           VfSummaryRow(dt('dateTime'), Fmt.dateTime(p?.paidAt ?? v.paidAt)),
           if ((reference ?? '').isNotEmpty)
@@ -953,7 +953,7 @@ class _ReceiptDialog extends StatelessWidget {
 
 /* ─────────────────────────────────────────────────── picking a file ── */
 
-/// Camera, gallery or a file — where the document is coming from.
+/// Camera, gallery or a file, where the document is coming from.
 Future<DocSource?> pickDocSource(
   BuildContext context, {
   required String title,

@@ -49,7 +49,7 @@ class Registration {
 
 /// Every call the public auth screens make that the session does not:
 /// registration and what follows it, account codes, password reset and the
-/// onboarding steps — the same endpoints the website uses.
+/// onboarding steps, the same endpoints the website uses.
 class AuthRepository {
   AuthRepository(this._api);
   final ApiService _api;
@@ -73,15 +73,15 @@ class AuthRepository {
   Future<Registration> register(Map<String, dynamic> body) async =>
       Registration(Map<String, dynamic>.from(await _api.post('/auth/register', body) as Map));
 
-  /// POST /auth/otp/send — (re)sends a registration code.
+  /// POST /auth/otp/send, (re)sends a registration code.
   Future<void> sendOtp(String identifier, String purpose) =>
       _api.post('/auth/otp/send', {'identifier': identifier, 'purpose': purpose});
 
-  /// POST /auth/otp/verify — confirms the administrator's email.
+  /// POST /auth/otp/verify, confirms the administrator's email.
   Future<void> verifyOtp(String identifier, String code, String purpose) =>
       _api.post('/auth/otp/verify', {'identifier': identifier, 'code': code, 'purpose': purpose});
 
-  /// POST /auth/forgot-password — answers the same whether or not the
+  /// POST /auth/forgot-password, answers the same whether or not the
   /// address has an account.
   Future<void> forgotPassword(String email) => _api.post('/auth/forgot-password', {'email': email});
 
@@ -99,13 +99,13 @@ class AuthRepository {
 
   // ── as the new administrator ──
 
-  /// PUT /company — the same endpoint Settings uses.
+  /// PUT /company, the same endpoint Settings uses.
   Future<void> updateCompany(Map<String, dynamic> fields) => _api.put('/company', fields);
 
-  /// POST /company/logo — the same validated upload Branding uses.
+  /// POST /company/logo, the same validated upload Branding uses.
   Future<void> uploadLogo(PickedLogo logo) => _api.upload('/company/logo', [logo.part('logo')]);
 
-  /// POST /company/branding — the colour, and the logo when one was chosen.
+  /// POST /company/branding, the colour, and the logo when one was chosen.
   Future<void> updateBranding({required String primaryColor, PickedLogo? logo}) => _api.upload(
     '/company/branding',
     [if (logo != null) logo.part('logo')],

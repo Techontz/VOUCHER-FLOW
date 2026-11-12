@@ -239,7 +239,7 @@ class _PlatformPaymentsPageState extends State<PlatformPaymentsPage> {
                       ),
                     ),
                     Text(
-                      inv.company ?? '—',
+                      inv.company ?? '-',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: VfType.small.copyWith(color: t.text2),

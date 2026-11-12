@@ -14,6 +14,13 @@ design/    the v2 design file              the UI/UX source of truth
 Both clients talk to the **same** Laravel API, the same accounts and the same
 database. There is no second backend.
 
+**VouchFlow is becoming a Universal ERP.** Phase 1, business setup with industry
+templates, configurable roles, inventory & warehouses on an append-only stock
+ledger, customers & suppliers, and double-entry accounting, is live under
+**Operations** in the web app. Architecture, data model, posting rules and the
+permission matrix: [docs/erp/README.md](docs/erp/README.md). The phased plan:
+[docs/erp/ROADMAP.md](docs/erp/ROADMAP.md).
+
 ```
 Next.js  ─┐
           ├─→  Laravel REST API  ─→  MySQL (one database, many tenants)
@@ -79,7 +86,7 @@ and puts it on whoever is next. Finished work is found through Reports.
 | Employee | drafts and vouchers returned for changes |
 | HOD / approver | vouchers parked on a step they may act on |
 | Cashier | approved and unpaid |
-| Company Admin | what has **stalled** — three days on one step |
+| Company Admin | what has **stalled**, three days on one step |
 
 An empty dashboard therefore means the work is genuinely clear, not that nothing
 has happened. Driven end to end, the queues move like this:
@@ -96,7 +103,7 @@ cashier paid                  0    0    0     0
 ## Reports are permission-aware
 
 Reports are where history lives, so the catalogue is filtered per role **and** the
-endpoint refuses what the catalogue withheld — a hidden card is not a control.
+endpoint refuses what the catalogue withheld, a hidden card is not a control.
 
 | Role | Scope ceiling | Reports offered |
 | --- | --- | --- |
@@ -125,7 +132,7 @@ Cashier           record payment → PAID
 Reports
 ```
 
-**The HOD step carries no approve capability.** That is not a UI decision — the
+**The HOD step carries no approve capability.** That is not a UI decision, the
 step's `can_approve` flag is false, the API refuses the action with 422, and a
 test holds it down.
 
@@ -151,13 +158,13 @@ layer rather than the UI.
 - `TenantScope` **fails closed**: with no tenant resolved and no platform flag it
   matches nothing, so a missing middleware leaks no data rather than all of it.
 - Route-model binding resolves *inside* the scope, so another company's voucher
-  returns **404, not 403** — answering "forbidden" would confirm it exists.
+  returns **404, not 403**, answering "forbidden" would confirm it exists.
 - `VoucherVisibility` narrows further within a tenant: an employee sees only their
   own, an HOD only the departments they head.
 
 ## Authorisation
 
-`app/Policies` is the single door every authorisation question goes through —
+`app/Policies` is the single door every authorisation question goes through,
 `VoucherPolicy`, `CompanyPolicy`, `WorkflowPolicy`. The policies delegate to the
 services that own the rules rather than restating them, so the API, a console
 command and a queued job all get the same answer.
@@ -169,7 +176,7 @@ with each voucher, and the API re-checks on every call.
 
 They are different instruments and are kept apart end to end: different fields on
 the form, different validation, different API payloads, different panels on the
-printed document, and a payment report that splits them — because one reconciles
+printed document, and a payment report that splits them, because one reconciles
 against a bank statement and the other against a float.
 
 A bank voucher carries the payee's bank, account name, account number, branch and
@@ -179,7 +186,7 @@ is ever asked for the other's fields.
 
 ## The document
 
-The A4 sheet is the same in all three places it appears — the web preview, the
+The A4 sheet is the same in all three places it appears, the web preview, the
 mobile preview and the server-generated PDF: the tenant's letterhead and TIN, the
 voucher type and number, a ruled particulars table with TOTAL PAYABLE, the amount
 in words, a payment panel carrying only the particulars that format uses, and an
@@ -203,27 +210,27 @@ special to the platform.
 
 ## What is included
 
-**Database** — 21 migrations. Companies, plans, subscriptions and invoices;
+**Database**: 21 migrations. Companies, plans, subscriptions and invoices;
 departments, users and roles; voucher types, workflows and workflow steps;
 vouchers, approvals, attachments and comments; notifications, audit logs and OTP
 codes. Foreign keys throughout, indexes on the paths the queues actually query,
 and soft deletes where history matters.
 
-**API** — Sanctum token auth, 101 REST endpoints under `/api`, Form Request
+**API**: Sanctum token auth, 101 REST endpoints under `/api`, Form Request
 validation, API Resources, policies, and services holding the business logic
 (`WorkflowEngine`, `VoucherVisibility`, `VoucherPdfService`, `UsageLimits`,
-`Notifier`, `AuditLogger`). Critical transitions — submit, sign, approve, reject,
-pay — run in a database transaction.
+`Notifier`, `AuditLogger`). Critical transitions, submit, sign, approve, reject,
+pay, run in a database transaction.
 
-**Auth** — register (provisions a whole tenant), login, logout, logout-all, OTP,
+**Auth**, register (provisions a whole tenant), login, logout, logout-all, OTP,
 forgot/reset password, change password, session listing and revocation, profile,
 and a saved signature a user can draw, upload, reuse, replace or delete.
 
-**Web** — every role's screens, a typed API client with loading/empty/error
+**Web**, every role's screens, a typed API client with loading/empty/error
 states, permission-aware rendering, route protection, the live A4 preview, the
 workflow builder, branding, reports with exports, billing and the platform admin.
 
-**Mobile** — GetX for state, routing, bindings and dependency injection; the
+**Mobile**: GetX for state, routing, bindings and dependency injection; the
 operational workflow for employee, HOD, manager and cashier, with the same
 document renderer and signature capture.
 

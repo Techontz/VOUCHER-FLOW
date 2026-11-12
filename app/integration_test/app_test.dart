@@ -19,8 +19,8 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   /// Settles the tree, then keeps pumping for a moment so the mock's latency
-  /// has landed. A live binding never truly settles while anything animates —
-  /// a blinking text cursor is enough — so the settle is given a bound and a
+  /// has landed. A live binding never truly settles while anything animates
+  /// a blinking text cursor is enough, so the settle is given a bound and a
   /// timeout is not a failure.
   Future<void> settle(WidgetTester tester, [int ms = 900]) async {
     try {
@@ -62,7 +62,7 @@ void main() {
     await settle(tester);
     if (find.byType(FloatingActionButton).evaluate().isNotEmpty ||
         find.byType(ShellPage).evaluate().isNotEmpty) {
-      // Already inside the app — drop the session and come back to login.
+      // Already inside the app, drop the session and come back to login.
       Get.offAllNamed('/login');
       await settle(tester);
     }
@@ -150,7 +150,7 @@ void main() {
       expect(
         find.text('Approve voucher'),
         findsNothing,
-        reason: 'signing is not approving — the decision belongs downstream',
+        reason: 'signing is not approving, the decision belongs downstream',
       );
       expect(find.textContaining('Signing does not approve'), findsWidgets);
     },
@@ -166,11 +166,11 @@ void main() {
 
       await signIn(tester, 'mwajuma@watercom.test');
       // No navigation: a cashier's home IS the payment queue. Tapping the
-      // wallet icon here used to open a voucher instead — the card carries the
+      // wallet icon here used to open a voucher instead, the card carries the
       // same icon as the tab, and `.last` picked the card.
       await settle(tester, 1400);
 
-      final due = find.textContaining('Approved — awaiting payment');
+      final due = find.textContaining('Approved, awaiting payment');
       expect(due, findsWidgets, reason: 'the queue holds approved vouchers');
 
       await tester.tap(due.first);

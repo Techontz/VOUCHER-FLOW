@@ -97,7 +97,7 @@ class VoucherListController extends GetxController {
     } catch (_) {}
   }
 
-  /// Opens the register on one status tab — `/vouchers?status=paid` on the web.
+  /// Opens the register on one status tab, `/vouchers?status=paid` on the web.
   void setStatus(String value) {
     status.value = value;
     _changed();
@@ -754,7 +754,9 @@ class _RegisterPanel extends StatelessWidget {
                         thickness: 1,
                         indent: 70,
                         endIndent: 14,
-                        color: t.border.withValues(alpha: t.isDark ? 1 : .7),
+                        color: t.isDark
+                            ? t.glassBorder
+                            : t.border.withValues(alpha: .7),
                       ),
                     VoucherRow(
                       voucher: rows[i].voucher,

@@ -1,6 +1,6 @@
 // The company-administration screens, pumped at phone width against real
 // API responses (test/support/admin_fixtures.dart), to catch overflows and
-// broken states — and the workflow payload rule the web learned the hard way.
+// broken states, and the workflow payload rule the web learned the hard way.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

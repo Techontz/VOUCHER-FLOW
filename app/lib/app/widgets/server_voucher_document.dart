@@ -6,8 +6,8 @@ import 'package:printing/printing.dart';
 
 import '../core/theme.dart';
 
-/// The voucher exactly as the server prints it — in the company's chosen
-/// voucher template — rasterised from the same PDF that Print and Share use.
+/// The voucher exactly as the server prints it, in the company's chosen
+/// voucher template, rasterised from the same PDF that Print and Share use.
 ///
 /// The native [fallback] is shown while the document loads and whenever the
 /// server cannot provide it (the offline prototype, or a step that may view

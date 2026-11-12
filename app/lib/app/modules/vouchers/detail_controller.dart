@@ -169,7 +169,7 @@ class VoucherDetailController extends GetxController {
   Future<bool> submit({String? comment}) async {
     final v = await transition(() => repo.submit(voucherId, comment: comment));
     if (v == null) return false;
-    showToast('msg.submitted'.tr, body: '${v.number} — ${v.statusLabel}');
+    showToast('msg.submitted'.tr, body: '${v.number}, ${v.statusLabel}');
     return true;
   }
 
@@ -178,7 +178,7 @@ class VoucherDetailController extends GetxController {
       () => repo.submitSigned(voucherId, comment: comment),
     );
     if (v == null) return false;
-    showToast('msg.forwarded'.tr, body: '${v.number} — ${v.statusLabel}');
+    showToast('msg.forwarded'.tr, body: '${v.number}, ${v.statusLabel}');
     return true;
   }
 
@@ -205,7 +205,7 @@ class VoucherDetailController extends GetxController {
     }
   }
 
-  /// Records one payment — all of the balance or part of it. Returns the
+  /// Records one payment, all of the balance or part of it. Returns the
   /// voucher as it now stands and the payment just made.
   Future<(Voucher, VoucherPayment?)?> pay({
     required String method,
@@ -349,7 +349,7 @@ class VoucherDetailController extends GetxController {
     return ok;
   }
 
-  /// Adds receipts or supporting documents — also after approval and payment,
+  /// Adds receipts or supporting documents, also after approval and payment,
   /// when the voucher's details are locked but its paperwork is not.
   Future<void> attach(DocSource source) async {
     final docs = await pick(source);
@@ -467,7 +467,7 @@ class VoucherDetailController extends GetxController {
         await Share.share(
           [
             '${v.number} · ${v.statusLabel}',
-            '${v.purpose} — ${v.payee}',
+            '${v.purpose}, ${v.payee}',
             v.amountText,
             ?v.amountInWords,
             if (v.verificationCode != null)

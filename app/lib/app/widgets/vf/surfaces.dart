@@ -3,9 +3,15 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
 import 'buttons.dart';
+import 'glass.dart';
 
-/// The web's `.vf-panel` / `.card`: surface, 1px border, radius 10, soft
-/// shadow; optional head with a title, subtitle and actions.
+/// A glass card (the web's `.vf-panel` / `.card`): translucent fill, a
+/// hairline with a brighter top edge, a soft long shadow; optional head with
+/// a title and actions.
+///
+/// It does not blur by default, cards repeat in lists, and a translucent
+/// fill over the wallpaper already reads as glass. Pass [blur] for the few
+/// feature cards that sit over busy content.
 class VouchFlowCard extends StatelessWidget {
   const VouchFlowCard({
     super.key,
@@ -15,9 +21,11 @@ class VouchFlowCard extends StatelessWidget {
     this.child,
     this.padding = const EdgeInsets.all(VfSize.cardPad),
     this.onTap,
-    this.radius = VfSize.radiusL,
+    this.radius = VfSize.radiusGlass,
     this.color,
     this.borderColor,
+    this.blur = false,
+    this.strong = false,
   });
 
   final String? title;
@@ -29,6 +37,12 @@ class VouchFlowCard extends StatelessWidget {
   final double radius;
   final Color? color;
   final Color? borderColor;
+
+  /// Blur what lies behind (feature cards only; see the class note).
+  final bool blur;
+
+  /// The denser glass fill.
+  final bool strong;
 
   @override
   Widget build(BuildContext context) {
@@ -61,27 +75,32 @@ class VouchFlowCard extends StatelessWidget {
       ],
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        color: color ?? t.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: borderColor ?? (t.isDark ? t.border : Colors.transparent),
-        ),
-        boxShadow: t.cardShadow,
-      ),
+    final r = BorderRadius.circular(radius);
+    return VfGlass(
+      borderRadius: r,
+      blur: blur,
+      strong: strong,
+      fill: color,
+      borderColor: borderColor,
+      // A coloured border (selection, a tone) is drawn evenly all round.
+      highlight: borderColor == null,
       child: Material(
         type: MaterialType.transparency,
-        borderRadius: BorderRadius.circular(radius),
-        clipBehavior: Clip.antiAlias,
-        child: onTap == null ? content : InkWell(onTap: onTap, child: content),
+        child: onTap == null
+            ? content
+            : InkWell(
+                onTap: onTap,
+                splashColor: t.primary.withValues(alpha: .10),
+                highlightColor: t.glassFill,
+                child: content,
+              ),
       ),
     );
   }
 }
 
 /// A page heading: optional back link, uppercase kicker, bold title, a
-/// secondary line and actions — the web's `.vf-pagehead`.
+/// secondary line and actions, the web's `.vf-pagehead`.
 class VouchFlowPageHeader extends StatelessWidget {
   const VouchFlowPageHeader({
     super.key,
@@ -129,11 +148,7 @@ class VouchFlowPageHeader extends StatelessWidget {
         // the web prints under it are left out on the phone.
         Text(
           title,
-          style: VfType.pageTitle.copyWith(
-            color: t.text,
-            fontSize: 28,
-            letterSpacing: -.7,
-          ),
+          style: VfType.display.copyWith(color: t.text, fontSize: 32),
         ),
         if (actions != null && actions!.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -232,10 +247,17 @@ class VouchFlowAvatar extends StatelessWidget {
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: imageUrl != null ? Colors.white : t.primary,
-        borderRadius: radius,
-      ),
+      decoration: imageUrl != null
+          ? BoxDecoration(color: Colors.white, borderRadius: radius)
+          : BoxDecoration(
+              borderRadius: radius,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color.lerp(t.primary, Colors.white, .18)!, t.primary],
+              ),
+              border: Border.all(color: Colors.white.withValues(alpha: .18)),
+            ),
       padding: imageUrl != null ? const EdgeInsets.all(3) : null,
       alignment: Alignment.center,
       child: imageUrl != null
@@ -264,7 +286,7 @@ extension VfToneColors on VfTone {
     VfTone.ok => (t.successStrong, t.successSoft),
     VfTone.warn => (t.warningStrong, t.warningSoft),
     VfTone.bad => (t.dangerStrong, t.dangerSoft),
-    VfTone.neutral => (t.text2, t.surface3),
+    VfTone.neutral => (t.text2, t.glassFillStrong),
   };
 }
 
@@ -295,7 +317,6 @@ class VouchFlowStatCard extends StatelessWidget {
     final figure = tone == VfTone.primary || tone == VfTone.neutral ? t.text : fg;
     return VouchFlowCard(
       onTap: onTap,
-      radius: VfSize.radiusXl,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,7 +338,7 @@ class VouchFlowStatCard extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(value, style: VfType.figureS.copyWith(color: figure, fontSize: 24)),
+            child: Text(value, style: VfType.figure.copyWith(color: figure, fontSize: 28, letterSpacing: -.8)),
           ),
           if (sub != null) ...[
             const SizedBox(height: 4),
@@ -349,7 +370,7 @@ class VouchFlowKeyValue extends StatelessWidget {
           Text(label, style: VfType.meta.copyWith(color: t.muted, fontSize: 13)),
           const SizedBox(height: 2),
           Text(
-            value.isEmpty ? '—' : value,
+            value.isEmpty ? '-' : value,
             style: (strong ? VfType.bodyStrong : VfType.body).copyWith(
               color: t.text,
               fontFeatures: mono ? const [FontFeature.tabularFigures()] : null,
@@ -389,8 +410,12 @@ class VouchFlowEmptyState extends StatelessWidget {
           Container(
             width: 72,
             height: 72,
-            decoration: BoxDecoration(color: t.primarySoft, shape: BoxShape.circle),
-            child: Icon(icon, size: 32, color: t.primary),
+            decoration: BoxDecoration(
+              color: t.primarySoft,
+              shape: BoxShape.circle,
+              border: Border.all(color: t.primary.withValues(alpha: .22)),
+            ),
+            child: Icon(icon, size: 32, color: t.primaryText),
           ),
           const SizedBox(height: 14),
           Text(title, textAlign: TextAlign.center, style: VfType.cardTitle.copyWith(color: t.text)),
@@ -437,7 +462,7 @@ class _VouchFlowLoadingStateState extends State<VouchFlowLoadingState> with Sing
       child: AnimatedBuilder(
         animation: _c,
         builder: (context, _) {
-          final c = Color.lerp(t.surface3, t.surface2, _c.value)!;
+          final c = Color.lerp(t.glassFill, t.glassFillStrong, _c.value)!;
           return Column(
             children: [
               for (var i = 0; i < widget.rows; i++)
@@ -446,7 +471,8 @@ class _VouchFlowLoadingStateState extends State<VouchFlowLoadingState> with Sing
                   margin: const EdgeInsets.only(bottom: VfSize.gap),
                   decoration: BoxDecoration(
                     color: c,
-                    borderRadius: BorderRadius.circular(VfSize.radiusXl),
+                    borderRadius: BorderRadius.circular(VfSize.radiusGlass),
+                    border: Border.all(color: t.glassBorder),
                   ),
                 ),
             ],
@@ -507,7 +533,7 @@ class VouchFlowAlert extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(VfSize.radiusL),
+        borderRadius: BorderRadius.circular(VfSize.radiusXl),
         border: Border.all(color: fg.withValues(alpha: .25)),
       ),
       child: Row(

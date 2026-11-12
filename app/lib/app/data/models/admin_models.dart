@@ -71,7 +71,7 @@ class Employee {
   final DateTime? joinedAt;
 }
 
-/// An active user from `/directory` — who may be named on a department or a
+/// An active user from `/directory`, who may be named on a department or a
 /// workflow level.
 class DirectoryUser {
   DirectoryUser.fromJson(Map<String, dynamic> j)
@@ -361,7 +361,7 @@ class Workflow {
       voucherTypeName == null ? null : (locale == 'sw' && (voucherTypeNameSw ?? '').isNotEmpty ? voucherTypeNameSw : voucherTypeName);
 }
 
-/// The body the builder sends when it saves — the web's workflowPayload():
+/// The body the builder sends when it saves, the web's workflowPayload():
 /// every flag the backend stores goes back exactly as it was loaded unless
 /// the person editing changed it (a missing `can_pay` once stripped payment
 /// from every step).
@@ -456,7 +456,7 @@ class RoutingCell {
 
 /* ──────────────────────────────────────────────────── the company ── */
 
-/// The company's full profile from GET /company — everything the settings
+/// The company's full profile from GET /company, everything the settings
 /// and branding pages edit (the session's Company keeps only what the rest
 /// of the app reads).
 class CompanyProfile {
@@ -569,7 +569,7 @@ class Invoice {
       description = '${j['description'] ?? ''}',
       amountText = '${j['amount_text'] ?? ''}',
       status = '${j['status'] ?? ''}',
-      methodLabel = '${j['method_label'] ?? '—'}',
+      methodLabel = '${j['method_label'] ?? '-'}',
       providerRef = _str(j['provider_ref']),
       failureReason = _str(j['failure_reason']),
       issuedAt = _date(j['issued_at']),

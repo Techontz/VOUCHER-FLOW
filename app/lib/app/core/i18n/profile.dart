@@ -5,13 +5,13 @@
 // profile.title / signature / language / changePassword / currentPassword /
 // newPassword / confirmPassword are in translations.dart and reused.
 const Map<String, String> profileEn = {
-  // — tabs —
+  // tabs
   'profile.tab.details': 'Personal details',
   'profile.tab.signature': 'Signature',
   'profile.tab.security': 'Change password',
   'profile.tab.appearance': 'Appearance & language',
 
-  // — personal details —
+  // personal details
   'profile.details.title': 'Personal details',
   'profile.details.body':
       'How colleagues see you on vouchers, comments and the approval trail.',
@@ -29,7 +29,7 @@ const Map<String, String> profileEn = {
   'profile.updateFailed': 'Could not update your profile',
   'profile.required': 'This is required.',
 
-  // — signature —
+  // signature
   'profile.signatureBody':
       'Your saved signature is offered whenever you sign a voucher, and is printed on the PDF.',
   'profile.sig.draw': 'Draw',
@@ -40,7 +40,7 @@ const Map<String, String> profileEn = {
   'profile.sig.choose': 'Choose an image',
   'profile.sig.formats': 'PNG, JPEG or WebP.',
   'profile.sig.none':
-      'No saved signature yet — draw one and tick “save for next time”.',
+      'No saved signature yet, draw one and tick “save for next time”.',
   'profile.sig.lastUpdated': 'Last updated @date',
   'profile.sig.savedToast': 'Signature saved',
   'profile.sig.savedBody': 'It will be offered whenever you sign a voucher.',
@@ -50,7 +50,7 @@ const Map<String, String> profileEn = {
   'profile.remove': 'Remove',
   'profile.save': 'Save',
 
-  // — password & sessions —
+  // password & sessions
   'profile.passwordBody':
       'Use at least 8 characters. Other devices stay signed in until you sign them out below.',
   'profile.passwordShort': 'Use at least 8 characters.',
@@ -65,7 +65,7 @@ const Map<String, String> profileEn = {
   'profile.sessionRevoked': 'Session revoked',
   'profile.noSessions': 'No other sessions.',
 
-  // — appearance & language —
+  // appearance & language
   'profile.appearance': 'Appearance',
   'profile.appearanceBody':
       'Your choice is saved to your profile and follows you to every device.',
@@ -80,13 +80,13 @@ const Map<String, String> profileEn = {
 };
 
 const Map<String, String> profileSw = {
-  // — tabs —
+  // tabs
   'profile.tab.details': 'Taarifa binafsi',
   'profile.tab.signature': 'Sahihi',
   'profile.tab.security': 'Badilisha nenosiri',
   'profile.tab.appearance': 'Mwonekano na lugha',
 
-  // — personal details —
+  // personal details
   'profile.details.title': 'Taarifa binafsi',
   'profile.details.body':
       'Jinsi wenzako wanavyokuona kwenye vocha, maoni na mfuatano wa idhini.',
@@ -104,7 +104,7 @@ const Map<String, String> profileSw = {
   'profile.updateFailed': 'Imeshindwa kusasisha wasifu wako',
   'profile.required': 'Hili linahitajika.',
 
-  // — signature —
+  // signature
   'profile.signatureBody':
       'Sahihi yako iliyohifadhiwa hutolewa kila unaposaini vocha, na huchapishwa kwenye PDF.',
   'profile.sig.draw': 'Chora',
@@ -115,7 +115,7 @@ const Map<String, String> profileSw = {
   'profile.sig.choose': 'Chagua picha',
   'profile.sig.formats': 'PNG, JPEG au WebP.',
   'profile.sig.none':
-      'Bado hakuna sahihi iliyohifadhiwa — chora moja na uweke alama “hifadhi kwa ajili ya wakati ujao”.',
+      'Bado hakuna sahihi iliyohifadhiwa, chora moja na uweke alama “hifadhi kwa ajili ya wakati ujao”.',
   'profile.sig.lastUpdated': 'Ilisasishwa mwisho @date',
   'profile.sig.savedToast': 'Sahihi imehifadhiwa',
   'profile.sig.savedBody': 'Itatolewa kila unaposaini vocha.',
@@ -125,7 +125,7 @@ const Map<String, String> profileSw = {
   'profile.remove': 'Ondoa',
   'profile.save': 'Hifadhi',
 
-  // — password & sessions —
+  // password & sessions
   'profile.passwordBody':
       'Tumia angalau herufi 8. Vifaa vingine vinabaki vimeingia hadi uvitoe hapa chini.',
   'profile.passwordShort': 'Tumia angalau herufi 8.',
@@ -140,7 +140,7 @@ const Map<String, String> profileSw = {
   'profile.sessionRevoked': 'Kipindi kimeondolewa',
   'profile.noSessions': 'Hakuna vipindi vingine.',
 
-  // — appearance & language —
+  // appearance & language
   'profile.appearance': 'Mwonekano',
   'profile.appearanceBody': 'Chaguo lako linahifadhiwa kwenye wasifu wako.',
   'profile.light': 'Mwanga',

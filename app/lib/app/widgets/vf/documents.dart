@@ -14,8 +14,8 @@ import 'document_frame_stub.dart'
 const double kA4Width = 794;
 const double kA4Height = 1123;
 
-/// The server's voucher HTML — the same document the website shows and the
-/// PDF prints — in a native web view, scaled to its box.
+/// The server's voucher HTML, the same document the website shows and the
+/// PDF prints, in a native web view, scaled to its box.
 ///
 /// [fit] `page` shows exactly page one (thumbnails); `content` grows to the
 /// whole document. [interactive] lets the reader pinch-zoom and scroll (the
@@ -33,7 +33,7 @@ class VouchFlowDocumentView extends StatefulWidget {
   final VfDocumentFit fit;
   final bool interactive;
 
-  /// Text swapped into the HTML before it is shown — e.g. the logo
+  /// Text swapped into the HTML before it is shown, e.g. the logo
   /// placeholder the preview API prints for a logo only the device holds.
   final Map<String, String> placeholderReplacements;
 
@@ -190,7 +190,7 @@ class _VouchFlowDocumentViewState extends State<VouchFlowDocumentView> {
 }
 
 /// A design in the gallery: a real miniature voucher, number, name and
-/// description, Preview and Select — the web's template card.
+/// description, Preview and Select, the web's template card.
 class VouchFlowTemplateCard extends StatelessWidget {
   const VouchFlowTemplateCard({
     super.key,

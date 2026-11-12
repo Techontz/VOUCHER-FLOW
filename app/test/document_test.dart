@@ -51,7 +51,7 @@ void main() {
 
     // The substance.
     // The payee heads the document and, on a bank voucher, names the account
-    // as well — so more than one occurrence is correct.
+    // as well, so more than one occurrence is correct.
     expect(find.text(voucher.payee), findsWidgets);
     expect(find.text(voucher.purpose), findsOneWidget);
     expect(

@@ -16,7 +16,7 @@ import 'platform_widgets.dart';
 
 /// One company, as the platform super admin sees it (web:
 /// /platform/companies/[id]): its identity, the Edit branding / Change plan
-/// / Suspend-Activate actions, and the nine tabs — each reading that
+/// / Suspend-Activate actions, and the nine tabs, each reading that
 /// company's own data through the platform API.
 ///
 /// Pushed with `Get.toNamed(Routes.platformCompany, arguments: companyId)`;
@@ -495,7 +495,7 @@ class _ChangePlanFormState extends State<_ChangePlanForm> {
           value: _planId,
           itemLabel: (id) {
             final p = widget.plans.firstWhere((x) => x.id == id);
-            return '${p.name} — ${p.price > 0 ? money(p.price, p.currency) : 'platform.custom'.tr}';
+            return '${p.name}, ${p.price > 0 ? money(p.price, p.currency) : 'platform.custom'.tr}';
           },
           onChanged: (v) => setState(() => _planId = v),
         ),
@@ -847,7 +847,7 @@ class _BrandingFormState extends State<_BrandingForm> {
   }
 }
 
-/// A hue / saturation / brightness picker — the phone form of the web's
+/// A hue / saturation / brightness picker, the phone form of the web's
 /// native colour input.
 class _ColourPicker extends StatefulWidget {
   const _ColourPicker({required this.initial});

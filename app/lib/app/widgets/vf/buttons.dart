@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
+import 'glass.dart';
 
 /// The web client's `.btn` family.
 enum VfButtonVariant { primary, secondary, ghost, danger, dangerSolid }
@@ -8,6 +9,9 @@ enum VfButtonVariant { primary, secondary, ghost, danger, dangerSolid }
 /// A VouchFlow button: `btn-primary`, `btn-secondary`, `btn-ghost`,
 /// `btn-danger` and `btn-danger-solid`, with an optional leading icon and a
 /// loading state that keeps the button's width.
+///
+/// Every variant is a pill. Primary (and solid danger) carries a soft top
+/// gloss and a glow in its own colour; secondary is a glass pill.
 class VouchFlowButton extends StatelessWidget {
   const VouchFlowButton({
     super.key,
@@ -42,7 +46,11 @@ class VouchFlowButton extends StatelessWidget {
 
     final (Color bg, Color fg, Color border) = switch (variant) {
       VfButtonVariant.primary => (t.primary, Colors.white, t.primary),
-      VfButtonVariant.secondary => (t.surface3, t.text, Colors.transparent),
+      VfButtonVariant.secondary => (
+        t.glassFillStrong,
+        t.text,
+        t.isDark ? t.glassBorder : t.border,
+      ),
       VfButtonVariant.ghost => (Colors.transparent, t.text2, Colors.transparent),
       VfButtonVariant.danger => (
         t.dangerSoft,
@@ -97,6 +105,26 @@ class VouchFlowButton extends StatelessWidget {
             ],
           );
 
+    final solid =
+        variant == VfButtonVariant.primary ||
+        variant == VfButtonVariant.dangerSolid;
+    final glossy = solid && !disabledSolid;
+    final solidColour = variant == VfButtonVariant.dangerSolid
+        ? t.dangerStrong
+        : t.primary;
+
+    final ink = InkWell(
+      onTap: enabled ? onPressed : null,
+      customBorder: const StadiumBorder(),
+      overlayColor: WidgetStatePropertyAll(
+        solid ? Colors.white.withValues(alpha: .14) : t.glassFillStrong,
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 20),
+        child: Center(widthFactor: 1, child: child),
+      ),
+    );
+
     return Semantics(
       button: true,
       enabled: enabled,
@@ -104,26 +132,34 @@ class VouchFlowButton extends StatelessWidget {
       child: SizedBox(
         height: h,
         width: expand ? double.infinity : null,
-        child: Material(
-          color: disabledSolid ? t.borderStrong : bg,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(compact ? 12 : 16),
-            side: BorderSide(color: disabledSolid ? t.borderStrong : border),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: enabled ? onPressed : null,
-            overlayColor: WidgetStatePropertyAll(
-              variant == VfButtonVariant.primary
-                  ? t.primaryHover.withValues(alpha: .35)
-                  : t.surface3,
-            ),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16),
-              child: Center(widthFactor: 1, child: child),
-            ),
-          ),
-        ),
+        child: glossy
+            ? DecoratedBox(
+                decoration: vfPrimaryGloss(
+                  t,
+                  color: solidColour,
+                  glow: !compact,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                  child: Stack(
+                    fit: StackFit.passthrough,
+                    children: [
+                      const Positioned.fill(child: VfGloss()),
+                      Material(type: MaterialType.transparency, child: ink),
+                    ],
+                  ),
+                ),
+              )
+            : Material(
+                color: disabledSolid ? t.borderStrong : bg,
+                shape: StadiumBorder(
+                  side: BorderSide(
+                    color: disabledSolid ? t.borderStrong : border,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: ink,
+              ),
       ),
     );
   }
@@ -175,7 +211,7 @@ class VouchFlowIconButton extends StatelessWidget {
         height: size,
         child: Material(
           color: filled ? t.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(size),
+          shape: const CircleBorder(),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onPressed,

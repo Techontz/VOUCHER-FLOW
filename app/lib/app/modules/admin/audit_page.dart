@@ -12,7 +12,7 @@ import '../../widgets/common.dart' show Fmt;
 import '../../widgets/vf/vf.dart';
 import 'admin_widgets.dart';
 
-/// Audit logs: who did what, when and from which device — a row per entry,
+/// Audit logs: who did what, when and from which device, a row per entry,
 /// its details in a sheet, searchable by text, action and date range. Append-only; nothing here
 /// changes anything. A super admin sees every company (each entry names it).
 class AuditPage extends StatefulWidget {
