@@ -27,6 +27,10 @@
 @import "../styles/site.css";
 /* Platform administration: the operator's overview, charts and plan editor. */
 @import "../styles/platform.css";
+@import "../styles/dialog.css";
+/* Fit: overlays and wide content kept inside the window at every size. */
+@import "../styles/responsive.css";
+@import "../styles/type.css";
 
 /* ── Print ────────────────────────────────────────────────────────────────
    Paper is white whatever the screen was showing. Server-generated PDFs stay

@@ -163,7 +163,7 @@ html:root[data-theme="dark"] .vf-shell {
 
 /* ────────────────────────────────────────────────────── motion ── */
 
-.pf-reveal { animation: pf-reveal 1100ms var(--ease-out) both; }
+.pf-reveal { animation: pf-reveal 1100ms var(--ease-out) backwards; }
 @keyframes pf-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 @keyframes pf-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes pf-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -176,7 +176,7 @@ html:root[data-theme="dark"] .vf-shell {
 /* ───────────────────────────────────────────────── overview layout ── */
 
 .pf-page { display: grid; gap: 22px; }
-.pf-rise > * { animation: pf-rise 520ms var(--ease-out) both; }
+.pf-rise > * { animation: pf-rise 520ms var(--ease-out) backwards; }
 .pf-rise > *:nth-child(2) { animation-delay: 60ms; }
 .pf-rise > *:nth-child(3) { animation-delay: 120ms; }
 .pf-rise > *:nth-child(4) { animation-delay: 180ms; }

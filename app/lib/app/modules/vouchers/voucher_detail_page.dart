@@ -334,7 +334,7 @@ class VoucherHero extends StatelessWidget {
                   child: Text(
                     v.amountText,
                     style: VfType.figure.copyWith(
-                      fontSize: 32,
+                      fontSize: 24,
                       color: white,
                       fontFeatures: tabular,
                     ),

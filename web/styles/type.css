@@ -1,0 +1,60 @@
+/*
+ * Type, the final word. One family (Inter) at a calm, product-sized scale:
+ * page titles that name the page rather than shout it, figures that read at
+ * a glance, and tabular digits wherever money or quantities line up.
+ */
+
+:root, html:root, html:root[data-theme="dark"] {
+  --font-heading: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+body, .vf-shell {
+  font-family: var(--font-body);
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+.vf-shell { font-size: 14.5px; letter-spacing: -.006em; }
+
+/* Page titles. */
+.vf-shell .vf-pagehead-title,
+.vf-shell .vf-pagehead-hero .vf-pagehead-title {
+  font-size: 26px; font-weight: 600; letter-spacing: -.022em; line-height: 1.2;
+}
+.vf-shell .vf-pagehead { margin-bottom: 22px; }
+.vf-shell .vf-pagehead-sub { font-size: 14px; letter-spacing: -.003em; }
+
+/* The launcher greeting. */
+.lx-title { font-size: 28px; font-weight: 600; letter-spacing: -.024em; line-height: 1.15; }
+.lx-date { font-size: 12px; letter-spacing: .06em; }
+
+/* Section and panel heads. */
+.vf-shell .vf-panel-head h2, .vf-shell .vf-panel-head h3,
+.vf-shell .vf-panel-title { font-size: 15px; font-weight: 600; letter-spacing: -.012em; }
+
+/* Figures: readable at a glance, not posters. */
+.vf-statpill-value, .vf-shell .vf-statpill-value { font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+.vf-shell .vf-kpi-value { font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+.vf-shell .vf-kpi[data-long] .vf-kpi-value { font-size: 20px; }
+.pf-hero-figure > strong { font-size: 26px; font-weight: 600; letter-spacing: -.022em; }
+.pf-donut-center strong { font-size: 20px; font-weight: 600; }
+.vf-shell .vf-voucher-amount { font-size: 24px; font-weight: 600; }
+.vf-statpill-label { font-size: 12.5px; }
+
+/* Numbers that line up. */
+.vf-shell :is(td, .vf-statpill-value, .vf-kpi-value, .num, [data-num], .pf-hero-figure strong, .vf-voucher-amount) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tables and forms at product size. */
+.vf-shell .table { font-size: 13.5px; }
+.vf-shell .table th { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; }
+.vf-shell .field-label, .vf-shell label { letter-spacing: -.003em; }
+
+@media (max-width: 640px) {
+  .vf-shell .vf-pagehead-title,
+  .vf-shell .vf-pagehead-hero .vf-pagehead-title { font-size: 22px; }
+  .lx-title { font-size: 24px; }
+  .vf-statpill-value, .vf-shell .vf-statpill-value, .vf-shell .vf-kpi-value { font-size: 20px; }
+  .dialog-title { font-size: 17px; }
+}

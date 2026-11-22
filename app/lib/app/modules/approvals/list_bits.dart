@@ -34,7 +34,7 @@ class AppScreenTitle extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: VfType.pageTitle.copyWith(color: t.text, fontSize: 28),
+                  style: VfType.pageTitle.copyWith(color: t.text, fontSize: 23),
                 ),
               ),
               if (count != null) ...[
@@ -282,7 +282,7 @@ class AppStatStrip extends StatelessWidget {
             style: VfType.bodyStrong.copyWith(
               color: t.text,
               fontSize: 17,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               height: 1.2,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),

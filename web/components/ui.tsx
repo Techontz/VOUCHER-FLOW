@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useApp } from "@/lib/app-context";
 
 /*
@@ -443,6 +444,18 @@ export function Banner({
   );
 }
 
+/**
+ * Draws its children at the top of the app instead of where they are
+ * declared. Anything fixed to the window (a modal, an overlay) needs it: a
+ * page's entrance animation leaves a transform on its wrapper, and a fixed
+ * element inside a transformed one is pinned to the wrapper, not the window.
+ */
+export function AppPortal({ children }: { children: ReactNode }) {
+  // Only ever opened by someone tapping, so it never renders on the server.
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.querySelector<HTMLElement>(".vf-shell") ?? document.body);
+}
+
 /* ───────────────────────────────────────────────────────── dialog ───────── */
 
 export interface SummaryRow {
@@ -507,9 +520,15 @@ export function Dialog({
     };
   }, [open]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
-  return (
+  // Drawn at the top of the app, not where it is declared: a page's entrance
+  // animation leaves a transform on its wrapper, and a fixed element inside a
+  // transformed one is pinned to that wrapper instead of the window, so a tall
+  // form ran off the screen with nothing to scroll.
+  const host = document.querySelector<HTMLElement>(".vf-shell") ?? document.body;
+
+  return createPortal(
     <div
       className="dialog-backdrop"
       onMouseDown={(event) => {
@@ -542,7 +561,8 @@ export function Dialog({
         {children ? <div className="dialog-body">{children}</div> : <div style={{ height: 20 }} />}
         {actions && <div className="dialog-actions">{actions}</div>}
       </div>
-    </div>
+    </div>,
+    host,
   );
 }
 
@@ -589,7 +609,7 @@ const LANGUAGES = [
 export function LanguageToggle({ full = false }: { full?: boolean }) {
   const { locale, setLocale } = useApp();
   const [open, setOpen] = useState(false);
-  const [place, setPlace] = useState<{ top: number; left: number; up: boolean } | null>(null);
+  const [place, setPlace] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -598,8 +618,11 @@ export function LanguageToggle({ full = false }: { full?: boolean }) {
   const toggle = () => {
     const rect = button.current?.getBoundingClientRect();
     if (!open && rect) {
+      // Opens upward near the foot of the screen (the sidebar's user menu),
+      // anchored by its bottom edge: a transform would fight its animation.
       const up = rect.bottom + 110 > window.innerHeight;
-      setPlace({ top: up ? rect.top - 6 : rect.bottom + 6, left: Math.max(8, Math.min(rect.right - 168, window.innerWidth - 176)), up });
+      const left = Math.max(8, Math.min(rect.right - 168, document.documentElement.clientWidth - 176));
+      setPlace(up ? { bottom: window.innerHeight - rect.top + 6, left } : { top: rect.bottom + 6, left });
     }
     setOpen((v) => !v);
   };
@@ -633,9 +656,11 @@ export function LanguageToggle({ full = false }: { full?: boolean }) {
         <span>{full ? current.name : current.short}</span>
         <Icon name="ph-caret-down" size={12} />
       </button>
-      {open && place && (
-        <div ref={menu} id={id} role="menu" className="vf-lang-menu"
-          style={{ top: place.top, left: place.left, transform: place.up ? "translateY(-100%)" : undefined }}>
+      {/* Drawn at the top of the page: inside a menu (the user menu) a
+          blurred or animating ancestor would pin it to that menu and clip it. */}
+      {open && place && createPortal(
+        <div ref={menu} id={id} role="menu" className="vf-lang-menu" data-popover=""
+          style={{ top: place.top, bottom: place.bottom, left: place.left }}>
           {LANGUAGES.map((l) => (
             <button key={l.code} type="button" role="menuitemradio" aria-checked={locale === l.code} className="vf-lang-option"
               onClick={() => { setLocale(l.code); setOpen(false); button.current?.focus(); }}
@@ -651,7 +676,8 @@ export function LanguageToggle({ full = false }: { full?: boolean }) {
               {locale === l.code && <Icon name="ph-check" size={15} />}
             </button>
           ))}
-        </div>
+        </div>,
+        document.querySelector<HTMLElement>(".vf-shell") ?? document.body,
       )}
     </>
   );

@@ -12,14 +12,20 @@ import 'i18n/admin.dart';
 import 'i18n/branding.dart';
 import 'i18n/platform.dart';
 import 'i18n/profile.dart';
+import 'i18n/apps.dart';
+import 'i18n/inventory.dart';
+import 'i18n/finance.dart';
+import 'i18n/sales.dart';
+import 'i18n/ops.dart';
+import 'i18n/people.dart';
 
 /// English + Swahili strings, matching the web client's dictionary.
 class VfTranslations extends Translations {
   @override
   Map<String, Map<String, String>> get keys => {
     // Each area's strings live in core/i18n/<area>.dart and are merged here.
-    'en': {..._en, ...navEn, ...authEn, ...dashboardEn, ...vouchersEn, ...createEn, ...detailEn, ...paymentsEn, ...reportsEn, ...adminEn, ...brandingEn, ...platformEn, ...profileEn},
-    'sw': {..._sw, ...navSw, ...authSw, ...dashboardSw, ...vouchersSw, ...createSw, ...detailSw, ...paymentsSw, ...reportsSw, ...adminSw, ...brandingSw, ...platformSw, ...profileSw},
+    'en': {..._en, ...navEn, ...authEn, ...dashboardEn, ...vouchersEn, ...createEn, ...detailEn, ...paymentsEn, ...reportsEn, ...adminEn, ...brandingEn, ...platformEn, ...profileEn, ...appsEn, ...inventoryEn, ...financeEn, ...salesEn, ...opsEn, ...peopleEn},
+    'sw': {..._sw, ...navSw, ...authSw, ...dashboardSw, ...vouchersSw, ...createSw, ...detailSw, ...paymentsSw, ...reportsSw, ...adminSw, ...brandingSw, ...platformSw, ...profileSw, ...appsSw, ...inventorySw, ...financeSw, ...salesSw, ...opsSw, ...peopleSw},
   };
 
   static const _en = {

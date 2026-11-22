@@ -4,6 +4,10 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// One navigation entry, exactly as the web client's `lib/nav.ts` defines it:
 /// the route, its label, the shorter label for the tab bar, its icon and the
 /// count it carries.
+///
+/// ERP entries also name the company [module] that switches them on and the
+/// [permissions] that open them (any one is enough), the web's `erp` field:
+/// the menu then offers exactly what the API will answer.
 class VfNavItem {
   const VfNavItem(
     this.href,
@@ -12,6 +16,8 @@ class VfNavItem {
     this.activeIcon, {
     this.short,
     this.badge,
+    this.module,
+    this.permissions = const [],
   });
 
   final String href;
@@ -20,6 +26,10 @@ class VfNavItem {
   final IconData icon;
   final IconData activeIcon;
   final String? badge; // 'pending' | 'payments' | 'notifications'
+  final String? module;
+  final List<String> permissions;
+
+  bool get isErp => permissions.isNotEmpty;
 }
 
 const _home = VfNavItem(
@@ -31,8 +41,8 @@ const _home = VfNavItem(
 const _dashboard = VfNavItem(
   '/dashboard',
   'nav.dashboard',
-  PhosphorIconsRegular.squaresFour,
-  PhosphorIconsFill.squaresFour,
+  PhosphorIconsRegular.house,
+  PhosphorIconsFill.house,
 );
 const _create = VfNavItem(
   '/vouchers/new',

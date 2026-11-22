@@ -580,7 +580,7 @@ class _CompanyProfileState extends State<_CompanyProfile> {
               label: 'admin.language'.tr,
               items: const ['en', 'sw'],
               value: _locale,
-              itemLabel: (v) => v == 'sw' ? 'Kiswahili' : 'English',
+              itemLabel: vfLanguageName,
               onChanged: (v) => setState(() => _locale = v ?? _locale),
             ),
           ]),

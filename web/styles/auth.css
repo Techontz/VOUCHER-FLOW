@@ -160,7 +160,7 @@
 .au-s-bars { margin-top: 8px; height: 46px; display: flex; align-items: flex-end; gap: 6px; }
 .au-s-bars span {
   flex: 1; border-radius: 3px; background: rgba(255, 255, 255, .22); transform-origin: bottom;
-  animation: au-grow 1s var(--au-ease) both;
+  animation: au-grow 1s var(--au-ease) backwards;
 }
 .au-s-bars span:last-child { background: #0a84ff; }
 .au-s-bars span:nth-child(2) { animation-delay: 60ms; } .au-s-bars span:nth-child(3) { animation-delay: 120ms; }
@@ -181,7 +181,7 @@
 
 .au-body {
   width: 100%; max-width: 380px; margin: auto; padding: 40px 0;
-  animation: au-in 700ms var(--au-ease) both;
+  animation: au-in 700ms var(--au-ease) backwards;
 }
 .au-head h1 {
   margin: 0; font-family: var(--font-heading);
@@ -249,7 +249,7 @@
 .au-demo > summary:hover { color: var(--au-ink); background: var(--au-soft); }
 .au-demo-caret { display: inline-flex; transition: transform 240ms var(--au-ease); }
 .au-demo[open] .au-demo-caret { transform: rotate(180deg); }
-.au-demo-list { display: grid; gap: 4px; margin-top: 10px; animation: au-in 360ms var(--au-ease) both; }
+.au-demo-list { display: grid; gap: 4px; margin-top: 10px; animation: au-in 360ms var(--au-ease) backwards; }
 .au-demo-item {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 10px; border-radius: 11px;
   border: 1px solid transparent; background: transparent; cursor: pointer; text-align: left;
@@ -335,7 +335,7 @@
 .rg.au .rg-card {
   background: transparent; border: 0; box-shadow: none; padding: 8px 0 0; border-radius: 0;
   -webkit-backdrop-filter: none; backdrop-filter: none;
-  animation: au-in 560ms var(--au-ease) both;
+  animation: au-in 560ms var(--au-ease) backwards;
 }
 .rg.au .rg-card::before { display: none; }
 .rg.au .rg-progress { margin-top: 18px; }
@@ -343,12 +343,12 @@
 .rg.au .rg-progress-bar { height: 4px; border-radius: 4px; background: var(--au-soft); overflow: hidden; }
 .rg.au .rg-progress-bar > span { display: block; height: 100%; border-radius: 4px; background: var(--au-accent); transition: width 500ms var(--au-ease); }
 
-.rg.au .rg-head { margin: 28px 0 26px; animation: au-in 480ms var(--au-ease) both; }
+.rg.au .rg-head { margin: 28px 0 26px; animation: au-in 480ms var(--au-ease) backwards; }
 .rg.au .rg-eyebrow { margin: 0 0 8px; font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--au-accent-ink); }
 .rg.au .rg-head h1, .rg.au .rg-done h1 { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -.03em; line-height: 1.12; color: var(--au-ink); }
 .rg.au .rg-lede { margin: 8px 0 0; font-size: 15.5px; line-height: 1.5; color: var(--au-muted); }
 
-.rg.au .rg-fields { animation: au-in 520ms var(--au-ease) 60ms both; }
+.rg.au .rg-fields { animation: au-in 520ms var(--au-ease) 60ms backwards; }
 .rg.au .field > label, .rg.au .rg-label { font-size: 13.5px; font-weight: 500; color: var(--au-ink-2); }
 .rg.au :is(.rg-input, .input) {
   height: 46px; border-radius: 11px; font-size: 15.5px; color: var(--au-ink);
@@ -379,7 +379,7 @@
 .rg.au .btn-secondary, .rg.au .btn-ghost { --btn-bg: transparent; --btn-border: var(--au-line-strong); --btn-fg: var(--au-ink); }
 .rg.au .rg-alt { text-align: center; color: var(--au-muted); font-size: 14.5px; }
 .rg.au .rg-alt a { color: var(--au-accent-ink); font-weight: 500; }
-.rg.au .rg-done-mark { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: rgba(48, 209, 88, .14); color: #30d158; animation: au-in 600ms var(--au-ease) both; }
+.rg.au .rg-done-mark { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: rgba(48, 209, 88, .14); color: #30d158; animation: au-in 600ms var(--au-ease) backwards; }
 
 @media (max-width: 980px) {
   .rg.au { grid-template-columns: minmax(0, 1fr); }
@@ -409,7 +409,7 @@
   background: var(--au-bg); border: 1px solid var(--au-line);
   box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 24px 60px -24px rgba(0, 0, 0, .18);
   -webkit-backdrop-filter: none; backdrop-filter: none;
-  animation: au-in 600ms var(--au-ease) both;
+  animation: au-in 600ms var(--au-ease) backwards;
 }
 [data-theme="dark"] .vf-auth.au .vf-auth-card { background: #161618; box-shadow: 0 30px 70px -24px rgba(0, 0, 0, .9); }
 .vf-auth.au .vf-auth-card::before { display: none; }

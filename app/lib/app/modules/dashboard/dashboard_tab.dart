@@ -415,7 +415,7 @@ class DashboardTab extends GetView<DashboardController> {
                 overflow: TextOverflow.ellipsis,
                 style: VfType.display.copyWith(
                   color: t.text,
-                  fontSize: width >= 700 ? 36 : 32,
+                  fontSize: width >= 700 ? 28 : 24,
                 ),
               ),
             ),

@@ -178,8 +178,8 @@ class _LoginForm extends StatelessWidget {
             Text(
               'auth.welcome'.tr,
               style: VfType.pageTitle.copyWith(
-                fontSize: 26,
-                fontWeight: FontWeight.w700,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
                 letterSpacing: -.6,
                 color: t.text,
               ),

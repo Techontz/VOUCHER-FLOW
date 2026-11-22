@@ -215,7 +215,7 @@ class _EditVoucherPageState extends State<EditVoucherPage> {
                 v.purpose.isNotEmpty ? v.purpose : v.number,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: VfType.pageTitle.copyWith(fontSize: 22, color: context.vf.text),
+                style: VfType.pageTitle.copyWith(fontSize: 19, color: context.vf.text),
               ),
               const SizedBox(height: 18),
               Column(

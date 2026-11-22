@@ -81,21 +81,23 @@ function InvoiceDetail() {
           </div>
         </section>
 
-        <table className="table vf-table sal-sheet-lines">
-          <thead><tr><th>{t("erpProduct")}</th><th className="num">{t("erpQuantity")}</th><th className="num">{t("salUnitPrice")}</th><th className="num">{t("salDiscountPct")}</th><th className="num">{t("salVatPct")}</th><th className="num">{t("salAmount")}</th></tr></thead>
-          <tbody>
-            {inv.lines?.map((l) => (
-              <tr key={l.id}>
-                <td>{l.product?.name}<span className="erp-cell-sub tnum">{l.product?.sku}</span></td>
-                <td className="num">{qty(l.quantity)} {l.product?.unit?.code}</td>
-                <td className="num"><Money value={l.unit_price} /></td>
-                <td className="num">{Number(l.discount_percent) ? `${Number(l.discount_percent)}%` : "-"}</td>
-                <td className="num">{Number(l.tax_rate)}%</td>
-                <td className="num"><Money value={l.line_total} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="sal-sheet-scroll">
+          <table className="table vf-table sal-sheet-lines">
+            <thead><tr><th>{t("erpProduct")}</th><th className="num">{t("erpQuantity")}</th><th className="num">{t("salUnitPrice")}</th><th className="num">{t("salDiscountPct")}</th><th className="num">{t("salVatPct")}</th><th className="num">{t("salAmount")}</th></tr></thead>
+            <tbody>
+              {inv.lines?.map((l) => (
+                <tr key={l.id}>
+                  <td>{l.product?.name}<span className="erp-cell-sub tnum">{l.product?.sku}</span></td>
+                  <td className="num">{qty(l.quantity)} {l.product?.unit?.code}</td>
+                  <td className="num"><Money value={l.unit_price} /></td>
+                  <td className="num">{Number(l.discount_percent) ? `${Number(l.discount_percent)}%` : "-"}</td>
+                  <td className="num">{Number(l.tax_rate)}%</td>
+                  <td className="num"><Money value={l.line_total} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         <div className="sal-sheet-foot">
           <div className="sal-sheet-notes">

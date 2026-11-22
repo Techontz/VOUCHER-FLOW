@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/theme.dart';
@@ -39,9 +38,9 @@ class VfBarButton extends StatelessWidget {
             child: InkWell(
               onTap: onPressed,
               child: SizedBox(
-                width: 42,
-                height: 42,
-                child: Icon(icon, size: 20, color: t.text, semanticLabel: tooltip),
+                width: 40,
+                height: 40,
+                child: Icon(icon, size: 19, color: t.text, semanticLabel: tooltip),
               ),
             ),
           ),
@@ -92,7 +91,7 @@ class VouchFlowPushedScaffold extends StatelessWidget {
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        systemOverlayStyle: t.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        systemOverlayStyle: VfTheme.overlay(t.isDark),
         toolbarHeight: VfSize.topBarH,
         leadingWidth: 64,
         leading: Center(
@@ -112,7 +111,10 @@ class VouchFlowPushedScaffold extends StatelessWidget {
         actions: actions,
       ),
       body: body,
-      bottomNavigationBar: bottomBar,
+      // A bar sized to its content, never the whole page, whatever it is built from.
+      bottomNavigationBar: bottomBar == null
+          ? null
+          : Column(mainAxisSize: MainAxisSize.min, children: [bottomBar!]),
       floatingActionButton: floatingActionButton,
       ),
     );
@@ -130,9 +132,13 @@ class VouchFlowPageBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Clear of the system navigation bar on a page drawn edge to edge (zero
+    // inside the shell, whose tab bar already sits above it).
+    final inset = MediaQuery.paddingOf(context).bottom;
     final list = ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: padding ?? const EdgeInsets.fromLTRB(VfSize.pagePad, 8, VfSize.pagePad, 32),
+      padding: (padding ?? const EdgeInsets.fromLTRB(VfSize.pagePad, 8, VfSize.pagePad, 32))
+          .add(EdgeInsets.only(bottom: inset)),
       children: children,
     );
     if (onRefresh == null) return list;

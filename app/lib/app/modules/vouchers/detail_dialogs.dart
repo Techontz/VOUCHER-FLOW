@@ -1089,7 +1089,7 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
         ),
       );
     } else if (pages == null && !failed) {
-      body = const Center(child: CircularProgressIndicator());
+      body = const VfLoadingView();
     } else if (failed || pages!.isEmpty) {
       body = Padding(
         padding: const EdgeInsets.all(24),

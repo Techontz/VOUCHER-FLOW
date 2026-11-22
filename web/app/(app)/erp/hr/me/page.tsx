@@ -71,13 +71,14 @@ function MyHr() {
               </div>
             ) : <EmptyState icon="ph-file-text" title={t("hrNoContract")} />}
           </GlassCard>
-          <GlassCard className="erp-span-2" title={t("hrContactDetails")} action={<button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>{t("erpEdit")}</button>}>
+          <GlassCard title={t("hrContactDetails")} action={<button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>{t("erpEdit")}</button>}>
             <div className="erp-form-grid">
               {kv(t("erpPhone"), me.phone)}{kv(t("erpAddress"), me.address)}
               {kv(t("hrNextOfKin"), me.next_of_kin_name)}{kv(t("hrNextOfKinPhone"), me.next_of_kin_phone)}{kv(t("hrRelation"), me.next_of_kin_relation)}
             </div>
           </GlassCard>
-          <GlassCard title={t("hrBalances")} pad={false}><BalanceTable balances={me.leave_balances} /></GlassCard>
+          {/* Five columns: given two thirds of the row, not cut off in one. */}
+          <GlassCard className="erp-span-2" title={t("hrBalances")} pad={false}><BalanceTable balances={me.leave_balances} /></GlassCard>
         </div>
       )}
 
@@ -117,7 +118,7 @@ function MyLeave({ onChange }: { onChange: () => void }) {
 
   return (
     <div className="erp-grid">
-      <GlassCard className="erp-span-2" title={t("hrMyRequests")} action={<button className="btn btn-primary btn-sm" onClick={() => setRequesting(true)}><Icon name="ph-plus" size={15} /> {t("hrRequestLeave")}</button>}>
+      <GlassCard className="erp-span-3" title={t("hrMyRequests")} action={<button className="btn btn-primary btn-sm" onClick={() => setRequesting(true)}><Icon name="ph-plus" size={15} /> {t("hrRequestLeave")}</button>}>
         {data.data.length === 0 ? <EmptyState icon="ph-airplane-tilt" title={t("hrNoLeave")} /> : (
           <div className="erp-list">
             {data.data.map((r) => (
@@ -131,7 +132,7 @@ function MyLeave({ onChange }: { onChange: () => void }) {
           </div>
         )}
       </GlassCard>
-      <GlassCard title={t("hrBalances")} pad={false}><BalanceTable balances={data.balances} /></GlassCard>
+      <GlassCard className="erp-span-3" title={t("hrBalances")} pad={false}><BalanceTable balances={data.balances} /></GlassCard>
 
       <FormDialog open={requesting} title={t("hrRequestLeave")} onClose={() => setRequesting(false)} initial={{ start_date: today(), end_date: today() }}
         intro={<p className="erp-muted">{t("hrRequestLeaveHint")}</p>}

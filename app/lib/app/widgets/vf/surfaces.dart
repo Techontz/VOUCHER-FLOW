@@ -148,7 +148,7 @@ class VouchFlowPageHeader extends StatelessWidget {
         // the web prints under it are left out on the phone.
         Text(
           title,
-          style: VfType.display.copyWith(color: t.text, fontSize: 32),
+          style: VfType.display.copyWith(color: t.text, fontSize: 24),
         ),
         if (actions != null && actions!.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -216,9 +216,11 @@ class VouchFlowStatusBadge extends StatelessWidget {
         color: VfStatus.background(tag, b),
         borderRadius: BorderRadius.circular(VfSize.radiusPill),
       ),
+      // A pill is one line: a wrapped status reads as a lump on a phone.
       child: Text(
         label,
-        maxLines: 2,
+        maxLines: 1,
+        softWrap: false,
         overflow: TextOverflow.ellipsis,
         style: VfType.meta.copyWith(
           fontSize: large ? 13 : 12,
@@ -338,7 +340,7 @@ class VouchFlowStatCard extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(value, style: VfType.figure.copyWith(color: figure, fontSize: 28, letterSpacing: -.8)),
+            child: Text(value, style: VfType.figure.copyWith(color: figure, fontSize: 23, letterSpacing: -.8)),
           ),
           if (sub != null) ...[
             const SizedBox(height: 4),

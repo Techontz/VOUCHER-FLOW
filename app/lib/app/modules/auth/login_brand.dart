@@ -120,8 +120,8 @@ class _Brand extends StatelessWidget {
         Text(
           'app.name'.tr,
           style: VfType.pageTitle.copyWith(
-            fontSize: 32,
-            fontWeight: FontWeight.w700,
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
             letterSpacing: -1.1,
             color: t.text,
           ),

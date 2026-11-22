@@ -385,43 +385,10 @@ class ProfileTab extends GetView<ProfileController> {
     _DetailsPage(controller: controller),
   );
 
-  Future<void> _pickLanguage(BuildContext context) async {
+  /// The app's one language menu, opened under the row.
+  Future<void> _pickLanguage(BuildContext anchor) async {
     final s = controller.session;
-    final code = await showVouchFlowBottomSheet<String>(
-      context,
-      title: 'profile.language'.tr,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 20),
-        child: Builder(
-          builder: (ctx) {
-            final t = ctx.vf;
-            return AppListGroup(
-              indent: 16,
-              children: [
-                for (final (c, label) in const [
-                  ('en', 'English'),
-                  ('sw', 'Kiswahili'),
-                ])
-                  ListTile(
-                    title: Text(
-                      label,
-                      style: VfType.body.copyWith(color: t.text),
-                    ),
-                    trailing: s.locale.value == c
-                        ? Icon(
-                            PhosphorIconsBold.check,
-                            size: 18,
-                            color: t.primary,
-                          )
-                        : null,
-                    onTap: () => Navigator.of(ctx).pop(c),
-                  ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
+    final code = await showVfLanguageMenu(anchor, value: s.locale.value);
     if (code != null && code != s.locale.value) await s.setLocale(code);
   }
 
@@ -501,8 +468,8 @@ class ProfileTab extends GetView<ProfileController> {
                                 textAlign: TextAlign.center,
                                 style: VfType.sectionTitle.copyWith(
                                   color: t.text,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                               if (line.isNotEmpty) ...[
@@ -575,12 +542,14 @@ class ProfileTab extends GetView<ProfileController> {
                     header: 'profile.group.preferences'.tr,
                     indent: 64,
                     children: [
-                      ProfileSettingsRow(
-                        icon: PhosphorIconsFill.translate,
-                        label: 'profile.language'.tr,
-                        tint: (t.primaryText, t.primarySoft),
-                        value: locale == 'sw' ? 'Kiswahili' : 'English',
-                        onTap: () => _pickLanguage(context),
+                      Builder(
+                        builder: (anchor) => ProfileSettingsRow(
+                          icon: PhosphorIconsFill.translate,
+                          label: 'profile.language'.tr,
+                          tint: (t.primaryText, t.primarySoft),
+                          value: vfLanguageName(locale),
+                          onTap: () => _pickLanguage(anchor),
+                        ),
                       ),
                       ProfileSettingsRow(
                         icon: dark

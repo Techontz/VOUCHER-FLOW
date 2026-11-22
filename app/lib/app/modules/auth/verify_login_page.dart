@@ -253,7 +253,7 @@ class _VerifyCard extends StatelessWidget {
           Text(
             'auth.2s.title'.tr,
             style: VfType.pageTitle.copyWith(
-              fontSize: 26,
+              fontSize: 22,
               fontWeight: FontWeight.w600,
               letterSpacing: -.5,
               color: t.text,

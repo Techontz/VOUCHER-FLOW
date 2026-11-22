@@ -109,7 +109,7 @@ function Run() {
       ]} />
 
       <div className="erp-grid">
-        <GlassCard className="erp-span-2" title={t("hrPreview")} subtitle={t("hrPreviewSub")} pad={false}
+        <GlassCard className="erp-span-3" title={t("hrPreview")} subtitle={t("hrPreviewSub")} pad={false}
           action={<input className="input" placeholder={t("erpSearch")} value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 200 }} />}>
           <div className="vf-table-wrap" data-scroll>
             <table className="table vf-table">

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   The window behind the app while it starts. VouchFlow is dark by default
-  whatever the phone's own setting is, so the splash is black in both — a
+  whatever the phone's own setting is, so the splash is navy in both: a
   white flash before a black app is the most visible thing about a launch.
 -->
 <resources>

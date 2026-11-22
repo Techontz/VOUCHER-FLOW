@@ -103,121 +103,129 @@ class QueueRow extends StatelessWidget {
           duration: const Duration(milliseconds: 160),
           color: selecting && selected ? t.primarySoft : Colors.transparent,
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              leading,
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      v.purpose,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: VfType.bodyStrong.copyWith(
-                        color: t.text,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      meta,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: muted.copyWith(fontFeatures: _tabular),
-                    ),
-                    if (who.isNotEmpty)
-                      Text(
-                        who,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: muted,
-                      ),
-                    if (history)
-                      Text(
-                        [
-                          voucherStage(v),
-                          if (v.updatedAt != null) Fmt.date(v.updatedAt),
-                        ].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: muted.copyWith(
-                          color: t.text2,
-                          fontWeight: FontWeight.w500,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  leading,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          v.purpose,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: VfType.bodyStrong.copyWith(
+                            color: t.text,
+                            height: 1.3,
+                          ),
                         ),
-                      ),
-                    if (v.isPartiallyPaid && balance != null)
-                      Text(
-                        owing
-                            ? dt('balanceOfAmount', {
-                                'balance': balance,
-                                'amount': v.amountText,
-                              })
-                            : dt('balanceAmount', {'amount': balance}),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: muted.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: t.warning,
-                          fontFeatures: _tabular,
+                        const SizedBox(height: 2),
+                        Text(
+                          meta,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: muted.copyWith(fontFeatures: _tabular),
                         ),
-                      ),
-                    if (progress.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      ProgressStepsLine(steps: progress),
-                    ],
-                    if (cta != null && !selecting) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(cta.icon, size: 15, color: t.primaryText),
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: Text(
-                              cta.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: VfType.meta.copyWith(
-                                color: t.primaryText,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
+                        if (who.isNotEmpty)
+                          Text(
+                            who,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: muted,
+                          ),
+                        if (history)
+                          Text(
+                            [
+                              voucherStage(v),
+                              if (v.updatedAt != null) Fmt.date(v.updatedAt),
+                            ].join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: muted.copyWith(
+                              color: t.text2,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
+                        if (v.isPartiallyPaid && balance != null)
+                          Text(
+                            owing
+                                ? dt('balanceOfAmount', {
+                                    'balance': balance,
+                                    'amount': v.amountText,
+                                  })
+                                : dt('balanceAmount', {'amount': balance}),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: muted.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: t.warning,
+                              fontFeatures: _tabular,
+                            ),
+                          ),
+                        if (progress.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          ProgressStepsLine(steps: progress),
                         ],
-                      ),
-                    ],
-                  ],
-                ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 132),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            v.amountText,
+                            maxLines: 1,
+                            style: VfType.bodyStrong.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: t.text,
+                              height: 1.3,
+                              fontFeatures: _tabular,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        VoucherStatusBadge(voucher: v),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 132),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        v.amountText,
-                        maxLines: 1,
-                        style: VfType.bodyStrong.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: t.text,
-                          height: 1.3,
-                          fontFeatures: _tabular,
+              // The next step runs the full width under the text, so a long
+              // label ("Submit signed voucher", Swahili) is never cut short by
+              // the amount column.
+              if (cta != null && !selecting)
+                Padding(
+                  padding: const EdgeInsets.only(left: 56, top: 6),
+                  child: Row(
+                    children: [
+                      Icon(cta.icon, size: 15, color: t.primaryText),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          cta.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: VfType.meta.copyWith(
+                            color: t.primaryText,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    VoucherStatusBadge(voucher: v),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),

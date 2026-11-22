@@ -32,10 +32,10 @@ class PlatformCompanyControlTest extends TestCase
             ->putJson("/api/platform/companies/{$c->id}/modules", ['modules' => ['inventory', 'fleet']])
             ->assertOk()
             ->assertJsonPath('licensed_modules', ['vouchflow', 'inventory', 'fleet'])
-            ->assertJsonPath('modules', ['vouchflow', 'inventory']);
+            ->assertJsonPath('modules', ['vouchflow', 'inventory', 'fleet']);
 
         $this->assertSame(['vouchflow', 'inventory', 'fleet'], $c->fresh()->licensed_modules);
-        $this->assertSame(['vouchflow', 'inventory'], $c->fresh()->modules, 'sales is no longer licensed, so it is switched off');
+        $this->assertSame(['vouchflow', 'inventory', 'fleet'], $c->fresh()->modules, 'what the operator ticks is on; sales is no longer licensed, so it is off');
 
         $log = AuditLog::where('action', 'platform.company_modules_updated')->latest('id')->first();
         $this->assertNotNull($log);
@@ -43,11 +43,37 @@ class PlatformCompanyControlTest extends TestCase
         $this->assertSame(['vouchflow', 'inventory', 'fleet'], $log->after['licensed_modules']);
         $this->assertStringContainsString('removed: sales', $log->description);
 
-        // Licensing an app again switches it on straight away.
+        // Adding an app switches it on straight away.
         $this->actingAs($this->operator(), 'sanctum')
             ->putJson("/api/platform/companies/{$c->id}/modules", ['modules' => ['inventory', 'fleet', 'crm']])
             ->assertOk()
-            ->assertJsonPath('modules', ['vouchflow', 'inventory', 'crm']);
+            ->assertJsonPath('modules', ['vouchflow', 'inventory', 'fleet', 'crm']);
+    }
+
+    public function test_giving_apps_to_a_company_that_never_ran_setup_sets_it_up(): void
+    {
+        $t = $this->makeTenant('Acme Trading');
+        $c = $t['company'];
+        // Licensed for everything, but only payment vouchers switched on and
+        // Business setup never run: what an older company looks like.
+        $c->forceFill(['modules' => ['vouchflow'], 'licensed_modules' => null, 'setup_completed_at' => null])->save();
+
+        $this->actingAs($this->operator(), 'sanctum')
+            ->putJson("/api/platform/companies/{$c->id}/modules", ['modules' => ['inventory', 'sales', 'accounting']])
+            ->assertOk()
+            ->assertJsonPath('modules', ['vouchflow', 'inventory', 'sales', 'accounting']);
+
+        $c->refresh();
+        $this->assertNotNull($c->setup_completed_at);
+        $this->assertSame(1, \App\Models\Erp\Warehouse::withoutGlobalScopes()->where('company_id', $c->id)->count());
+        $this->assertTrue(\App\Models\Erp\Account::withoutGlobalScopes()->where('company_id', $c->id)->where('system_key', 'bank')->exists());
+
+        // Its own administrator now sees the apps, not just vouchers.
+        $this->actingAs($t['admin'], 'sanctum')
+            ->getJson('/api/erp/config')
+            ->assertOk()
+            ->assertJsonPath('data.is_set_up', true)
+            ->assertJsonPath('data.modules', ['vouchflow', 'inventory', 'sales', 'accounting']);
     }
 
     public function test_payment_vouchers_stay_on_even_when_everything_is_switched_off(): void

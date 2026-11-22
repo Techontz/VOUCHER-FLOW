@@ -911,7 +911,7 @@
 /* Each route settles in rather than snapping: a short rise and fade, content only. */
 /* Offset with `top`, not a transform: a transform would become the containing
    block for fixed children (dialogs, the mobile action bar) while it runs. */
-.vf-shell .app-route { position: relative; animation: app-route-in 240ms var(--ease-out) both; }
+.vf-shell .app-route { position: relative; animation: app-route-in 240ms var(--ease-out) backwards; }
 @keyframes app-route-in { from { opacity: 0; top: 6px; } to { opacity: 1; top: 0; } }
 @media (prefers-reduced-motion: reduce) { .vf-shell .app-route { animation: none; } }
 

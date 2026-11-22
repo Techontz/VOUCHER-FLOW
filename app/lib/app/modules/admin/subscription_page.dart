@@ -466,7 +466,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                 const SizedBox(height: 16),
                 Text(
                   s.plan?.name ?? 'admin.noPlan'.tr,
-                  style: VfType.pageTitle.copyWith(color: white, fontSize: 26),
+                  style: VfType.pageTitle.copyWith(color: white, fontSize: 22),
                 ),
                 if (price != null) ...[
                   const SizedBox(height: 2),
@@ -826,7 +826,7 @@ class _PlanOption extends StatelessWidget {
                     ),
                     style: VfType.figureS.copyWith(
                       color: selected ? t.primaryText : t.text,
-                      fontSize: 19,
+                      fontSize: 17,
                     ),
                   ),
                   const SizedBox(height: 6),

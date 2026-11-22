@@ -407,22 +407,22 @@ a.vf-statpill:active { transform: translateY(0) scale(.99); }
 @keyframes rf-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 
 /* A page settles in: header, figures, then its panels, a beat apart. */
-.vf-shell .vf-content > * { animation: rf-enter 480ms var(--ease-out) both; }
-.vf-shell .vf-content > :is(div, section) > * { animation: rf-enter 520ms var(--ease-out) both; }
+.vf-shell .vf-content > * { animation: rf-enter 480ms var(--ease-out) backwards; }
+.vf-shell .vf-content > :is(div, section) > * { animation: rf-enter 520ms var(--ease-out) backwards; }
 .vf-shell .vf-content > :is(div, section) > :nth-child(2) { animation-delay: 50ms; }
 .vf-shell .vf-content > :is(div, section) > :nth-child(3) { animation-delay: 100ms; }
 .vf-shell .vf-content > :is(div, section) > :nth-child(4) { animation-delay: 150ms; }
 .vf-shell .vf-content > :is(div, section) > :nth-child(n+5) { animation-delay: 190ms; }
-.vf-shell .vf-statpill-cell { animation: rf-pop 460ms var(--ease-out) both; }
+.vf-shell .vf-statpill-cell { animation: rf-pop 460ms var(--ease-out) backwards; }
 .vf-shell .vf-statpill-cell:nth-child(2) { animation-delay: 40ms; }
 .vf-shell .vf-statpill-cell:nth-child(3) { animation-delay: 80ms; }
 .vf-shell .vf-statpill-cell:nth-child(4) { animation-delay: 120ms; }
 .vf-shell .vf-statpill-cell:nth-child(5) { animation-delay: 160ms; }
 .vf-shell .vf-statpill-cell:nth-child(n+6) { animation-delay: 200ms; }
-:is(.erp-grid, .app-dash-main, .app-dash-aside) > * { animation: rf-enter 520ms var(--ease-out) both; }
+:is(.erp-grid, .app-dash-main, .app-dash-aside) > * { animation: rf-enter 520ms var(--ease-out) backwards; }
 :is(.erp-grid, .app-dash-main, .app-dash-aside) > :nth-child(2) { animation-delay: 70ms; }
 :is(.erp-grid, .app-dash-main, .app-dash-aside) > :nth-child(n+3) { animation-delay: 130ms; }
-.vf-shell :is(.vf-table, .table) tbody tr, .vf-shell .erp-list > li { animation: rf-fade 360ms ease both; }
+.vf-shell :is(.vf-table, .table) tbody tr, .vf-shell .erp-list > li { animation: rf-fade 360ms ease backwards; }
 
 .erp-bar-fill { transform-origin: bottom; animation: rf-grow 800ms var(--ease-out) both; background: var(--primary) !important; border-radius: 6px; }
 .erp-bar-fill[data-today] { background: var(--primary) !important; }
@@ -523,7 +523,7 @@ a.vf-statpill:active { transform: translateY(0) scale(.99); }
 .lx-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 15px; color: var(--text-primary); }
 .lx-search input::placeholder { color: var(--placeholder); }
 
-.lx-group { margin-bottom: 30px; animation: rf-enter 520ms var(--ease-out) both; }
+.lx-group { margin-bottom: 30px; animation: rf-enter 520ms var(--ease-out) backwards; }
 .lx-group:nth-of-type(2) { animation-delay: 60ms; } .lx-group:nth-of-type(3) { animation-delay: 120ms; }
 .lx-group:nth-of-type(n+4) { animation-delay: 170ms; }
 .lx-section { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); font-size: 13px; font-weight: 600; color: var(--text-muted); }
@@ -534,7 +534,7 @@ a.vf-statpill:active { transform: translateY(0) scale(.99); }
   display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 8px 14px; border-radius: 16px;
   color: var(--text-primary) !important; text-decoration: none !important; text-align: center;
   transition: background-color 200ms ease, transform 260ms var(--ease-spring);
-  animation: rf-pop 440ms var(--ease-out) both;
+  animation: rf-pop 440ms var(--ease-out) backwards;
 }
 .lx-apps > .lx-app:nth-child(2) { animation-delay: 30ms; } .lx-apps > .lx-app:nth-child(3) { animation-delay: 60ms; }
 .lx-apps > .lx-app:nth-child(4) { animation-delay: 90ms; } .lx-apps > .lx-app:nth-child(n+5) { animation-delay: 120ms; }

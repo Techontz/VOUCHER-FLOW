@@ -86,7 +86,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/profile", label: "profileSig", short: "profile", icon: "ph-signature" },
   ],
   company_admin: [
-    { href: "/dashboard", label: "dashboard", icon: "ph-squares-four" },
+    { href: "/dashboard", label: "dashboard", icon: "ph-house" },
     { href: "/vouchers", label: "vouchers", icon: "ph-receipt" },
     { href: "/vouchers/new", label: "createVoucher", icon: "ph-plus-circle" },
     { href: "/approvals", label: "approvals", icon: "ph-list-checks", badge: "pending" },
@@ -101,7 +101,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   // The platform operator: profile and notifications sit in the user menu and the top bar.
   super_admin: [
-    { href: "/dashboard", label: "overview", icon: "ph-squares-four" },
+    { href: "/dashboard", label: "overview", icon: "ph-house" },
     { href: "/platform/companies", label: "companies", short: "companies", icon: "ph-buildings" },
     { href: "/platform/subscriptions", label: "pfSubscriptions", short: "pfSubscriptionsShort", icon: "ph-arrows-clockwise" },
     { href: "/platform/plans", label: "pfPlans", short: "pfPlans", icon: "ph-crown-simple" },
@@ -114,7 +114,7 @@ const NAV: Record<Role, NavItem[]> = {
 
 /** The ERP modules, offered to every tenant role and filtered per caller in the shell. */
 const ERP_NAV: NavItem[] = [
-  { href: "/erp", label: "erpHome", short: "erpHomeShort", icon: "ph-squares-four", erp: { permission: "inventory.view" } },
+  { href: "/erp", label: "erpHome", short: "erpHomeShort", icon: "ph-house", erp: { permission: "inventory.view" } },
   { href: "/erp/products", label: "erpProducts", icon: "ph-package", erp: { module: "inventory", permission: "inventory.view" } },
   { href: "/erp/stock", label: "erpStock", icon: "ph-stack", erp: { module: "inventory", permission: "inventory.view" } },
   { href: "/erp/documents", label: "erpDocuments", short: "erpDocumentsShort", icon: "ph-clipboard-text", erp: { module: "inventory", permission: "inventory.view" } },

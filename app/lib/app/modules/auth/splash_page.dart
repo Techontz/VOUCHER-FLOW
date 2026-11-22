@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../core/dev_hooks.dart';
 import '../../core/theme.dart';
 import '../../widgets/vf/glass.dart';
+import '../../widgets/vf/loader.dart';
 import '../../data/services/session_service.dart';
 import '../../routes/routes.dart';
 import 'auth_widgets.dart';
@@ -93,20 +94,13 @@ class _SplashPageState extends State<SplashPage> {
             Text(
               'app.name'.tr,
               style: VfType.pageTitle.copyWith(
-                fontSize: 30,
+                fontSize: 24,
                 letterSpacing: -.8,
                 color: t.text,
               ),
             ),
             const SizedBox(height: 28),
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: t.primary,
-              ),
-            ),
+            const VfLoader(size: 36),
           ],
         ),
       ),

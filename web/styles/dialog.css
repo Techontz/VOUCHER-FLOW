@@ -1,0 +1,126 @@
+/*
+ * Dialogs, the final word. Earlier layers (vouchflow, app, glass, refined)
+ * each restyled them; this one settles it: a solid card above a dimmed,
+ * softly blurred app, the title and the buttons always in view and only the
+ * form between them scrolling. On a phone it rises as a sheet from the bottom.
+ */
+
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) 20px max(24px, env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+  background: rgba(15, 23, 42, .38);
+  -webkit-backdrop-filter: blur(10px) saturate(120%); backdrop-filter: blur(10px) saturate(120%);
+  animation: dg-fade 180ms ease-out both;
+}
+[data-theme="dark"] .dialog-backdrop { background: rgba(0, 0, 0, .62); }
+
+.vf-shell .dialog,
+.dialog {
+  --dg-bg: #ffffff;
+  --dg-line: rgba(15, 23, 42, .08);
+  position: relative;
+  width: min(480px, 100%);
+  max-height: min(calc(100dvh - 48px), 860px);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  color: var(--text-primary, #1d1d1f);
+  background: var(--dg-bg);
+  border: 1px solid var(--dg-line);
+  border-radius: 20px;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, .06),
+    0 24px 48px -18px rgba(37, 99, 235, .28),
+    0 60px 120px -40px rgba(59, 130, 246, .35);
+  animation: dg-pop 240ms cubic-bezier(.2, .8, .2, 1) both;
+}
+.vf-shell .dialog-wide, .dialog-wide { width: min(680px, 100%); }
+[data-theme="dark"] .dialog,
+[data-theme="dark"] .vf-shell .dialog {
+  --dg-bg: #161618;
+  --dg-line: rgba(255, 255, 255, .08);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 30px 80px -20px rgba(0, 0, 0, .7), 0 40px 120px -40px rgba(37, 99, 235, .25);
+}
+
+/* Header: pinned above the scrolling form. */
+.vf-shell .dialog-head, .dialog-head {
+  flex: 0 0 auto;
+  padding: 22px 24px 14px;
+  background: var(--dg-bg);
+  border-bottom: 1px solid transparent;
+}
+.dialog-head-row { display: flex; align-items: flex-start; gap: 16px; }
+.dialog-title { font-size: 19px; font-weight: 650; letter-spacing: -.015em; line-height: 1.3; }
+.dialog-sub { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--text-secondary, #3a3a3c); opacity: .85; }
+.vf-shell .dialog-close, .dialog-close {
+  flex: 0 0 auto;
+  width: 34px; height: 34px; border-radius: 999px;
+  display: grid; place-items: center;
+  background: var(--surface-tertiary, rgba(0, 0, 0, .045)); border: 0;
+  color: var(--text-secondary, #3a3a3c);
+  transition: background 150ms ease, transform 150ms ease;
+}
+.dialog-close:hover { background: var(--border-strong, rgba(0, 0, 0, .12)); transform: rotate(90deg); }
+.vf-shell .dialog-icon, .dialog-icon { width: 46px; height: 46px; border-radius: 14px; margin-bottom: 14px; }
+.vf-shell .dialog-summary, .dialog-summary { border-radius: 14px; background: var(--surface-secondary, #f5f5f7); border-color: var(--dg-line); }
+
+/* Body: the only part that scrolls. min-height 0 lets it shrink in the column. */
+.vf-shell .dialog-body, .dialog-body {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 24px 22px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong, rgba(0, 0, 0, .18)) transparent;
+}
+.dialog-body::-webkit-scrollbar { width: 8px; }
+.dialog-body::-webkit-scrollbar-thumb { background: var(--border-strong, rgba(0, 0, 0, .18)); border-radius: 8px; border: 2px solid var(--dg-bg); }
+/* Fields inside a dialog breathe a little more. */
+.dialog-body .field, .dialog-body label { scroll-margin: 16px; }
+.dialog-body :is(input, select, textarea):not([type="checkbox"], [type="radio"]) { border-radius: 12px; }
+
+/* Buttons: pinned to the bottom, on the dialog's own surface. */
+.vf-shell .dialog-actions, .dialog-actions {
+  flex: 0 0 auto;
+  display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 24px;
+  background: var(--surface-secondary, #f7f7f9);
+  border-top: 1px solid var(--dg-line);
+}
+[data-theme="dark"] .dialog-actions { background: #1c1c1f; }
+.dialog-actions .btn { min-width: 104px; border-radius: 12px; }
+
+/* A phone gets a sheet from the bottom, with a grab handle. */
+@media (max-width: 640px) {
+  .dialog-backdrop { place-items: end stretch; padding: 0; padding-top: env(safe-area-inset-top, 0px); }
+  .vf-shell .dialog, .vf-shell .dialog-wide, .dialog, .dialog-wide {
+    width: 100%; max-height: 92dvh;
+    border-radius: 22px 22px 0 0; border-bottom: 0;
+    animation: dg-sheet 300ms cubic-bezier(.2, .8, .2, 1) both;
+  }
+  .dialog::before {
+    content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 38px; height: 5px; border-radius: 999px; background: var(--border-strong, rgba(0, 0, 0, .16));
+  }
+  .vf-shell .dialog-head, .dialog-head { padding: 24px 18px 12px; }
+  .vf-shell .dialog-body, .dialog-body { padding: 4px 18px 18px; }
+  .vf-shell .dialog-actions, .dialog-actions {
+    padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+    flex-direction: row; flex-wrap: wrap; align-items: stretch;
+  }
+  /* Side by side, the decision on the right, so the form keeps its room;
+     a third button, or a long label, wraps to its own full-width row. */
+  .dialog-actions > * { flex: 1 1 calc(50% - 5px); }
+  .dialog-actions .btn { min-width: 0; height: 46px; justify-content: center; }
+  /* A destructive extra (Delete beside Cancel and Save) takes the last row. */
+  .dialog-actions > .btn-danger:not(:last-child) { flex-basis: 100%; order: 1; margin: 0 !important; }
+}
+
+@keyframes dg-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dg-pop { from { opacity: 0; transform: translate3d(0, 12px, 0) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes dg-sheet { from { transform: translate3d(0, 100%, 0); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .dialog-backdrop, .dialog, .vf-shell .dialog { animation: none; }
+}

@@ -78,23 +78,25 @@ function CustomerStatement({ initial }: { initial: string }) {
               <div>{t("salClosingBalance")}: <Money value={data.closing_balance} strong /></div>
             </div>
           </header>
-          <table className="table vf-table sal-sheet-lines">
-            <thead><tr><th>{t("erpDate")}</th><th>{t("salDocument")}</th><th>{t("salDetail")}</th><th className="num">{t("salDebit")}</th><th className="num">{t("salCredit")}</th><th className="num">{t("salBalance")}</th></tr></thead>
-            <tbody>
-              <tr><td className="tnum">{formatDate(data.from, locale)}</td><td colSpan={4}><em>{t("salBroughtForward")}</em></td><td className="num"><Money value={data.opening_balance} /></td></tr>
-              {data.lines.map((l) => (
-                <tr key={`${l.type}${l.id}`}>
-                  <td className="tnum">{formatDate(l.date, locale)}</td>
-                  <td><Link href={href(l.type, l.id)} className="tnum">{l.number}</Link><span className="erp-cell-sub">{typeLabel[l.type]}</span></td>
-                  <td>{l.detail}</td>
-                  <td className="num">{l.debit ? <Money value={l.debit} /> : ""}</td>
-                  <td className="num">{l.credit ? <Money value={l.credit} /> : ""}</td>
-                  <td className="num"><Money value={l.balance} /></td>
-                </tr>
-              ))}
-              <tr className="sal-total-row"><td colSpan={3}>{t("salTotal")}</td><td className="num"><Money value={data.total_debit} /></td><td className="num"><Money value={data.total_credit} /></td><td className="num"><Money value={data.closing_balance} strong /></td></tr>
-            </tbody>
-          </table>
+          <div className="sal-sheet-scroll">
+            <table className="table vf-table sal-sheet-lines">
+              <thead><tr><th>{t("erpDate")}</th><th>{t("salDocument")}</th><th>{t("salDetail")}</th><th className="num">{t("salDebit")}</th><th className="num">{t("salCredit")}</th><th className="num">{t("salBalance")}</th></tr></thead>
+              <tbody>
+                <tr><td className="tnum">{formatDate(data.from, locale)}</td><td colSpan={4}><em>{t("salBroughtForward")}</em></td><td className="num"><Money value={data.opening_balance} /></td></tr>
+                {data.lines.map((l) => (
+                  <tr key={`${l.type}${l.id}`}>
+                    <td className="tnum">{formatDate(l.date, locale)}</td>
+                    <td><Link href={href(l.type, l.id)} className="tnum">{l.number}</Link><span className="erp-cell-sub">{typeLabel[l.type]}</span></td>
+                    <td>{l.detail}</td>
+                    <td className="num">{l.debit ? <Money value={l.debit} /> : ""}</td>
+                    <td className="num">{l.credit ? <Money value={l.credit} /> : ""}</td>
+                    <td className="num"><Money value={l.balance} /></td>
+                  </tr>
+                ))}
+                <tr className="sal-total-row"><td colSpan={3}>{t("salTotal")}</td><td className="num"><Money value={data.total_debit} /></td><td className="num"><Money value={data.total_credit} /></td><td className="num"><Money value={data.closing_balance} strong /></td></tr>
+              </tbody>
+            </table>
+          </div>
           <div className="sal-aged-strip">
             {AGED_BUCKETS.map((b) => <div key={b}><span className="sal-sheet-label">{t(AGED_LABEL[b])}</span><Money value={data.aged[b]} /></div>)}
             <div><span className="sal-sheet-label">{t("salTotalDue")}</span><Money value={data.aged.total} strong /></div>

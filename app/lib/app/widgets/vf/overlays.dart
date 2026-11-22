@@ -125,6 +125,11 @@ class VfSheetFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.vf;
+    // The app draws edge to edge, so the glass runs under the system
+    // navigation bar while the content stops above it. The inset is taken
+    // out of the content's MediaQuery so a SafeArea inside does not add it
+    // twice; with the keyboard up it is zero.
+    final inset = MediaQuery.paddingOf(context).bottom;
     return VfGlass(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(VfSize.radiusSheet)),
       fill: t.sheetFill,
@@ -145,7 +150,12 @@ class VfSheetFrame extends StatelessWidget {
                 ),
               ),
             ),
-          Flexible(child: child),
+          Flexible(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: inset),
+              child: MediaQuery.removePadding(context: context, removeBottom: true, child: child),
+            ),
+          ),
         ],
       ),
     );
@@ -268,6 +278,7 @@ class VouchFlowActions extends StatelessWidget {
         }
         final ordered = reverseWhenStacked ? children.reversed.toList() : children;
         return Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (var i = 0; i < ordered.length; i++) ...[

@@ -410,12 +410,7 @@ class _VoucherTemplatePanelState extends State<VoucherTemplatePanel> {
     if (s == null) {
       return AdminSection(
         label: 'branding.vt.title'.tr,
-        child: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(12),
-            child: CircularProgressIndicator(),
-          ),
-        ),
+        child: const VfLoadingView(inline: true, size: 32),
       );
     }
 

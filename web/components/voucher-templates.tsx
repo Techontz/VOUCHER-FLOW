@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, API_MODE } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { Icon, Spinner } from "@/components/ui";
+import { AppPortal, Icon, Spinner } from "@/components/ui";
 import type { VoucherTemplate } from "@/lib/types";
 
 /**
@@ -307,7 +307,8 @@ export function TemplatePreviewDialog({
   const isSelected = selected === template.key;
 
   return (
-    <div className="vt-modal" role="dialog" aria-modal="true" aria-label={name} onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+    <AppPortal>
+<div className="vt-modal" role="dialog" aria-modal="true" aria-label={name} onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
       <div className="vt-modal-card">
         <header className="vt-modal-head">
           <div className="vt-modal-title">
@@ -341,6 +342,7 @@ export function TemplatePreviewDialog({
         </footer>
       </div>
     </div>
+</AppPortal>
   );
 }
 

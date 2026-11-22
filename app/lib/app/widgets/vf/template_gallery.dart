@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../data/services/template_repository.dart';
 import 'buttons.dart';
 import 'documents.dart';
+import 'loader.dart';
 
 /// The ten voucher designs as real miniature vouchers, the web's template
 /// gallery. On a phone the designs swipe sideways (as on the web under
@@ -205,7 +206,7 @@ class _TemplatePreviewPageState extends State<_TemplatePreviewPage> {
                       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 20, offset: const Offset(0, 8))],
                     ),
                     child: html == null
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const VfLoadingView()
                         : VouchFlowDocumentView(
                             html: html,
                             fit: VfDocumentFit.fill,

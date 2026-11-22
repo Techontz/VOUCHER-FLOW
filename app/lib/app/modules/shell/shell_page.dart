@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/dev_hooks.dart';
 import '../../core/theme.dart';
+import '../../data/services/erp_service.dart';
+import '../../data/services/inventory_repository.dart';
 import '../../data/services/session_service.dart';
 import '../../data/services/voucher_repository.dart';
 import '../../routes/routes.dart';
@@ -16,6 +17,7 @@ import '../admin/departments_page.dart';
 import '../admin/employees_page.dart';
 import '../admin/settings_page.dart';
 import '../admin/subscription_page.dart';
+import '../apps/launcher_page.dart';
 import '../approvals/bulk_approve_page.dart';
 import '../auth/pending_page.dart';
 import '../branding/branding_page.dart';
@@ -29,36 +31,94 @@ import '../platform/users_page.dart';
 import '../profile/profile_tab.dart';
 import '../reports/reports_page.dart';
 import '../vouchers/voucher_list_tab.dart';
+import 'app_registry.dart';
+import 'areas.dart';
 import 'nav.dart';
 
 /// The signed-in workspace, as the website draws it below 980px: a clear top
 /// bar over the glass wallpaper, a glass drawer holding the sidebar, and a
 /// floating glass tab bar. Which entries appear follows the role exactly as
 /// the web's navigation does.
+///
+/// With more than one app (VouchFlow, Inventory, Settings …) the shell opens
+/// on the launcher; the tab bar then carries the open app's first four
+/// entries after an Apps tab, and the top bar names the app and switches
+/// between them. Someone with a single app never sees the launcher.
 class ShellController extends GetxController {
   final session = Get.find<SessionService>();
   final repo = Get.find<VoucherRepository>();
+  final erp = ErpService.to;
 
-  /// The destination on screen (a web route: '/dashboard', '/vouchers' …).
+  /// The destination on screen (a web route: '/dashboard', '/erp/stock' …,
+  /// or '/home' for the launcher).
   final current = '/dashboard'.obs;
+
+  /// The open app; null on the launcher.
+  final area = RxnString();
+
+  /// False until the ERP configuration has been read, so the first screen
+  /// is the right one rather than VouchFlow swapped for the launcher.
+  final ready = false.obs;
+
   final pendingCount = 0.obs;
   final payCount = 0.obs;
+
+  /// What waits in each ERP app, for the launcher's badges.
+  final appCounts = <String, int>{}.obs;
 
   /// Nested entries the user folded shut in the drawer.
   final closedGroups = <String>[].obs;
 
+  /// The app last open, whose tabs the launcher's tab bar keeps.
+  String? _lastArea;
+
+  /// The role's VouchFlow navigation (the web's NAV map).
   late final List<VfNavItem> items = navFor(session.me.role);
-  /// With a create button in the middle of the bar, four tabs flank it.
-  late final List<VfNavItem> tabs = tabsFor(
-    session.me.role,
-  ).take(session.me.canCreateVouchers ? 4 : 5).toList();
 
   late final VoucherListController register = Get.put(
     VoucherListController(),
     tag: 'register',
   );
 
+  /// What this person can reach, by app. Read inside Obx: it follows the
+  /// ERP configuration.
+  VfApps get apps => VfApps.of(session.me, erp.config.value);
+
   bool get canCreate => session.me.canCreateVouchers;
+
+  static const appsItem = VfNavItem(
+    '/home',
+    'apps.apps',
+    PhosphorIconsRegular.squaresFour,
+    PhosphorIconsFill.squaresFour,
+  );
+
+  /// The tab bar: the role's tabs with one app, otherwise Apps then the open
+  /// app's first entries (three beside VouchFlow's create button, four
+  /// elsewhere).
+  List<VfNavItem> get tabs {
+    final a = apps;
+    if (!a.multi) {
+      return tabsFor(session.me.role).take(canCreate ? 4 : 5).toList();
+    }
+    final key = area.value ?? _lastArea ?? a.open.first.key;
+    final own = a.menuOf(key).where((i) => i.href != '/vouchers/new');
+    return [appsItem, ...own.take(key == 'vouchflow' && showCreate ? 3 : 4)];
+  }
+
+  /// VouchFlow's "+" sits in the middle of the bar while VouchFlow is open.
+  bool get showCreate {
+    if (!canCreate) return false;
+    if (!apps.multi) return true;
+    return (area.value ?? _lastArea) == 'vouchflow' && current.value != '/home';
+  }
+
+  /// What the top bar's "+" offers in the open ERP app.
+  List<VfCreateAction> get createActions {
+    final key = area.value;
+    if (key == null) return const [];
+    return createActionsFor(key).where((a) => a.permission == null || erp.can(a.permission!)).toList();
+  }
 
   /// Shows a destination. "Create voucher" is a page of its own, pushed over
   /// the shell as on the web's New voucher button.
@@ -67,14 +127,51 @@ class ShellController extends GetxController {
       openCreate();
       return;
     }
+    if (href == '/home') {
+      if (area.value != null) _lastArea = area.value;
+      area.value = null;
+      current.value = '/home';
+      refreshCounts();
+      return;
+    }
+    // Account pages (profile, notifications) keep the app that is open.
+    final owner = apps.areaOfHref(href);
+    if (owner != null) area.value = owner;
     current.value = href;
     refreshCurrent();
     refreshCounts();
   }
 
+  /// Where Android's back gesture leads from the screen on show: the
+  /// launcher from inside an app, the only app's home from its other tabs.
+  /// Null on the first screen, where back leaves the app as usual.
+  String? get backTarget {
+    final a = apps;
+    if (a.multi) return current.value == '/home' ? null : '/home';
+    final only = a.open.firstOrNull?.key;
+    final home = (only == null ? null : a.homeOf(only)) ?? '/dashboard';
+    return current.value == home ? null : home;
+  }
+
+  /// Opens an app on its first entry.
+  void openApp(String key) {
+    final home = apps.homeOf(key);
+    if (home != null) go(home);
+  }
+
   Future<void> openCreate() async {
     await Get.toNamed(Routes.createVoucher);
     refreshCurrent();
+    refreshCounts();
+  }
+
+  /// Runs an app's create action: one of its tabs, or a pushed page.
+  Future<void> runCreate(VfCreateAction action) async {
+    if (apps.items.any((i) => i.href == action.route)) {
+      go(action.route);
+      return;
+    }
+    await Get.toNamed(action.route, arguments: action.arguments);
     refreshCounts();
   }
 
@@ -103,6 +200,13 @@ class ShellController extends GetxController {
         payCount.value = (await repo.list(status: 'approved')).length;
       } catch (_) {}
     }
+    // Drafts waiting to be posted are Inventory's count, for whoever posts.
+    if (apps.byArea.containsKey('inventory') && erp.can('inventory.post')) {
+      try {
+        final overview = await InventoryRepository.to.overview();
+        appCounts['inventory'] = overview?.drafts ?? 0;
+      } catch (_) {}
+    }
   }
 
   int? badgeFor(VfNavItem item) {
@@ -118,11 +222,30 @@ class ShellController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Development only (profile web builds): open on a given page.
-    final route = DevHooks.route;
-    if (route != null && items.any((i) => i.href == route)) {
-      current.value = route;
+    if (session.me.isSuperAdmin) {
+      _decide();
+    } else {
+      erp.ensure().whenComplete(_decide);
     }
+  }
+
+  /// The first screen: the launcher with several apps, the only app's home
+  /// otherwise. A development build may ask for a page instead.
+  void _decide() {
+    final a = apps;
+    final route = DevHooks.route;
+    if (route != null && (route == '/home' ? a.multi : a.items.any((i) => i.href == route))) {
+      area.value = route == '/home' ? null : a.areaOfHref(route);
+      current.value = route;
+    } else if (a.multi) {
+      area.value = null;
+      current.value = '/home';
+    } else {
+      final only = a.open.firstOrNull?.key;
+      area.value = only;
+      current.value = (only == null ? null : a.homeOf(only)) ?? '/dashboard';
+    }
+    ready.value = true;
   }
 
   @override
@@ -140,6 +263,10 @@ class ShellController extends GetxController {
 
 /// The page each web route shows inside the shell.
 Widget shellPageFor(String href, ShellController c) {
+  if (href == '/home') return const LauncherPage();
+  if (href.startsWith('/erp')) {
+    return Builder(builder: (context) => erpPageFor(href, context) ?? const SizedBox.shrink());
+  }
   return switch (href) {
     '/dashboard' => const DashboardTab(),
     '/vouchers' => VoucherListTab(controller: c.register),
@@ -176,8 +303,25 @@ class ShellPage extends GetView<ShellController> {
           me?.isSuperAdmin != true) {
         return const PendingApprovalPage();
       }
+      if (!controller.ready.value) {
+        return VfWallpaper(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: VfLoadingView(label: 'apps.loading'.tr),
+          ),
+        );
+      }
       final href = controller.current.value;
-      return VfWallpaper(
+      final back = controller.backTarget;
+      // Android's back steps out of an app to the launcher (or to the only
+      // app's home) before it leaves VouchFlow. An open drawer or sheet is
+      // its own route and closes first.
+      return PopScope(
+        canPop: back == null,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && back != null) controller.go(back);
+        },
+        child: VfWallpaper(
         child: Scaffold(
           backgroundColor: Colors.transparent,
           drawerScrimColor: t.overlay,
@@ -188,6 +332,7 @@ class ShellPage extends GetView<ShellController> {
             child: shellPageFor(href, controller),
           ),
           bottomNavigationBar: _TabBar(controller: controller),
+        ),
         ),
       );
     });
@@ -213,11 +358,12 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
       final name = me?.isSuperAdmin == true
           ? 'nav.platformName'.tr
           : (company?.name ?? 'app.name'.tr);
+      final multi = controller.apps.multi;
+      final app = multi ? controller.area.value : null;
+      final create = controller.createActions;
       return AppBar(
         backgroundColor: Colors.transparent,
-        systemOverlayStyle: t.isDark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
+        systemOverlayStyle: VfTheme.overlay(t.isDark),
         toolbarHeight: VfSize.topBarH + 4,
         automaticallyImplyLeading: false,
         centerTitle: false,
@@ -228,25 +374,42 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Builder(
                 builder: (ctx) => VfBarButton(
-                  icon: PhosphorIconsRegular.squaresFour,
+                  // With apps, the four squares mean "all apps"; the menu
+                  // is then the plain list icon.
+                  icon: multi
+                      ? PhosphorIconsRegular.list
+                      : PhosphorIconsRegular.squaresFour,
                   tooltip: 'nav.openMenu'.tr,
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: VfType.bodyStrong.copyWith(
-                    fontSize: 15.5,
-                    color: t.text,
-                    letterSpacing: -.2,
-                  ),
-                ),
+                child: app == null
+                    ? Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: VfType.bodyStrong.copyWith(
+                          fontSize: 15.5,
+                          color: t.text,
+                          letterSpacing: -.2,
+                        ),
+                      )
+                    : _AppTitle(
+                        app: app,
+                        onTap: () => showAppSwitcher(context, controller),
+                      ),
               ),
               const SizedBox(width: 8),
+              if (create.isNotEmpty) ...[
+                VfBarButton(
+                  icon: PhosphorIconsRegular.plus,
+                  tooltip: 'apps.createIn'.trParams({'app': 'area.$app'.tr}),
+                  onPressed: () => _create(context, create),
+                ),
+                const SizedBox(width: 10),
+              ],
               VfBarButton(
                 icon: PhosphorIconsRegular.bell,
                 tooltip: 'nav.notifications'.tr,
@@ -261,6 +424,81 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
       );
     });
   }
+
+  /// The app's "+": what it creates, behind the permission each needs.
+  Future<void> _create(BuildContext context, List<VfCreateAction> actions) async {
+    final app = 'area.${controller.area.value}'.tr;
+    final chosen = await showVouchFlowBottomSheet<VfCreateAction>(
+      context,
+      title: 'apps.createIn'.trParams({'app': app}),
+      child: Column(
+        children: [
+          for (var i = 0; i < actions.length; i++)
+            Builder(
+              builder: (ctx) => VouchFlowListRow(
+                divider: i > 0,
+                icon: actions[i].icon,
+                title: actions[i].label.tr,
+                subtitle: actions[i].hint?.tr,
+                onTap: () => Navigator.of(ctx).pop(actions[i]),
+              ),
+            ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+    if (chosen != null) await controller.runCreate(chosen);
+  }
+}
+
+/// The open app's icon and name; tapping switches app.
+class _AppTitle extends StatelessWidget {
+  const _AppTitle({required this.app, required this.onTap});
+
+  final String app;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Semantics(
+        button: true,
+        label: '${'area.$app'.tr}, ${'apps.switch'.tr}',
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(VfSize.radiusL),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                VfAppIcon(app: app, size: 32, shadow: false),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    'area.$app'.tr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.bodyStrong.copyWith(
+                      fontSize: 15.5,
+                      color: t.text,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(PhosphorIconsBold.caretDown, size: 13, color: t.muted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _UserMenu extends StatelessWidget {
@@ -274,7 +512,7 @@ class _UserMenu extends StatelessWidget {
     return InkWell(
       customBorder: const CircleBorder(),
       onTap: () => _open(context),
-      child: VouchFlowAvatar(initials: me.initials, size: 42),
+      child: VouchFlowAvatar(initials: me.initials, size: 40),
     );
   }
 
@@ -373,14 +611,10 @@ class _UserMenu extends StatelessWidget {
                       ),
                     ),
                     Obx(
-                      () => SegmentedButton<String>(
-                        showSelectedIcon: false,
-                        segments: const [
-                          ButtonSegment(value: 'en', label: Text('EN')),
-                          ButtonSegment(value: 'sw', label: Text('SW')),
-                        ],
-                        selected: {session.locale.value},
-                        onSelectionChanged: (s) => session.setLocale(s.first),
+                      () => VfLanguagePicker(
+                        value: session.locale.value,
+                        onChanged: session.setLocale,
+                        tooltip: 'nav.language'.tr,
                       ),
                     ),
                   ],
@@ -521,8 +755,8 @@ class _Drawer extends StatelessWidget {
                               'app.name'.tr,
                               style: VfType.sectionTitle.copyWith(
                                 color: t.text,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 17,
                                 letterSpacing: -.5,
                               ),
                             ),
@@ -547,7 +781,9 @@ class _Drawer extends StatelessWidget {
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
-                    children: [
+                    children: controller.apps.multi
+                        ? _appMenu(context, current)
+                        : [
                       for (final entry in groups.entries) ...[
                         _GroupHeader(
                           label: _groupLabel(entry.key),
@@ -578,6 +814,38 @@ class _Drawer extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// With several apps: the open app's whole menu, then every app.
+  List<Widget> _appMenu(BuildContext context, String current) {
+    final apps = controller.apps;
+    final open = controller.area.value;
+    return [
+      if (open != null) ...[
+        _GroupHeader(label: 'area.$open'.tr, open: true),
+        ..._entries(context, apps.menuOf(open), current),
+      ],
+      _GroupHeader(label: 'apps.apps'.tr, open: true),
+      _AppRow(
+        icon: const Icon(PhosphorIconsRegular.squaresFour, size: 20),
+        label: 'apps.allApps'.tr,
+        active: current == '/home',
+        onTap: () => _open(context, '/home'),
+      ),
+      for (final a in apps.open)
+        _AppRow(
+          icon: VfAppIcon(app: a.key, size: 28, shadow: false),
+          label: a.label.tr,
+          active: a.key == open && current != '/home',
+          badge: a.key == 'vouchflow'
+              ? (controller.pendingCount.value > 0 ? controller.pendingCount.value : null)
+              : controller.appCounts[a.key],
+          onTap: () {
+            Navigator.of(context).pop();
+            controller.openApp(a.key);
+          },
+        ),
+    ];
   }
 
   List<Widget> _entries(
@@ -823,6 +1091,88 @@ class _WorkspaceCard extends StatelessWidget {
   );
 }
 
+/// An app in the drawer: its icon, its name, what waits in it.
+class _AppRow extends StatelessWidget {
+  const _AppRow({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.badge,
+  });
+
+  final Widget icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final int? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.vf;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
+        color: active ? t.tabActive : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(VfSize.radiusL),
+          side: active
+              ? BorderSide(color: t.isDark ? t.glassBorder : t.primaryBorder)
+              : BorderSide.none,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                IconTheme(
+                  data: IconThemeData(color: active ? t.primaryText : t.text2),
+                  child: SizedBox(width: 28, child: Center(child: icon)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: VfType.label.copyWith(
+                      fontSize: 14.5,
+                      color: active ? t.text : t.text2,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (badge != null && badge! > 0)
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 22),
+                    height: 22,
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: VfBadge.background(t.brightness),
+                      borderRadius: BorderRadius.circular(VfSize.radiusPill),
+                    ),
+                    child: Text(
+                      badge! > 99 ? '99+' : '$badge',
+                      style: VfType.meta.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NavRow extends StatelessWidget {
   const _NavRow({
     required this.item,
@@ -942,7 +1292,7 @@ class _TabBar extends StatelessWidget {
     return Obx(() {
       final tabs = controller.tabs;
       final current = controller.current.value;
-      final create = controller.canCreate;
+      final create = controller.showCreate;
       final half = (tabs.length / 2).ceil();
 
       Widget slot(VfNavItem item) => Expanded(
@@ -1007,7 +1357,7 @@ class _TabSlot extends StatelessWidget {
     final colour = active ? t.primaryText : t.muted;
     Widget icon = Icon(
       active ? item.activeIcon : item.icon,
-      size: 21,
+      size: 20,
       color: colour,
     );
     if (badge != null) {
@@ -1057,15 +1407,22 @@ class _TabSlot extends StatelessWidget {
                 children: [
                   icon,
                   const SizedBox(height: 3),
-                  Text(
-                    (item.short ?? item.label).tr,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: VfType.meta.copyWith(
-                      fontSize: 10.5,
-                      height: 1.1,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                      color: active ? t.text : t.muted,
+                  // A long word (Swahili "Wafanyakazi") shrinks a little to
+                  // fit rather than losing its end.
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        (item.short ?? item.label).tr,
+                        maxLines: 1,
+                        style: VfType.meta.copyWith(
+                          fontSize: 11,
+                          height: 1.1,
+                          fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                          color: active ? t.text : t.muted,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1089,8 +1446,8 @@ class _CreateButton extends StatelessWidget {
     return Tooltip(
       message: 'nav.newVoucher'.tr,
       child: Container(
-        width: 50,
-        height: 50,
+        width: 44,
+        height: 44,
         decoration: vfPrimaryGloss(t, shape: BoxShape.circle),
         child: ClipOval(
           child: Stack(
@@ -1104,7 +1461,7 @@ class _CreateButton extends StatelessWidget {
                   child: const Icon(
                     PhosphorIconsBold.plus,
                     color: Colors.white,
-                    size: 22,
+                    size: 20,
                   ),
                 ),
               ),

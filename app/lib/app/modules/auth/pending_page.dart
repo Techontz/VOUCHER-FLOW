@@ -56,7 +56,7 @@ class _PendingApprovalPageState extends State<PendingApprovalPage> {
     final t = context.vf;
     final bottom = MediaQuery.paddingOf(context).bottom;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: t.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      value: VfTheme.overlay(t.isDark),
       child: VfWallpaper(
         child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -80,7 +80,7 @@ class _PendingApprovalPageState extends State<PendingApprovalPage> {
                 Text(
                   'pending.title'.tr,
                   textAlign: TextAlign.center,
-                  style: VfType.pageTitle.copyWith(fontSize: 28, letterSpacing: -.7, color: t.text),
+                  style: VfType.pageTitle.copyWith(fontSize: 23, letterSpacing: -.7, color: t.text),
                 ),
                 const SizedBox(height: 8),
                 if (company != null)

@@ -19,7 +19,7 @@ class StepHead extends StatelessWidget {
     final t = context.vf;
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
-      child: Text(title, style: VfType.pageTitle.copyWith(fontSize: 24, color: t.text)),
+      child: Text(title, style: VfType.pageTitle.copyWith(fontSize: 21, color: t.text)),
     );
   }
 }
@@ -712,7 +712,7 @@ class ReviewStep extends StatelessWidget {
                 child: Text(
                   previewMoney(c),
                   style: VfType.figure.copyWith(
-                    fontSize: 30,
+                    fontSize: 24,
                     color: Colors.white,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),

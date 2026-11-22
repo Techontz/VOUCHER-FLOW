@@ -106,7 +106,7 @@ class StatTile extends StatelessWidget {
     final figure = FittedBox(
       fit: BoxFit.scaleDown,
       alignment: Alignment.centerLeft,
-      child: Text(value, maxLines: 1, style: VfType.figure.copyWith(color: t.text, fontSize: 24)),
+      child: Text(value, maxLines: 1, style: VfType.figure.copyWith(color: t.text, fontSize: 21)),
     );
 
     final foot = !hasFoot

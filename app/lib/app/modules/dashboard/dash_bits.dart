@@ -172,13 +172,13 @@ class DashPanel extends StatelessWidget {
               Flexible(
                 child: Text(
                   title,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: VfType.sectionTitle.copyWith(
                     color: t.text,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -.4,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -.2,
                   ),
                 ),
               ),
@@ -702,6 +702,12 @@ class DashStatTile extends StatelessWidget {
     final t = context.vf;
     final (fg, _) = tone.colors(t);
     final mark = tone == VfTone.primary ? t.primaryText : fg;
+    final labelStyle = VfType.meta.copyWith(
+      color: t.muted,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w500,
+      height: 1.3,
+    );
     return Semantics(
       label: [label, value, ?note].join(', '),
       button: onTap != null,
@@ -720,17 +726,19 @@ class DashStatTile extends StatelessWidget {
                   child: Icon(icon, size: 15, color: mark),
                 ),
                 const SizedBox(width: 6),
+                // Two lines are always reserved, so tiles side by side keep
+                // their figures level whether a label wraps or not.
                 Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: VfType.meta.copyWith(
-                      color: t.muted,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                      height: 1.3,
-                    ),
+                  child: Stack(
+                    children: [
+                      Opacity(opacity: 0, child: Text('\n', maxLines: 2, style: labelStyle)),
+                      Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: labelStyle,
+                      ),
+                    ],
                   ),
                 ),
                 if (onTap != null)
@@ -748,7 +756,7 @@ class DashStatTile extends StatelessWidget {
                   maxLines: 1,
                   style: VfType.figure.copyWith(
                     color: t.text,
-                    fontSize: 28,
+                    fontSize: 23,
                     letterSpacing: -.9,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
@@ -883,7 +891,7 @@ class DashHero extends StatelessWidget {
                         maxLines: 1,
                         style: VfType.figure.copyWith(
                           color: t.text,
-                          fontSize: 46,
+                          fontSize: 28,
                           letterSpacing: -1.6,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),

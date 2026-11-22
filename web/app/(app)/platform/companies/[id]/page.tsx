@@ -24,7 +24,7 @@ import { ModulesTab } from "./modules";
  */
 
 const TABS = [
-  { key: "overview", label: "Overview", icon: "ph-squares-four" },
+  { key: "overview", label: "Overview", icon: "ph-gauge" },
   { key: "modules", label: "Apps", icon: "ph-squares-four" },
   { key: "branding", label: "Branding & voucher design", icon: "ph-palette" },
   { key: "users", label: "Users", icon: "ph-users-three" },

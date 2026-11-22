@@ -1,0 +1,114 @@
+/*
+ * Fit, the last layer: what keeps every screen inside the window at every
+ * size, from a 360px phone to a wide desktop. Overlays stay on screen and
+ * above the bars; wide content scrolls inside its own box, never the page.
+ */
+
+/* ── menus: never wider or taller than the window ── */
+.app-menu { max-width: calc(100vw - 16px); }
+.app-menu[data-floating] { max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* ── the folded sidebar (the icon rail, the default under 1280px) ── */
+@media (min-width: 981px) {
+  /* The company's mark stays in the corner; only its name and caret fold
+     away. A rule meant for the platform's own logo hid it, leaving a lone caret. */
+  :root[data-sidebar="collapsed"] .vf-shell .app-topbar-brand > .app-company-mark { display: inline-grid; }
+  :root[data-sidebar="collapsed"] .vf-shell .app-topbar-brand > i { display: none; }
+  /* Every page of the app stays one tap away on the rail, not just the
+     section heads: the rail showed two icons and nothing to reach the rest. */
+  :root[data-sidebar="collapsed"] .vf-shell .app-nav-child { display: flex !important; min-height: 44px; }
+  :root[data-sidebar="collapsed"] .vf-shell .app-nav-child > i { display: inline-block; }
+}
+
+/* ── page columns: content never sizes the page ── */
+/* A grid with no columns sizes its one track to its widest child, so a row
+   of filter chips or a wide table pushed a whole ERP page past a phone's edge.
+   One column that may shrink keeps every child to the window. */
+.erp-page { grid-template-columns: minmax(0, 1fr); }
+
+/* A row of chips or segments scrolls sideways when it outgrows its box. */
+.vf-shell .seg:not(.vf-tabs) { max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.vf-shell .seg::-webkit-scrollbar { display: none; }
+.vf-shell .seg > button, .vf-shell .seg > .seg-opt { flex: none; }
+.pf-page { grid-template-columns: minmax(0, 1fr); }
+.vf-shell .app-page, .vf-shell .app-route { min-width: 0; }
+
+/* ── the voucher register: fits a laptop with the sidebar open ── */
+/* A long status ("Awaiting CEO / Manager approval") kept to one line made
+   the table 50px wider than its card at 1440px; it now wraps to a second. */
+.vf-shell .app-voucher-table .badge { min-width: 116px; max-width: 172px; white-space: normal; height: auto; min-height: 24px; padding-block: 3px; line-height: 1.3; text-align: left; }
+
+/* ── ERP overview grids on a tablet or laptop (two columns) ── */
+/* A single card whose neighbour is a wide one stood alone in half a row with
+   a hole beside it (Sales' order pipeline at 1024px). It takes the row. */
+@media (min-width: 861px) and (max-width: 1279px) {
+  .erp-grid > :not(.erp-span-2, .erp-span-3):is(:first-child, .erp-span-2 + *, .erp-span-3 + *):is(:last-child, :has(+ .erp-span-2), :has(+ .erp-span-3)) { grid-column: 1 / -1; }
+}
+
+/* ── line editors (orders, invoices, stock documents) on a narrow screen ── */
+/* The lines table scrolls sideways, so its inputs keep a usable width
+   instead of collapsing to a 45px box beside a wide product picker. */
+@media (max-width: 760px) {
+  .erp-lines td > :is(input, select).input:not([type="checkbox"], [type="radio"]) { min-width: 96px; }
+  .erp-lines td > select.input { min-width: 180px; }
+}
+
+/* ── a voucher's head ── */
+/* "Pays supplier invoice SINV-…" kept to one line ran 60px past a phone's
+   edge and widened the whole page; it wraps inside the screen instead. */
+.app-doc-source { max-width: 100%; white-space: normal; height: auto; min-height: 24px; padding-block: 3px; line-height: 1.3; }
+
+/* ── sticky bars clear the fixed bars ── */
+/* The roles list stuck 16px from the window's top, under the fixed top bar. */
+.erp-roles-list { top: calc(var(--bar-h, 64px) + 16px); max-height: calc(100dvh - var(--bar-h, 64px) - 32px); }
+@media (max-width: 980px) {
+  /* The tab bar is 64px tall: the create-voucher and edit-form button bars,
+     pinned at 60px, sat 4px under it. */
+  .vf-shell .cv-actions, .vf-shell .app-form-foot { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── invoice, statement and gate-pass sheets on a phone ── */
+/* The sheet's one grid track grew to its lines table and pushed the page
+   150px past the screen. The track now holds to the sheet's width and the
+   lines table scrolls sideways inside its own box, as a wide table does elsewhere. */
+.sal-sheet { grid-template-columns: minmax(0, 1fr); }
+.sal-sheet-scroll { min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media screen and (max-width: 640px) {
+  .sal-sheet-scroll > .sal-sheet-lines { min-width: 520px; }
+  .sal-sheet-parties { grid-template-columns: minmax(0, 1fr); }
+}
+@media print { .sal-sheet-scroll { overflow: visible; } }
+
+/* ── a wide table's name column keeps its name on one or two lines ── */
+/* A table of eight or more columns scrolls sideways at most widths, yet the
+   browser still squeezed its first column to the narrowest word: "Agnes /
+   Temba / WC-0204 · Quality / Assurance" over five lines (payroll). There
+   the name column holds a readable width; narrower tables are left to fit. */
+.vf-table:has(thead th:nth-child(8)) td > .erp-cell-link { min-width: 168px; }
+
+/* ── a small table set straight into a padded card ── */
+/* Three money columns with full table padding ran 17px past the Finance
+   overview's "This month" card. Inside the card's own padding the table
+   needs no outer gutter and a tighter one between columns. */
+.vf-panel-pad > table.vf-table :is(th, td) { padding-left: 8px; padding-right: 8px; }
+.vf-panel-pad > table.vf-table :is(th, td):first-child { padding-left: 0; }
+.vf-panel-pad > table.vf-table :is(th, td):last-child { padding-right: 0; }
+
+/* ── sign-in on a tablet ── */
+/* With the brand panel folded away below 981px the form sat at the top of
+   a portrait tablet over 600px of empty screen. On a tablet it is centred;
+   a phone keeps it at the top, near the keyboard's reach. */
+@media (min-width: 641px) and (max-width: 980px) {
+  .au-split .au-body { margin: auto; }
+}
+
+/* ── a row's Verify and Reject buttons on a laptop or tablet ── */
+/* Side by side they made Dispatch's "Payments to verify" table 60px wider
+   than its card at 1024px, cutting the buttons off. Stacked, they fit. */
+@media (max-width: 1279px) {
+  .vf-table .sal-row-actions { flex-direction: column; align-items: stretch; }
+  /* Tables on a laptop or tablet: the phone's 14px cell gutter, and a long
+     status ("Awaiting verification") may take two lines. */
+  .vf-shell :is(.vf-table, .app-voucher-table) :is(thead th, tbody td, tfoot td) { padding-left: 14px; padding-right: 14px; }
+  .vf-shell .vf-table td > .badge { max-width: 150px; white-space: normal; height: auto; min-height: 24px; padding-block: 3px; line-height: 1.3; }
+}

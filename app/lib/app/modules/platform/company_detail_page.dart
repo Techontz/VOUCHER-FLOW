@@ -434,7 +434,7 @@ class _Header extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 c.name,
-                style: VfType.pageTitle.copyWith(color: t.text, fontSize: 24),
+                style: VfType.pageTitle.copyWith(color: t.text, fontSize: 21),
               ),
               if (contact.isNotEmpty) ...[
                 const SizedBox(height: 4),

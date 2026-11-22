@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /*
  * The VouchFlow design system, taken from the production web client
@@ -477,14 +478,14 @@ class VfSize {
 
   static const controlH = 48.0; // buttons, tall for touch
   static const inputH = 52.0;
-  static const topBarH = 60.0;
+  static const topBarH = 56.0;
   static const tabBarH = 68.0;
 
   /// The floating tab bar: its height and its inset from the screen edges.
-  static const floatingBarH = 64.0;
+  static const floatingBarH = 58.0;
   static const floatingBarInset = 14.0;
 
-  static const pagePad = 18.0; // the phone gutter
+  static const pagePad = 16.0; // the phone gutter
   static const gap = 12.0;
   static const cardPad = 16.0;
 
@@ -569,12 +570,13 @@ extension VfPalette on BuildContext {
   Color get vfAccentTint => vf.primarySoft;
 }
 
-/// The type scale. Poppins is the bundled face (Inter is not bundled and no
-/// dependency carries it); large sizes are tracked tight for the glass look.
+/// The type scale: Inter, calm and compact, as a phone app sets it (page
+/// titles in the low twenties, figures near 21, nothing bold at display
+/// sizes).
 class VfType {
   const VfType._();
 
-  static const family = 'Poppins';
+  static const family = 'Inter';
 
   static TextStyle _t(
     double size,
@@ -589,30 +591,32 @@ class VfType {
     letterSpacing: ls,
   );
 
-  /// Page title (web h1 on a phone: 26–30px, bold, tight).
-  static final pageTitle = _t(26, FontWeight.w700, h: 1.15, ls: -0.5);
+  /// Page title: 23, semibold, slightly tight.
+  static final pageTitle = _t(23, FontWeight.w600, h: 1.2, ls: -0.3);
 
-  /// The greeting and large page titles: 32–36 on a phone, very tight.
-  static final display = _t(34, FontWeight.w700, h: 1.1, ls: -1.2);
+  /// The greeting and other hero lines.
+  static final display = _t(24, FontWeight.w600, h: 1.2, ls: -0.4);
 
-  /// Section / panel title (web 18px, 600).
-  static final sectionTitle = _t(18, FontWeight.w600, h: 1.3, ls: -0.2);
+  /// Section / panel title.
+  static final sectionTitle = _t(16, FontWeight.w600, h: 1.3, ls: -0.1);
 
   /// Card title.
-  static final cardTitle = _t(16, FontWeight.w600, h: 1.35);
+  static final cardTitle = _t(15, FontWeight.w600, h: 1.35, ls: -0.1);
 
-  static final body = _t(15, FontWeight.w400, h: 1.5);
-  static final bodyStrong = _t(15, FontWeight.w600, h: 1.5);
-  static final small = _t(13.5, FontWeight.w400, h: 1.45);
+  static final body = _t(14.5, FontWeight.w400, h: 1.45);
+  static final bodyStrong = _t(14.5, FontWeight.w600, h: 1.45);
+  static final small = _t(13, FontWeight.w400, h: 1.45);
   static final meta = _t(12.5, FontWeight.w400, h: 1.4);
 
-  /// Uppercase eyebrow / field label (web 11–13px, 600, tracked).
-  static final eyebrow = _t(12.5, FontWeight.w600, h: 1.3, ls: 1.0);
-  static final label = _t(14, FontWeight.w500, h: 1.35);
+  /// Uppercase eyebrow / field label: small, tracked.
+  static final eyebrow = _t(11.5, FontWeight.w600, h: 1.3, ls: 0.6);
+  static final label = _t(13.5, FontWeight.w500, h: 1.35);
 
-  /// Money and big figures.
-  static final figure = _t(28, FontWeight.w700, h: 1.1, ls: -0.5);
-  static final figureS = _t(20, FontWeight.w700, h: 1.2, ls: -0.3);
+  /// Money and figures, always with tabular digits.
+  static final figure = _t(21, FontWeight.w600, h: 1.15, ls: -0.3)
+      .copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+  static final figureS = _t(17, FontWeight.w600, h: 1.2, ls: -0.2)
+      .copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
 }
 
 class VfTheme {
@@ -628,6 +632,21 @@ class VfTheme {
 
   /// The ink a primary button paints on itself: white, as on the web.
   static Color onPrimary(BuildContext context) => Colors.white;
+
+  /// The system bars over the app: drawn edge to edge, see-through, with
+  /// icons that read on the appearance. Flutter's stock light and dark
+  /// styles paint Android's navigation bar solid black, a dark band under
+  /// every light page on Android 14 and older.
+  static SystemUiOverlayStyle overlay(bool dark) => SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+    statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+    systemNavigationBarContrastEnforced: false,
+    systemStatusBarContrastEnforced: false,
+  );
 
   static ThemeData light() => _base(VfTokens.light(VfColors.palette));
   static ThemeData dark() => _base(VfTokens.dark(VfColors.palette));
@@ -675,9 +694,9 @@ class VfTheme {
       ),
       splashFactory: InkRipple.splashFactory,
       textTheme: TextTheme(
-        displaySmall: s(VfType.pageTitle.copyWith(fontSize: 28), t.text),
+        displaySmall: s(VfType.display, t.text),
         headlineMedium: s(VfType.pageTitle, t.text),
-        headlineSmall: s(VfType.sectionTitle.copyWith(fontSize: 20), t.text),
+        headlineSmall: s(VfType.sectionTitle.copyWith(fontSize: 17), t.text),
         titleLarge: s(VfType.sectionTitle, t.text),
         titleMedium: s(VfType.cardTitle, t.text),
         titleSmall: s(VfType.bodyStrong.copyWith(fontSize: 14.5), t.text),
@@ -695,6 +714,7 @@ class VfTheme {
         foregroundColor: t.text,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: overlay(t.isDark),
         centerTitle: true,
         titleTextStyle: VfType.cardTitle.copyWith(color: t.text, fontSize: 17),
         iconTheme: IconThemeData(color: t.text),

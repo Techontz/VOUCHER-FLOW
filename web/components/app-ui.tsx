@@ -46,7 +46,10 @@ export function ThemeSwitch({ compact }: { compact?: boolean }) {
 function useDismiss(open: boolean, close: () => void, root: React.RefObject<HTMLElement | null>, extra?: React.RefObject<HTMLElement | null>) {
   useEffect(() => {
     if (!open) return;
-    const inside = (node: Node) => !!root.current?.contains(node) || !!extra?.current?.contains(node);
+    // A popover opened from inside the menu (the language picker) is drawn
+    // elsewhere in the page, but a tap on it is still a tap inside.
+    const inside = (node: Node) => !!root.current?.contains(node) || !!extra?.current?.contains(node)
+      || !!(node instanceof Element && node.closest("[data-popover]"));
     const onDown = (e: MouseEvent) => { if (root.current && !inside(e.target as Node)) close(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     document.addEventListener("mousedown", onDown);
@@ -89,6 +92,29 @@ function useFloatingPlacement(active: boolean, anchor: React.RefObject<HTMLEleme
 }
 
 /**
+ * Where a menu drawn in place must move to stay inside the window: a trigger
+ * near the edge of a phone screen (the create button) opened a menu whose far
+ * side ran off the screen. A sideways shift, and a height cap so a long menu
+ * scrolls instead of running under the phone's bottom tab bar.
+ */
+function edgeFit(el: HTMLElement): { translate: string; maxHeight: string } {
+  const edge = 8;
+  // Its untransformed box: it opens with a slight scale, so the measured
+  // rectangle is a few pixels narrower than where the menu settles.
+  const b = el.getBoundingClientRect();
+  const left = b.left - (el.offsetWidth - b.width) / 2;
+  const r = { left, right: left + el.offsetWidth, top: b.top, bottom: b.top + el.offsetHeight };
+  const vw = document.documentElement.clientWidth;
+  const tabbar = document.querySelector<HTMLElement>(".vf-tabbar");
+  const floor = tabbar && getComputedStyle(tabbar).display !== "none" ? tabbar.getBoundingClientRect().top : window.innerHeight;
+  const shift = r.left < edge ? edge - r.left : r.right > vw - edge ? Math.max(edge - r.left, vw - edge - r.right) : 0;
+  return {
+    translate: shift ? `${Math.round(shift)}px 0` : "",
+    maxHeight: r.top >= 0 && r.bottom > floor - edge ? `${Math.max(160, floor - edge - r.top)}px` : "",
+  };
+}
+
+/**
  * `floating` renders the menu at the top of the page instead of inside its
  * parent, for menus in tables and other scrolling boxes, which would
  * otherwise cut it off, the last rows' actions used to be unreachable.
@@ -116,6 +142,16 @@ export function Dropdown({
   };
   useDismiss(open, close, ref, menuRef);
   const place = useFloatingPlacement(!!floating && open, ref, menuRef, align);
+  // A menu drawn in place is measured and moved before paint, on the element
+  // itself, so it never shows off the screen and needs no second render.
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (floating || !open || !el) return;
+    const fit = edgeFit(el);
+    el.style.translate = fit.translate;
+    el.style.maxHeight = fit.maxHeight;
+    el.style.overflowY = fit.maxHeight ? "auto" : "";
+  }, [floating, open]);
 
   const menu = (
     <div ref={menuRef} id={id} className="app-menu" role="menu" aria-label={label} data-align={align}

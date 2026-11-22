@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { formatDateTime } from "@/lib/format";
-import { Dialog, Icon, Panel, Spinner } from "@/components/ui";
+import { AppPortal, Dialog, Icon, Panel, Spinner } from "@/components/ui";
 import { DocumentFrame, TemplateGallery, TemplatePreviewDialog, templateName } from "@/components/voucher-templates";
 import type { VoucherTemplateChange, VoucherTemplateState } from "@/lib/types";
 
@@ -265,7 +265,8 @@ export function VoucherTemplatePanel({
 
       {/* ── choosing a new design ── */}
       {choosing && previewing === null && pending === null && (
-        <div className="vt-modal" role="dialog" aria-modal="true" aria-label={c("chooseTitle")} onMouseDown={(e) => { if (e.target === e.currentTarget) setChoosing(false); }}>
+        <AppPortal>
+<div className="vt-modal" role="dialog" aria-modal="true" aria-label={c("chooseTitle")} onMouseDown={(e) => { if (e.target === e.currentTarget) setChoosing(false); }}>
           <div className="vt-modal-card">
             <header className="vt-modal-head">
               <div className="vt-modal-title">
@@ -289,6 +290,7 @@ export function VoucherTemplatePanel({
             </div>
           </div>
         </div>
+</AppPortal>
       )}
 
       <TemplatePreviewDialog

@@ -15,6 +15,7 @@ use App\Models\VoucherTemplateChange;
 use App\Services\AuditLogger;
 use App\Services\CompanyBranding;
 use App\Services\CompanyProvisioner;
+use App\Services\Erp\BusinessSetup;
 use App\Services\Notifier;
 use App\Services\PaymentGateway;
 use App\Services\Platform\SubscriptionAdmin;
@@ -40,6 +41,7 @@ class CompanyController extends Controller
         private readonly VoucherTemplateManager $voucherTemplates,
         private readonly Notifier $notifier,
         private readonly SubscriptionAdmin $subscriptions,
+        private readonly BusinessSetup $setup,
     ) {}
 
     public function index(Request $request)
@@ -142,6 +144,7 @@ class CompanyController extends Controller
         $created->fill(collect($company)->except(['name', 'email'])->filter(fn ($v) => $v !== null)->all());
         $created->fill(collect($data['branding'] ?? [])->except('voucher_template')->filter(fn ($v) => $v !== null)->all());
         $created->save();
+        $this->ensureSetUp($created, $request->user());
 
         $this->voucherTemplates->initial(
             $created,
@@ -336,6 +339,7 @@ class CompanyController extends Controller
         }
 
         $this->tenant->forCompany($company, fn () => $this->payments->approve($company));
+        $this->ensureSetUp($company, $request->user());
 
         $company->refresh();
 
@@ -377,9 +381,9 @@ class CompanyController extends Controller
      * Sets the apps a company's subscription allows. Payment vouchers are the
      * product itself and stay whatever is sent.
      *
-     * What the company has switched on follows: an app no longer licensed is
-     * switched off, and an app just licensed is switched on straight away, so
-     * granting an app needs no second step by the company.
+     * What the company runs follows: every app given is switched on and every
+     * app taken away is switched off, and a company that never ran Business
+     * setup gets the general one, so granting apps needs no second step.
      */
     public function modules(Request $request, Company $company)
     {
@@ -389,6 +393,7 @@ class CompanyController extends Controller
         ]);
 
         $this->license($company, $data['modules']);
+        $this->ensureSetUp($company, $request->user());
 
         return response()->json([
             'message' => "{$company->name}'s apps were updated.",
@@ -446,8 +451,26 @@ class CompanyController extends Controller
     }
 
     /**
-     * Licenses exactly these apps (VouchFlow always) and brings the switched
-     * on apps in line: enabled = licensed and (enabled or newly licensed).
+     * A company the operator has given apps to but whose administrator never
+     * ran Business setup gets the general setup now (units, a main
+     * warehouse, the chart of accounts), so the apps open ready to use. A
+     * company already set up keeps its own choices.
+     */
+    private function ensureSetUp(Company $company, User $actor): void
+    {
+        $company->refresh();
+        $config = BusinessConfig::of($company);
+
+        if ($config->isSetUp()) {
+            return;
+        }
+
+        $this->setup->apply($company, $company->business_type ?: 'general', $config->modules(), [], $actor);
+    }
+
+    /**
+     * Licenses exactly these apps (VouchFlow always) and switches every one
+     * of them on, and every other app off.
      *
      * @param  list<string>  $apps
      */
@@ -462,7 +485,9 @@ class CompanyController extends Controller
 
         $added = array_values(array_diff($after, $before));
         $removed = array_values(array_diff($before, $after));
-        $enabled = array_values(array_intersect(array_unique([...$enabledBefore, ...$added]), $after));
+        // The operator's choice is what the company runs: every app ticked is
+        // switched on, every app left out is switched off.
+        $enabled = array_values(array_unique(['vouchflow', ...$after]));
 
         $company->forceFill(['licensed_modules' => $licence, 'modules' => $enabled])->save();
 

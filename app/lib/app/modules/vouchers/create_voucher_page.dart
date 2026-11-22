@@ -161,6 +161,9 @@ class CreateVoucherController extends GetxController {
     payeeAccountNumber, payeeBankBranch, cashFloat, notes,
   ];
 
+  /// Something typed or attached that leaving would lose.
+  bool get hasInput => _texts.any((c) => c.text.trim().isNotEmpty) || files.isNotEmpty;
+
   VoucherTypeOption? get selectedType => types.firstWhereOrNull((t) => t.id == typeId.value);
   Department? get department => departments.firstWhereOrNull((d) => d.id == departmentId.value);
   double get amountValue => parseAmount(amount.text);
@@ -490,9 +493,26 @@ class _CreateVoucherView extends StatelessWidget {
       VfStep('create.stepDocs'.tr),
       VfStep('create.stepReview'.tr),
     ];
-    final roomy = MediaQuery.sizeOf(context).width >= 380;
+    // The number chip beside the title only where the title still fits in
+    // full (wider than a typical 411dp phone); the preview always shows it.
+    final roomy = MediaQuery.sizeOf(context).width >= 440;
 
-    return VouchFlowPushedScaffold(
+    // Back (the gesture, the button or the bar's arrow) steps back through the
+    // wizard, then asks before it throws away what has been typed. Saving or
+    // submitting leaves on its own.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        // A step back first, as the bar's own Back does.
+        if (c.step.value > 0) {
+          c.go(c.step.value - 1);
+          return;
+        }
+        final nav = Navigator.of(context);
+        if (!c.hasInput || await _confirmDiscard(context)) nav.pop();
+      },
+      child: VouchFlowPushedScaffold(
       title: 'create.createVoucher'.tr,
       actions: [
         // The number this voucher will take, small, beside the title.
@@ -606,8 +626,38 @@ class _CreateVoucherView extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
   }
+}
+
+/// Asks before leaving a voucher with something typed in it.
+Future<bool> _confirmDiscard(BuildContext context) async {
+  final discard = await showVouchFlowDialog<bool>(
+    context,
+    dialog: VouchFlowDialog(
+      icon: PhosphorIconsRegular.warning,
+      tone: VfTone.warn,
+      title: 'admin.discardTitle'.tr,
+      actions: [
+        Builder(
+          builder: (c) => VouchFlowButton(
+            label: 'admin.keepEditing'.tr,
+            variant: VfButtonVariant.secondary,
+            onPressed: () => Navigator.of(c).pop(false),
+          ),
+        ),
+        Builder(
+          builder: (c) => VouchFlowButton(
+            label: 'admin.discardChanges'.tr,
+            variant: VfButtonVariant.dangerSolid,
+            onPressed: () => Navigator.of(c).pop(true),
+          ),
+        ),
+      ],
+    ),
+  );
+  return discard == true;
 }
 
 /// The sticky bottom bar: a round Back, Save draft, and a big Next (Submit on
@@ -848,7 +898,7 @@ class _FullPreviewPage extends StatelessWidget {
                     onRetry: () => c.refreshPreview(force: true),
                   ),
                 )
-              : const Center(child: CircularProgressIndicator());
+              : const VfLoadingView();
         }
         return VouchFlowDocumentView(html: html, fit: VfDocumentFit.fill, interactive: true);
       }),

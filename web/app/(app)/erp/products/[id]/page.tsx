@@ -55,7 +55,7 @@ function ProductDetail() {
       ]} />
 
       <div className="erp-grid">
-        <GlassCard title={t("erpWhereHeld")} pad={false}>
+        <GlassCard className="erp-span-2" title={t("erpWhereHeld")} pad={false}>
           {p.balances.length === 0 ? <EmptyState icon="ph-package" title={t("erpNoMovements")} /> : (
             <div className="vf-table-wrap">
               <table className="table vf-table">
@@ -96,7 +96,7 @@ function ProductDetail() {
           </dl>
         </GlassCard>
 
-        <GlassCard className="erp-span-2" title={t("erpLedger")} subtitle={t("erpMovementsPosted")} pad={false}>
+        <GlassCard className="erp-span-3" title={t("erpLedger")} subtitle={t("erpMovementsPosted")} pad={false}>
           {p.movements.length === 0 ? <EmptyState icon="ph-list" title={t("erpNoMovements")} /> : <MovementTable rows={p.movements} />}
         </GlassCard>
       </div>

@@ -1,0 +1,138 @@
+// The launcher, the app switcher and the apps themselves (names, one-line
+// descriptions), worded as the web's lib/i18n-erp.ts words them.
+const Map<String, String> appsEn = {
+  'apps.apps': 'Apps',
+  'apps.allApps': 'All apps',
+  'apps.switch': 'Switch app',
+  'apps.search': 'Search apps',
+  'apps.none': 'No app matches that.',
+  'apps.more': 'Available for your company',
+  'apps.offAdmin': 'Switch it on in Business setup',
+  'apps.offTitle': '@app is not switched on yet',
+  'apps.offBody':
+      'Your plan includes @app. Switch it on in Business setup on the web '
+      '(www.voucherflow.co.tz, ERP, Business setup) and it appears here for '
+      'everyone whose role includes it.',
+  'apps.gotIt': 'Got it',
+  'apps.waiting': '@n waiting',
+  'apps.menu': 'Menu',
+  'apps.create': 'Create',
+  'apps.createIn': 'Create in @app',
+  'apps.greeting.morning': 'Good morning',
+  'apps.greeting.afternoon': 'Good afternoon',
+  'apps.greeting.evening': 'Good evening',
+  'apps.loading': 'Loading your apps',
+  'apps.webOnlyTitle': '@app is on the web for now',
+  'apps.webOnlyBody':
+      'Everything in @app works at www.voucherflow.co.tz today. It comes to '
+      'the app next, with the same data.',
+  'apps.backToApps': 'Back to apps',
+
+  'area.vouchflow': 'VouchFlow',
+  'area.vouchflowBlurb': 'Payment vouchers, signatures, approvals and payment.',
+  'area.inventory': 'Inventory',
+  'area.inventoryBlurb': 'Products, warehouses, stock and movements.',
+  'area.sales': 'Sales',
+  'area.salesBlurb': 'Customers, quotations, orders, invoices and receipts.',
+  'area.dispatch': 'Dispatch',
+  'area.dispatchBlurb': 'Finance verification, loading, delivery and gate passes.',
+  'area.procurement': 'Procurement',
+  'area.procurementBlurb': 'Requisitions, quotations, purchase orders and payables.',
+  'area.finance': 'Finance',
+  'area.financeBlurb': 'Ledger, banks, statements and period closing.',
+  'area.assets': 'Assets',
+  'area.assetsBlurb': 'Fixed asset register and depreciation.',
+  'area.production': 'Production',
+  'area.productionBlurb': 'Bills of materials, production orders and quality.',
+  'area.fleet': 'Fleet',
+  'area.fleetBlurb': 'Vehicles, drivers, trips, fuel and maintenance.',
+  'area.hr': 'HR & Payroll',
+  'area.hrBlurb': 'People, attendance, leave and payroll.',
+  'area.crm': 'CRM',
+  'area.crmBlurb': 'Leads, pipeline and follow-ups.',
+  'area.files': 'Documents',
+  'area.filesBlurb': 'Company files, versions, access and expiry.',
+  'area.settings': 'Settings',
+  'area.settingsBlurb': 'Company, people, roles, branding and billing.',
+  'area.platform': 'Platform',
+  'area.platformBlurb': 'Companies, plans and payments across the platform.',
+
+  // Shared by every ERP screen (the web's ErpGate).
+  'erp.notSetUpTitle': 'Set up your business to start using the ERP',
+  'erp.notSetUpBody':
+      'Choose what kind of business you run in Business setup on the web. '
+      'VouchFlow keeps working exactly as it does today.',
+  'erp.notSetUpOthers': 'Your administrator has not set up the business modules yet.',
+  'erp.moduleOff': 'This module is not switched on for your company.',
+  'erp.noAccess': 'Your role does not include this area.',
+  'erp.viewAll': 'View all',
+  'erp.loadMore': 'Show more',
+};
+
+const Map<String, String> appsSw = {
+  'apps.apps': 'Programu',
+  'apps.allApps': 'Programu zote',
+  'apps.switch': 'Badili programu',
+  'apps.search': 'Tafuta programu',
+  'apps.none': 'Hakuna programu inayolingana.',
+  'apps.more': 'Zinapatikana kwa kampuni yako',
+  'apps.offAdmin': 'Iwashe kwenye Usanidi wa biashara',
+  'apps.offTitle': '@app bado haijawashwa',
+  'apps.offBody':
+      'Mpango wenu unajumuisha @app. Iwashe kwenye Usanidi wa biashara '
+      'kwenye tovuti (www.voucherflow.co.tz, ERP, Usanidi wa biashara) na '
+      'itaonekana hapa kwa kila ambaye jukumu lake linaijumuisha.',
+  'apps.gotIt': 'Nimeelewa',
+  'apps.waiting': '@n zinasubiri',
+  'apps.menu': 'Menyu',
+  'apps.create': 'Unda',
+  'apps.createIn': 'Unda ndani ya @app',
+  'apps.greeting.morning': 'Habari za asubuhi',
+  'apps.greeting.afternoon': 'Habari za mchana',
+  'apps.greeting.evening': 'Habari za jioni',
+  'apps.loading': 'Inapakia programu zako',
+  'apps.webOnlyTitle': '@app iko kwenye tovuti kwa sasa',
+  'apps.webOnlyBody':
+      'Kila kitu ndani ya @app kinafanya kazi kwenye www.voucherflow.co.tz '
+      'leo. Kinakuja kwenye programu hivi karibuni, na data ileile.',
+  'apps.backToApps': 'Rudi kwenye programu',
+
+  'area.vouchflow': 'VouchFlow',
+  'area.vouchflowBlurb': 'Vocha za malipo, sahihi, idhini na malipo.',
+  'area.inventory': 'Stoo',
+  'area.inventoryBlurb': 'Bidhaa, maghala, stoo na mienendo.',
+  'area.sales': 'Mauzo',
+  'area.salesBlurb': 'Wateja, nukuu, oda, ankara na stakabadhi.',
+  'area.dispatch': 'Usafirishaji',
+  'area.dispatchBlurb': 'Uthibitisho wa fedha, upakiaji, uwasilishaji na vibali vya getini.',
+  'area.procurement': 'Ununuzi',
+  'area.procurementBlurb': 'Maombi, nukuu, oda za ununuzi na madeni.',
+  'area.finance': 'Fedha',
+  'area.financeBlurb': 'Leja, benki, taarifa za fedha na kufunga vipindi.',
+  'area.assets': 'Mali',
+  'area.assetsBlurb': 'Rejista ya mali za kudumu na uchakavu.',
+  'area.production': 'Uzalishaji',
+  'area.productionBlurb': 'Orodha ya malighafi, oda za uzalishaji na ubora.',
+  'area.fleet': 'Magari',
+  'area.fleetBlurb': 'Magari, madereva, safari, mafuta na matengenezo.',
+  'area.hr': 'Rasilimali watu',
+  'area.hrBlurb': 'Watu, mahudhurio, likizo na mishahara.',
+  'area.crm': 'Wateja watarajiwa',
+  'area.crmBlurb': 'Wateja watarajiwa, mchakato na ufuatiliaji.',
+  'area.files': 'Nyaraka',
+  'area.filesBlurb': 'Nyaraka za kampuni, matoleo, ruhusa na muda wa kuisha.',
+  'area.settings': 'Mipangilio',
+  'area.settingsBlurb': 'Kampuni, watu, majukumu, chapa na malipo.',
+  'area.platform': 'Jukwaa',
+  'area.platformBlurb': 'Kampuni, mipango na malipo kwenye jukwaa.',
+
+  'erp.notSetUpTitle': 'Sanidi biashara yako uanze kutumia ERP',
+  'erp.notSetUpBody':
+      'Chagua aina ya biashara unayoendesha kwenye Usanidi wa biashara '
+      'kwenye tovuti. VouchFlow inaendelea kufanya kazi kama kawaida.',
+  'erp.notSetUpOthers': 'Msimamizi wako bado hajasanidi moduli za biashara.',
+  'erp.moduleOff': 'Moduli hii haijawashwa kwa kampuni yako.',
+  'erp.noAccess': 'Jukumu lako halijumuishi eneo hili.',
+  'erp.viewAll': 'Ona zote',
+  'erp.loadMore': 'Onyesha zaidi',
+};

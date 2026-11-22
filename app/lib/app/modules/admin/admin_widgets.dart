@@ -245,7 +245,7 @@ class AdminPageBody extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: VfType.pageTitle.copyWith(
                       color: t.text,
-                      fontSize: 28,
+                      fontSize: 23,
                       letterSpacing: -.7,
                     ),
                   ),

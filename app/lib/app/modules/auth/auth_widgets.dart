@@ -6,6 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme.dart';
 import '../../data/services/session_service.dart';
 import '../../widgets/vf/glass.dart';
+import '../../widgets/vf/language.dart';
 
 /*
  * The pieces the public screens share, after the web's login-brand.tsx,
@@ -19,20 +20,29 @@ class VfBrandMark extends StatelessWidget {
 
   final double size;
 
+  // The tile appears with its mark, once the mark is decoded, so a cold
+  // start never shows an empty white square.
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => SizedBox(
     width: size,
     height: size,
-    padding: EdgeInsets.all(size * .14),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(size * .26),
-    ),
     child: Image.asset(
       'assets/brand/mark.png',
       fit: BoxFit.contain,
       filterQuality: FilterQuality.medium,
       semanticLabel: 'VouchFlow',
+      frameBuilder: (context, child, frame, sync) => AnimatedOpacity(
+        opacity: sync || frame != null ? 1 : 0,
+        duration: const Duration(milliseconds: 180),
+        child: Container(
+          padding: EdgeInsets.all(size * .14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(size * .26),
+          ),
+          child: child,
+        ),
+      ),
     ),
   );
 }
@@ -58,8 +68,8 @@ class VfWordmark extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: VfType.sectionTitle.copyWith(
-              fontSize: 19,
-              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
               letterSpacing: -.4,
               color: onDark ? Colors.white : t.text,
             ),
@@ -70,7 +80,8 @@ class VfWordmark extends StatelessWidget {
   }
 }
 
-/// EN / SW and the appearance switch (the web's LanguageToggle + ThemeToggle).
+/// The language dropdown and the appearance switch (the web's LanguageToggle
+/// + ThemeToggle).
 /// [onDark] draws them for the navy hero of the sign-in screen.
 class AuthTools extends StatelessWidget {
   const AuthTools({super.key, this.onDark = false});
@@ -81,62 +92,15 @@ class AuthTools extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = Get.find<SessionService>();
     final t = context.vf;
-    final segBg = onDark ? Colors.white.withValues(alpha: .10) : t.glassFillStrong;
-    final onColour = onDark ? t.chrome : t.text;
-    final offColour = onDark ? t.chromeText : t.muted;
-
-    Widget seg(String code, String label) => Obx(() {
-      final on = session.locale.value == code;
-      return Semantics(
-        button: true,
-        selected: on,
-        label: label,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(VfSize.radiusM),
-          onTap: on ? null : () => session.setLocale(code),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 34),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: on
-                  ? (onDark
-                        ? Colors.white
-                        : (t.isDark ? Colors.white.withValues(alpha: .14) : t.surface))
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(VfSize.radiusM),
-              boxShadow: on && !onDark ? t.cardShadow : null,
-            ),
-            child: Text(
-              label,
-              style: VfType.label.copyWith(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                color: on ? onColour : offColour,
-              ),
-            ),
-          ),
-        ),
-      );
-    });
-
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Semantics(
-          label: 'auth.language'.tr,
-          child: Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: segBg,
-              borderRadius: BorderRadius.circular(VfSize.radiusL),
-              border: onDark ? null : Border.all(color: t.isDark ? t.glassBorder : t.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [seg('en', 'EN'), seg('sw', 'SW')],
-            ),
+        Obx(
+          () => VfLanguagePicker(
+            value: session.locale.value,
+            onChanged: session.setLocale,
+            onDark: onDark,
+            tooltip: 'auth.language'.tr,
           ),
         ),
         const SizedBox(width: 4),
@@ -474,7 +438,7 @@ class _OtpFieldState extends State<OtpField> {
                   onSubmitted: widget.onSubmitted,
                   showCursor: false,
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 17,
                     color: Colors.transparent,
                   ),
                   decoration: const InputDecoration(
@@ -576,7 +540,7 @@ class AuthFrame extends StatelessWidget {
                                 Text(
                                   title,
                                   style: VfType.pageTitle.copyWith(
-                                    fontSize: 26,
+                                    fontSize: 22,
                                     letterSpacing: -.6,
                                     color: t.text,
                                   ),

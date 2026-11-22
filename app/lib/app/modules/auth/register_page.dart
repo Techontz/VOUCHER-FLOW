@@ -921,7 +921,7 @@ class _StepBody extends StatelessWidget {
           Text(
             'auth.rg.step.${step.name}Title'.tr,
             style: VfType.pageTitle.copyWith(
-              fontSize: 22,
+              fontSize: 19,
               letterSpacing: -.6,
               color: t.text,
             ),
@@ -1111,7 +1111,7 @@ class _StepBody extends StatelessWidget {
       const SizedBox(height: 16),
       Text(
         'auth.rg.templateTitle'.tr,
-        style: VfType.sectionTitle.copyWith(fontSize: 20, color: t.text),
+        style: VfType.sectionTitle.copyWith(fontSize: 17, color: t.text),
       ),
       const SizedBox(height: 4),
       Text(
@@ -1983,7 +1983,7 @@ class _Outcome extends StatelessWidget {
           Text(
             'auth.rg.doneTitle'.tr,
             textAlign: TextAlign.center,
-            style: VfType.pageTitle.copyWith(fontSize: 24, color: t.text),
+            style: VfType.pageTitle.copyWith(fontSize: 21, color: t.text),
           ),
           const SizedBox(height: 4),
           Text(

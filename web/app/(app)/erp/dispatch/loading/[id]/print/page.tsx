@@ -77,20 +77,22 @@ function PrintSheet({ doc }: { doc: "delivery-note" | "gate-pass" }) {
           </div>
         </section>
 
-        <table className="table vf-table sal-sheet-lines">
-          <thead><tr><th>#</th><th>{t("erpProduct")}</th><th className="num">{t("salQtyOrdered")}</th><th className="num">{t("salQtyLoaded")}</th>{!gate && <th className="num">{t("salQtyReceived")}</th>}</tr></thead>
-          <tbody>
-            {lo.lines?.map((l, i) => (
-              <tr key={l.id}>
-                <td>{i + 1}</td>
-                <td>{l.product?.name}<span className="erp-cell-sub tnum">{l.product?.sku}</span></td>
-                <td className="num">{qty(l.quantity_ordered)}</td>
-                <td className="num"><strong>{qty(l.quantity_loaded)}</strong> {l.product?.unit?.code}</td>
-                {!gate && <td className="num">{l.quantity_received !== null ? qty(l.quantity_received) : <span className="sal-blank" />}</td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="sal-sheet-scroll">
+          <table className="table vf-table sal-sheet-lines">
+            <thead><tr><th>#</th><th>{t("erpProduct")}</th><th className="num">{t("salQtyOrdered")}</th><th className="num">{t("salQtyLoaded")}</th>{!gate && <th className="num">{t("salQtyReceived")}</th>}</tr></thead>
+            <tbody>
+              {lo.lines?.map((l, i) => (
+                <tr key={l.id}>
+                  <td>{i + 1}</td>
+                  <td>{l.product?.name}<span className="erp-cell-sub tnum">{l.product?.sku}</span></td>
+                  <td className="num">{qty(l.quantity_ordered)}</td>
+                  <td className="num"><strong>{qty(l.quantity_loaded)}</strong> {l.product?.unit?.code}</td>
+                  {!gate && <td className="num">{l.quantity_received !== null ? qty(l.quantity_received) : <span className="sal-blank" />}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         <section className="sal-signatures">
           <div><span className="sal-sheet-label">{t("salStorekeeper")}</span><span>{lo.loader?.name ?? ""}</span><span className="sal-sign-line" /></div>

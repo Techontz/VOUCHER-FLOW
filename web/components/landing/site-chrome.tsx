@@ -84,6 +84,8 @@ export function SiteFooter() {
           <h3>{l(FOOTER.account)}</h3>
           <Link href="/login">{l(HERO.signIn)}</Link>
           <Link href="/register">{l(FOOTER.register)}</Link>
+          <Link href="/privacy">{locale === "sw" ? "Sera ya faragha" : "Privacy policy"}</Link>
+          <Link href="/delete-account">{locale === "sw" ? "Futa akaunti" : "Delete account"}</Link>
         </div>
         <div>
           <h3>{l(FOOTER.contact)}</h3>

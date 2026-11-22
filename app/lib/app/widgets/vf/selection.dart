@@ -46,7 +46,7 @@ class VouchFlowStepper extends StatelessWidget {
                   key: ValueKey(i),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: VfType.cardTitle.copyWith(fontSize: 17, fontWeight: FontWeight.w700, color: t.text),
+                  style: VfType.cardTitle.copyWith(fontSize: 15.5, fontWeight: FontWeight.w600, color: t.text),
                 ),
               ),
             ),

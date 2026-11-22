@@ -7,7 +7,7 @@ import { useApp } from "@/lib/app-context";
 import { ACCEPT_ATTRIBUTE, acceptFiles, attachmentForm, MAX_UPLOAD_MB, type Rejected } from "@/lib/attachments";
 import { describeUploadError, prepareImages } from "@/lib/uploads";
 import { dateInputValue, money } from "@/lib/format";
-import { Field, Icon, Note, Spinner } from "@/components/ui";
+import { AppPortal, Field, Icon, Note, Spinner } from "@/components/ui";
 import { resolveWorkflow, routeFor } from "@/lib/progress";
 import { useWorkflows } from "@/lib/use-workflows";
 import { VoucherSheet } from "@/components/voucher-sheet";
@@ -612,7 +612,8 @@ export default function CreateVoucherPage() {
       </div>
 
       {expanded && (
-        <div className="vt-modal" role="dialog" aria-modal="true" aria-label={t("livePreview")}
+        <AppPortal>
+<div className="vt-modal" role="dialog" aria-modal="true" aria-label={t("livePreview")}
           onMouseDown={(e) => { if (e.target === e.currentTarget) setExpanded(false); }}>
           <div className="vt-modal-card">
             <header className="vt-modal-head">
@@ -631,6 +632,7 @@ export default function CreateVoucherPage() {
             </div>
           </div>
         </div>
+</AppPortal>
       )}
     </div>
   );

@@ -639,7 +639,7 @@ class _BrandingBody extends StatelessWidget {
                     borderRadius: BorderRadius.circular(VfSize.radiusL),
                   ),
                   alignment: Alignment.center,
-                  child: const CircularProgressIndicator(),
+                  child: const VfLoader(size: 32),
                 ),
               );
             }

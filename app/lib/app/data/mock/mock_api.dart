@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../services/api_service.dart';
+import 'mock_erp.dart';
 import 'mock_seed.dart';
 
 /// The in-app stand-in for the Laravel API.
@@ -9,9 +10,16 @@ import 'mock_seed.dart';
 /// [ApiService] can route to it in Phase 1 and to HTTP in Phase 2 without any
 /// screen, controller or model changing.
 class MockApi {
-  MockApi() {
+  /// [instant] answers without the simulated latency, so widget tests have
+  /// no timers left pending.
+  MockApi({this.instant = false}) {
     _seed();
   }
+
+  final bool instant;
+
+  /// The ERP endpoints (/erp/...), a fixture of their own.
+  final erp = MockErp();
 
   // ── the dataset ──
   final _users = <MockUser>[];
@@ -91,9 +99,11 @@ class MockApi {
     Map<String, dynamic> query = const {},
   }) async {
     // A little latency, so loading states are exercised as they will be.
-    await Future<void>.delayed(
-      Duration(milliseconds: 120 + Random().nextInt(180)),
-    );
+    if (!instant) {
+      await Future<void>.delayed(
+        Duration(milliseconds: 120 + Random().nextInt(180)),
+      );
+    }
 
     final seg = path.replaceFirst(RegExp(r'^/+'), '').split('/');
 
@@ -294,6 +304,18 @@ class MockApi {
         }
         if (method == 'POST') return _fileAcknowledgement(voucher, payment);
       }
+    }
+
+    if (seg.first == 'erp') {
+      final answer = erp.handle(
+        method,
+        path,
+        role: _current!.role,
+        email: _current!.email,
+        body: body,
+        query: query,
+      );
+      if (!identical(answer, MockErp.unhandled)) return answer;
     }
 
     throw ApiException(404, 'No mock route for $method $path');
